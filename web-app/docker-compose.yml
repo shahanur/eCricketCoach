@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecricket_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cricket_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cricket_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ecricketcoach}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/src/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecricket_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ecricket_api
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cricket_user}:${POSTGRES_PASSWORD:-cricket_secret}@postgres:5432/${POSTGRES_DB:-ecricketcoach}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}
+    ports:
+      - "5001:5001"
+    depends_on:
+      - postgres
+      - redis
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: ecricket_client
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+
+volumes:
+  pgdata:
+  redisdata:

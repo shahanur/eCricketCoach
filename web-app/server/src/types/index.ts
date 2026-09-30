@@ -1,0 +1,104 @@
+export interface DrillItem {
+  id: string;
+  title: string;
+  discipline: 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
+  skillSet: string;
+  contextType: 'INDIVIDUAL' | 'GROUP';
+  ageGroup: string;
+  difficulty: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+  durationMinutes: number;
+  source: 'SYSTEM_PREDEFINED' | 'CLUB_CUSTOM' | 'AI_RECOMMENDED';
+  clubId?: string;
+  clubName?: string;
+  instructions?: string;
+}
+
+export interface CustomerTenant {
+  id: string;
+  name: string;
+  type: 'INDIVIDUAL' | 'COACH' | 'CLUB';
+  email: string;
+  subscriptionPlan: 'FREE_TRIAL' | 'INDIVIDUAL' | 'COACH_PRO' | 'CLUB_ACADEMY';
+  status: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'TRIAL';
+  billingCycle: 'MONTHLY' | 'ANNUAL';
+  mrr: number;
+  activeMembers: number;
+  joinedAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  tenantId: string;
+  customerName: string;
+  amount: number;
+  currency: string;
+  status: 'PAID' | 'PENDING' | 'FAILED';
+  date: string;
+  planName: string;
+}
+
+export interface ClubApproval {
+  id: string;
+  clubName: string;
+  adminName: string;
+  adminEmail: string;
+  plan: string;
+  amountPaid: number;
+  paymentStatus: 'PAID' | 'PENDING';
+  approvalStatus: 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+}
+
+export interface ClubMember {
+  id: string;
+  clubId: string;
+  name: string;
+  email: string;
+  role: 'COACH' | 'PLAYER';
+  ageGroup: string;
+  discipline: string;
+  invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
+  currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+  squadId?: string;
+}
+
+export interface Squad {
+  id: string;
+  clubId: string;
+  coachId: string;
+  coachName: string;
+  name: string;
+  ageGroup: string;
+  discipline: string;
+  memberIds: string[];
+}
+
+export interface TrainingSession {
+  id: string;
+  clubId: string;
+  coachId: string;
+  coachName: string;
+  squadId: string;
+  squadName: string;
+  title: string;
+  sessionDate: string;
+  durationMinutes: number;
+  drills: Array<{ id: string; title: string; duration: number; discipline: string; context: 'INDIVIDUAL' | 'GROUP' }>;
+  isPublished: boolean;
+  publishedAt?: string;
+  postSessionNotes?: string;
+  aiAssessment?: any;
+}
+
+export interface Certificate {
+  id: string;
+  certificateNumber: string;
+  playerId: string;
+  playerName: string;
+  discipline: string;
+  achievedLevel: string;
+  issuedDate: string;
+  coachName: string;
+  coachNotes: string;
+  aiCommendation: string;
+}

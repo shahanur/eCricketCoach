@@ -1,0 +1,95 @@
+export type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
+export type ContextType = 'INDIVIDUAL' | 'GROUP';
+export type ViewMode = 'COACHING_PORTAL' | 'ADMIN_PANEL' | 'CLUB_PORTAL';
+
+export interface Drill {
+  id: string;
+  title: string;
+  discipline: Discipline;
+  skillSet: string;
+  contextType: ContextType;
+  duration: number;
+  source: 'SYSTEM_PREDEFINED' | 'CLUB_CUSTOM' | 'AI_RECOMMENDED';
+  clubName?: string;
+  instructions?: string;
+}
+
+export interface CustomerTenant {
+  id: string;
+  name: string;
+  type: 'INDIVIDUAL' | 'COACH' | 'CLUB';
+  email: string;
+  subscriptionPlan: 'FREE_TRIAL' | 'INDIVIDUAL' | 'COACH_PRO' | 'CLUB_ACADEMY';
+  status: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'TRIAL';
+  billingCycle: 'MONTHLY' | 'ANNUAL';
+  mrr: number;
+  activeMembers: number;
+  joinedAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  tenantId: string;
+  customerName: string;
+  amount: number;
+  currency: string;
+  status: 'PAID' | 'PENDING' | 'FAILED';
+  date: string;
+  planName: string;
+}
+
+export interface ClubApproval {
+  id: string;
+  clubName: string;
+  adminName: string;
+  adminEmail: string;
+  plan: string;
+  amountPaid: number;
+  status: 'AWAITING_APPROVAL' | 'APPROVED';
+  createdAt: string;
+}
+
+export interface ClubMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'COACH' | 'PLAYER';
+  ageGroup: string;
+  discipline: Discipline;
+  invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
+  currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+  squad: string;
+}
+
+export interface Squad {
+  id: string;
+  name: string;
+  ageGroup: string;
+  coachName: string;
+  discipline: Discipline;
+  memberCount: number;
+}
+
+export interface TrainingSession {
+  id: string;
+  squadName: string;
+  title: string;
+  sessionDate: string;
+  durationMinutes: number;
+  isPublished: boolean;
+  drillCount: number;
+  postNotes?: string;
+  aiEvaluation?: any;
+}
+
+export interface Certificate {
+  id: string;
+  certificateNumber: string;
+  playerName: string;
+  discipline: string;
+  achievedLevel: string;
+  issuedDate: string;
+  coachName: string;
+  coachNotes: string;
+  aiCommendation: string;
+}
