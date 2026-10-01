@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CustomerTenant {
+  id               String   @id
+  name             String
+  type             String
+  email            String
+  subscriptionPlan String   @map("subscription_plan")
+  status           String
+  billingCycle     String   @map("billing_cycle")
+  mrr              Decimal  @default(0) @db.Decimal(10, 2)
+  activeMembers    Int      @default(1) @map("active_members")
+  joinedAt         String   @map("joined_at")
+
+  @@map("customer_tenants")
+}
+
+model Invoice {
+  id           String  @id
+  tenantId     String  @map("tenant_id")
+  customerName String  @map("customer_name")
+  amount       Decimal @db.Decimal(10, 2)
+  currency     String  @default("USD")
+  status       String
+  date         String  @map("invoice_date")
+  planName     String  @map("plan_name")
+
+  @@map("invoices")
+}
+
+model AdminNotification {
+  id        String  @id
+  title     String
+  message   String
+  type      String
+  timestamp String
+  read      Boolean @default(false) @map("is_read")
+
+  @@map("admin_notifications")
+}
+
+model ClubApproval {
+  id           String  @id
+  clubName     String  @map("club_name")
+  adminName    String  @map("admin_name")
+  adminEmail   String  @map("admin_email")
+  plan         String
+  amountPaid   Decimal @map("amount_paid") @db.Decimal(10, 2)
+  type         String
+  billingCycle String  @map("billing_cycle")
+  status       String
+  createdAt    String  @map("created_at")
+
+  @@map("club_approvals_store")
+}
+
+model DrillStore {
+  id           String  @id
+  title        String
+  discipline   String
+  skillSet     String  @map("skill_set")
+  contextType  String  @map("context_type")
+  duration     Int     @default(20)
+  source       String
+  clubId       String? @map("club_id")
+  clubName     String? @map("club_name")
+  instructions String?
+
+  @@map("drills_store")
+}
+
+model ClubMemberStore {
+  id               String  @id
+  clubId           String? @map("club_id")
+  name             String
+  email            String
+  role             String
+  ageGroup         String  @map("age_group")
+  discipline       String
+  invitationStatus String  @map("invitation_status")
+  currentLevel     String  @map("current_level")
+  squad            String  @default("Unassigned")
+
+  @@map("club_members_store")
+}
+
+model SquadStore {
+  id          String  @id
+  clubId      String? @map("club_id")
+  name        String
+  ageGroup    String  @map("age_group")
+  discipline  String
+  coachName   String  @map("coach_name")
+  memberCount Int     @default(0) @map("member_count")
+
+  @@map("squads_store")
+}
+
+model TrainingSessionStore {
+  id              String   @id
+  clubId          String?  @map("club_id")
+  squadName       String   @map("squad_name")
+  title           String
+  sessionDate     String   @map("session_date")
+  durationMinutes Int      @default(90) @map("duration_minutes")
+  isPublished     Boolean  @default(false) @map("is_published")
+  drillCount      Int      @default(0) @map("drill_count")
+  postNotes       String?  @map("post_notes")
+  aiEvaluation    Json?    @map("ai_evaluation")
+
+  @@map("training_sessions_store")
+}
+
+model CertificateStore {
+  id                String  @id
+  certificateNumber String  @unique @map("certificate_number")
+  playerId          String? @map("player_id")
+  playerName        String  @map("player_name")
+  discipline        String
+  achievedLevel     String  @map("achieved_level")
+  issuedDate        String  @map("issued_date")
+  coachName         String  @map("coach_name")
+  coachNotes        String? @map("coach_notes")
+  aiCommendation    String? @map("ai_commendation")
+
+  @@map("certificates_store")
+}

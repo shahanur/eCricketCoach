@@ -1,595 +1,629 @@
-import { pool } from '../config/database.js';
+import { prisma } from '../config/prisma.js';
 
 export class DbService {
-  // Drills
+  // Option to expose prisma directly and raw SQL helpers
+  static get client() {
+    return prisma;
+  }
+
+  /**
+   * Helper to execute raw SQL queries when complex SQL or custom operations are needed
+   */
+  static async executeRawSql<T = any>(query: string, ...params: any[]): Promise<T> {
+    return prisma.$queryRawUnsafe<T>(query, ...params);
+  }
+
+  // --- Drills ---
   static async getDrills(filters?: { context?: string; discipline?: string; source?: string; clubId?: string }) {
-    let query = 'SELECT * FROM drills_store WHERE 1=1';
-    const params: any[] = [];
+    const where: any = {};
     if (filters?.context) {
-      params.push(filters.context.toUpperCase());
-      query += ` AND UPPER(context_type) = $${params.length}`;
+      where.contextType = { equals: filters.context, mode: 'insensitive' };
     }
     if (filters?.discipline) {
-      params.push(filters.discipline.toUpperCase());
-      query += ` AND UPPER(discipline) = $${params.length}`;
+      where.discipline = { equals: filters.discipline, mode: 'insensitive' };
     }
     if (filters?.source) {
-      params.push(filters.source.toUpperCase());
-      query += ` AND UPPER(source) = $${params.length}`;
+      where.source = { equals: filters.source, mode: 'insensitive' };
     }
     if (filters?.clubId) {
-      params.push(filters.clubId);
-      query += ` AND (source = 'SYSTEM_PREDEFINED' OR club_id = $${params.length})`;
+      where.OR = [
+        { source: 'SYSTEM_PREDEFINED' },
+        { clubId: filters.clubId }
+      ];
     }
-    query += ' ORDER BY id DESC';
-    const res = await pool.query(query, params);
-    return res.rows.map(r => ({
-      id: r.id,
-      title: r.title,
-      discipline: r.discipline,
-      skillSet: r.skill_set,
-      contextType: r.context_type,
-      duration: r.duration,
-      durationMinutes: r.duration,
-      source: r.source,
-      clubId: r.club_id,
-      clubName: r.club_name,
-      instructions: r.instructions
+
+    const drills = await prisma.drillStore.findMany({
+      where,
+      orderBy: { id: 'desc' }
+    });
+
+    return drills.map(d => ({
+      id: d.id,
+      title: d.title,
+      discipline: d.discipline,
+      skillSet: d.skillSet,
+      contextType: d.contextType,
+      duration: d.duration,
+      durationMinutes: d.duration,
+      source: d.source,
+      clubId: d.clubId,
+      clubName: d.clubName,
+      instructions: d.instructions
     }));
   }
 
   static async createDrill(drill: any) {
-    const res = await pool.query(
-      `INSERT INTO drills_store (id, title, discipline, skill_set, context_type, duration, source, club_id, club_name, instructions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        drill.id,
-        drill.title,
-        drill.discipline,
-        drill.skillSet,
-        drill.contextType,
-        drill.duration || drill.durationMinutes || 20,
-        drill.source,
-        drill.clubId || null,
-        drill.clubName || null,
-        drill.instructions || null
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.drillStore.create({
+      data: {
+        id: drill.id,
+        title: drill.title,
+        discipline: drill.discipline,
+        skillSet: drill.skillSet,
+        contextType: drill.contextType,
+        duration: drill.duration || drill.durationMinutes || 20,
+        source: drill.source,
+        clubId: drill.clubId || null,
+        clubName: drill.clubName || null,
+        instructions: drill.instructions || null
+      }
+    });
+
     return {
-      id: r.id,
-      title: r.title,
-      discipline: r.discipline,
-      skillSet: r.skill_set,
-      contextType: r.context_type,
-      duration: r.duration,
-      durationMinutes: r.duration,
-      source: r.source,
-      clubId: r.club_id,
-      clubName: r.club_name,
-      instructions: r.instructions
+      id: created.id,
+      title: created.title,
+      discipline: created.discipline,
+      skillSet: created.skillSet,
+      contextType: created.contextType,
+      duration: created.duration,
+      durationMinutes: created.duration,
+      source: created.source,
+      clubId: created.clubId,
+      clubName: created.clubName,
+      instructions: created.instructions
     };
   }
 
-  // Customers
+  // --- Customers / Tenants ---
   static async getCustomers(search?: string, type?: string, status?: string) {
-    let query = 'SELECT * FROM customer_tenants WHERE 1=1';
-    const params: any[] = [];
+    const where: any = {};
     if (type) {
-      params.push(type.toUpperCase());
-      query += ` AND UPPER(type) = $${params.length}`;
+      where.type = { equals: type, mode: 'insensitive' };
     }
     if (status) {
-      params.push(status.toUpperCase());
-      query += ` AND UPPER(status) = $${params.length}`;
+      where.status = { equals: status, mode: 'insensitive' };
     }
     if (search) {
-      params.push(`%${search.toLowerCase()}%`);
-      query += ` AND (LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length})`;
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
     }
-    query += ' ORDER BY joined_at DESC';
-    const res = await pool.query(query, params);
-    return res.rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      type: r.type,
-      email: r.email,
-      subscriptionPlan: r.subscription_plan,
-      status: r.status,
-      billingCycle: r.billing_cycle,
-      mrr: Number(r.mrr),
-      activeMembers: r.active_members,
-      joinedAt: r.joined_at
+
+    const customers = await prisma.customerTenant.findMany({
+      where,
+      orderBy: { joinedAt: 'desc' }
+    });
+
+    return customers.map(c => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      email: c.email,
+      subscriptionPlan: c.subscriptionPlan,
+      status: c.status,
+      billingCycle: c.billingCycle,
+      mrr: Number(c.mrr),
+      activeMembers: c.activeMembers,
+      joinedAt: c.joinedAt
     }));
   }
 
   static async createCustomer(customer: any) {
-    const res = await pool.query(
-      `INSERT INTO customer_tenants (id, name, type, email, subscription_plan, status, billing_cycle, mrr, active_members, joined_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        customer.id,
-        customer.name,
-        customer.type,
-        customer.email,
-        customer.subscriptionPlan,
-        customer.status,
-        customer.billingCycle,
-        customer.mrr || 0,
-        customer.activeMembers || 1,
-        customer.joinedAt || new Date().toISOString().split('T')[0]
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.customerTenant.create({
+      data: {
+        id: customer.id,
+        name: customer.name,
+        type: customer.type,
+        email: customer.email,
+        subscriptionPlan: customer.subscriptionPlan,
+        status: customer.status,
+        billingCycle: customer.billingCycle,
+        mrr: customer.mrr || 0,
+        activeMembers: customer.activeMembers || 1,
+        joinedAt: customer.joinedAt || new Date().toISOString().split('T')[0]
+      }
+    });
+
     return {
-      id: r.id,
-      name: r.name,
-      type: r.type,
-      email: r.email,
-      subscriptionPlan: r.subscription_plan,
-      status: r.status,
-      billingCycle: r.billing_cycle,
-      mrr: Number(r.mrr),
-      activeMembers: r.active_members,
-      joinedAt: r.joined_at
+      id: created.id,
+      name: created.name,
+      type: created.type,
+      email: created.email,
+      subscriptionPlan: created.subscriptionPlan,
+      status: created.status,
+      billingCycle: created.billingCycle,
+      mrr: Number(created.mrr),
+      activeMembers: created.activeMembers,
+      joinedAt: created.joinedAt
     };
   }
 
   static async updateCustomer(id: string, updates: { status?: string; subscriptionPlan?: string; mrr?: number }) {
-    let query = 'UPDATE customer_tenants SET ';
-    const sets: string[] = [];
-    const params: any[] = [];
-    if (updates.status) {
-      params.push(updates.status);
-      sets.push(`status = $${params.length}`);
+    const data: any = {};
+    if (updates.status !== undefined) data.status = updates.status;
+    if (updates.subscriptionPlan !== undefined) data.subscriptionPlan = updates.subscriptionPlan;
+    if (updates.mrr !== undefined) data.mrr = updates.mrr;
+
+    try {
+      const updated = await prisma.customerTenant.update({
+        where: { id },
+        data
+      });
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        type: updated.type,
+        email: updated.email,
+        subscriptionPlan: updated.subscriptionPlan,
+        status: updated.status,
+        billingCycle: updated.billingCycle,
+        mrr: Number(updated.mrr),
+        activeMembers: updated.activeMembers,
+        joinedAt: updated.joinedAt
+      };
+    } catch {
+      return null;
     }
-    if (updates.subscriptionPlan) {
-      params.push(updates.subscriptionPlan);
-      sets.push(`subscription_plan = $${params.length}`);
-    }
-    if (updates.mrr !== undefined) {
-      params.push(updates.mrr);
-      sets.push(`mrr = $${params.length}`);
-    }
-    if (sets.length === 0) return null;
-    params.push(id);
-    query += sets.join(', ') + ` WHERE id = $${params.length} RETURNING *`;
-    const res = await pool.query(query, params);
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      name: r.name,
-      type: r.type,
-      email: r.email,
-      subscriptionPlan: r.subscription_plan,
-      status: r.status,
-      billingCycle: r.billing_cycle,
-      mrr: Number(r.mrr),
-      activeMembers: r.active_members,
-      joinedAt: r.joined_at
-    };
   }
 
-  // Invoices
+  // --- Invoices ---
   static async getInvoices() {
-    const res = await pool.query('SELECT * FROM invoices ORDER BY invoice_date DESC');
-    return res.rows.map(r => ({
-      id: r.id,
-      tenantId: r.tenant_id,
-      customerName: r.customer_name,
-      amount: Number(r.amount),
-      currency: r.currency,
-      status: r.status,
-      date: r.invoice_date,
-      planName: r.plan_name
+    const invoices = await prisma.invoice.findMany({
+      orderBy: { date: 'desc' }
+    });
+
+    return invoices.map(i => ({
+      id: i.id,
+      tenantId: i.tenantId,
+      customerName: i.customerName,
+      amount: Number(i.amount),
+      currency: i.currency,
+      status: i.status,
+      date: i.date,
+      planName: i.planName
     }));
   }
 
   static async createInvoice(inv: any) {
-    const res = await pool.query(
-      `INSERT INTO invoices (id, tenant_id, customer_name, amount, currency, status, invoice_date, plan_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [inv.id, inv.tenantId, inv.customerName, inv.amount, inv.currency || 'USD', inv.status, inv.date, inv.planName]
-    );
-    const r = res.rows[0];
+    const created = await prisma.invoice.create({
+      data: {
+        id: inv.id,
+        tenantId: inv.tenantId,
+        customerName: inv.customerName,
+        amount: inv.amount,
+        currency: inv.currency || 'USD',
+        status: inv.status,
+        date: inv.date,
+        planName: inv.planName
+      }
+    });
+
     return {
-      id: r.id,
-      tenantId: r.tenant_id,
-      customerName: r.customer_name,
-      amount: Number(r.amount),
-      currency: r.currency,
-      status: r.status,
-      date: r.invoice_date,
-      planName: r.plan_name
+      id: created.id,
+      tenantId: created.tenantId,
+      customerName: created.customerName,
+      amount: Number(created.amount),
+      currency: created.currency,
+      status: created.status,
+      date: created.date,
+      planName: created.planName
     };
   }
 
   static async updateInvoiceStatus(id: string, status: string) {
-    const res = await pool.query('UPDATE invoices SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      tenantId: r.tenant_id,
-      customerName: r.customer_name,
-      amount: Number(r.amount),
-      currency: r.currency,
-      status: r.status,
-      date: r.invoice_date,
-      planName: r.plan_name
-    };
+    try {
+      const updated = await prisma.invoice.update({
+        where: { id },
+        data: { status }
+      });
+
+      return {
+        id: updated.id,
+        tenantId: updated.tenantId,
+        customerName: updated.customerName,
+        amount: Number(updated.amount),
+        currency: updated.currency,
+        status: updated.status,
+        date: updated.date,
+        planName: updated.planName
+      };
+    } catch {
+      return null;
+    }
   }
 
-  // Club Approvals
+  // --- Club Approvals ---
   static async getClubApprovals() {
-    const res = await pool.query('SELECT * FROM club_approvals_store ORDER BY created_at DESC');
-    return res.rows.map(r => ({
-      id: r.id,
-      clubName: r.club_name,
-      adminName: r.admin_name,
-      adminEmail: r.admin_email,
-      plan: r.plan,
-      amountPaid: Number(r.amount_paid),
-      type: r.type,
-      billingCycle: r.billing_cycle,
-      status: r.status,
-      createdAt: r.created_at
+    const approvals = await prisma.clubApproval.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return approvals.map(a => ({
+      id: a.id,
+      clubName: a.clubName,
+      adminName: a.adminName,
+      adminEmail: a.adminEmail,
+      plan: a.plan,
+      amountPaid: Number(a.amountPaid),
+      type: a.type,
+      billingCycle: a.billingCycle,
+      status: a.status,
+      createdAt: a.createdAt
     }));
   }
 
   static async createClubApproval(appr: any) {
-    const res = await pool.query(
-      `INSERT INTO club_approvals_store (id, club_name, admin_name, admin_email, plan, amount_paid, type, billing_cycle, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        appr.id,
-        appr.clubName,
-        appr.adminName,
-        appr.adminEmail,
-        appr.plan,
-        appr.amountPaid,
-        appr.type || 'CLUB',
-        appr.billingCycle || 'ANNUAL',
-        appr.status || 'AWAITING_APPROVAL',
-        appr.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 16)
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.clubApproval.create({
+      data: {
+        id: appr.id,
+        clubName: appr.clubName,
+        adminName: appr.adminName,
+        adminEmail: appr.adminEmail,
+        plan: appr.plan,
+        amountPaid: appr.amountPaid,
+        type: appr.type || 'CLUB',
+        billingCycle: appr.billingCycle || 'ANNUAL',
+        status: appr.status || 'AWAITING_APPROVAL',
+        createdAt: appr.createdAt || new Date().toISOString().replace('T', ' ').substring(0, 16)
+      }
+    });
+
     return {
-      id: r.id,
-      clubName: r.club_name,
-      adminName: r.admin_name,
-      adminEmail: r.admin_email,
-      plan: r.plan,
-      amountPaid: Number(r.amount_paid),
-      type: r.type,
-      billingCycle: r.billing_cycle,
-      status: r.status,
-      createdAt: r.created_at
+      id: created.id,
+      clubName: created.clubName,
+      adminName: created.adminName,
+      adminEmail: created.adminEmail,
+      plan: created.plan,
+      amountPaid: Number(created.amountPaid),
+      type: created.type,
+      billingCycle: created.billingCycle,
+      status: created.status,
+      createdAt: created.createdAt
     };
   }
 
   static async approveClub(id: string) {
-    const res = await pool.query('UPDATE club_approvals_store SET status = $1 WHERE id = $2 RETURNING *', ['APPROVED', id]);
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      clubName: r.club_name,
-      adminName: r.admin_name,
-      adminEmail: r.admin_email,
-      plan: r.plan,
-      amountPaid: Number(r.amount_paid),
-      type: r.type,
-      billingCycle: r.billing_cycle,
-      status: r.status,
-      createdAt: r.created_at
-    };
+    try {
+      const updated = await prisma.clubApproval.update({
+        where: { id },
+        data: { status: 'APPROVED' }
+      });
+
+      return {
+        id: updated.id,
+        clubName: updated.clubName,
+        adminName: updated.adminName,
+        adminEmail: updated.adminEmail,
+        plan: updated.plan,
+        amountPaid: Number(updated.amountPaid),
+        type: updated.type,
+        billingCycle: updated.billingCycle,
+        status: updated.status,
+        createdAt: updated.createdAt
+      };
+    } catch {
+      return null;
+    }
   }
 
-  // Admin Notifications
+  // --- Admin Notifications ---
   static async getNotifications() {
-    const res = await pool.query('SELECT * FROM admin_notifications ORDER BY timestamp DESC');
-    return res.rows.map(r => ({
-      id: r.id,
-      title: r.title,
-      message: r.message,
-      type: r.type,
-      timestamp: r.timestamp,
-      read: r.is_read
+    const notifs = await prisma.adminNotification.findMany({
+      orderBy: { timestamp: 'desc' }
+    });
+
+    return notifs.map(n => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      timestamp: n.timestamp,
+      read: n.read
     }));
   }
 
   static async createNotification(notif: any) {
-    const res = await pool.query(
-      `INSERT INTO admin_notifications (id, title, message, type, timestamp, is_read)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [notif.id, notif.title, notif.message, notif.type, notif.timestamp, notif.read || false]
-    );
-    const r = res.rows[0];
+    const created = await prisma.adminNotification.create({
+      data: {
+        id: notif.id,
+        title: notif.title,
+        message: notif.message,
+        type: notif.type,
+        timestamp: notif.timestamp,
+        read: notif.read || false
+      }
+    });
+
     return {
-      id: r.id,
-      title: r.title,
-      message: r.message,
-      type: r.type,
-      timestamp: r.timestamp,
-      read: r.is_read
+      id: created.id,
+      title: created.title,
+      message: created.message,
+      type: created.type,
+      timestamp: created.timestamp,
+      read: created.read
     };
   }
 
-  // Club Members
+  // --- Club Members ---
   static async getClubMembers(clubId?: string) {
-    let query = 'SELECT * FROM club_members_store';
-    const params: any[] = [];
-    if (clubId) {
-      params.push(clubId);
-      query += ' WHERE club_id = $1';
-    }
-    query += ' ORDER BY id ASC';
-    const res = await pool.query(query, params);
-    return res.rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      role: r.role,
-      ageGroup: r.age_group,
-      discipline: r.discipline,
-      invitationStatus: r.invitation_status,
-      currentLevel: r.current_level,
-      squad: r.squad
+    const where: any = {};
+    if (clubId) where.clubId = clubId;
+
+    const members = await prisma.clubMemberStore.findMany({
+      where,
+      orderBy: { id: 'asc' }
+    });
+
+    return members.map(m => ({
+      id: m.id,
+      name: m.name,
+      email: m.email,
+      role: m.role,
+      ageGroup: m.ageGroup,
+      discipline: m.discipline,
+      invitationStatus: m.invitationStatus,
+      currentLevel: m.currentLevel,
+      squad: m.squad
     }));
   }
 
   static async createClubMember(member: any) {
-    const res = await pool.query(
-      `INSERT INTO club_members_store (id, club_id, name, email, role, age_group, discipline, invitation_status, current_level, squad)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        member.id,
-        member.clubId || 'ten-003',
-        member.name,
-        member.email,
-        member.role,
-        member.ageGroup,
-        member.discipline,
-        member.invitationStatus || 'PENDING_ACCEPTANCE',
-        member.currentLevel || 'FOUNDATION',
-        member.squad || 'Unassigned'
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.clubMemberStore.create({
+      data: {
+        id: member.id,
+        clubId: member.clubId || 'ten-003',
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        ageGroup: member.ageGroup,
+        discipline: member.discipline,
+        invitationStatus: member.invitationStatus || 'PENDING_ACCEPTANCE',
+        currentLevel: member.currentLevel || 'FOUNDATION',
+        squad: member.squad || 'Unassigned'
+      }
+    });
+
     return {
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      role: r.role,
-      ageGroup: r.age_group,
-      discipline: r.discipline,
-      invitationStatus: r.invitation_status,
-      currentLevel: r.current_level,
-      squad: r.squad
+      id: created.id,
+      name: created.name,
+      email: created.email,
+      role: created.role,
+      ageGroup: created.ageGroup,
+      discipline: created.discipline,
+      invitationStatus: created.invitationStatus,
+      currentLevel: created.currentLevel,
+      squad: created.squad
     };
   }
 
   static async updateClubMember(id: string, updates: { invitationStatus?: string; currentLevel?: string; squad?: string }) {
-    let query = 'UPDATE club_members_store SET ';
-    const sets: string[] = [];
-    const params: any[] = [];
-    if (updates.invitationStatus) {
-      params.push(updates.invitationStatus);
-      sets.push(`invitation_status = $${params.length}`);
+    const data: any = {};
+    if (updates.invitationStatus !== undefined) data.invitationStatus = updates.invitationStatus;
+    if (updates.currentLevel !== undefined) data.currentLevel = updates.currentLevel;
+    if (updates.squad !== undefined) data.squad = updates.squad;
+
+    try {
+      const updated = await prisma.clubMemberStore.update({
+        where: { id },
+        data
+      });
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        ageGroup: updated.ageGroup,
+        discipline: updated.discipline,
+        invitationStatus: updated.invitationStatus,
+        currentLevel: updated.currentLevel,
+        squad: updated.squad
+      };
+    } catch {
+      return null;
     }
-    if (updates.currentLevel) {
-      params.push(updates.currentLevel);
-      sets.push(`current_level = $${params.length}`);
-    }
-    if (updates.squad) {
-      params.push(updates.squad);
-      sets.push(`squad = $${params.length}`);
-    }
-    if (sets.length === 0) return null;
-    params.push(id);
-    query += sets.join(', ') + ` WHERE id = $${params.length} RETURNING *`;
-    const res = await pool.query(query, params);
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      role: r.role,
-      ageGroup: r.age_group,
-      discipline: r.discipline,
-      invitationStatus: r.invitation_status,
-      currentLevel: r.current_level,
-      squad: r.squad
-    };
   }
 
-  // Squads
+  // --- Squads ---
   static async getSquads(clubId?: string) {
-    let query = 'SELECT * FROM squads_store';
-    const params: any[] = [];
-    if (clubId) {
-      params.push(clubId);
-      query += ' WHERE club_id = $1';
-    }
-    query += ' ORDER BY id ASC';
-    const res = await pool.query(query, params);
-    return res.rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      ageGroup: r.age_group,
-      discipline: r.discipline,
-      coachName: r.coach_name,
-      memberCount: r.member_count
+    const where: any = {};
+    if (clubId) where.clubId = clubId;
+
+    const squads = await prisma.squadStore.findMany({
+      where,
+      orderBy: { id: 'asc' }
+    });
+
+    return squads.map(s => ({
+      id: s.id,
+      name: s.name,
+      ageGroup: s.ageGroup,
+      discipline: s.discipline,
+      coachName: s.coachName,
+      memberCount: s.memberCount
     }));
   }
 
   static async createSquad(squad: any) {
-    const res = await pool.query(
-      `INSERT INTO squads_store (id, club_id, name, age_group, discipline, coach_name, member_count)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [
-        squad.id,
-        squad.clubId || 'ten-003',
-        squad.name,
-        squad.ageGroup,
-        squad.discipline,
-        squad.coachName,
-        squad.memberCount || 0
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.squadStore.create({
+      data: {
+        id: squad.id,
+        clubId: squad.clubId || 'ten-003',
+        name: squad.name,
+        ageGroup: squad.ageGroup,
+        discipline: squad.discipline,
+        coachName: squad.coachName,
+        memberCount: squad.memberCount || 0
+      }
+    });
+
     return {
-      id: r.id,
-      name: r.name,
-      ageGroup: r.age_group,
-      discipline: r.discipline,
-      coachName: r.coach_name,
-      memberCount: r.member_count
+      id: created.id,
+      name: created.name,
+      ageGroup: created.ageGroup,
+      discipline: created.discipline,
+      coachName: created.coachName,
+      memberCount: created.memberCount
     };
   }
 
-  // Training Sessions
+  // --- Training Sessions ---
   static async getTrainingSessions(clubId?: string) {
-    let query = 'SELECT * FROM training_sessions_store';
-    const params: any[] = [];
-    if (clubId) {
-      params.push(clubId);
-      query += ' WHERE club_id = $1';
-    }
-    query += ' ORDER BY session_date DESC';
-    const res = await pool.query(query, params);
-    return res.rows.map(r => ({
-      id: r.id,
-      squadName: r.squad_name,
-      title: r.title,
-      sessionDate: r.session_date,
-      durationMinutes: r.duration_minutes,
-      isPublished: r.is_published,
-      drillCount: r.drill_count,
-      postNotes: r.post_notes,
-      aiEvaluation: r.ai_evaluation
+    const where: any = {};
+    if (clubId) where.clubId = clubId;
+
+    const sessions = await prisma.trainingSessionStore.findMany({
+      where,
+      orderBy: { sessionDate: 'desc' }
+    });
+
+    return sessions.map(s => ({
+      id: s.id,
+      squadName: s.squadName,
+      title: s.title,
+      sessionDate: s.sessionDate,
+      durationMinutes: s.durationMinutes,
+      isPublished: s.isPublished,
+      drillCount: s.drillCount,
+      postNotes: s.postNotes,
+      aiEvaluation: s.aiEvaluation
     }));
   }
 
   static async createTrainingSession(sess: any) {
-    const res = await pool.query(
-      `INSERT INTO training_sessions_store (id, club_id, squad_name, title, session_date, duration_minutes, is_published, drill_count, post_notes, ai_evaluation)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        sess.id,
-        sess.clubId || 'ten-003',
-        sess.squadName,
-        sess.title,
-        sess.sessionDate,
-        sess.durationMinutes || 90,
-        sess.isPublished || false,
-        sess.drillCount || (sess.drills ? sess.drills.length : 0),
-        sess.postNotes || null,
-        sess.aiEvaluation ? JSON.stringify(sess.aiEvaluation) : null
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.trainingSessionStore.create({
+      data: {
+        id: sess.id,
+        clubId: sess.clubId || 'ten-003',
+        squadName: sess.squadName,
+        title: sess.title,
+        sessionDate: sess.sessionDate,
+        durationMinutes: sess.durationMinutes || 90,
+        isPublished: sess.isPublished || false,
+        drillCount: sess.drillCount || (sess.drills ? sess.drills.length : 0),
+        postNotes: sess.postNotes || null,
+        aiEvaluation: sess.aiEvaluation || undefined
+      }
+    });
+
     return {
-      id: r.id,
-      squadName: r.squad_name,
-      title: r.title,
-      sessionDate: r.session_date,
-      durationMinutes: r.duration_minutes,
-      isPublished: r.is_published,
-      drillCount: r.drill_count,
-      postNotes: r.post_notes,
-      aiEvaluation: r.ai_evaluation
+      id: created.id,
+      squadName: created.squadName,
+      title: created.title,
+      sessionDate: created.sessionDate,
+      durationMinutes: created.durationMinutes,
+      isPublished: created.isPublished,
+      drillCount: created.drillCount,
+      postNotes: created.postNotes,
+      aiEvaluation: created.aiEvaluation
     };
   }
 
   static async publishTrainingSession(id: string) {
-    const res = await pool.query(
-      'UPDATE training_sessions_store SET is_published = true WHERE id = $1 RETURNING *',
-      [id]
-    );
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      squadName: r.squad_name,
-      title: r.title,
-      sessionDate: r.session_date,
-      durationMinutes: r.duration_minutes,
-      isPublished: r.is_published,
-      drillCount: r.drill_count,
-      postNotes: r.post_notes,
-      aiEvaluation: r.ai_evaluation
-    };
+    try {
+      const updated = await prisma.trainingSessionStore.update({
+        where: { id },
+        data: { isPublished: true }
+      });
+
+      return {
+        id: updated.id,
+        squadName: updated.squadName,
+        title: updated.title,
+        sessionDate: updated.sessionDate,
+        durationMinutes: updated.durationMinutes,
+        isPublished: updated.isPublished,
+        drillCount: updated.drillCount,
+        postNotes: updated.postNotes,
+        aiEvaluation: updated.aiEvaluation
+      };
+    } catch {
+      return null;
+    }
   }
 
   static async updateSessionNotesAndEvaluation(id: string, notes: string, aiEvaluation: any) {
-    const res = await pool.query(
-      'UPDATE training_sessions_store SET post_notes = $1, ai_evaluation = $2 WHERE id = $3 RETURNING *',
-      [notes, JSON.stringify(aiEvaluation), id]
-    );
-    if (res.rowCount === 0) return null;
-    const r = res.rows[0];
-    return {
-      id: r.id,
-      squadName: r.squad_name,
-      title: r.title,
-      sessionDate: r.session_date,
-      durationMinutes: r.duration_minutes,
-      isPublished: r.is_published,
-      drillCount: r.drill_count,
-      postNotes: r.post_notes,
-      aiEvaluation: r.ai_evaluation
-    };
+    try {
+      const updated = await prisma.trainingSessionStore.update({
+        where: { id },
+        data: {
+          postNotes: notes,
+          aiEvaluation: aiEvaluation || undefined
+        }
+      });
+
+      return {
+        id: updated.id,
+        squadName: updated.squadName,
+        title: updated.title,
+        sessionDate: updated.sessionDate,
+        durationMinutes: updated.durationMinutes,
+        isPublished: updated.isPublished,
+        drillCount: updated.drillCount,
+        postNotes: updated.postNotes,
+        aiEvaluation: updated.aiEvaluation
+      };
+    } catch {
+      return null;
+    }
   }
 
-  // Certificates
+  // --- Certificates ---
   static async getCertificates() {
-    const res = await pool.query('SELECT * FROM certificates_store ORDER BY issued_date DESC');
-    return res.rows.map(r => ({
-      id: r.id,
-      certificateNumber: r.certificate_number,
-      playerName: r.player_name,
-      discipline: r.discipline,
-      achievedLevel: r.achieved_level,
-      issuedDate: r.issued_date,
-      coachName: r.coach_name,
-      coachNotes: r.coach_notes,
-      aiCommendation: r.ai_commendation || r.ai_recommendation
+    const certs = await prisma.certificateStore.findMany({
+      orderBy: { issuedDate: 'desc' }
+    });
+
+    return certs.map(c => ({
+      id: c.id,
+      certificateNumber: c.certificateNumber,
+      playerName: c.playerName,
+      discipline: c.discipline,
+      achievedLevel: c.achievedLevel,
+      issuedDate: c.issuedDate,
+      coachName: c.coachName,
+      coachNotes: c.coachNotes,
+      aiCommendation: c.aiCommendation
     }));
   }
 
   static async createCertificate(cert: any) {
-    const res = await pool.query(
-      `INSERT INTO certificates_store (id, certificate_number, player_id, player_name, discipline, achieved_level, issued_date, coach_name, coach_notes, ai_commendation)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [
-        cert.id,
-        cert.certificateNumber,
-        cert.playerId || null,
-        cert.playerName,
-        cert.discipline,
-        cert.achievedLevel,
-        cert.issuedDate,
-        cert.coachName,
-        cert.coachNotes,
-        cert.aiCommendation
-      ]
-    );
-    const r = res.rows[0];
+    const created = await prisma.certificateStore.create({
+      data: {
+        id: cert.id,
+        certificateNumber: cert.certificateNumber,
+        playerId: cert.playerId || null,
+        playerName: cert.playerName,
+        discipline: cert.discipline,
+        achievedLevel: cert.achievedLevel,
+        issuedDate: cert.issuedDate,
+        coachName: cert.coachName,
+        coachNotes: cert.coachNotes || null,
+        aiCommendation: cert.aiCommendation || null
+      }
+    });
+
     return {
-      id: r.id,
-      certificateNumber: r.certificate_number,
-      playerName: r.player_name,
-      discipline: r.discipline,
-      achievedLevel: r.achieved_level,
-      issuedDate: r.issued_date,
-      coachName: r.coach_name,
-      coachNotes: r.coach_notes,
-      aiCommendation: r.ai_commendation
+      id: created.id,
+      certificateNumber: created.certificateNumber,
+      playerName: created.playerName,
+      discipline: created.discipline,
+      achievedLevel: created.achievedLevel,
+      issuedDate: created.issuedDate,
+      coachName: created.coachName,
+      coachNotes: created.coachNotes,
+      aiCommendation: created.aiCommendation
     };
   }
 }
