@@ -47,6 +47,17 @@ export interface ClubApproval {
   paymentStatus: 'PAID' | 'PENDING';
   approvalStatus: 'AWAITING_APPROVAL' | 'APPROVED' | 'REJECTED';
   createdAt: string;
+  type?: 'INDIVIDUAL' | 'COACH' | 'CLUB';
+  billingCycle?: 'MONTHLY' | 'ANNUAL';
+}
+
+export interface AdminNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'PAYMENT_RECEIVED' | 'APPROVAL_PENDING' | 'TENANT_ACTIVATED';
+  timestamp: string;
+  read: boolean;
 }
 
 export interface ClubMember {
@@ -60,6 +71,7 @@ export interface ClubMember {
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
   currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
   squadId?: string;
+  squad?: string;
 }
 
 export interface Squad {

@@ -6,6 +6,7 @@ import { adminRouter } from './routes/admin.js';
 import { clubRouter } from './routes/club.js';
 import { subscriptionsRouter } from './routes/subscriptions.js';
 import { aiRouter } from './routes/ai.js';
+import { initDb } from './config/initDb.js';
 
 dotenv.config();
 
@@ -15,6 +16,11 @@ const port = process.env.PORT || 5001;
 // Global Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize Database & Seeds
+initDb().catch(err => {
+  console.error('⚠️ Database initialization error:', err);
+});
 
 // Health Check
 app.get('/api/health', (_req: Request, res: Response) => {

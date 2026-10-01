@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType } from '../../types';
+import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification } from '../../types';
 
 interface AdminPanelProps {
   customers: CustomerTenant[];
   invoices: Invoice[];
   clubApprovals: ClubApproval[];
   drills: Drill[];
+  notifications?: AdminNotification[];
   onApproveClub: (id: string) => void;
   onAddSystemDrill: (drill: Drill) => void;
   onUpdateCustomerStatus: (id: string, status: CustomerTenant['status']) => void;
@@ -18,13 +19,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   invoices,
   clubApprovals,
   drills,
+  notifications = [],
   onApproveClub,
   onAddSystemDrill,
   onUpdateCustomerStatus,
   onUpgradeCustomerPlan,
   onRetryInvoice
 }) => {
-  const [adminTab, setAdminTab] = useState<'CUSTOMERS' | 'BILLING' | 'CLUB_APPROVALS' | 'DRILL_CURATOR'>('CUSTOMERS');
+  const [adminTab, setAdminTab] = useState<'CUSTOMERS' | 'BILLING' | 'CLUB_APPROVALS' | 'DRILL_CURATOR' | 'NOTIFICATIONS'>('CUSTOMERS');
   const [customerFilterType, setCustomerFilterType] = useState<string>('ALL');
   const [customerSearch, setCustomerSearch] = useState<string>('');
 
@@ -98,8 +100,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <span>Awaiting Approvals</span>
             {clubApprovals.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-bounce">
                 {clubApprovals.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setAdminTab('NOTIFICATIONS')}
+            className={`px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-1.5 ${
+              adminTab === 'NOTIFICATIONS' ? 'bg-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>Admin Email Alerts</span>
+            {notifications.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
+                {notifications.length}
               </span>
             )}
           </button>
@@ -252,15 +267,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {adminTab === 'CLUB_APPROVALS' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
           <div>
-            <h3 className="font-semibold text-lg text-white">Pending Club Registrations (Awaiting Approval)</h3>
+            <h3 className="font-semibold text-lg text-white">Pending Registrations Awaiting System Admin Approval</h3>
             <p className="text-xs text-slate-400">
-              Following a successful paid subscription, system admin verifies and activates the club admin credentials.
+              When a player, coach, or club registers and pays on the Home page, the item is queued here and a notification email is dispatched to the admin.
             </p>
           </div>
 
           {clubApprovals.length === 0 ? (
             <div className="text-center py-8 text-xs text-slate-500">
-              No pending club approvals. All clubs are active.
+              No pending registrations. All accounts are approved and active!
             </div>
           ) : (
             <div className="space-y-3">
@@ -269,19 +284,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-white text-sm">{appr.clubName}</h4>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        appr.type === 'CLUB' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
+                        appr.type === 'COACH' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                        'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      }`}>
+                        {appr.type || 'CLUB'}
+                      </span>
                       <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
-                        Payment Confirmed (${appr.amountPaid})
+                        Payment Confirmed (${appr.amountPaid.toFixed(2)})
                       </span>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1">Admin: <span className="font-semibold">{appr.adminName}</span> ({appr.adminEmail})</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Plan: {appr.plan} • Registered: {appr.createdAt}</p>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Applicant: <span className="font-semibold text-white">{appr.adminName}</span> • Email: <span className="text-cyan-300">{appr.adminEmail}</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Plan: <span className="text-slate-300 font-medium">{appr.plan}</span> • Billing: {appr.billingCycle || 'ANNUAL'} • Registered: {appr.createdAt}
+                    </p>
                   </div>
                   <button
                     onClick={() => onApproveClub(appr.id)}
                     className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-emerald-500/20 transition whitespace-nowrap"
                   >
-                    Approve & Activate Club Admin
+                    ✓ Approve & Activate Account
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sub-tab: System Admin Email Notifications */}
+      {adminTab === 'NOTIFICATIONS' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-lg text-white flex items-center gap-2">
+                <span>📬</span> System Admin Notification Inbox (Emails Received)
+              </h3>
+              <p className="text-xs text-slate-400">
+                System admin receives immediate transactional email notifications when payments complete and new tenant registrations occur.
+              </p>
+            </div>
+            <span className="text-xs text-indigo-300 font-mono bg-indigo-950/80 px-2.5 py-1 rounded border border-indigo-700/50">
+              admin@ecricketcoach.com
+            </span>
+          </div>
+
+          {notifications.length === 0 ? (
+            <div className="text-center py-8 text-xs text-slate-500">
+              No recent notifications received.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {notifications.map(notif => (
+                <div key={notif.id} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1 hover:border-slate-700 transition">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                      <span>📩</span> {notif.title}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{notif.timestamp}</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed pt-1">{notif.message}</p>
                 </div>
               ))}
             </div>

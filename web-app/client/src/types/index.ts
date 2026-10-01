@@ -1,6 +1,16 @@
 export type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 export type ContextType = 'INDIVIDUAL' | 'GROUP';
-export type ViewMode = 'COACHING_PORTAL' | 'ADMIN_PANEL' | 'CLUB_PORTAL';
+export type ViewMode = 'HOME' | 'COACHING_PORTAL' | 'ADMIN_PANEL' | 'CLUB_PORTAL';
+
+export type UserRole = 'SUPER_ADMIN' | 'CLUB_ADMIN' | 'COACH' | 'PLAYER';
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  roles: UserRole[];
+  clubName?: string;
+}
 
 export interface Drill {
   id: string;
@@ -47,6 +57,17 @@ export interface ClubApproval {
   amountPaid: number;
   status: 'AWAITING_APPROVAL' | 'APPROVED';
   createdAt: string;
+  type?: 'INDIVIDUAL' | 'COACH' | 'CLUB';
+  billingCycle?: 'MONTHLY' | 'ANNUAL';
+}
+
+export interface AdminNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'PAYMENT_RECEIVED' | 'APPROVAL_PENDING' | 'TENANT_ACTIVATED';
+  timestamp: string;
+  read: boolean;
 }
 
 export interface ClubMember {

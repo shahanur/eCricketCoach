@@ -7,6 +7,7 @@ interface ClubPortalProps {
   sessions: TrainingSession[];
   certificates: Certificate[];
   drills: Drill[];
+  clubName?: string;
   onInviteMember: (member: ClubMember) => void;
   onAcceptMemberInvite: (id: string) => void;
   onPromotePlayer: (id: string) => void;
@@ -25,6 +26,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   sessions,
   certificates,
   drills,
+  clubName = 'Melbourne Cricket Academy',
   onInviteMember,
   onAcceptMemberInvite,
   onPromotePlayer,
@@ -55,21 +57,21 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     e.preventDefault();
     if (!newDrillTitle || !newDrillSkillSet) return;
     const drill: Drill = {
-      id: 'drill-club-' + Date.now(),
+      id: 'club-' + Date.now(),
       title: newDrillTitle,
       discipline: newDrillDiscipline,
       skillSet: newDrillSkillSet,
       contextType: newDrillContext,
-      duration: Number(newDrillDuration) || 20,
+      duration: newDrillDuration,
       source: 'CLUB_CUSTOM',
-      clubName: 'Melbourne Cricket Academy',
-      instructions: newDrillInstructions || 'Proprietary drill created by MCA coaching staff.'
+      clubName: clubName,
+      instructions: newDrillInstructions
     };
     onAddClubDrill(drill);
     setNewDrillTitle('');
     setNewDrillSkillSet('');
     setNewDrillInstructions('');
-    alert(`Club Custom Drill "${drill.title}" saved to Melbourne Cricket Academy library!`);
+    alert(`Club Custom Drill "${drill.title}" saved to ${clubName} library!`);
   };
 
   const handleEvaluatePostSession = () => {
@@ -126,7 +128,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white">Melbourne Cricket Academy</h1>
+            <h1 className="text-2xl font-bold text-white">{clubName}</h1>
             <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
               Club Admin & Coaching Hub
             </span>
@@ -518,7 +520,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold text-base text-white">Add Club Custom Drill</h3>
             <p className="text-xs text-slate-400">
-              Coaches can model proprietary drills tailored to Melbourne Cricket Academy athletes.
+              Coaches can model proprietary drills tailored to {clubName} athletes.
             </p>
             <form onSubmit={handleCreateClubDrill} className="space-y-3">
               <div>

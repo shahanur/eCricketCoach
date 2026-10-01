@@ -1,4 +1,4 @@
-import { DrillItem, CustomerTenant, Invoice, ClubApproval, ClubMember, Squad, TrainingSession, Certificate } from '../types/index.js';
+import { DrillItem, CustomerTenant, Invoice, ClubApproval, ClubMember, Squad, TrainingSession, Certificate, AdminNotification } from '../types/index.js';
 
 export let mockDrills: DrillItem[] = [
   {
@@ -154,9 +154,11 @@ export let mockClubApprovals: ClubApproval[] = [
     adminName: 'Greg Chappell',
     adminEmail: 'greg.c@thunderacademy.com.au',
     plan: 'Club / Academy Annual',
-    amountPaid: 2399.88,
+    amountPaid: 1999.99,
     paymentStatus: 'PAID',
     approvalStatus: 'AWAITING_APPROVAL',
+    type: 'CLUB',
+    billingCycle: 'ANNUAL',
     createdAt: '2026-09-30 09:30'
   },
   {
@@ -168,7 +170,28 @@ export let mockClubApprovals: ClubApproval[] = [
     amountPaid: 199.99,
     paymentStatus: 'PAID',
     approvalStatus: 'AWAITING_APPROVAL',
+    type: 'CLUB',
+    billingCycle: 'MONTHLY',
     createdAt: '2026-09-30 11:15'
+  }
+];
+
+export let mockAdminNotifications: AdminNotification[] = [
+  {
+    id: 'notif-1',
+    title: 'New Paid Registration: Sydney Thunder Junior Academy',
+    message: 'Payment of $1,999.99 confirmed via Stripe. New Club tenant registration is awaiting Super-Admin approval.',
+    type: 'PAYMENT_RECEIVED',
+    timestamp: '2026-09-30 09:31',
+    read: false
+  },
+  {
+    id: 'notif-2',
+    title: 'New Paid Registration: Lord’s Colts Cricket Club',
+    message: 'Payment of $199.99 confirmed via Stripe. New Club tenant registration is awaiting Super-Admin approval.',
+    type: 'PAYMENT_RECEIVED',
+    timestamp: '2026-09-30 11:16',
+    read: false
   }
 ];
 
