@@ -25,6 +25,27 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
+  // Theme state with localStorage persistence
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+    } else {
+      root.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Master Drill Catalog
   const [drills, setDrills] = useState<Drill[]>([]);
 
@@ -447,7 +468,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200">
       <Navbar
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -455,6 +476,8 @@ export default function App() {
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
         pendingApprovalsCount={clubApprovals.length}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Login Modal */}

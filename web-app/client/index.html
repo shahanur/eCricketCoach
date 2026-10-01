@@ -5,8 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eCricketCoach - Cricket Training & AI Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style id="light-theme-styles">
+      html.light,
+      html.light body {
+        background-color: #f8fafc !important;
+        color: #0f172a !important;
+      }
+      
+      /* Background containers and cards */
+      html.light .bg-slate-950 {
+        background-color: #ffffff !important;
+      }
+      html.light .bg-slate-900 {
+        background-color: #f1f5f9 !important;
+      }
+      html.light .bg-slate-900\/90 {
+        background-color: rgba(255, 255, 255, 0.92) !important;
+      }
+      html.light .bg-slate-900\/80 {
+        background-color: rgba(241, 245, 249, 0.85) !important;
+      }
+      html.light .bg-slate-800 {
+        background-color: #e2e8f0 !important;
+      }
+      html.light .bg-slate-800\/90 {
+        background-color: rgba(226, 232, 240, 0.9) !important;
+      }
+      html.light .bg-slate-800\/50 {
+        background-color: rgba(226, 232, 240, 0.5) !important;
+      }
+      html.light .bg-slate-950\/40,
+      html.light .bg-slate-950\/50,
+      html.light .bg-slate-950\/70 {
+        background-color: #f8fafc !important;
+      }
+      html.light .bg-slate-950\/80 {
+        background-color: rgba(15, 23, 42, 0.4) !important;
+      }
+
+      /* Borders */
+      html.light .border-slate-800 {
+        border-color: #cbd5e1 !important;
+      }
+      html.light .border-slate-700 {
+        border-color: #94a3b8 !important;
+      }
+      html.light .border-slate-700\/80 {
+        border-color: #cbd5e1 !important;
+      }
+
+      /* Typography */
+      html.light .text-slate-100 {
+        color: #0f172a !important;
+      }
+      html.light .text-slate-200 {
+        color: #1e293b !important;
+      }
+      html.light .text-slate-300 {
+        color: #334155 !important;
+      }
+      html.light .text-slate-400 {
+        color: #475569 !important;
+      }
+      html.light .text-slate-500 {
+        color: #64748b !important;
+      }
+      html.light .text-white {
+        color: #0f172a !important;
+      }
+      html.light .hover\:text-white:hover {
+        color: #020617 !important;
+      }
+      html.light input,
+      html.light select,
+      html.light textarea {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+      }
+      html.light ::placeholder {
+        color: #94a3b8 !important;
+      }
+
+      /* Preserve contrast for accents */
+      html.light .bg-gradient-to-r.from-emerald-400.to-cyan-400 {
+        background-image: linear-gradient(to right, #059669, #0284c7) !important;
+      }
+      html.light .text-emerald-400 {
+        color: #059669 !important;
+      }
+      html.light .text-cyan-400 {
+        color: #0284c7 !important;
+      }
+      html.light .text-amber-400 {
+        color: #d97706 !important;
+      }
+      html.light .text-purple-400 {
+        color: #7c3aed !important;
+      }
+      html.light .text-rose-400 {
+        color: #e11d48 !important;
+      }
+      html.light .bg-emerald-500 {
+        background-color: #10b981 !important;
+      }
+      html.light .bg-emerald-500.text-slate-950 {
+        color: #ffffff !important;
+      }
+      html.light .bg-emerald-600 {
+        background-color: #059669 !important;
+      }
+      html.light .bg-emerald-600.text-white,
+      html.light .bg-emerald-500.text-white {
+        color: #ffffff !important;
+      }
+      html.light .hover\:bg-slate-700:hover {
+        background-color: #cbd5e1 !important;
+      }
+    </style>
   </head>
-  <body class="bg-slate-900 text-slate-100 min-h-screen">
+  <body class="bg-slate-900 text-slate-100 min-h-screen transition-colors duration-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
