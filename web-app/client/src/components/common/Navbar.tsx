@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-20 px-4 py-3 flex items-center justify-between">
-      {/* Left: Brand Logo & Public Marketing Navigation */}
+      {/* Left: Brand Logo & Navigation (Context-Aware) */}
       <div className="flex items-center space-x-6">
         <button
           onClick={() => {
@@ -59,44 +59,98 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </button>
 
-        {/* Public Home Page Navigation Links */}
-        <nav className="hidden lg:flex items-center space-x-1">
-          <button
-            onClick={() => {
-              setViewMode('HOME');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${
-              viewMode === 'HOME' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => scrollToSection('pricing')}
-            className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
-          >
-            Plans & Pricing
-          </button>
-          <button
-            onClick={() => scrollToSection('about-us')}
-            className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
-          >
-            About Us
-          </button>
-          <button
-            onClick={() => scrollToSection('faqs')}
-            className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
-          >
-            FAQs
-          </button>
-          <button
-            onClick={() => scrollToSection('contact-us')}
-            className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
-          >
-            Contact Us
-          </button>
-        </nav>
+        {/* Unauthenticated Marketing Navigation Links */}
+        {!currentUser && (
+          <nav className="hidden lg:flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setViewMode('HOME');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${
+                viewMode === 'HOME' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Home
+            </button>
+            <button
+              onClick={() => scrollToSection('pricing')}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
+            >
+              Plans & Pricing
+            </button>
+            <button
+              onClick={() => scrollToSection('about-us')}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
+            >
+              About Us
+            </button>
+            <button
+              onClick={() => scrollToSection('faqs')}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
+            >
+              FAQs
+            </button>
+            <button
+              onClick={() => scrollToSection('contact-us')}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition cursor-pointer"
+            >
+              Contact Us
+            </button>
+            <button
+              onClick={() => setViewMode('HELP_SUPPORT')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer ${
+                viewMode === 'HELP_SUPPORT' ? 'text-emerald-400 font-semibold' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              Help & Support
+            </button>
+          </nav>
+        )}
+
+        {/* Authenticated Persona Navigation Links (Clean & Scoped) */}
+        {currentUser && (
+          <nav className="hidden md:flex items-center space-x-1">
+            <button
+              onClick={() => {
+                setViewMode('HOME');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'HOME'
+                  ? 'bg-slate-800 text-emerald-400 font-bold border border-slate-700/80 shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <span>🏠</span>
+              <span>
+                {hasSuperAdmin
+                  ? 'Admin Home'
+                  : hasClubAdmin
+                  ? `${currentUser.clubName?.split(' ')[0] || 'Club'} Home`
+                  : hasCoachOrPlayer
+                  ? currentUser.roles.includes('COACH') ? 'Coach Home' : 'Player Home'
+                  : 'My Home'}
+              </span>
+            </button>
+
+            {/* Scoped Help & Support Navigation Button */}
+            <button
+              onClick={() => {
+                setViewMode('HELP_SUPPORT');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'HELP_SUPPORT'
+                  ? 'bg-slate-800 text-emerald-400 font-bold border border-slate-700/80 shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <span>❓</span>
+              <span>Help & Support</span>
+            </button>
+          </nav>
+        )}
       </div>
 
       {/* Right Side: Conditional Multi-Role Persona Tabs OR Clean Login Button */}
@@ -159,6 +213,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Mobile / Compact Help button */}
+            <button
+              onClick={() => setViewMode('HELP_SUPPORT')}
+              title="Help & Support"
+              className={`md:hidden p-2 rounded-xl border border-slate-700/80 text-xs font-bold transition cursor-pointer ${
+                viewMode === 'HELP_SUPPORT' ? 'bg-slate-800 text-emerald-400' : 'bg-slate-800/80 text-slate-300'
+              }`}
+            >
+              ❓
+            </button>
 
             {/* Logged-in User Profile Name & Log Out Button */}
             <div className="flex items-center gap-2 sm:gap-3 pl-2 border-l border-slate-800">

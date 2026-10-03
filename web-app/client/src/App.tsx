@@ -21,6 +21,8 @@ import { HomePage, PlanConfig } from './components/home/HomePage';
 import { CoachingPortal } from './components/coaching/CoachingPortal';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { ClubPortal } from './components/club/ClubPortal';
+import { UserHomeDashboard } from './components/dashboard/UserHomeDashboard';
+import { HelpSupportPage } from './components/help/HelpSupportPage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
@@ -657,11 +659,31 @@ export default function App() {
 
       {/* Main Content Areas */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
-        {viewMode === 'HOME' && (
+        {viewMode === 'HOME' && !currentUser && (
           <HomePage
             onRegisterPlan={handleRegisterFromHomePage}
             onExploreDemo={() => setIsLoginModalOpen(true)}
             socialRegistration={socialRegistration}
+          />
+        )}
+
+        {viewMode === 'HOME' && currentUser && (
+          <UserHomeDashboard
+            currentUser={currentUser}
+            setViewMode={setViewMode}
+            drills={drills}
+            clubMembers={clubMembers}
+            squads={squads}
+            sessions={sessions}
+            certificates={certificates}
+          />
+        )}
+
+        {viewMode === 'HELP_SUPPORT' && (
+          <HelpSupportPage
+            currentUser={currentUser}
+            setViewMode={setViewMode}
+            onOpenLogin={() => setIsLoginModalOpen(true)}
           />
         )}
 
