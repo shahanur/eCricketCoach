@@ -137,3 +137,21 @@ export interface Certificate {
   coachNotes: string;
   aiCommendation: string;
 }
+
+export interface VideoAnalysisResult {
+  detectedIssues: string[];
+  overallScore: number;
+  biomechanicalMetrics: {
+    headPosition: string;
+    footAlignment: string;
+    backliftAngle?: string;
+    releasePoint?: string;
+  };
+  recommendedDrills: Array<{
+    title: string;
+    discipline: Discipline | string;
+    durationMinutes: number;
+    context: 'INDIVIDUAL' | 'GROUP';
+    isNewRecommendation: boolean;
+  }>;
+}

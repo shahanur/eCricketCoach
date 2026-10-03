@@ -160,17 +160,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-3">
             {/* Persona Switcher Tabs */}
             <div className="flex items-center rounded-lg bg-slate-800/90 p-1 border border-slate-700/80">
-              {/* Coach / Player Training Portal */}
-              {hasCoachOrPlayer && (
+              {/* Coach / Player / Club AI Video Biomechanics Portal */}
+              {(hasCoachOrPlayer || hasClubAdmin) && (
                 <button
                   onClick={() => setViewMode('COACHING_PORTAL')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer ${
+                  className={`px-3 py-1 rounded text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                     viewMode === 'COACHING_PORTAL'
                       ? 'bg-emerald-500 text-slate-950 shadow font-bold'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {currentUser.roles.includes('COACH') ? 'Coaching & AI App' : 'My Training & AI'}
+                  <span>📹</span>
+                  <span>
+                    {currentUser.roles.includes('COACH')
+                      ? 'AI Video & Coaching'
+                      : currentUser.roles.includes('CLUB_ADMIN')
+                      ? 'AI Video Analysis'
+                      : 'My Video & AI'}
+                  </span>
                 </button>
               )}
 

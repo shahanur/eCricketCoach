@@ -341,7 +341,7 @@ export default function App() {
         email: appr.adminEmail,
         subscriptionPlan: planType,
         status: 'ACTIVE',
-        billingCycle: appr.billingCycle || 'ANNUAL',
+        billingCycle: appr.billingCycle === 'MONTHLY' ? 'MONTHLY' : 'ANNUAL',
         mrr: priceMonthly,
         activeMembers: 1,
         joinedAt: new Date().toISOString().split('T')[0]
@@ -723,6 +723,9 @@ export default function App() {
             squads={squads}
             sessions={sessions}
             certificates={certificates}
+            customers={customers}
+            clubApprovals={clubApprovals}
+            supportTickets={supportTickets}
           />
         )}
 

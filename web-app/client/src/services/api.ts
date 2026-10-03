@@ -285,5 +285,19 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to upload video to Drive');
     return res.json();
+  },
+
+  async analyzeVideo(payload: { discipline: string; videoUrl?: string }): Promise<{
+    status: string;
+    discipline: string;
+    analysis: import('../types').VideoAnalysisResult;
+  }> {
+    const res = await fetch(`${API_BASE}/videos/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to analyze video clip');
+    return res.json();
   }
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Discipline, ContextType, Drill } from '../../types';
+import { Discipline, ContextType, Drill, VideoAnalysisResult } from '../../types';
+import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 
 interface CoachingPortalProps {
@@ -11,7 +12,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
   const [selectedDiscipline, setSelectedDiscipline] = useState<Discipline>('BATTING');
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
   const [analyzing, setAnalyzing] = useState(false);
-  const [aiFeedback, setAiFeedback] = useState<any>(null);
+  const [aiFeedback, setAiFeedback] = useState<VideoAnalysisResult | null>(null);
 
   // Confirmation Modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -23,40 +24,63 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
     onConfirm: () => void;
   } | null>(null);
 
-  const handleSimulateAnalysis = () => {
+  const handleSimulateAnalysis = async () => {
     setAnalyzing(true);
     setAiFeedback(null);
-    setTimeout(() => {
-      setAnalyzing(false);
-      const drillName = selectedDiscipline === 'BATTING' 
-        ? 'AI Head-over-Ball Weighted Bat Punch Drill'
-        : 'AI High-Arm Target Towel Stride Drill';
-
-      setAiFeedback({
-        score: 84,
-        keyObservations: [
-          'High backlift balance is solid',
-          'Front foot placement points slightly closed at contact'
-        ],
-        recommendedDrill: {
-          title: drillName,
-          duration: 20,
-          context: selectedContext,
-          isNew: true
-        }
+    try {
+      const res = await api.analyzeVideo({
+        discipline: selectedDiscipline,
+        videoUrl: `sample_${selectedDiscipline.toLowerCase()}_action.mp4`
       });
-    }, 1200);
+      if (res?.analysis) {
+        setAiFeedback(res.analysis);
+      }
+    } catch {
+      // Fallback local analysis
+      setTimeout(() => {
+        setAiFeedback({
+          overallScore: 82,
+          detectedIssues: [
+            selectedDiscipline === 'BATTING'
+              ? 'Head falling slightly off-axis during dynamic front-foot weight transfer'
+              : selectedDiscipline === 'BOWLING'
+              ? 'Front non-bowling arm collapses 60ms prior to delivery stride release'
+              : 'Glove reaction delay on sudden bounce'
+          ],
+          biomechanicalMetrics: {
+            headPosition: 'Slightly off-axis (-4 deg)',
+            footAlignment: 'Pointing towards mid-off instead of cover',
+            backliftAngle: selectedDiscipline === 'BATTING' ? 'Optimal 42 deg' : undefined,
+            releasePoint: selectedDiscipline === 'BOWLING' ? '172 deg high release' : undefined
+          },
+          recommendedDrills: [
+            {
+              title: selectedDiscipline === 'BATTING'
+                ? 'AI Head-over-Ball Weighted Bat Punch Drill'
+                : 'AI Target Towel High Arm Extension Drill',
+              discipline: selectedDiscipline,
+              durationMinutes: 20,
+              context: selectedContext,
+              isNewRecommendation: true
+            }
+          ]
+        });
+      }, 800);
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
-  const handleAddRecommended = () => {
-    if (!aiFeedback?.recommendedDrill) return;
+  const handleAddRecommended = (drillItem?: any) => {
+    const drillToAdopt = drillItem || aiFeedback?.recommendedDrills?.[0];
+    if (!drillToAdopt) return;
     const newDrill: Drill = {
       id: 'drill-ai-' + Date.now(),
-      title: aiFeedback.recommendedDrill.title,
+      title: drillToAdopt.title,
       discipline: selectedDiscipline,
       skillSet: 'AI Biomechanical Correction',
-      contextType: aiFeedback.recommendedDrill.context,
-      duration: aiFeedback.recommendedDrill.duration,
+      contextType: selectedContext,
+      duration: drillToAdopt.durationMinutes || 20,
       source: 'AI_RECOMMENDED',
       instructions: 'Custom corrective drill generated via computer vision pose analysis.'
     };
@@ -154,29 +178,63 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase text-emerald-400">Analysis Completed</span>
                 <span className="text-xs font-bold px-2 py-0.5 bg-emerald-500/20 rounded text-emerald-300">
-                  Score: {aiFeedback.score}/100
+                  Biomechanical Score: {aiFeedback.overallScore}/100
                 </span>
               </div>
               <div className="text-xs text-slate-300 space-y-1">
                 <p className="font-semibold text-slate-400">Detected Observations:</p>
                 <ul className="list-disc pl-4 space-y-1">
-                  {aiFeedback.keyObservations.map((obs: string, idx: number) => (
+                  {aiFeedback.detectedIssues.map((obs: string, idx: number) => (
                     <li key={idx}>{obs}</li>
                   ))}
                 </ul>
               </div>
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-white">{aiFeedback.recommendedDrill.title}</p>
-                  <p className="text-xs text-slate-400">{aiFeedback.recommendedDrill.duration} mins • {aiFeedback.recommendedDrill.context}</p>
+
+              {/* Biomechanical Telemetry */}
+              {aiFeedback.biomechanicalMetrics && (
+                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/80 p-2.5 rounded border border-slate-800">
+                  <div>
+                    <span className="text-slate-400 block">Head Position</span>
+                    <span className="font-medium text-slate-200">{aiFeedback.biomechanicalMetrics.headPosition}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Foot Alignment</span>
+                    <span className="font-medium text-slate-200">{aiFeedback.biomechanicalMetrics.footAlignment}</span>
+                  </div>
+                  {aiFeedback.biomechanicalMetrics.backliftAngle && (
+                    <div>
+                      <span className="text-slate-400 block">Backlift Angle</span>
+                      <span className="font-medium text-slate-200">{aiFeedback.biomechanicalMetrics.backliftAngle}</span>
+                    </div>
+                  )}
+                  {aiFeedback.biomechanicalMetrics.releasePoint && (
+                    <div>
+                      <span className="text-slate-400 block">Release Point</span>
+                      <span className="font-medium text-slate-200">{aiFeedback.biomechanicalMetrics.releasePoint}</span>
+                    </div>
+                  )}
                 </div>
-                <button
-                  onClick={handleAddRecommended}
-                  className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded transition"
-                >
-                  Add to Plans
-                </button>
-              </div>
+              )}
+
+              {aiFeedback.recommendedDrills?.length > 0 && (
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Recommended Corrective Drill:</p>
+                  {aiFeedback.recommendedDrills.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between bg-slate-900/50 p-2 rounded border border-slate-800">
+                      <div>
+                        <p className="text-xs font-medium text-white">{d.title}</p>
+                        <p className="text-xs text-slate-400">{d.durationMinutes} mins • {d.context}</p>
+                      </div>
+                      <button
+                        onClick={() => handleAddRecommended(d)}
+                        className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded transition cursor-pointer"
+                      >
+                        Add to Plans
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </section>
