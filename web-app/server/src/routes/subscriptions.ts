@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { DbService } from '../services/dbService.js';
 import { ClubApproval, Invoice, AdminNotification, CustomerTenant } from '../types/index.js';
 
@@ -54,9 +55,20 @@ subscriptionsRouter.get('/plans', (_req: Request, res: Response) => {
 // Checkout & Subscription Payment Endpoint
 subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
   try {
-    const { planId, billingCycle, name, email, organizationName, cardNumber } = req.body;
+    const { planId, billingCycle, name, email, organizationName, cardNumber, registrationToken } = req.body;
     if (!planId || !name || !email) {
       return res.status(400).json({ error: 'planId, name, and email are required.' });
+    }
+
+    let verifiedName = name;
+    let verifiedEmail = email;
+    if (registrationToken) {
+      const grant = jwt.verify(registrationToken, process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production') as { type?: string; name?: string; email?: string };
+      if (grant.type !== 'registration' || !grant.name || !grant.email) {
+        return res.status(401).json({ error: 'Invalid social registration grant.' });
+      }
+      verifiedName = grant.name;
+      verifiedEmail = grant.email;
     }
 
     const isAnnual = billingCycle === 'ANNUAL';
@@ -70,14 +82,14 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
       planId === 'CLUB_ACADEMY' ? 'CLUB' : planId === 'COACH_PRO' ? 'COACH' : 'INDIVIDUAL';
 
     const approvalId = 'appr-' + Date.now();
-    const orgName = organizationName || (planType === 'CLUB' ? `${name} Cricket Club` : name);
+    const orgName = organizationName || (planType === 'CLUB' ? `${verifiedName} Cricket Club` : verifiedName);
 
     // 1. Queue into approvals in PostgreSQL
     const approvalItem: ClubApproval = {
       id: approvalId,
       clubName: orgName,
-      adminName: name,
-      adminEmail: email,
+      adminName: verifiedName,
+      adminEmail: verifiedEmail,
       plan: `${planId} (${isAnnual ? 'Annual' : 'Monthly'})`,
       amountPaid: price,
       paymentStatus: 'PAID',
@@ -109,7 +121,7 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
     const notifItem: AdminNotification = {
       id: 'notif-' + Date.now(),
       title: `New Registration Paid: ${orgName} (${planId})`,
-      message: `System Admin Notification: ${name} (${email}) completed checkout for $${price.toFixed(2)} on plan ${planId}. Queued for approval.`,
+      message: `System Admin Notification: ${verifiedName} (${verifiedEmail}) completed checkout for $${price.toFixed(2)} on plan ${planId}. Queued for approval.`,
       type: 'PAYMENT_RECEIVED',
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       read: false

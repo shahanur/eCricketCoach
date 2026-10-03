@@ -1,6 +1,7 @@
 export type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 export type ContextType = 'INDIVIDUAL' | 'GROUP';
 export type ViewMode = 'HOME' | 'COACHING_PORTAL' | 'ADMIN_PANEL' | 'CLUB_PORTAL';
+export type ThemeMode = 'dark' | 'light' | 'pure-light';
 
 export type UserRole = 'SUPER_ADMIN' | 'CLUB_ADMIN' | 'COACH' | 'PLAYER';
 

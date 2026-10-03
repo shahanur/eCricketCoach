@@ -1,5 +1,5 @@
 import React from 'react';
-import { ViewMode, AuthUser } from '../../types';
+import { ViewMode, AuthUser, ThemeMode } from '../../types';
 
 interface NavbarProps {
   viewMode: ViewMode;
@@ -8,8 +8,9 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onLogout: () => void;
   pendingApprovalsCount?: number;
-  theme: 'dark' | 'light';
+  theme: ThemeMode;
   onToggleTheme: () => void;
+  onSelectTheme?: (mode: ThemeMode) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -20,7 +21,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   pendingApprovalsCount = 0,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  onSelectTheme
 }) => {
   const scrollToSection = (id: string) => {
     if (viewMode !== 'HOME') {
@@ -104,18 +106,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-3">
             {/* Persona Switcher Tabs */}
             <div className="flex items-center rounded-lg bg-slate-800/90 p-1 border border-slate-700/80">
-              {/* Home shortcut */}
-              <button
-                onClick={() => setViewMode('HOME')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                  viewMode === 'HOME'
-                    ? 'bg-slate-700 text-white font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Home
-              </button>
-
               {/* Coach / Player Training Portal */}
               {hasCoachOrPlayer && (
                 <button
@@ -170,27 +160,56 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* User Profile Badge & Logout */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-              <div className="hidden sm:block text-right">
-                <p className="text-xs font-semibold text-white leading-none">{currentUser.name}</p>
-                <div className="flex items-center justify-end gap-1 mt-1">
-                  {currentUser.roles.map(r => (
-                    <span
-                      key={r}
-                      className="text-[9px] px-1 rounded bg-slate-800 text-slate-300 font-mono"
-                    >
-                      {r.replace('_', ' ')}
-                    </span>
-                  ))}
+            {/* Logged-in User Profile Name & Log Out Button */}
+            <div className="flex items-center gap-2 sm:gap-3 pl-2 border-l border-slate-800">
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-bold shrink-0">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div className="text-left">
+                  <span className="text-xs font-bold text-white block leading-tight truncate max-w-[140px] sm:max-w-[200px]">
+                    {currentUser.name}
+                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {hasSuperAdmin ? (
+                      <span className="text-[9px] px-1 rounded bg-cyan-900/60 text-cyan-300 font-semibold font-mono">
+                        Super-Admin
+                      </span>
+                    ) : (
+                      currentUser.roles.map(r => (
+                        <span
+                          key={r}
+                          className="text-[9px] px-1 rounded bg-slate-700 text-slate-300 font-mono"
+                        >
+                          {r.replace('_', ' ')}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {/* Log Out Button (replaces the Log In button) */}
               <button
                 onClick={onLogout}
                 title="Log out"
-                className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 hover:text-rose-300 border border-slate-700 text-slate-300 text-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500/20 to-red-500/20 hover:from-rose-500/30 hover:to-red-500/30 border border-rose-500/40 text-rose-200 hover:text-white font-bold text-xs shadow-sm transition cursor-pointer"
               >
-                Log Out
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span>Log Out</span>
               </button>
             </div>
           </div>
@@ -220,51 +239,45 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
 
-        {/* Theme Toggle Button (Dark / Light) */}
-        <button
-          onClick={onToggleTheme}
-          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-          className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-amber-400 transition cursor-pointer flex items-center justify-center ml-1"
-          aria-label="Toggle Theme"
-        >
-          {theme === 'dark' ? (
-            // Sun Icon for switching to Light mode
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4 text-amber-400"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-          ) : (
-            // Moon Icon for switching to Dark mode
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4 text-cyan-500"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-        </button>
+        {/* Theme Selector (Dark / Soft Light / Pure White) */}
+        <div className="flex items-center rounded-xl bg-slate-800/90 border border-slate-700/80 p-0.5 ml-1 shadow-sm">
+          <button
+            onClick={() => (onSelectTheme ? onSelectTheme('dark') : onToggleTheme())}
+            title="Dark Theme (Night Nets)"
+            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              theme === 'dark'
+                ? 'bg-slate-700 text-amber-400 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>🌙</span>
+            <span className="hidden sm:inline text-[10px]">Dark</span>
+          </button>
+          <button
+            onClick={() => (onSelectTheme ? onSelectTheme('light') : onToggleTheme())}
+            title="Soft Slate Light Theme"
+            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              theme === 'light'
+                ? 'bg-white text-slate-900 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>⛅</span>
+            <span className="hidden sm:inline text-[10px]">Soft</span>
+          </button>
+          <button
+            onClick={() => (onSelectTheme ? onSelectTheme('pure-light') : onToggleTheme())}
+            title="Pure White Theme (Cricket Whites / Daylight)"
+            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              theme === 'pure-light'
+                ? 'bg-white text-emerald-600 font-bold shadow-sm border border-emerald-400/40'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>☀️</span>
+            <span className="hidden sm:inline text-[10px]">Pure</span>
+          </button>
+        </div>
       </div>
     </header>
   );

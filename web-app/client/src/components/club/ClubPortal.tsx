@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType } from '../../types';
+import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
+import { UserPlus, Users, Calendar, X } from 'lucide-react';
 
 interface ClubPortalProps {
   clubMembers: ClubMember[];
@@ -40,6 +42,42 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 }) => {
   const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'CLUB_DRILLS' | 'PROGRESSION'>('ROSTER');
 
+  // General Notification / Action Confirmation Modal State
+  const [portalModal, setPortalModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string | React.ReactNode;
+    type?: ConfirmationType;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  // Invite Member Modal Form State
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'COACH' | 'PLAYER'>('PLAYER');
+  const [inviteAgeGroup, setInviteAgeGroup] = useState('U15');
+  const [inviteDiscipline, setInviteDiscipline] = useState<Discipline>('BATTING');
+  const [inviteSquad, setInviteSquad] = useState('Unassigned');
+
+  // Form New Squad Modal Form State
+  const [isSquadModalOpen, setIsSquadModalOpen] = useState(false);
+  const [squadFormName, setSquadFormName] = useState('');
+  const [squadFormAgeGroup, setSquadFormAgeGroup] = useState('U15');
+  const [squadFormDiscipline, setSquadFormDiscipline] = useState<Discipline>('BOWLING');
+  const [squadFormCoach, setSquadFormCoach] = useState('Shane Bond');
+
+  // Schedule Session Modal Form State
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [sessionFormTitle, setSessionFormTitle] = useState('');
+  const [sessionFormSquad, setSessionFormSquad] = useState('U15 Pace & Power Squad');
+  const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
+  const [sessionFormDuration, setSessionFormDuration] = useState(90);
+
   // Drill form state for club coaches
   const [newDrillTitle, setNewDrillTitle] = useState('');
   const [newDrillDiscipline, setNewDrillDiscipline] = useState<Discipline>('BATTING');
@@ -71,12 +109,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setNewDrillTitle('');
     setNewDrillSkillSet('');
     setNewDrillInstructions('');
-    alert(`Club Custom Drill "${drill.title}" saved to ${clubName} library!`);
+    setPortalModal({
+      isOpen: true,
+      title: 'Club Drill Saved',
+      message: `Club Custom Drill "${drill.title}" has been successfully added to the ${clubName} proprietary training catalog.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setPortalModal(null)
+    });
   };
 
   const handleEvaluatePostSession = () => {
     if (!activeSessionNotes) {
-      alert('Please enter coach observations or notes first.');
+      setPortalModal({
+        isOpen: true,
+        title: 'Observations Required',
+        message: 'Please enter coach observations or post-session technical notes before requesting AI biomechanical diagnosis.',
+        type: 'warning',
+        confirmLabel: 'OK',
+        onConfirm: () => setPortalModal(null)
+      });
       return;
     }
     setEvaluatingSession(true);
@@ -120,67 +172,220 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       instructions: drillItem.reason
     };
     onAddClubDrill(newDrill);
-    alert(`Drill "${drillItem.title}" adopted into your club training catalog!`);
+    setPortalModal({
+      isOpen: true,
+      title: 'Drill Adopted into Academy',
+      message: `Drill "${drillItem.title}" has been successfully adopted into your club training catalog!`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setPortalModal(null)
+    });
+  };
+
+  // Form submit handlers for modals
+  const handleInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteName.trim() || !inviteEmail.trim()) return;
+    const newMem: ClubMember = {
+      id: 'mem-' + Date.now(),
+      name: inviteName.trim(),
+      email: inviteEmail.trim(),
+      role: inviteRole,
+      ageGroup: inviteAgeGroup,
+      discipline: inviteDiscipline,
+      invitationStatus: 'PENDING_ACCEPTANCE',
+      currentLevel: 'FOUNDATION',
+      squad: inviteSquad
+    };
+    onInviteMember(newMem);
+    setIsInviteModalOpen(false);
+    setInviteName('');
+    setInviteEmail('');
+    setPortalModal({
+      isOpen: true,
+      title: 'Roster Invitation Dispatched',
+      message: (
+        <div className="space-y-2">
+          <p>An official onboarding link has been dispatched via email to <strong className="text-cyan-400">{newMem.email}</strong>.</p>
+          <p className="text-xs text-slate-400">Role: <strong className="text-white">{newMem.role}</strong> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</p>
+        </div>
+      ),
+      type: 'success',
+      confirmLabel: 'Great',
+      onConfirm: () => setPortalModal(null)
+    });
+  };
+
+  const handleSquadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!squadFormName.trim()) return;
+    const newSquad: Squad = {
+      id: 'sq-' + Date.now(),
+      name: squadFormName.trim(),
+      ageGroup: squadFormAgeGroup,
+      coachName: squadFormCoach.trim() || 'Shane Bond',
+      discipline: squadFormDiscipline,
+      memberCount: 0
+    };
+    onAddSquad(newSquad);
+    setIsSquadModalOpen(false);
+    setSquadFormName('');
+    setPortalModal({
+      isOpen: true,
+      title: 'Squad Created Successfully',
+      message: `Squad "${newSquad.name}" (${newSquad.ageGroup} - ${newSquad.discipline}) is now active under Coach ${newSquad.coachName}.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setPortalModal(null)
+    });
+  };
+
+  const handleSessionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionFormTitle.trim() || !sessionFormDate) return;
+    const newSession: TrainingSession = {
+      id: 'sess-' + Date.now(),
+      squadName: sessionFormSquad,
+      title: sessionFormTitle.trim(),
+      sessionDate: sessionFormDate,
+      durationMinutes: Number(sessionFormDuration) || 90,
+      isPublished: false,
+      drillCount: 3
+    };
+    onScheduleSession(newSession);
+    setIsSessionModalOpen(false);
+    setSessionFormTitle('');
+    setPortalModal({
+      isOpen: true,
+      title: 'Training Session Scheduled',
+      message: `Session "${newSession.title}" for ${newSession.squadName} on ${newSession.sessionDate} (${newSession.durationMinutes} mins) has been added to drafts.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setPortalModal(null)
+    });
+  };
+
+  // Confirmation prompts for actions
+  const promptAcceptInvite = (mem: ClubMember) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Accept Roster Invitation',
+      message: `Confirm invitation acceptance for ${mem.name} (${mem.email})? This activates their athlete profile.`,
+      type: 'confirm',
+      confirmLabel: 'Accept Invitation',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        onAcceptMemberInvite(mem.id);
+      }
+    });
+  };
+
+  const promptPromotePlayer = (mem: ClubMember) => {
+    const nextLevel =
+      mem.currentLevel === 'FOUNDATION' ? 'DEVELOPING' :
+      mem.currentLevel === 'DEVELOPING' ? 'INTERMEDIATE' :
+      mem.currentLevel === 'INTERMEDIATE' ? 'ADVANCED' : 'ELITE';
+
+    setPortalModal({
+      isOpen: true,
+      title: 'Promote Player & Issue Certificate',
+      message: (
+        <div className="space-y-2">
+          <p>Are you sure you want to promote <strong className="text-white">{mem.name}</strong> from <span className="underline">{mem.currentLevel}</span> to <strong className="text-emerald-400">{nextLevel}</strong>?</p>
+          <p className="text-xs text-slate-400">An official verifiable certificate of skill achievement will be generated and signed by the coaching staff.</p>
+        </div>
+      ),
+      type: 'confirm',
+      confirmLabel: `Promote to ${nextLevel}`,
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        onPromotePlayer(mem.id);
+      }
+    });
+  };
+
+  const promptPublishSession = (session: TrainingSession) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Publish Training Session',
+      message: (
+        <div className="space-y-2">
+          <p>Publish session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-cyan-400 font-medium">{session.sessionDate}</span>?</p>
+          <p className="text-xs text-slate-400">This will immediately notify registered squad athletes in <strong className="text-slate-200">{session.squadName}</strong> with planned drill routines.</p>
+        </div>
+      ),
+      type: 'confirm',
+      confirmLabel: 'Publish & Notify Squad',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        onPublishSession(session.id);
+      }
+    });
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-white">{clubName}</h1>
-            <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
-              Club Admin & Coaching Hub
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Manage roster invitations, squad formation, session-based plans, post-session AI evaluations, Google Drive video uploads, and achievement certificates.
-          </p>
+      {/* Club Header */}
+      <div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-white">{clubName}</h1>
+          <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+            Club Admin & Coaching Hub
+          </span>
         </div>
+        <p className="text-xs text-slate-400 mt-1">
+          Manage roster invitations, squad formation, session-based plans, post-session AI evaluations, Google Drive video uploads, and achievement certificates.
+        </p>
+      </div>
 
-        {/* Club Sub Tabs */}
-        <div className="flex flex-wrap rounded-lg bg-slate-900 border border-slate-800 p-1 gap-1">
-          <button
-            onClick={() => setClubTab('ROSTER')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              clubTab === 'ROSTER' ? 'bg-purple-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Roster & Invites ({clubMembers.length})
-          </button>
-          <button
-            onClick={() => setClubTab('SQUADS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              clubTab === 'SQUADS' ? 'bg-purple-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Squads ({squads.length})
-          </button>
-          <button
-            onClick={() => setClubTab('SESSIONS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              clubTab === 'SESSIONS' ? 'bg-purple-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Training Sessions ({sessions.length})
-          </button>
-          <button
-            onClick={() => setClubTab('CLUB_DRILLS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              clubTab === 'CLUB_DRILLS' ? 'bg-purple-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Club Drills
-          </button>
-          <button
-            onClick={() => setClubTab('PROGRESSION')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              clubTab === 'PROGRESSION' ? 'bg-purple-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Certificates ({certificates.length})
-          </button>
-        </div>
+      {/* Full-width Navigation Bar directly above the content panel */}
+      <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2 shadow-sm">
+        <button
+          onClick={() => setClubTab('ROSTER')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'ROSTER' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Roster & Invites ({clubMembers.length})</span>
+        </button>
+        <button
+          onClick={() => setClubTab('SQUADS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'SQUADS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Squads ({squads.length})</span>
+        </button>
+        <button
+          onClick={() => setClubTab('SESSIONS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'SESSIONS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Training Sessions ({sessions.length})</span>
+        </button>
+        <button
+          onClick={() => setClubTab('CLUB_DRILLS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'CLUB_DRILLS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Club Drills</span>
+        </button>
+        <button
+          onClick={() => setClubTab('PROGRESSION')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'PROGRESSION' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Certificates ({certificates.length})</span>
+        </button>
       </div>
 
       {/* Club Sub-tab 1: Roster & Invitations */}
@@ -194,30 +399,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </p>
             </div>
             <button
-              onClick={() => {
-                const name = prompt('Enter Member Name:');
-                const email = prompt('Enter Email:');
-                const role = prompt('Role (COACH or PLAYER):', 'PLAYER') as 'COACH' | 'PLAYER';
-                const ageGroup = prompt('Age Group (e.g. U13, U15, Senior):', 'U15');
-                if (name && email) {
-                  const newMem: ClubMember = {
-                    id: 'mem-' + Date.now(),
-                    name,
-                    email,
-                    role: role === 'COACH' ? 'COACH' : 'PLAYER',
-                    ageGroup: ageGroup || 'U15',
-                    discipline: 'BATTING',
-                    invitationStatus: 'PENDING_ACCEPTANCE',
-                    currentLevel: 'FOUNDATION',
-                    squad: 'Unassigned'
-                  };
-                  onInviteMember(newMem);
-                  alert(`Invitation link emailed to ${email}!`);
-                }
-              }}
-              className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs rounded transition"
+              onClick={() => setIsInviteModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              + Invite New Coach / Player
+              <UserPlus size={14} />
+              <span>+ Invite New Coach / Player</span>
             </button>
           </div>
 
@@ -269,8 +455,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <td className="py-3 px-3 text-right space-x-1.5">
                       {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
                         <button
-                          onClick={() => onAcceptMemberInvite(mem.id)}
-                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px]"
+                          onClick={() => promptAcceptInvite(mem)}
+                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] cursor-pointer"
                         >
                           Accept Invite
                         </button>
@@ -279,13 +465,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <>
                           <button
                             onClick={() => onSimulateDriveUpload(mem.name)}
-                            className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px]"
+                            className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px] cursor-pointer"
                           >
                             Upload Video (Drive)
                           </button>
                           <button
-                            onClick={() => onPromotePlayer(mem.id)}
-                            className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[11px]"
+                            onClick={() => promptPromotePlayer(mem)}
+                            className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[11px] cursor-pointer"
                           >
                             Assess & Promote
                           </button>
@@ -331,25 +517,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </p>
             </div>
             <button
-              onClick={() => {
-                const name = prompt('Squad Name:');
-                const ageGroup = prompt('Age Group:', 'U15');
-                const discipline = prompt('Discipline (BATTING, BOWLING, etc.):', 'BOWLING') as Discipline;
-                if (name) {
-                  onAddSquad({
-                    id: 'sq-' + Date.now(),
-                    name,
-                    ageGroup: ageGroup || 'U15',
-                    coachName: 'Shane Bond',
-                    discipline: discipline || 'BOWLING',
-                    memberCount: 0
-                  });
-                  alert(`Squad "${name}" created!`);
-                }
-              }}
-              className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs rounded transition"
+              onClick={() => setIsSquadModalOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              + Form New Squad
+              <Users size={14} />
+              <span>+ Form New Squad</span>
             </button>
           </div>
 
@@ -387,25 +559,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <p className="text-xs text-slate-400">Publish training to notify squad athletes.</p>
               </div>
               <button
-                onClick={() => {
-                  const title = prompt('Session Title:');
-                  const date = prompt('Session Date (YYYY-MM-DD):', '2026-10-05');
-                  if (title && date) {
-                    onScheduleSession({
-                      id: 'sess-' + Date.now(),
-                      squadName: 'U15 Pace & Power Squad',
-                      title,
-                      sessionDate: date,
-                      durationMinutes: 90,
-                      isPublished: false,
-                      drillCount: 3
-                    });
-                    alert('New training session scheduled!');
-                  }
-                }}
-                className="px-2.5 py-1 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs rounded transition"
+                onClick={() => setIsSessionModalOpen(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
               >
-                + Schedule Session
+                <Calendar size={14} />
+                <span>+ Schedule Session</span>
               </button>
             </div>
 
@@ -426,8 +584,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <span className="text-xs text-slate-500">{s.drillCount} Planned Drills</span>
                     {!s.isPublished ? (
                       <button
-                        onClick={() => onPublishSession(s.id)}
-                        className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded"
+                        onClick={() => promptPublishSession(s)}
+                        className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded cursor-pointer"
                       >
                         Publish & Notify Squad
                       </button>
@@ -684,6 +842,305 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {/* 1. Invite Coach / Player Modal Form */}
+      {isInviteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setIsInviteModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <UserPlus size={18} className="text-purple-400" />
+                <span>Invite New Coach or Player</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">Send an official invitation link to join {clubName}.</p>
+            </div>
+            <form onSubmit={handleInviteSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Jasprit Bumrah"
+                  value={inviteName}
+                  onChange={e => setInviteName(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. jasprit@cricket.org"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={e => setInviteRole(e.target.value as 'COACH' | 'PLAYER')}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="PLAYER">Player</option>
+                    <option value="COACH">Coach</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Age Group</label>
+                  <select
+                    value={inviteAgeGroup}
+                    onChange={e => setInviteAgeGroup(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="U9">Under-9</option>
+                    <option value="U11">Under-11</option>
+                    <option value="U13">Under-13</option>
+                    <option value="U15">Under-15</option>
+                    <option value="U19">Under-19</option>
+                    <option value="Senior">Senior</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
+                  <select
+                    value={inviteDiscipline}
+                    onChange={e => setInviteDiscipline(e.target.value as Discipline)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="BATTING">Batting</option>
+                    <option value="BOWLING">Bowling</option>
+                    <option value="KEEPING">Wicketkeeping</option>
+                    <option value="FIELDING">Fielding</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Assign Squad</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. U15 Pace Squad"
+                    value={inviteSquad}
+                    onChange={e => setInviteSquad(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsInviteModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                >
+                  Send Invitation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Form New Squad Modal Form */}
+      {isSquadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setIsSquadModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users size={18} className="text-purple-400" />
+                <span>Form New Squad</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">Create an age-bracket squad under an assigned head coach.</p>
+            </div>
+            <form onSubmit={handleSquadSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Squad Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. U13 Spin & Flight Unit"
+                  value={squadFormName}
+                  onChange={e => setSquadFormName(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Age Bracket</label>
+                  <select
+                    value={squadFormAgeGroup}
+                    onChange={e => setSquadFormAgeGroup(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="U9">Under-9</option>
+                    <option value="U11">Under-11</option>
+                    <option value="U13">Under-13</option>
+                    <option value="U15">Under-15</option>
+                    <option value="U19">Under-19</option>
+                    <option value="Senior">Senior</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
+                  <select
+                    value={squadFormDiscipline}
+                    onChange={e => setSquadFormDiscipline(e.target.value as Discipline)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="BATTING">Batting</option>
+                    <option value="BOWLING">Bowling</option>
+                    <option value="KEEPING">Wicketkeeping</option>
+                    <option value="FIELDING">Fielding</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Head Coach Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Shane Bond"
+                  value={squadFormCoach}
+                  onChange={e => setSquadFormCoach(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSquadModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                >
+                  Create Squad
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Schedule Session Modal Form */}
+      {isSessionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setIsSessionModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Calendar size={18} className="text-purple-400" />
+                <span>Schedule Training Session</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">Assign date, squad, and duration for practice drills.</p>
+            </div>
+            <form onSubmit={handleSessionSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Session Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Death Bowling & Yorker Execution Circuit"
+                  value={sessionFormTitle}
+                  onChange={e => setSessionFormTitle(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Target Squad</label>
+                <input
+                  type="text"
+                  value={sessionFormSquad}
+                  onChange={e => setSessionFormSquad(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
+                  <input
+                    type="date"
+                    required
+                    value={sessionFormDate}
+                    onChange={e => setSessionFormDate(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Duration (Minutes)</label>
+                  <input
+                    type="number"
+                    min="15"
+                    max="240"
+                    value={sessionFormDuration}
+                    onChange={e => setSessionFormDuration(Number(e.target.value))}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsSessionModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                >
+                  Schedule Session
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Action Confirmation & Notification Modal */}
+      {portalModal && (
+        <ConfirmationModal
+          isOpen={portalModal.isOpen}
+          title={portalModal.title}
+          message={portalModal.message}
+          type={portalModal.type}
+          confirmLabel={portalModal.confirmLabel}
+          cancelLabel={portalModal.cancelLabel}
+          showCancel={portalModal.showCancel}
+          onConfirm={portalModal.onConfirm}
+          onCancel={portalModal.onCancel || (() => setPortalModal(null))}
+          onClose={() => setPortalModal(null)}
+        />
       )}
     </div>
   );

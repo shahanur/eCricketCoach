@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification } from '../../types';
+import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 
 interface AdminPanelProps {
   customers: CustomerTenant[];
@@ -30,6 +31,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [customerFilterType, setCustomerFilterType] = useState<string>('ALL');
   const [customerSearch, setCustomerSearch] = useState<string>('');
 
+  // Confirmation Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string | React.ReactNode;
+    type?: ConfirmationType;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+
   // Drill form state
   const [newDrillTitle, setNewDrillTitle] = useState('');
   const [newDrillDiscipline, setNewDrillDiscipline] = useState<Discipline>('BATTING');
@@ -55,7 +68,56 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setNewDrillTitle('');
     setNewDrillSkillSet('');
     setNewDrillInstructions('');
-    alert(`New Official Pre-defined Drill "${drill.title}" added to system library!`);
+    setConfirmModal({
+      isOpen: true,
+      title: 'Official Drill Curated',
+      message: `Official Pre-defined Drill "${drill.title}" has been successfully added to the system library!`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setConfirmModal(null)
+    });
+  };
+
+  const promptApproveClub = (appr: ClubApproval) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Approve & Activate Account',
+      message: (
+        <div className="space-y-2">
+          <p>Are you sure you want to approve this registration application?</p>
+          <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
+            <p className="font-semibold text-white">{appr.clubName}</p>
+            <p className="text-slate-400">Admin: {appr.adminName} ({appr.adminEmail})</p>
+            <p className="text-emerald-400">Plan: {appr.plan} • ${appr.amountPaid} (Paid)</p>
+          </div>
+          <p className="text-[11px] text-slate-400">This will immediately generate their active tenancy and dispatch login access tokens.</p>
+        </div>
+      ),
+      type: 'confirm',
+      confirmLabel: 'Confirm & Activate',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setConfirmModal(null);
+        onApproveClub(appr.id);
+      }
+    });
+  };
+
+  const promptRetryInvoice = (inv: Invoice) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Payment Retry',
+      message: `Attempt automated payment recharge for invoice #${inv.id} (${inv.customerName} - $${inv.amount.toFixed(2)})?`,
+      type: 'confirm',
+      confirmLabel: 'Retry Payment',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setConfirmModal(null);
+        onRetryInvoice(inv.id);
+      }
+    });
   };
 
   const filteredCustomers = customers.filter(c => {
@@ -72,69 +134,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <span>🏢</span> Master Multi-Tenant Admin Panel
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            System Admin oversight: Customer accounts, billing, club approvals, and official pre-defined drill curation.
-          </p>
-        </div>
+      {/* Admin Panel Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <span>🏢</span> Master Multi-Tenant Admin Panel
+        </h1>
+        <p className="text-xs text-slate-400 mt-1">
+          System Admin oversight: Customer accounts, billing, club approvals, and official pre-defined drill curation.
+        </p>
+      </div>
 
-        {/* Sub-tabs within Admin */}
-        <div className="flex flex-wrap rounded-lg bg-slate-900 border border-slate-800 p-1 gap-1">
-          <button
-            onClick={() => setAdminTab('CUSTOMERS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              adminTab === 'CUSTOMERS' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Tenants ({customers.length})
-          </button>
-          <button
-            onClick={() => setAdminTab('CLUB_APPROVALS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-1.5 ${
-              adminTab === 'CLUB_APPROVALS' ? 'bg-amber-400 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>Awaiting Approvals</span>
-            {clubApprovals.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-bounce">
-                {clubApprovals.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setAdminTab('NOTIFICATIONS')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-1.5 ${
-              adminTab === 'NOTIFICATIONS' ? 'bg-indigo-500 text-white font-bold' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>Admin Email Alerts</span>
-            {notifications.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setAdminTab('DRILL_CURATOR')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              adminTab === 'DRILL_CURATOR' ? 'bg-emerald-500 text-slate-950' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Drill Curator ({drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length})
-          </button>
-          <button
-            onClick={() => setAdminTab('BILLING')}
-            className={`px-3 py-1.5 rounded text-xs font-semibold transition ${
-              adminTab === 'BILLING' ? 'bg-cyan-500 text-slate-950' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Billing ({invoices.length})
-          </button>
-        </div>
+      {/* Full-width Sub-tabs Panel below Master Multi-Tenant Admin Panel */}
+      <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2 shadow-sm">
+        <button
+          onClick={() => setAdminTab('CUSTOMERS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            adminTab === 'CUSTOMERS' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Tenants ({customers.length})</span>
+        </button>
+        <button
+          onClick={() => setAdminTab('CLUB_APPROVALS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            adminTab === 'CLUB_APPROVALS' ? 'bg-amber-400 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Awaiting Approvals</span>
+          {clubApprovals.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-bounce">
+              {clubApprovals.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setAdminTab('NOTIFICATIONS')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            adminTab === 'NOTIFICATIONS' ? 'bg-indigo-500 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Admin Email Alerts</span>
+          {notifications.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
+              {notifications.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setAdminTab('DRILL_CURATOR')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            adminTab === 'DRILL_CURATOR' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Drill Curator ({drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length})</span>
+        </button>
+        <button
+          onClick={() => setAdminTab('BILLING')}
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            adminTab === 'BILLING' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Billing ({invoices.length})</span>
+        </button>
       </div>
 
       {/* KPI Cards */}
@@ -303,8 +364,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </p>
                   </div>
                   <button
-                    onClick={() => onApproveClub(appr.id)}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-emerald-500/20 transition whitespace-nowrap"
+                    onClick={() => promptApproveClub(appr)}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-emerald-500/20 transition whitespace-nowrap cursor-pointer"
                   >
                     ✓ Approve & Activate Account
                   </button>
@@ -508,7 +569,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </td>
                     <td className="py-3 px-3 text-right">
                       {inv.status === 'FAILED' ? (
-                        <button onClick={() => onRetryInvoice(inv.id)} className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded text-[11px]">Retry</button>
+                        <button
+                          onClick={() => promptRetryInvoice(inv)}
+                          className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded text-[11px] cursor-pointer"
+                        >
+                          Retry
+                        </button>
                       ) : (
                         <button className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px]">Receipt</button>
                       )}
@@ -519,6 +585,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </table>
           </div>
         </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type={confirmModal.type}
+          confirmLabel={confirmModal.confirmLabel}
+          cancelLabel={confirmModal.cancelLabel}
+          showCancel={confirmModal.showCancel}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+          onClose={() => setConfirmModal(null)}
+        />
       )}
     </div>
   );

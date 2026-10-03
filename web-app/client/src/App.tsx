@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   ViewMode,
+  ThemeMode,
   Drill,
   CustomerTenant,
   Invoice,
@@ -15,35 +16,119 @@ import {
 import { api } from './services/api';
 import { Navbar } from './components/common/Navbar';
 import { LoginModal } from './components/common/LoginModal';
+import { ConfirmationModal, ConfirmationType } from './components/common/ConfirmationModal';
 import { HomePage, PlanConfig } from './components/home/HomePage';
 import { CoachingPortal } from './components/coaching/CoachingPortal';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { ClubPortal } from './components/club/ClubPortal';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('HOME');
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem('current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  // Theme state with localStorage persistence
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const savedUser = localStorage.getItem('current_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u.roles?.includes('SUPER_ADMIN')) return 'ADMIN_PANEL';
+        if (u.roles?.includes('CLUB_ADMIN')) return 'CLUB_PORTAL';
+        return 'COACHING_PORTAL';
+      }
+    } catch {}
+    return 'HOME';
+  });
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [socialRegistration, setSocialRegistration] = useState<{ token: string; name: string; email: string } | null>(null);
+
+  // Global modal state for confirmations and action notifications
+  const [appModal, setAppModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string | React.ReactNode;
+    type?: ConfirmationType;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    showCancel?: boolean;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  } | null>(null);
+
+  // Theme state with localStorage persistence: 'dark' | 'light' | 'pure-light'
+  const [theme, setTheme] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark') return saved;
+    if (saved === 'light' || saved === 'dark' || saved === 'pure-light') return saved as ThemeMode;
     return 'dark';
   });
 
   useEffect(() => {
     const root = document.documentElement;
+    root.classList.remove('light', 'pure-light');
     if (theme === 'light') {
       root.classList.add('light');
-    } else {
-      root.classList.remove('light');
+    } else if (theme === 'pure-light') {
+      root.classList.add('pure-light');
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const authToken = hash.get('auth_token');
+    const role = hash.get('role');
+    if (authToken && role && ['SUPER_ADMIN', 'PLAYER', 'COACH', 'CLUB_ADMIN'].includes(role)) {
+      const user: AuthUser = {
+        id: 'social-user',
+        name: hash.get('name') || (role === 'SUPER_ADMIN' ? 'System Administrator' : 'eCricketCoach member'),
+        email: hash.get('email') || '',
+        roles: [role as AuthUser['roles'][number]],
+        clubName: hash.get('clubName') || undefined
+      };
+      localStorage.setItem('auth_token', authToken);
+      localStorage.setItem('current_user', JSON.stringify(user));
+      setCurrentUser(user);
+      if (role === 'SUPER_ADMIN') {
+        setViewMode('ADMIN_PANEL');
+      } else if (role === 'CLUB_ADMIN') {
+        setViewMode('CLUB_PORTAL');
+      } else {
+        setViewMode('COACHING_PORTAL');
+      }
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      return;
+    }
+
+    const query = new URLSearchParams(window.location.search);
+    const token = query.get('registration_token');
+    const name = query.get('registration_name');
+    const email = query.get('registration_email');
+    if (token && name && email) {
+      setSocialRegistration({ token, name, email });
+      query.delete('registration_token');
+      query.delete('registration_name');
+      query.delete('registration_email');
+      const remainingQuery = query.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`);
+    }
+  }, []);
+
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme(prev => {
+      if (prev === 'dark') return 'light';
+      if (prev === 'light') return 'pure-light';
+      return 'dark';
+    });
+  };
+
+  const handleSelectTheme = (newTheme: ThemeMode) => {
+    setTheme(newTheme);
   };
 
   // Master Drill Catalog
@@ -144,6 +229,7 @@ export default function App() {
     cardNumber: string;
     expiry: string;
     cvc: string;
+    registrationToken?: string;
   }) => {
     try {
       const result = await api.checkout({
@@ -152,7 +238,8 @@ export default function App() {
         name: data.name,
         email: data.email,
         organizationName: data.organizationName,
-        cardNumber: data.cardNumber
+        cardNumber: data.cardNumber,
+        registrationToken: data.registrationToken
       });
 
       if (result) {
@@ -215,7 +302,14 @@ export default function App() {
         if (res.notification) {
           setAdminNotifications(prev => [res.notification, ...prev]);
         }
-        alert(`🎉 Account "${res.item.clubName}" approved! Credentials dispatched to ${res.item.adminEmail}.`);
+        setAppModal({
+          isOpen: true,
+          title: 'Account Approved & Activated',
+          message: `🎉 Account "${res.item.clubName}" has been successfully approved! Credentials and welcome access tokens have been dispatched to ${res.item.adminEmail}.`,
+          type: 'success',
+          confirmLabel: 'Done',
+          onConfirm: () => setAppModal(null)
+        });
         return;
       }
     } catch (err) {
@@ -258,7 +352,14 @@ export default function App() {
       ...prev
     ]);
 
-    alert(`🎉 Account "${appr.clubName}" approved! Onboarding link & credentials dispatched to ${appr.adminEmail}.`);
+    setAppModal({
+      isOpen: true,
+      title: 'Account Approved & Activated',
+      message: `🎉 Account "${appr.clubName}" has been approved! Onboarding link & credentials dispatched to ${appr.adminEmail}.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setAppModal(null)
+    });
   };
 
   const handleUpdateCustomerStatus = async (id: string, newStatus: CustomerTenant['status']) => {
@@ -300,14 +401,28 @@ export default function App() {
       const updated = await api.updateInvoiceStatus(invoiceId, 'PAID');
       if (updated) {
         setInvoices(prev => prev.map(i => (i.id === invoiceId ? updated : i)));
-        alert(`Invoice ${invoiceId} marked as successfully charged.`);
+        setAppModal({
+          isOpen: true,
+          title: 'Invoice Payment Succeeded',
+          message: `Invoice ${invoiceId} has been successfully recharged and recorded as PAID.`,
+          type: 'success',
+          confirmLabel: 'OK',
+          onConfirm: () => setAppModal(null)
+        });
         return;
       }
     } catch {
       // fallback
     }
     setInvoices(prev => prev.map(i => (i.id === invoiceId ? { ...i, status: 'PAID' } : i)));
-    alert(`Invoice ${invoiceId} marked as successfully charged.`);
+    setAppModal({
+      isOpen: true,
+      title: 'Invoice Payment Succeeded',
+      message: `Invoice ${invoiceId} marked as successfully charged.`,
+      type: 'success',
+      confirmLabel: 'OK',
+      onConfirm: () => setAppModal(null)
+    });
   };
 
   const handleInviteMember = async (member: ClubMember) => {
@@ -324,7 +439,14 @@ export default function App() {
       const saved = await api.acceptMemberInvite(memberId);
       if (saved) {
         setClubMembers(prev => prev.map(m => (m.id === memberId ? saved : m)));
-        alert('Invitation accepted! Member can now log in and access assigned training plans.');
+        setAppModal({
+          isOpen: true,
+          title: 'Roster Invitation Accepted',
+          message: 'Invitation accepted! Member profile is now active and can access assigned training plans and squad communications.',
+          type: 'success',
+          confirmLabel: 'Done',
+          onConfirm: () => setAppModal(null)
+        });
         return;
       }
     } catch {
@@ -333,7 +455,14 @@ export default function App() {
     setClubMembers(prev =>
       prev.map(m => (m.id === memberId ? { ...m, invitationStatus: 'ACTIVE' } : m))
     );
-    alert('Invitation accepted! Member can now log in and access assigned training plans.');
+    setAppModal({
+      isOpen: true,
+      title: 'Roster Invitation Accepted',
+      message: 'Invitation accepted! Member profile is now active and can access assigned training plans and squad communications.',
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setAppModal(null)
+    });
   };
 
   const handlePromotePlayer = async (memberId: string) => {
@@ -357,7 +486,14 @@ export default function App() {
         setClubMembers(prev =>
           prev.map(m => (m.id === memberId ? { ...m, currentLevel: nextLevel } : m))
         );
-        alert(`🎉 ${member.name} promoted to ${nextLevel}! Certificate #${res.certificate.certificateNumber} generated.`);
+        setAppModal({
+          isOpen: true,
+          title: 'Player Milestone Certified',
+          message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${res.certificate.certificateNumber} has been issued and cataloged.`,
+          type: 'success',
+          confirmLabel: 'View Certificates',
+          onConfirm: () => setAppModal(null)
+        });
         return;
       }
     } catch {
@@ -381,7 +517,14 @@ export default function App() {
     };
 
     setCertificates(prev => [newCert, ...prev]);
-    alert(`🎉 ${member.name} promoted to ${nextLevel}! Certificate #${newCert.certificateNumber} generated.`);
+    setAppModal({
+      isOpen: true,
+      title: 'Player Milestone Certified',
+      message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${newCert.certificateNumber} has been issued and cataloged.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setAppModal(null)
+    });
   };
 
   const handleAddSquad = async (squad: Squad) => {
@@ -407,7 +550,14 @@ export default function App() {
       const published = await api.publishSession(sessionId);
       if (published) {
         setSessions(prev => prev.map(s => (s.id === sessionId ? published : s)));
-        alert('Training session published! Squad players have been notified with the planned drills.');
+        setAppModal({
+          isOpen: true,
+          title: 'Training Schedule Published',
+          message: 'Training session published! Registered squad athletes and coaches have been notified with the assigned drill itinerary.',
+          type: 'success',
+          confirmLabel: 'Done',
+          onConfirm: () => setAppModal(null)
+        });
         return;
       }
     } catch {
@@ -416,7 +566,14 @@ export default function App() {
     setSessions(prev =>
       prev.map(s => (s.id === sessionId ? { ...s, isPublished: true } : s))
     );
-    alert('Training session published! Squad players have been notified with the planned drills.');
+    setAppModal({
+      isOpen: true,
+      title: 'Training Schedule Published',
+      message: 'Training session published! Registered squad athletes and coaches have been notified with the assigned drill itinerary.',
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setAppModal(null)
+    });
   };
 
   const handleSimulateDriveUpload = async (playerName: string) => {
@@ -450,19 +607,9 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (user: AuthUser) => {
-    setCurrentUser(user);
-    // Route user automatically to their primary persona view
-    if (user.roles.includes('SUPER_ADMIN')) {
-      setViewMode('ADMIN_PANEL');
-    } else if (user.roles.includes('CLUB_ADMIN')) {
-      setViewMode('CLUB_PORTAL');
-    } else {
-      setViewMode('COACHING_PORTAL');
-    }
-  };
-
   const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('current_user');
     setCurrentUser(null);
     setViewMode('HOME');
   };
@@ -478,16 +625,30 @@ export default function App() {
         pendingApprovalsCount={clubApprovals.length}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onSelectTheme={handleSelectTheme}
       />
 
       {/* Login Modal */}
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
-        customers={customers}
-        clubMembers={clubMembers}
       />
+
+      {/* Confirmation & Notification Modal */}
+      {appModal && (
+        <ConfirmationModal
+          isOpen={appModal.isOpen}
+          title={appModal.title}
+          message={appModal.message}
+          type={appModal.type}
+          confirmLabel={appModal.confirmLabel}
+          cancelLabel={appModal.cancelLabel}
+          showCancel={appModal.showCancel}
+          onConfirm={appModal.onConfirm}
+          onCancel={appModal.onCancel || (() => setAppModal(null))}
+          onClose={() => setAppModal(null)}
+        />
+      )}
 
       {/* Main Content Areas */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
@@ -495,6 +656,7 @@ export default function App() {
           <HomePage
             onRegisterPlan={handleRegisterFromHomePage}
             onExploreDemo={() => setIsLoginModalOpen(true)}
+            socialRegistration={socialRegistration}
           />
         )}
 

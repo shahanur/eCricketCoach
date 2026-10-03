@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 export interface AuthenticatedUser {
   userId: string;
   tenantId: string;
-  role: 'PLAYER' | 'COACH' | 'CLUB_ADMIN';
+  role: 'SUPER_ADMIN' | 'PLAYER' | 'COACH' | 'CLUB_ADMIN';
   email: string;
 }
 
@@ -33,7 +33,7 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
   });
 };
 
-export const requireRole = (allowedRoles: Array<'PLAYER' | 'COACH' | 'CLUB_ADMIN'>) => {
+export const requireRole = (allowedRoles: Array<'SUPER_ADMIN' | 'PLAYER' | 'COACH' | 'CLUB_ADMIN'>) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       res.status(403).json({ error: 'Insufficient permissions' });

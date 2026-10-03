@@ -6,6 +6,7 @@ import { adminRouter } from './routes/admin.js';
 import { clubRouter } from './routes/club.js';
 import { subscriptionsRouter } from './routes/subscriptions.js';
 import { aiRouter } from './routes/ai.js';
+import { authRouter } from './routes/auth.js';
 import { initDb } from './config/initDb.js';
 
 dotenv.config();
@@ -16,6 +17,7 @@ const port = process.env.PORT || 5001;
 // Global Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Initialize Database & Seeds
 initDb().catch(err => {
@@ -34,6 +36,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // Modular Routes & Microservice Endpoints
 app.use('/api/subscriptions', subscriptionsRouter);
+app.use('/api/auth', authRouter);
 app.use('/api/drills', drillsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/club', clubRouter);

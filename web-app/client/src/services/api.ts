@@ -130,6 +130,7 @@ export const api = {
     email: string;
     organizationName: string;
     cardNumber?: string;
+    registrationToken?: string;
   }): Promise<{ approval: ClubApproval; invoice: Invoice; notification: AdminNotification }> {
     const res = await fetch(`${API_BASE}/subscriptions/checkout`, {
       method: 'POST',

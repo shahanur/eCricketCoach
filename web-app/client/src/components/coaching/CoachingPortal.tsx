@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Discipline, ContextType, Drill } from '../../types';
+import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 
 interface CoachingPortalProps {
   drills: Drill[];
@@ -11,6 +12,16 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<any>(null);
+
+  // Confirmation Modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string | React.ReactNode;
+    type?: ConfirmationType;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const handleSimulateAnalysis = () => {
     setAnalyzing(true);
@@ -50,7 +61,14 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
       instructions: 'Custom corrective drill generated via computer vision pose analysis.'
     };
     onAddAiDrill(newDrill);
-    alert('AI Recommended drill added to your training catalog!');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Drill Adopted into Catalog',
+      message: `AI Recommended Drill "${newDrill.title}" has been successfully added to your training catalog!`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setConfirmModal(null)
+    });
   };
 
   const filteredDrills = drills.filter(
@@ -249,6 +267,19 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
           </div>
         </div>
       </section>
+
+      {/* Confirmation & Info Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          type={confirmModal.type}
+          confirmLabel={confirmModal.confirmLabel}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };
