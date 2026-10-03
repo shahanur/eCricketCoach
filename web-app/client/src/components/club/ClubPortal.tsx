@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { UserPlus, Users, Calendar, X, Search, Filter } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2 } from 'lucide-react';
 
 interface ClubPortalProps {
   clubMembers: ClubMember[];
@@ -463,47 +463,55 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           </div>
 
           {/* Roster Filter & Search Bar */}
-          <div className="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+          <div className="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 shadow-sm">
             {/* Quick Status/Role Filter Tabs */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">Role:</span>
-                {[
-                  { key: 'ALL', label: `All (${clubMembers.length})` },
-                  { key: 'COACH', label: `Coaches (${clubMembers.filter(m => m.role === 'COACH').length})` },
-                  { key: 'PLAYER', label: `Players (${clubMembers.filter(m => m.role === 'PLAYER').length})` }
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setRosterRoleFilter(tab.key as any)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                      rosterRoleFilter === tab.key
-                        ? 'bg-purple-500 text-white shadow-sm'
-                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 mr-2">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role:</span>
+                  <div className="inline-flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/60">
+                    {[
+                      { key: 'ALL', label: `All (${clubMembers.length})` },
+                      { key: 'COACH', label: `Coaches (${clubMembers.filter(m => m.role === 'COACH').length})` },
+                      { key: 'PLAYER', label: `Players (${clubMembers.filter(m => m.role === 'PLAYER').length})` }
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setRosterRoleFilter(tab.key as any)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
+                          rosterRoleFilter === tab.key
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider ml-2 mr-1">Status:</span>
-                {[
-                  { key: 'ALL', label: 'All' },
-                  { key: 'ACTIVE', label: 'Active' },
-                  { key: 'PENDING', label: 'Pending' }
-                ].map(tab => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setRosterStatusFilter(tab.key as any)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                      rosterStatusFilter === tab.key
-                        ? 'bg-purple-500 text-white shadow-sm'
-                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+                  <div className="inline-flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/60">
+                    {[
+                      { key: 'ALL', label: 'All' },
+                      { key: 'ACTIVE', label: 'Active' },
+                      { key: 'PENDING', label: 'Pending' }
+                    ].map(tab => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setRosterStatusFilter(tab.key as any)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
+                          rosterStatusFilter === tab.key
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Search Box */}
@@ -514,7 +522,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   placeholder="Search name, email, squad..."
                   value={rosterSearchTerm}
                   onChange={e => setRosterSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
                 />
                 {rosterSearchTerm && (
                   <button
@@ -528,10 +536,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
 
             {/* Dropdown Filters for Discipline & Age Group */}
-            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60">
+            <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-slate-800/80">
               <div className="flex items-center gap-1.5">
-                <Filter size={12} className="text-slate-400" />
-                <span className="text-xs text-slate-400">Discipline:</span>
+                <Filter size={13} className="text-purple-400" />
+                <span className="text-xs text-slate-300 font-medium">Discipline:</span>
                 <select
                   value={rosterDisciplineFilter}
                   onChange={e => setRosterDisciplineFilter(e.target.value)}
@@ -546,7 +554,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-400">Age Group:</span>
+                <span className="text-xs text-slate-300 font-medium">Age Group:</span>
                 <select
                   value={rosterAgeGroupFilter}
                   onChange={e => setRosterAgeGroupFilter(e.target.value)}
@@ -568,7 +576,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setRosterDisciplineFilter('ALL');
                     setRosterSearchTerm('');
                   }}
-                  className="text-xs text-purple-400 hover:text-purple-300 underline cursor-pointer ml-auto"
+                  className="text-xs font-semibold text-purple-400 hover:text-purple-300 underline cursor-pointer ml-auto"
                 >
                   Clear all filters
                 </button>
@@ -587,7 +595,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <th className="py-3 px-3">Assigned Squad</th>
                   <th className="py-3 px-3">Current Level</th>
                   <th className="py-3 px-3">Invite Status</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
+                  <th className="py-3 px-3 text-right w-64">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -649,31 +657,43 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right space-x-1.5">
-                        {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
-                          <button
-                            onClick={() => promptAcceptInvite(mem)}
-                            className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] cursor-pointer"
-                          >
-                            Accept Invite
-                          </button>
-                        )}
-                        {mem.role === 'PLAYER' && (
-                          <>
+                      <td className="py-3 px-3 text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
                             <button
-                              onClick={() => onSimulateDriveUpload(mem.name)}
-                              className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px] cursor-pointer"
+                              onClick={() => promptAcceptInvite(mem)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm"
                             >
-                              Upload Video (Drive)
+                              <CheckCircle2 size={13} />
+                              <span>Accept Invite</span>
                             </button>
-                            <button
-                              onClick={() => promptPromotePlayer(mem)}
-                              className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[11px] cursor-pointer"
-                            >
-                              Assess & Promote
-                            </button>
-                          </>
-                        )}
+                          )}
+                          {mem.role === 'PLAYER' && (
+                            <>
+                              <button
+                                onClick={() => onSimulateDriveUpload(mem.name)}
+                                title="Upload video clip to Google Drive for AI pose estimation"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                              >
+                                <Video size={13} />
+                                <span>Upload Drive</span>
+                              </button>
+                              <button
+                                onClick={() => promptPromotePlayer(mem)}
+                                title="Promote player to next competency level and issue certificate"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                              >
+                                <Award size={13} />
+                                <span>Promote</span>
+                              </button>
+                            </>
+                          )}
+                          {mem.role === 'COACH' && mem.invitationStatus === 'ACTIVE' && (
+                            <span className="text-[11px] text-slate-500 font-medium px-2 py-1">
+                              Staff Active
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
