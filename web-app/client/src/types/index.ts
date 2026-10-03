@@ -66,9 +66,31 @@ export interface AdminNotification {
   id: string;
   title: string;
   message: string;
-  type: 'PAYMENT_RECEIVED' | 'APPROVAL_PENDING' | 'TENANT_ACTIVATED';
+  type: 'PAYMENT_RECEIVED' | 'APPROVAL_PENDING' | 'TENANT_ACTIVATED' | 'SUPPORT_TICKET_RAISED' | 'SUPPORT_TICKET_RESOLVED' | string;
   timestamp: string;
   read: boolean;
+}
+
+export type SupportTicketPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL';
+export type SupportTicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type SupportCategory = 'TECHNICAL' | 'BILLING' | 'AI_ANALYSIS' | 'ROSTER_MANAGEMENT' | 'FEATURE_REQUEST' | 'OTHER';
+
+export interface SupportTicket {
+  id: string;
+  ticketRef: string;
+  name: string;
+  email: string;
+  category: SupportCategory;
+  priority: SupportTicketPriority;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  tenantRole?: string;
+  clubName?: string;
+  resolution?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
 }
 
 export interface ClubMember {

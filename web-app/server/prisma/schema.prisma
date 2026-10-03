@@ -133,3 +133,23 @@ model CertificateStore {
 
   @@map("certificates_store")
 }
+
+model SupportTicketStore {
+  id          String   @id
+  ticketRef   String   @unique @map("ticket_ref")
+  name        String
+  email       String
+  category    String
+  priority    String   @default("NORMAL")
+  subject     String
+  message     String
+  status      String   @default("OPEN")
+  tenantRole  String?  @map("tenant_role")
+  clubName    String?  @map("club_name")
+  resolution  String?
+  resolvedBy  String?  @map("resolved_by")
+  resolvedAt  String?  @map("resolved_at")
+  createdAt   String   @map("created_at")
+
+  @@map("support_tickets_store")
+}

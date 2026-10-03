@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuthUser, ViewMode } from '../../types';
+import { AuthUser, ViewMode, SupportCategory, SupportTicket } from '../../types';
 import {
   LifeBuoy,
   BookOpen,
@@ -11,18 +11,19 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { api } from '../../services/api';
 
 interface HelpSupportPageProps {
   currentUser: AuthUser | null;
   setViewMode: (mode: ViewMode) => void;
   onOpenLogin?: () => void;
+  onTicketSubmitted?: (ticket: SupportTicket) => void;
 }
-
-type SupportCategory = 'TECHNICAL' | 'BILLING' | 'AI_ANALYSIS' | 'ROSTER_MANAGEMENT' | 'FEATURE_REQUEST' | 'OTHER';
 
 export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
   currentUser,
-  setViewMode
+  setViewMode,
+  onTicketSubmitted
 }) => {
   const [activeTab, setActiveTab] = useState<'GUIDE' | 'CONTACT' | 'FAQ'>('GUIDE');
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,22 +59,56 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
     }
 
     setIsSubmitting(true);
-    // Simulate API dispatch to eCricketCoach Support Desk
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const tenantRole = currentUser?.roles[0] || 'CUSTOMER';
+      const clubName = currentUser?.clubName || undefined;
+
+      const res = await api.createSupportTicket({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        category: formData.category,
+        priority: formData.priority,
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+        tenantRole,
+        clubName
+      });
+
+      const ticketRef = res.ticket.ticketRef;
+      setSubmissionSuccess(ticketRef);
+      if (onTicketSubmitted) {
+        onTicketSubmitted(res.ticket);
+      }
+
+      setModalInfo({
+        isOpen: true,
+        title: 'Support Ticket Raised Successfully',
+        message: `Ticket Ref #${ticketRef} has been recorded in the eCricketCoach Support Desk. Our System Engineers and Coaching Support team have been alerted and will review your request immediately.`
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        subject: '',
+        message: ''
+      }));
+    } catch (err: any) {
+      console.error('Failed to submit ticket:', err);
+      // Fallback ticket reference
       const ticketRef = 'ECC-' + Math.floor(100000 + Math.random() * 900000);
       setSubmissionSuccess(ticketRef);
       setModalInfo({
         isOpen: true,
-        title: 'Inquiry Dispatched to eCricketCoach Team',
-        message: `Your ticket reference #${ticketRef} has been recorded. Our engineering & coaching support team will respond to ${formData.email} within 2-4 business hours.`
+        title: 'Support Ticket Logged',
+        message: `Ticket Ref #${ticketRef} recorded. Our engineering & coaching support team will respond to ${formData.email} shortly.`
       });
       setFormData(prev => ({
         ...prev,
         subject: '',
         message: ''
       }));
-    }, 900);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const guides = [

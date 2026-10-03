@@ -355,6 +355,114 @@ export class DbService {
     };
   }
 
+  // --- Support Tickets Desk ---
+  static async getSupportTickets(filters?: { status?: string; category?: string; search?: string }) {
+    const where: any = {};
+    if (filters?.status && filters.status !== 'ALL') {
+      where.status = { equals: filters.status, mode: 'insensitive' };
+    }
+    if (filters?.category && filters.category !== 'ALL') {
+      where.category = { equals: filters.category, mode: 'insensitive' };
+    }
+    if (filters?.search) {
+      where.OR = [
+        { ticketRef: { contains: filters.search, mode: 'insensitive' } },
+        { name: { contains: filters.search, mode: 'insensitive' } },
+        { email: { contains: filters.search, mode: 'insensitive' } },
+        { subject: { contains: filters.search, mode: 'insensitive' } },
+        { message: { contains: filters.search, mode: 'insensitive' } },
+        { clubName: { contains: filters.search, mode: 'insensitive' } }
+      ];
+    }
+
+    const tickets = await (prisma as any).supportTicketStore.findMany({
+      where,
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return tickets.map((t: any) => ({
+      id: t.id,
+      ticketRef: t.ticketRef,
+      name: t.name,
+      email: t.email,
+      category: t.category,
+      priority: t.priority,
+      subject: t.subject,
+      message: t.message,
+      status: t.status,
+      tenantRole: t.tenantRole,
+      clubName: t.clubName,
+      resolution: t.resolution,
+      resolvedBy: t.resolvedBy,
+      resolvedAt: t.resolvedAt,
+      createdAt: t.createdAt
+    }));
+  }
+
+  static async createSupportTicket(data: any) {
+    const ticketRef = 'ECC-' + Math.floor(100000 + Math.random() * 900000);
+    const id = 'tkt-' + Date.now();
+    const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    const created = await (prisma as any).supportTicketStore.create({
+      data: {
+        id,
+        ticketRef,
+        name: data.name,
+        email: data.email,
+        category: data.category,
+        priority: data.priority || 'NORMAL',
+        subject: data.subject,
+        message: data.message,
+        status: 'OPEN',
+        tenantRole: data.tenantRole || null,
+        clubName: data.clubName || null,
+        createdAt
+      }
+    });
+
+    // Also dispatch a transactional notification to the Admin Email Inbox
+    await prisma.adminNotification.create({
+      data: {
+        id: 'notif-' + Date.now(),
+        title: `New Support Ticket [${ticketRef}]: ${data.subject}`,
+        message: `Ticket Ref #${ticketRef} raised by ${data.name} (${data.email}, Role: ${data.tenantRole || 'Customer'}, Club: ${data.clubName || 'Individual'}). Priority: ${data.priority || 'NORMAL'}. Category: ${data.category}. Message: "${data.message.substring(0, 120)}..."`,
+        type: 'SUPPORT_TICKET_RAISED',
+        timestamp: createdAt,
+        read: false
+      }
+    });
+
+    return created;
+  }
+
+  static async resolveSupportTicket(ticketId: string, payload: { resolution: string; resolvedBy: string; status?: string }) {
+    const resolvedAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const updated = await (prisma as any).supportTicketStore.update({
+      where: { id: ticketId },
+      data: {
+        status: payload.status || 'RESOLVED',
+        resolution: payload.resolution,
+        resolvedBy: payload.resolvedBy || 'Support Engineer',
+        resolvedAt
+      }
+    });
+
+    // Create an Admin Notification that ticket was resolved
+    await prisma.adminNotification.create({
+      data: {
+        id: 'notif-' + Date.now(),
+        title: `Ticket Resolved [${updated.ticketRef}]: ${updated.subject}`,
+        message: `Support Engineer ${payload.resolvedBy || 'Admin'} marked ticket #${updated.ticketRef} as ${updated.status}. Resolution: "${payload.resolution}"`,
+        type: 'SUPPORT_TICKET_RESOLVED',
+        timestamp: resolvedAt,
+        read: true
+      }
+    });
+
+    return updated;
+  }
+
   // --- Club Members ---
   static async getClubMembers(clubId?: string) {
     const where: any = {};

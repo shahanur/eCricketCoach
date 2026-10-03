@@ -13,6 +13,63 @@ adminRouter.get('/notifications', async (_req: Request, res: Response) => {
   }
 });
 
+// Admin: Get Support Tickets raised by tenants/customers
+adminRouter.get('/support-tickets', async (req: Request, res: Response) => {
+  try {
+    const { status, category, search } = req.query;
+    const tickets = await DbService.getSupportTickets({
+      status: status as string | undefined,
+      category: category as string | undefined,
+      search: search as string | undefined
+    });
+    res.json(tickets);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Tenant / Public: Raise a new Support Ticket
+adminRouter.post('/support-tickets', async (req: Request, res: Response) => {
+  try {
+    const { name, email, category, priority, subject, message, tenantRole, clubName } = req.body;
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ error: 'Missing required fields: name, email, subject, message' });
+    }
+    const ticket = await DbService.createSupportTicket({
+      name,
+      email,
+      category: category || 'TECHNICAL',
+      priority: priority || 'NORMAL',
+      subject,
+      message,
+      tenantRole,
+      clubName
+    });
+    return res.status(201).json({ success: true, ticket });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin & Support Engineers: Resolve or Update Support Ticket
+adminRouter.patch('/support-tickets/:id/resolve', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { resolution, resolvedBy, status } = req.body;
+    if (!resolution) {
+      return res.status(400).json({ error: 'Resolution explanation is required to resolve ticket' });
+    }
+    const updated = await DbService.resolveSupportTicket(id, {
+      resolution,
+      resolvedBy: resolvedBy || 'System Support Engineer',
+      status: status || 'RESOLVED'
+    });
+    return res.json({ success: true, ticket: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin: Get all customers with optional filters & tenancy MRR metrics
 adminRouter.get('/customers', async (req: Request, res: Response) => {
   try {

@@ -7,7 +7,8 @@ import {
   Squad,
   TrainingSession,
   Certificate,
-  AdminNotification
+  AdminNotification,
+  SupportTicket
 } from '../types';
 
 const API_BASE = '/api';
@@ -119,6 +120,51 @@ export const api = {
   async getNotifications(): Promise<AdminNotification[]> {
     const res = await fetch(`${API_BASE}/admin/notifications`);
     if (!res.ok) throw new Error('Failed to fetch notifications');
+    return res.json();
+  },
+
+  // Support Tickets Desk
+  async getSupportTickets(filters?: { status?: string; category?: string; search?: string }): Promise<SupportTicket[]> {
+    const sp = new URLSearchParams();
+    if (filters?.status) sp.append('status', filters.status);
+    if (filters?.category) sp.append('category', filters.category);
+    if (filters?.search) sp.append('search', filters.search);
+
+    const res = await fetch(`${API_BASE}/admin/support-tickets?${sp.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch support tickets');
+    return res.json();
+  },
+
+  async createSupportTicket(ticket: {
+    name: string;
+    email: string;
+    category: string;
+    priority?: string;
+    subject: string;
+    message: string;
+    tenantRole?: string;
+    clubName?: string;
+  }): Promise<{ success: boolean; ticket: SupportTicket }> {
+    const res = await fetch(`${API_BASE}/admin/support-tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ticket)
+    });
+    if (!res.ok) throw new Error('Failed to create support ticket');
+    return res.json();
+  },
+
+  async resolveSupportTicket(ticketId: string, payload: {
+    resolution: string;
+    resolvedBy?: string;
+    status?: string;
+  }): Promise<{ success: boolean; ticket: SupportTicket }> {
+    const res = await fetch(`${API_BASE}/admin/support-tickets/${ticketId}/resolve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('Failed to resolve support ticket');
     return res.json();
   },
 

@@ -108,6 +108,24 @@ export async function initDb() {
       coach_name VARCHAR(255) NOT NULL,
       coach_notes TEXT,
       ai_commendation TEXT
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS support_tickets_store (
+      id VARCHAR(100) PRIMARY KEY,
+      ticket_ref VARCHAR(100) UNIQUE NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      category VARCHAR(50) NOT NULL,
+      priority VARCHAR(50) DEFAULT 'NORMAL',
+      subject VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      status VARCHAR(50) DEFAULT 'OPEN',
+      tenant_role VARCHAR(50),
+      club_name VARCHAR(255),
+      resolution TEXT,
+      resolved_by VARCHAR(255),
+      resolved_at VARCHAR(50),
+      created_at VARCHAR(50) NOT NULL
     )`
   ];
 
@@ -184,18 +202,42 @@ export async function initDb() {
       ]
     });
 
-    await prisma.trainingSessionStore.createMany({
-      data: [
-        { id: 'sess-101', clubId: 'ten-003', squadName: 'U15 Pace & Power Squad', title: 'Seam Presentation & Front Foot Defense Circuit', sessionDate: '2026-10-02', durationMinutes: 90, isPublished: true, drillCount: 3, postNotes: 'Pace bowling unit had tight run-up rhythm; front-foot drives lacked head balance in simulation overs.' }
-      ]
-    });
+    const existingTickets = await (prisma as any).supportTicketStore.count();
+    if (existingTickets === 0) {
+      await (prisma as any).supportTicketStore.createMany({
+        data: [
+          {
+            id: 'tkt-seed-1',
+            ticketRef: 'ECC-849201',
+            name: 'Shane Warne',
+            email: 'shane.w@spinacademy.com.au',
+            category: 'AI_ANALYSIS',
+            priority: 'HIGH',
+            subject: 'Kinematic analysis front-arm keypoint latency in slow-motion video',
+            message: 'When uploading 240fps slow-motion bowling spells from our Sony Alpha cameras, the arm release angle detector is flagging a 30-frame offset. Could the computer vision team review our camera orientation calibration?',
+            status: 'OPEN',
+            tenantRole: 'COACH',
+            clubName: 'Spin Wizard Academy',
+            createdAt: '2026-10-01 14:20'
+          },
+          {
+            id: 'tkt-seed-2',
+            ticketRef: 'ECC-672109',
+            name: 'Sarah Connor',
+            email: 's.connor@melbournecricket.com',
+            category: 'BILLING',
+            priority: 'NORMAL',
+            subject: 'Invoice tax breakdown requirement for Victorian Cricket Board grant',
+            message: 'We require an itemized GST breakdown on our annual Club / Academy invoice #INV-1102 to submit for regional sports development funding.',
+            status: 'OPEN',
+            tenantRole: 'CLUB_ADMIN',
+            clubName: 'Melbourne Cricket Academy',
+            createdAt: '2026-10-02 09:45'
+          }
+        ]
+      });
+    }
 
-    await prisma.certificateStore.createMany({
-      data: [
-        { id: 'cert-01', certificateNumber: 'ECC-2026-9041', playerId: 'mem-4', playerName: 'Arjun Tendulkar', discipline: 'BOWLING', achievedLevel: 'INTERMEDIATE', issuedDate: '2026-09-28', coachName: 'Shane Bond', coachNotes: 'Demonstrated consistent high-arm release and seam angle control across 10-over spells.', aiCommendation: 'Kinematic tracking confirms 14% improvement in lateral torso stability.' }
-      ]
-    });
-
-    console.log('✅ PostgreSQL database seeded successfully via Prisma!');
+    console.log('✅ PostgreSQL seed tables checked and prepared successfully!');
   }
 }

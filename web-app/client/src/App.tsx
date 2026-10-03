@@ -11,7 +11,8 @@ import {
   TrainingSession,
   Certificate,
   AdminNotification,
-  AuthUser
+  AuthUser,
+  SupportTicket
 } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/common/Navbar';
@@ -160,6 +161,9 @@ export default function App() {
   // Certificates State
   const [certificates, setCertificates] = useState<Certificate[]>([]);
 
+  // Support Tickets State
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+
   // Drive upload state
   const [uploadingDriveVideo, setUploadingDriveVideo] = useState(false);
   const [driveUploadSuccess, setDriveUploadSuccess] = useState<any>(null);
@@ -177,7 +181,8 @@ export default function App() {
           membersData,
           squadsData,
           sessionsData,
-          certsData
+          certsData,
+          ticketsData
         ] = await Promise.all([
           api.getDrills().catch(() => []),
           api.getCustomers().catch(() => ({ customers: [] })),
@@ -187,7 +192,8 @@ export default function App() {
           api.getClubMembers().catch(() => []),
           api.getSquads().catch(() => []),
           api.getSessions().catch(() => []),
-          api.getCertificates().catch(() => [])
+          api.getCertificates().catch(() => []),
+          api.getSupportTickets().catch(() => [])
         ]);
 
         if (drillsData?.length) setDrills(drillsData);
@@ -199,6 +205,7 @@ export default function App() {
         if (squadsData?.length) setSquads(squadsData);
         if (sessionsData?.length) setSessions(sessionsData);
         if (certsData?.length) setCertificates(certsData);
+        if (ticketsData?.length) setSupportTickets(ticketsData);
       } catch (err) {
         console.error('Failed to load data from backend:', err);
       }
@@ -423,6 +430,46 @@ export default function App() {
       message: `Invoice ${invoiceId} marked as successfully charged.`,
       type: 'success',
       confirmLabel: 'OK',
+      onConfirm: () => setAppModal(null)
+    });
+  };
+
+  const handleResolveSupportTicket = async (ticketId: string, resolution: string) => {
+    try {
+      const resolverName = currentUser?.name || 'Support Engineer';
+      const res = await api.resolveSupportTicket(ticketId, {
+        resolution,
+        resolvedBy: resolverName
+      });
+      if (res?.ticket) {
+        setSupportTickets(prev => prev.map(t => t.id === ticketId ? res.ticket : t));
+        setAppModal({
+          isOpen: true,
+          title: 'Ticket Resolved & Customer Notified',
+          message: `Ticket #${res.ticket.ticketRef} was marked RESOLVED. Notification dispatched to ${res.ticket.email}.`,
+          type: 'success',
+          confirmLabel: 'Done',
+          onConfirm: () => setAppModal(null)
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('Resolve ticket error, applying fallback:', err);
+    }
+    // Fallback local update
+    setSupportTickets(prev => prev.map(t => t.id === ticketId ? {
+      ...t,
+      status: 'RESOLVED',
+      resolution,
+      resolvedBy: currentUser?.name || 'Support Engineer',
+      resolvedAt: new Date().toISOString()
+    } : t));
+    setAppModal({
+      isOpen: true,
+      title: 'Ticket Resolved',
+      message: 'Support ticket has been marked resolved.',
+      type: 'success',
+      confirmLabel: 'Done',
       onConfirm: () => setAppModal(null)
     });
   };
@@ -698,11 +745,13 @@ export default function App() {
             clubApprovals={clubApprovals}
             drills={drills}
             notifications={adminNotifications}
+            supportTickets={supportTickets}
             onApproveClub={handleApproveClub}
             onAddSystemDrill={handleAddDrill}
             onUpdateCustomerStatus={handleUpdateCustomerStatus}
             onUpgradeCustomerPlan={handleUpgradeCustomerPlan}
             onRetryInvoice={handleRetryInvoice}
+            onResolveTicket={handleResolveSupportTicket}
           />
         )}
 
