@@ -610,8 +610,13 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('current_user');
+    sessionStorage.clear();
     setCurrentUser(null);
     setViewMode('HOME');
+    // Clear any residual hash or query params from URL history
+    if (window.location.hash || window.location.search) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
   };
 
   return (

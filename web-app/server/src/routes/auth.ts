@@ -87,6 +87,12 @@ authRouter.get('/:provider', (req: Request, res: Response) => {
   authorizationUrl.searchParams.set('response_type', 'code');
   authorizationUrl.searchParams.set('scope', provider === 'microsoft' ? 'openid profile email' : 'openid email profile');
   authorizationUrl.searchParams.set('state', state);
+
+  // Force Google / Microsoft to prompt account selection so logging in again lets users pick or switch accounts
+  if (provider === 'google' || provider === 'microsoft') {
+    authorizationUrl.searchParams.set('prompt', 'select_account');
+  }
+
   if (provider === 'apple') authorizationUrl.searchParams.set('response_mode', 'form_post');
   res.redirect(authorizationUrl.toString());
 });
