@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { UserPlus, Users, Calendar, X } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter } from 'lucide-react';
 
 interface ClubPortalProps {
   clubMembers: ClubMember[];
@@ -61,8 +61,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'COACH' | 'PLAYER'>('PLAYER');
   const [inviteAgeGroup, setInviteAgeGroup] = useState('U15');
-  const [inviteDiscipline, setInviteDiscipline] = useState<Discipline>('BATTING');
+  const [inviteDisciplines, setInviteDisciplines] = useState<Discipline[]>(['BATTING']);
   const [inviteSquad, setInviteSquad] = useState('Unassigned');
+
+  // Club Roster Filtering & Search State
+  const [rosterRoleFilter, setRosterRoleFilter] = useState<'ALL' | 'COACH' | 'PLAYER'>('ALL');
+  const [rosterStatusFilter, setRosterStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING'>('ALL');
+  const [rosterAgeGroupFilter, setRosterAgeGroupFilter] = useState<string>('ALL');
+  const [rosterDisciplineFilter, setRosterDisciplineFilter] = useState<string>('ALL');
+  const [rosterSearchTerm, setRosterSearchTerm] = useState('');
 
   // Form New Squad Modal Form State
   const [isSquadModalOpen, setIsSquadModalOpen] = useState(false);
@@ -186,13 +193,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const handleInviteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) return;
+    const chosenDisciplines = inviteDisciplines.length > 0 ? inviteDisciplines : ['BATTING' as Discipline];
     const newMem: ClubMember = {
       id: 'mem-' + Date.now(),
       name: inviteName.trim(),
       email: inviteEmail.trim(),
       role: inviteRole,
       ageGroup: inviteAgeGroup,
-      discipline: inviteDiscipline,
+      discipline: chosenDisciplines.join(', '),
       invitationStatus: 'PENDING_ACCEPTANCE',
       currentLevel: 'FOUNDATION',
       squad: inviteSquad
@@ -201,13 +209,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setIsInviteModalOpen(false);
     setInviteName('');
     setInviteEmail('');
+    setInviteDisciplines(['BATTING']);
     setPortalModal({
       isOpen: true,
       title: 'Roster Invitation Dispatched',
       message: (
         <div className="space-y-2">
           <p>An official onboarding link has been dispatched via email to <strong className="text-cyan-400">{newMem.email}</strong>.</p>
-          <p className="text-xs text-slate-400">Role: <strong className="text-white">{newMem.role}</strong> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</p>
+          <p className="text-xs text-slate-400">Role: <strong className="text-white">{newMem.role}</strong> • Disciplines: <strong className="text-purple-300">{newMem.discipline}</strong> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</p>
         </div>
       ),
       type: 'success',
@@ -215,6 +224,52 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       onConfirm: () => setPortalModal(null)
     });
   };
+
+  const toggleInviteDiscipline = (disc: Discipline) => {
+    setInviteDisciplines(prev => {
+      if (prev.includes(disc)) {
+        // Prevent deselecting everything: keep at least 1
+        if (prev.length === 1) return prev;
+        return prev.filter(d => d !== disc);
+      }
+      return [...prev, disc];
+    });
+  };
+
+  // Filtered members for Club Roster
+  const filteredClubMembers = useMemo(() => {
+    return clubMembers.filter(mem => {
+      // Role filter
+      if (rosterRoleFilter !== 'ALL' && mem.role !== rosterRoleFilter) return false;
+      // Status filter
+      if (rosterStatusFilter === 'ACTIVE' && mem.invitationStatus !== 'ACTIVE') return false;
+      if (rosterStatusFilter === 'PENDING' && mem.invitationStatus !== 'PENDING_ACCEPTANCE') return false;
+      // Age group filter
+      if (rosterAgeGroupFilter !== 'ALL' && mem.ageGroup !== rosterAgeGroupFilter) return false;
+      // Discipline filter
+      if (rosterDisciplineFilter !== 'ALL') {
+        const memDisc = (mem.discipline || '').toUpperCase();
+        if (!memDisc.includes(rosterDisciplineFilter)) return false;
+      }
+      // Search term (name, email, squad)
+      if (rosterSearchTerm.trim()) {
+        const term = rosterSearchTerm.toLowerCase();
+        const matchesName = mem.name.toLowerCase().includes(term);
+        const matchesEmail = mem.email.toLowerCase().includes(term);
+        const matchesSquad = (mem.squad || '').toLowerCase().includes(term);
+        if (!matchesName && !matchesEmail && !matchesSquad) return false;
+      }
+      return true;
+    });
+  }, [clubMembers, rosterRoleFilter, rosterStatusFilter, rosterAgeGroupFilter, rosterDisciplineFilter, rosterSearchTerm]);
+
+  const uniqueAgeGroups = useMemo(() => {
+    const set = new Set<string>();
+    clubMembers.forEach(m => {
+      if (m.ageGroup) set.add(m.ageGroup);
+    });
+    return Array.from(set).sort();
+  }, [clubMembers]);
 
   const handleSquadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -407,12 +462,127 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
           </div>
 
+          {/* Roster Filter & Search Bar */}
+          <div className="space-y-3 bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+            {/* Quick Status/Role Filter Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">Role:</span>
+                {[
+                  { key: 'ALL', label: `All (${clubMembers.length})` },
+                  { key: 'COACH', label: `Coaches (${clubMembers.filter(m => m.role === 'COACH').length})` },
+                  { key: 'PLAYER', label: `Players (${clubMembers.filter(m => m.role === 'PLAYER').length})` }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setRosterRoleFilter(tab.key as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      rosterRoleFilter === tab.key
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider ml-2 mr-1">Status:</span>
+                {[
+                  { key: 'ALL', label: 'All' },
+                  { key: 'ACTIVE', label: 'Active' },
+                  { key: 'PENDING', label: 'Pending' }
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setRosterStatusFilter(tab.key as any)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                      rosterStatusFilter === tab.key
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, squad..."
+                  value={rosterSearchTerm}
+                  onChange={e => setRosterSearchTerm(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-500"
+                />
+                {rosterSearchTerm && (
+                  <button
+                    onClick={() => setRosterSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Dropdown Filters for Discipline & Age Group */}
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60">
+              <div className="flex items-center gap-1.5">
+                <Filter size={12} className="text-slate-400" />
+                <span className="text-xs text-slate-400">Discipline:</span>
+                <select
+                  value={rosterDisciplineFilter}
+                  onChange={e => setRosterDisciplineFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                >
+                  <option value="ALL">All Disciplines</option>
+                  <option value="BATTING">Batting</option>
+                  <option value="BOWLING">Bowling</option>
+                  <option value="KEEPING">Wicketkeeping</option>
+                  <option value="FIELDING">Fielding</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-400">Age Group:</span>
+                <select
+                  value={rosterAgeGroupFilter}
+                  onChange={e => setRosterAgeGroupFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                >
+                  <option value="ALL">All Age Groups</option>
+                  {uniqueAgeGroups.map(ag => (
+                    <option key={ag} value={ag}>{ag}</option>
+                  ))}
+                </select>
+              </div>
+
+              {(rosterRoleFilter !== 'ALL' || rosterStatusFilter !== 'ALL' || rosterAgeGroupFilter !== 'ALL' || rosterDisciplineFilter !== 'ALL' || rosterSearchTerm) && (
+                <button
+                  onClick={() => {
+                    setRosterRoleFilter('ALL');
+                    setRosterStatusFilter('ALL');
+                    setRosterAgeGroupFilter('ALL');
+                    setRosterDisciplineFilter('ALL');
+                    setRosterSearchTerm('');
+                  }}
+                  className="text-xs text-purple-400 hover:text-purple-300 underline cursor-pointer ml-auto"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
                   <th className="py-3 px-3">Name / Email</th>
                   <th className="py-3 px-3">Role</th>
+                  <th className="py-3 px-3">Discipline</th>
                   <th className="py-3 px-3">Age Group</th>
                   <th className="py-3 px-3">Assigned Squad</th>
                   <th className="py-3 px-3">Current Level</th>
@@ -421,65 +591,93 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {clubMembers.map(mem => (
-                  <tr key={mem.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-3">
-                      <p className="font-semibold text-white">{mem.name}</p>
-                      <p className="text-[11px] text-slate-400">{mem.email}</p>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        mem.role === 'COACH' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      }`}>
-                        {mem.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-slate-300">{mem.ageGroup}</td>
-                    <td className="py-3 px-3 text-slate-400">{mem.squad}</td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-semibold border border-slate-700">
-                        {mem.currentLevel}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3">
-                      {mem.invitationStatus === 'ACTIVE' ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          Active (Accepted)
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Pending Acceptance
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right space-x-1.5">
-                      {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
-                        <button
-                          onClick={() => promptAcceptInvite(mem)}
-                          className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] cursor-pointer"
-                        >
-                          Accept Invite
-                        </button>
-                      )}
-                      {mem.role === 'PLAYER' && (
-                        <>
-                          <button
-                            onClick={() => onSimulateDriveUpload(mem.name)}
-                            className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px] cursor-pointer"
-                          >
-                            Upload Video (Drive)
-                          </button>
-                          <button
-                            onClick={() => promptPromotePlayer(mem)}
-                            className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[11px] cursor-pointer"
-                          >
-                            Assess & Promote
-                          </button>
-                        </>
-                      )}
+                {filteredClubMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-8 text-center text-slate-400">
+                      No club members match the selected filters or search terms.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredClubMembers.map(mem => (
+                    <tr key={mem.id} className="hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-3">
+                        <p className="font-semibold text-white">{mem.name}</p>
+                        <p className="text-[11px] text-slate-400">{mem.email}</p>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          mem.role === 'COACH' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        }`}>
+                          {mem.role}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {(mem.discipline || 'BATTING').split(',').map((d, i) => {
+                            const trimmed = d.trim().toUpperCase();
+                            const discColor =
+                              trimmed === 'BATTING' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                              trimmed === 'BOWLING' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
+                              trimmed === 'KEEPING' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                              'bg-purple-500/20 text-purple-300 border-purple-500/30';
+                            return (
+                              <span
+                                key={i}
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${discColor}`}
+                              >
+                                {trimmed}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-slate-300">{mem.ageGroup}</td>
+                      <td className="py-3 px-3 text-slate-400">{mem.squad}</td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-semibold border border-slate-700">
+                          {mem.currentLevel}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3">
+                        {mem.invitationStatus === 'ACTIVE' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            Active (Accepted)
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Pending Acceptance
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right space-x-1.5">
+                        {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
+                          <button
+                            onClick={() => promptAcceptInvite(mem)}
+                            className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] cursor-pointer"
+                          >
+                            Accept Invite
+                          </button>
+                        )}
+                        {mem.role === 'PLAYER' && (
+                          <>
+                            <button
+                              onClick={() => onSimulateDriveUpload(mem.name)}
+                              className="px-2.5 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[11px] cursor-pointer"
+                            >
+                              Upload Video (Drive)
+                            </button>
+                            <button
+                              onClick={() => promptPromotePlayer(mem)}
+                              className="px-2.5 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[11px] cursor-pointer"
+                            >
+                              Assess & Promote
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -573,7 +771,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-white text-sm">{s.title}</h4>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      s.isPublished ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+                      s.isPublished ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400'
                     }`}>
                       {s.isPublished ? 'Published & Players Notified' : 'Draft'}
                     </span>
@@ -912,30 +1110,49 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
-                  <select
-                    value={inviteDiscipline}
-                    onChange={e => setInviteDiscipline(e.target.value as Discipline)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="BATTING">Batting</option>
-                    <option value="BOWLING">Bowling</option>
-                    <option value="KEEPING">Wicketkeeping</option>
-                    <option value="FIELDING">Fielding</option>
-                  </select>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                  Disciplines * <span className="text-[10px] text-slate-500 font-normal">(Select one or multiple)</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'BATTING', label: '🏏 Batting' },
+                    { id: 'BOWLING', label: '⚡ Bowling' },
+                    { id: 'KEEPING', label: '🧤 Keeping' },
+                    { id: 'FIELDING', label: '🎯 Fielding' }
+                  ].map(d => {
+                    const isSelected = inviteDisciplines.includes(d.id as Discipline);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => toggleInviteDiscipline(d.id as Discipline)}
+                        className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-purple-500 text-white border-purple-400 shadow-md shadow-purple-500/20'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                          isSelected ? 'bg-white text-purple-700 border-white' : 'border-slate-600'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                        <span>{d.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Assign Squad</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. U15 Pace Squad"
-                    value={inviteSquad}
-                    onChange={e => setInviteSquad(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Assign Squad</label>
+                <input
+                  type="text"
+                  placeholder="e.g. U15 Pace Squad"
+                  value={inviteSquad}
+                  onChange={e => setInviteSquad(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
               </div>
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                 <button

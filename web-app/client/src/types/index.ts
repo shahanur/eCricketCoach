@@ -77,7 +77,7 @@ export interface ClubMember {
   email: string;
   role: 'COACH' | 'PLAYER';
   ageGroup: string;
-  discipline: Discipline;
+  discipline: Discipline | string;
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
   currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
   squad: string;
