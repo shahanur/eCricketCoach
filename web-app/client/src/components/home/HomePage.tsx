@@ -869,12 +869,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
       {/* Payment & Registration Modal */}
       {selectedPlanForPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative max-h-[92vh] overflow-y-auto">
             <button
               onClick={handleClosePayment}
               disabled={isProcessing}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg disabled:opacity-40"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg disabled:opacity-40 cursor-pointer p-1"
             >
               ✕
             </button>
@@ -882,7 +882,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl">💳</span>
-                <h3 className="text-lg font-bold text-white">Subscribe to {selectedPlanForPayment.name}</h3>
+                <h3 className="text-base sm:text-lg font-bold text-white">Subscribe to {selectedPlanForPayment.name}</h3>
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Amount:{' '}

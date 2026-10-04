@@ -1466,8 +1466,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
       {/* 1. Invite Coach / Player Modal Form */}
       {isInviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsInviteModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
@@ -1598,8 +1598,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
       {/* 2. Form New Squad Modal Form */}
       {isSquadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsSquadModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
@@ -1687,8 +1687,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
       {/* 3. Schedule Session Modal Form */}
       {isSessionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsSessionModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"

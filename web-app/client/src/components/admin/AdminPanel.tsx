@@ -575,11 +575,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Ticket Resolution Modal */}
       {selectedTicketForResolution && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setSelectedTicketForResolution(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg cursor-pointer p-1"
             >
               ✕
             </button>
@@ -735,7 +735,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Sub-tab 3: System Drill Curator */}
       {adminTab === 'DRILL_CURATOR' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold text-base text-white">Add Pre-Defined Drill</h3>
             <p className="text-xs text-slate-400">
