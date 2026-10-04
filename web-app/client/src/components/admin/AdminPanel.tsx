@@ -209,70 +209,89 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2 shadow-sm">
         <button
           onClick={() => setAdminTab('CUSTOMERS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'CUSTOMERS' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Tenants ({customers.length})</span>
+          <span>Tenants</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            adminTab === 'CUSTOMERS' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+          }`}>
+            {customers.length}
+          </span>
         </button>
 
         {/* Support Tickets Desk Tab */}
         <button
           onClick={() => setAdminTab('SUPPORT_TICKETS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'SUPPORT_TICKETS' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <LifeBuoy className="w-3.5 h-3.5" />
           <span>Support Desk</span>
-          {openTicketsCount > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-pulse">
-              {openTicketsCount} Open
+          {openTicketsCount > 0 ? (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-pulse">
+              {openTicketsCount}
+            </span>
+          ) : (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-slate-800 text-slate-400 border border-slate-700 font-bold">
+              {supportTickets.length}
             </span>
           )}
         </button>
 
         <button
           onClick={() => setAdminTab('CLUB_APPROVALS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'CLUB_APPROVALS' ? 'bg-amber-400 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Awaiting Approvals</span>
           {clubApprovals.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-bounce">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-rose-500 text-white font-extrabold animate-bounce">
               {clubApprovals.length}
             </span>
           )}
         </button>
         <button
           onClick={() => setAdminTab('NOTIFICATIONS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'NOTIFICATIONS' ? 'bg-indigo-500 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Admin Email Alerts</span>
+          <span>Admin Alerts</span>
           {notifications.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
               {notifications.length}
             </span>
           )}
         </button>
         <button
           onClick={() => setAdminTab('DRILL_CURATOR')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'DRILL_CURATOR' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Drill Curator ({drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length})</span>
+          <span>Drill Curator</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            adminTab === 'DRILL_CURATOR' ? 'bg-emerald-950 text-emerald-200' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+          }`}>
+            {drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length}
+          </span>
         </button>
         <button
           onClick={() => setAdminTab('BILLING')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             adminTab === 'BILLING' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Billing ({invoices.length})</span>
+          <span>Billing</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            adminTab === 'BILLING' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+          }`}>
+            {invoices.length}
+          </span>
         </button>
       </div>
 

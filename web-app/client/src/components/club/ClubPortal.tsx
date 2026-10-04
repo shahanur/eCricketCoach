@@ -95,14 +95,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [rosterDisciplineFilter, setRosterDisciplineFilter] = useState<string>('ALL');
   const [rosterSearchTerm, setRosterSearchTerm] = useState('');
 
-  // Form New Squad Modal Form State
+  // Form New Squad Modal Form
   const [isSquadModalOpen, setIsSquadModalOpen] = useState(false);
   const [squadFormName, setSquadFormName] = useState('');
   const [squadFormAgeGroup, setSquadFormAgeGroup] = useState('U15');
   const [squadFormDiscipline, setSquadFormDiscipline] = useState<Discipline>('BOWLING');
   const [squadFormCoach, setSquadFormCoach] = useState('Shane Bond');
 
-  // Schedule Session Modal Form State
+  // Schedule Session Modal Form
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [sessionFormTitle, setSessionFormTitle] = useState('');
   const [sessionFormSquad, setSessionFormSquad] = useState('U15 Pace & Power Squad');
@@ -427,31 +427,46 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2 shadow-sm">
         <button
           onClick={() => setClubTab('ROSTER')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             clubTab === 'ROSTER' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Roster & Invites ({clubMembers.length})</span>
+          <span>Roster & Invites</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            clubTab === 'ROSTER' ? 'bg-purple-950 text-purple-200' : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+          }`}>
+            {clubMembers.length}
+          </span>
         </button>
         <button
           onClick={() => setClubTab('SQUADS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             clubTab === 'SQUADS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Squads ({squads.length})</span>
+          <span>Squads</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            clubTab === 'SQUADS' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+          }`}>
+            {squads.length}
+          </span>
         </button>
         <button
           onClick={() => setClubTab('SESSIONS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             clubTab === 'SESSIONS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Training Sessions ({sessions.length})</span>
+          <span>Training Sessions</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            clubTab === 'SESSIONS' ? 'bg-emerald-950 text-emerald-200' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+          }`}>
+            {sessions.length}
+          </span>
         </button>
         <button
           onClick={() => setClubTab('CLUB_DRILLS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             clubTab === 'CLUB_DRILLS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
@@ -459,15 +474,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         </button>
         <button
           onClick={() => setClubTab('PROGRESSION')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             clubTab === 'PROGRESSION' ? 'bg-purple-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Certificates ({certificates.length})</span>
+          <span>Certificates</span>
+          <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
+            clubTab === 'PROGRESSION' ? 'bg-amber-950 text-amber-200' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+          }`}>
+            {certificates.length}
+          </span>
         </button>
         <button
           onClick={() => setClubTab('VIDEO_ANALYSIS')}
-          className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
             clubTab === 'VIDEO_ANALYSIS' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
@@ -504,20 +524,25 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role:</span>
                   <div className="inline-flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/60">
                     {[
-                      { key: 'ALL', label: `All (${clubMembers.length})` },
-                      { key: 'COACH', label: `Coaches (${clubMembers.filter(m => m.role === 'COACH').length})` },
-                      { key: 'PLAYER', label: `Players (${clubMembers.filter(m => m.role === 'PLAYER').length})` }
+                      { key: 'ALL', label: 'All', count: clubMembers.length, color: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' },
+                      { key: 'COACH', label: 'Coaches', count: clubMembers.filter(m => m.role === 'COACH').length, color: 'bg-blue-500/20 text-blue-300 border border-blue-500/30' },
+                      { key: 'PLAYER', label: 'Players', count: clubMembers.filter(m => m.role === 'PLAYER').length, color: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }
                     ].map(tab => (
                       <button
                         key={tab.key}
                         onClick={() => setRosterRoleFilter(tab.key as any)}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                           rosterRoleFilter === tab.key
                             ? 'bg-purple-600 text-white shadow-sm'
                             : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                         }`}
                       >
-                        {tab.label}
+                        <span>{tab.label}</span>
+                        <span className={`inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-[9px] font-bold ${
+                          rosterRoleFilter === tab.key ? 'bg-purple-900 text-purple-200' : tab.color
+                        }`}>
+                          {tab.count}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -617,18 +642,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="w-full">
+            <table className="w-full text-left text-[11px] xl:text-xs border-collapse table-auto">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
-                  <th className="py-3 px-3">Name / Email</th>
-                  <th className="py-3 px-3">Role</th>
-                  <th className="py-3 px-3">Discipline</th>
-                  <th className="py-3 px-3">Age Group</th>
-                  <th className="py-3 px-3">Assigned Squad</th>
-                  <th className="py-3 px-3">Current Level</th>
-                  <th className="py-3 px-3">Invite Status</th>
-                  <th className="py-3 px-3 text-right w-64">Actions</th>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
+                  <th className="py-2.5 px-2">Name / Email</th>
+                  <th className="py-2.5 px-1.5">Role</th>
+                  <th className="py-2.5 px-1.5">Discipline</th>
+                  <th className="py-2.5 px-1.5">Age</th>
+                  <th className="py-2.5 px-2">Assigned Squad</th>
+                  <th className="py-2.5 px-1.5">Level</th>
+                  <th className="py-2.5 px-1.5">Status</th>
+                  <th className="py-2.5 px-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -641,19 +666,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 ) : (
                   filteredClubMembers.map(mem => (
                     <tr key={mem.id} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-3">
-                        <p className="font-semibold text-white">{mem.name}</p>
-                        <p className="text-[11px] text-slate-400">{mem.email}</p>
+                      <td className="py-2 px-2">
+                        <p className="font-semibold text-white leading-tight">{mem.name}</p>
+                        <p className="text-[10px] text-slate-400 truncate max-w-[140px] xl:max-w-none">{mem.email}</p>
                       </td>
-                      <td className="py-3 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      <td className="py-2 px-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                           mem.role === 'COACH' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         }`}>
                           {mem.role}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
-                        <div className="flex flex-wrap gap-1">
+                      <td className="py-2 px-1.5">
+                        <div className="flex flex-wrap gap-0.5">
                           {(mem.discipline || 'BATTING').split(',').map((d, i) => {
                             const trimmed = d.trim().toUpperCase();
                             const discColor =
@@ -664,7 +689,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             return (
                               <span
                                 key={i}
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border ${discColor}`}
+                                className={`px-1 py-0.5 rounded text-[9px] font-medium border leading-none ${discColor}`}
                               >
                                 {trimmed}
                               </span>
@@ -672,33 +697,33 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           })}
                         </div>
                       </td>
-                      <td className="py-3 px-3 text-slate-300">{mem.ageGroup}</td>
-                      <td className="py-3 px-3 text-slate-400">{mem.squad}</td>
-                      <td className="py-3 px-3">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-semibold border border-slate-700">
+                      <td className="py-2 px-1.5 text-slate-300 text-[10px] whitespace-nowrap">{mem.ageGroup}</td>
+                      <td className="py-2 px-2 text-slate-400 text-[10px] max-w-[130px] truncate" title={mem.squad}>{mem.squad}</td>
+                      <td className="py-2 px-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 text-[9px] font-medium border border-slate-700 whitespace-nowrap">
                           {mem.currentLevel}
                         </span>
                       </td>
-                      <td className="py-3 px-3">
+                      <td className="py-2 px-1.5">
                         {mem.invitationStatus === 'ACTIVE' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            Active (Accepted)
+                          <span className="inline-flex items-center justify-center h-6 px-2 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
+                            Accepted
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            Pending Acceptance
+                          <span className="inline-flex items-center justify-center h-6 px-2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 whitespace-nowrap">
+                            Pending
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="inline-flex items-center justify-end gap-1.5">
+                      <td className="py-2 px-2 text-right">
+                        <div className="inline-flex items-center justify-end gap-1">
                           {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
                             <button
                               onClick={() => promptAcceptInvite(mem)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm"
+                              className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
                             >
-                              <CheckCircle2 size={13} />
-                              <span>Accept Invite</span>
+                              <CheckCircle2 size={11} />
+                              <span>Accept</span>
                             </button>
                           )}
                           {mem.role === 'PLAYER' && (
@@ -712,23 +737,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                   setUploadModalPlayer(mem);
                                 }}
                                 title="Upload athlete video or sync from Google Drive for AI pose analysis"
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
                               >
-                                <Video size={13} />
-                                <span>Upload Video</span>
+                                <Video size={11} />
+                                <span>Upload</span>
                               </button>
                               <button
                                 onClick={() => promptPromotePlayer(mem)}
                                 title="Promote player to next competency level and issue certificate"
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
                               >
-                                <Award size={13} />
+                                <Award size={11} />
                                 <span>Promote</span>
                               </button>
                             </>
                           )}
                           {mem.role === 'COACH' && mem.invitationStatus === 'ACTIVE' && (
-                            <span className="text-[11px] text-slate-500 font-medium px-2 py-1">
+                            <span className="inline-flex items-center justify-center h-6 px-1.5 text-[10px] text-slate-500 font-medium whitespace-nowrap">
                               Staff Active
                             </span>
                           )}
