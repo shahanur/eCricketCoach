@@ -101,7 +101,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <p className="font-semibold text-white">{appr.clubName}</p>
             <p className="text-slate-400">Admin: {appr.adminName} ({appr.adminEmail})</p>
-            <p className="text-emerald-400">Plan: {appr.plan} • ${appr.amountPaid} (Paid)</p>
+            <p className="text-emerald-400">Plan: {appr.plan} • £{appr.amountPaid} (Paid)</p>
           </div>
           <p className="text-[11px] text-slate-400">This will immediately generate their active tenancy and dispatch login access tokens.</p>
         </div>
@@ -121,7 +121,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     setConfirmModal({
       isOpen: true,
       title: 'Confirm Payment Retry',
-      message: `Attempt automated payment recharge for invoice #${inv.id} (${inv.customerName} - $${inv.amount.toFixed(2)})?`,
+      message: `Attempt automated payment recharge for invoice #${inv.id} (${inv.customerName} - £${inv.amount.toFixed(2)})?`,
       type: 'confirm',
       confirmLabel: 'Retry Payment',
       cancelLabel: 'Cancel',
@@ -299,7 +299,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <span className="text-xs text-slate-400 uppercase font-semibold">Total MRR</span>
-          <p className="text-2xl font-extrabold text-emerald-400 mt-1">${totalMrr.toFixed(2)}</p>
+          <p className="text-2xl font-extrabold text-emerald-400 mt-1">£{totalMrr.toFixed(2)}</p>
           <span className="text-[11px] text-slate-500">Monthly recurring rev</span>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
@@ -313,7 +313,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <span className="text-[11px] text-slate-500">{supportTickets.length} total logged tickets</span>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <span className="text-xs text-slate-400 uppercase font-semibold">System Drills Catalog</span>
+          <span className="text-xs text-slate-400 uppercase font-semibold">System Drills Catalogue</span>
           <p className="text-2xl font-extrabold text-indigo-400 mt-1">{drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length}</p>
           <span className="text-[11px] text-slate-500">Pre-defined curriculum</span>
         </div>
@@ -355,7 +355,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase font-semibold">
-                  <th className="py-3 px-3">Customer / Organization</th>
+                  <th className="py-3 px-3">Customer / Organisation</th>
                   <th className="py-3 px-3">Type</th>
                   <th className="py-3 px-3">Plan</th>
                   <th className="py-3 px-3">Status</th>
@@ -387,9 +387,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none"
                       >
                         <option value="FREE_TRIAL">Free Trial</option>
-                        <option value="INDIVIDUAL">Individual ($14.99)</option>
-                        <option value="COACH_PRO">Coach Pro ($49.99)</option>
-                        <option value="CLUB_ACADEMY">Club Academy ($199.99)</option>
+                        <option value="INDIVIDUAL">Individual (£14.99)</option>
+                        <option value="COACH_PRO">Coach Pro (£49.99)</option>
+                        <option value="CLUB_ACADEMY">Club Academy (£199.99)</option>
                       </select>
                     </td>
                     <td className="py-3 px-3">
@@ -402,7 +402,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {cust.status}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-semibold text-slate-200">${cust.mrr.toFixed(2)}/mo</td>
+                    <td className="py-3 px-3 font-semibold text-slate-200">£{cust.mrr.toFixed(2)}/mo</td>
                     <td className="py-3 px-3 text-slate-400">{cust.activeMembers}</td>
                     <td className="py-3 px-3 text-right space-x-1.5">
                       {cust.status === 'PAST_DUE' ? (
@@ -690,7 +690,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         {appr.type || 'CLUB'}
                       </span>
                       <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded border border-amber-500/30">
-                        Payment Confirmed (${appr.amountPaid.toFixed(2)})
+                        Payment Confirmed (£{appr.amountPaid.toFixed(2)})
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 mt-1">
@@ -843,7 +843,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-base text-white">System Pre-Defined Drills Library</h3>
               <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                Global Catalog
+                Global Catalogue
               </span>
             </div>
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
@@ -894,7 +894,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <td className="py-3 px-3 font-semibold text-slate-200">{inv.customerName}</td>
                     <td className="py-3 px-3 text-slate-400">{inv.planName}</td>
                     <td className="py-3 px-3 text-slate-400">{inv.date}</td>
-                    <td className="py-3 px-3 font-bold text-white">${inv.amount.toFixed(2)}</td>
+                    <td className="py-3 px-3 font-bold text-white">£{inv.amount.toFixed(2)}</td>
                     <td className="py-3 px-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                         inv.status === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :

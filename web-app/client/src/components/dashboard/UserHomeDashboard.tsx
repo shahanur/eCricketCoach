@@ -91,11 +91,11 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
               {isSuperAdmin &&
-                'Global overview of active customer tenancies, recurring subscriptions, onboarding approvals, and system drill catalogs.'}
+                'Global overview of active customer tenancies, recurring subscriptions, onboarding approvals, and system drill catalogues.'}
               {isClubAdmin &&
-                `Manage your ${currentUser.clubName || 'Club'} athletes, organize age-group squads, publish practice itineraries, and review AI pose kinematics.`}
+                `Manage your ${currentUser.clubName || 'Club'} athletes, organise age-group squads, publish practice itineraries, and review AI pose kinematics.`}
               {isCoach &&
-                'Run computer vision biomechanical video analyses, adopt AI corrective routines into your catalog, and assess player progression.'}
+                'Run computer vision biomechanical video analyses, adopt AI corrective routines into your catalogue, and assess player progression.'}
               {isPlayer &&
                 `Access your assigned batting and bowling drills, review practice session schedules, and track your verified certificates.`}
             </p>
@@ -232,7 +232,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wider">Total MRR</span>
                 <DollarSign className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-bold text-emerald-400">${totalMrr.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-emerald-400">£{totalMrr.toFixed(2)}</div>
               <p className="text-[11px] text-slate-400">Monthly recurring subscriptions</p>
             </div>
 
@@ -342,7 +342,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                       </span>
                       <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition" />
                     </div>
-                    <h3 className="text-sm font-bold text-white">Technique Drills Catalog</h3>
+                    <h3 className="text-sm font-bold text-white">Technique Drills Catalogue</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Filter tailored batting, bowling, wicket-keeping, and fielding routines.
                     </p>
@@ -462,7 +462,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                     <ShieldCheck className="w-4 h-4 text-cyan-400" />
                     <span>Recent Tenancies & License Status</span>
                   </h3>
-                  <p className="text-xs text-slate-400">Platform customer organizations</p>
+                  <p className="text-xs text-slate-400">Platform customer organisations</p>
                 </div>
                 <button
                   onClick={() => setViewMode('ADMIN_PANEL')}
@@ -495,7 +495,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                             {c.subscriptionPlan}
                           </span>
                         </td>
-                        <td className="p-2.5 text-emerald-400 font-bold">${c.mrr?.toFixed(2) || '0.00'}</td>
+                        <td className="p-2.5 text-emerald-400 font-bold">£{c.mrr?.toFixed(2) || '0.00'}</td>
                         <td className="p-2.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             c.status === 'ACTIVE'
@@ -523,7 +523,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   onClick={() => setViewMode(isClubAdmin ? 'CLUB_PORTAL' : 'COACHING_PORTAL')}
                   className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer"
                 >
-                  <span>View Full Catalog</span>
+                  <span>View Full Catalogue</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -586,7 +586,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                       </div>
                       <p className="text-[11px] text-slate-400">{appr.adminName} ({appr.adminEmail})</p>
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-800/80">
-                        <span className="text-emerald-400 font-bold">${appr.amountPaid}</span>
+                        <span className="text-emerald-400 font-bold">£{appr.amountPaid}</span>
                         <button
                           onClick={() => setViewMode('ADMIN_PANEL')}
                           className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer"

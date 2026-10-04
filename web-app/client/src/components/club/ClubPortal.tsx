@@ -30,7 +30,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   sessions,
   certificates,
   drills,
-  clubName = 'Melbourne Cricket Academy',
+  clubName = 'Marylebone Cricket Club Academy',
   onInviteMember,
   onAcceptMemberInvite,
   onPromotePlayer,
@@ -143,7 +143,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setPortalModal({
       isOpen: true,
       title: 'Club Drill Saved',
-      message: `Club Custom Drill "${drill.title}" has been successfully added to the ${clubName} proprietary training catalog.`,
+      message: `Club Custom Drill "${drill.title}" has been successfully added to the ${clubName} proprietary training catalogue.`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setPortalModal(null)
@@ -206,7 +206,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setPortalModal({
       isOpen: true,
       title: 'Drill Adopted into Academy',
-      message: `Drill "${drillItem.title}" has been successfully adopted into your club training catalog!`,
+      message: `Drill "${drillItem.title}" has been successfully adopted into your club training catalogue!`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setPortalModal(null)
@@ -775,7 +775,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           {driveUploadSuccess && (
             <div className="p-4 rounded-lg bg-slate-950 border border-cyan-500/50 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-cyan-400">Google Drive Video Saved & AI Analyzed</span>
+                <span className="text-xs font-bold text-cyan-400">Google Drive Video Saved & AI Analysed</span>
                 <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-mono">
                   {driveUploadSuccess.player}
                 </span>
@@ -795,7 +795,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div>
               <h3 className="font-semibold text-base text-white">Club Squads & Player Groups</h3>
               <p className="text-xs text-slate-400">
-                Coaches organize players into discipline-based squads to model training plans.
+                Coaches organise players into discipline-based squads to model training plans.
               </p>
             </div>
             <button
@@ -1047,7 +1047,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-base text-white">Available Drill Catalog</h3>
+                <h3 className="font-semibold text-base text-white">Available Drill Catalogue</h3>
                 <p className="text-xs text-slate-400">Includes official pre-defined drills & MCA custom drills.</p>
               </div>
               <span className="text-xs bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-full font-semibold">
@@ -1140,7 +1140,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </div>
               <h3 className="font-bold text-lg text-white">Player Video Analysis & Kinematic Pose Estimation</h3>
               <p className="text-xs text-slate-400">
-                Analyze batting & bowling actions across {clubName} athletes to detect flaws and prescribe corrective drills.
+                Analyse batting & bowling actions across {clubName} athletes to detect flaws and prescribe corrective drills.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -1468,7 +1468,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             onAddClubDrill(newDrill);
                             setPortalModal({
                               isOpen: true,
-                              title: 'Drill Added to Club Catalog',
+                              title: 'Drill Added to Club Catalogue',
                               message: `"${drill.title}" has been successfully added to ${clubName}'s training drill library!`,
                               type: 'success',
                               confirmLabel: 'Done',
@@ -1909,7 +1909,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <span>Computer Vision Biomechanics Engine</span>
               </div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Upload & Analyze Footage: {uploadModalPlayer.name}</span>
+                <span>Upload & Analyse Footage: {uploadModalPlayer.name}</span>
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 {uploadModalPlayer.ageGroup} • Level: <strong className="text-slate-300">{uploadModalPlayer.currentLevel}</strong> • Squad: {uploadModalPlayer.squad || 'Unassigned'}
@@ -2166,7 +2166,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                               onAddClubDrill(newDrill);
                               setPortalModal({
                                 isOpen: true,
-                                title: 'Drill Adopted to Club Catalog',
+                                title: 'Drill Adopted to Club Catalogue',
                                 message: `"${drill.title}" has been saved to ${clubName}'s drill library.`,
                                 type: 'success',
                                 confirmLabel: 'Done',

@@ -294,7 +294,7 @@ export default function App() {
     const newNotification: AdminNotification = {
       id: 'notif-' + Date.now(),
       title: `New Registration Paid: ${data.organizationName} (${data.plan.name})`,
-      message: `System Admin Notification: ${data.name} (${data.email}) just completed a successful payment of $${amountPaid.toFixed(2)} for the ${data.plan.name} plan via Card ending in 4242. The application has been queued under Admin Panel > Awaiting Approvals.`,
+      message: `System Admin Notification: ${data.name} (${data.email}) just completed a successful payment of £${amountPaid.toFixed(2)} for the ${data.plan.name} plan via Card ending in 4242. The application has been queued under Admin Panel > Awaiting Approvals.`,
       type: 'PAYMENT_RECEIVED',
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       read: false
@@ -538,7 +538,7 @@ export default function App() {
         setAppModal({
           isOpen: true,
           title: 'Player Milestone Certified',
-          message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${res.certificate.certificateNumber} has been issued and cataloged.`,
+          message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${res.certificate.certificateNumber} has been issued and catalogued.`,
           type: 'success',
           confirmLabel: 'View Certificates',
           onConfirm: () => setAppModal(null)
@@ -569,7 +569,7 @@ export default function App() {
     setAppModal({
       isOpen: true,
       title: 'Player Milestone Certified',
-      message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${newCert.certificateNumber} has been issued and cataloged.`,
+      message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${newCert.certificateNumber} has been issued and catalogued.`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setAppModal(null)
@@ -659,7 +659,7 @@ export default function App() {
       setDriveUploadSuccess({
         player: playerName,
         fileName: `${playerName.replace(' ', '_')}_Bowling_Spell.mp4`,
-        drivePath: result?.googleDrivePath || `Google Drive / eCricketCoach / MelbourneCricketAcademy / ${playerName} / Bowling`,
+        drivePath: result?.googleDrivePath || `Google Drive / eCricketCoach / MaryleboneCricketAcademy / ${playerName} / Bowling`,
         aiSummary: result?.aiAnalysis?.keyBiomechanicalObservations?.[0] || 'Kinematic analysis complete: Detected front arm dropping 80ms early before ball release.',
         prescribedDrill: result?.aiAnalysis?.recommendedDrills?.[0] || 'High Non-Bowling Arm Extension & Target Drop Drill (20 mins)'
       });
@@ -669,7 +669,7 @@ export default function App() {
         setDriveUploadSuccess({
           player: playerName,
           fileName: `${playerName.replace(' ', '_')}_Bowling_Spell.mp4`,
-          drivePath: `Google Drive / eCricketCoach / MelbourneCricketAcademy / ${playerName} / Bowling`,
+          drivePath: `Google Drive / eCricketCoach / MaryleboneCricketAcademy / ${playerName} / Bowling`,
           aiSummary: 'Kinematic analysis complete: Detected front arm dropping 80ms early before ball release.',
           prescribedDrill: 'High Non-Bowling Arm Extension & Target Drop Drill (20 mins)'
         });
@@ -786,7 +786,7 @@ export default function App() {
             sessions={sessions}
             certificates={certificates}
             drills={drills}
-            clubName={currentUser?.clubName || 'Melbourne Cricket Academy'}
+            clubName={currentUser?.clubName || 'Marylebone Cricket Club Academy'}
             onInviteMember={handleInviteMember}
             onAcceptMemberInvite={handleAcceptMemberInvite}
             onPromotePlayer={handlePromotePlayer}

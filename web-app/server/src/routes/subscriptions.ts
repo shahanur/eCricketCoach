@@ -110,7 +110,7 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
       tenantId: 'pending-' + approvalId,
       customerName: orgName,
       amount: price,
-      currency: 'USD',
+      currency: 'GBP',
       status: 'PAID',
       date: new Date().toISOString().split('T')[0],
       planName: `${planId} (${billingCycle})`

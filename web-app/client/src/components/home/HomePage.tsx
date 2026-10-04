@@ -60,7 +60,7 @@ const CORE_SERVICES: CoreService[] = [
     metrics: { value: '< 2s', label: 'Analysis Turnaround Time' }
   },
   {
-    id: 'drill-catalog',
+    id: 'drill-catalogue',
     number: 2,
     name: 'Curated Drills & Practice Planning',
     tagline: '250+ verified drills for solo training and squad sessions',
@@ -78,12 +78,12 @@ const CORE_SERVICES: CoreService[] = [
     id: 'club-squads',
     number: 3,
     name: 'Club & Squad Roster Management',
-    tagline: 'Multi-squad organization from Under-9 to Senior cricket',
-    description: 'Purpose-built operations for cricket academies and clubs. Invite coaches and players via email, organize squads by age group and discipline, and publish date-specific training session plans.',
+    tagline: 'Multi-squad organisation from Under-9 to Senior cricket',
+    description: 'Purpose-built operations for cricket academies and clubs. Invite coaches and players via email, organise squads by age group and discipline, and publish date-specific training session plans.',
     badge: 'ACADEMY HUB',
     highlights: ['U9 to Senior Age Brackets', '1-Click Email Roster Invites', 'Session Schedule Publishing', 'Consolidated Club Billing'],
     capabilities: [
-      { title: 'Squad Delegation', desc: 'Organize players into developmental groups (e.g., U15 Pace Unit, Senior Top-Order) with assigned head coaches.' },
+      { title: 'Squad Delegation', desc: 'Organise players into developmental groups (e.g., U15 Pace Unit, Senior Top-Order) with assigned head coaches.' },
       { title: 'Frictionless Member Invites', desc: 'Send roster invitations with auto-acceptance links for coaches, parents, and youth players.' },
       { title: 'Session Schedule Alerts', desc: 'Publish planned training sessions so squad athletes receive instant notifications with required drill itineraries.' }
     ],
@@ -140,7 +140,7 @@ const PLANS: PlanConfig[] = [
     features: [
       'Manage up to 25 active players with dedicated profiles',
       'Individual & Group drill planning and scheduling',
-      'Create and save Proprietary Custom Coaching Drills to catalog',
+      'Create and save Proprietary Custom Coaching Drills to catalogue',
       'Post-session coach observation logging with automated AI drill top-ups',
       'Player Stage Evaluations & 1-Click Progression Certificate Generator'
     ],
@@ -155,14 +155,14 @@ const PLANS: PlanConfig[] = [
     id: 'CLUB_ACADEMY',
     type: 'CLUB',
     name: 'Club / Academy',
-    tagline: 'Complete organizational suite for cricket clubs, schools & academies.',
+    tagline: 'Complete organisational suite for cricket clubs, schools & academies.',
     priceMonthly: 199.99,
     priceAnnual: 1999.99,
     features: [
       'Unlimited coaches, managers, and registered youth/senior players',
       'Multi-squad & age-group management (U11, U13, U15, U19, Seniors)',
       'Club-wide Google Drive video integration & archive',
-      'System Admin multi-tenant isolation with custom organizational branding',
+      'System Admin multi-tenant isolation with custom organisational branding',
       'Consolidated academy billing, invoice history & audit reports'
     ],
     deliverables: [
@@ -362,8 +362,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               Trusted by coaching clinics, school academies & club teams:
             </span>
             <div className="flex flex-wrap items-center gap-6 font-semibold text-slate-300">
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" /> Melbourne Cricket Academy</span>
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-teal-400" /> Sydney Thunder Junior Academy</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" /> Marylebone Cricket Club Academy</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-teal-400" /> Surrey County Cricket Academy</span>
               <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-cyan-400" /> Yorkshire Strikers CC</span>
               <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-purple-400" /> Lord&apos;s Colts Cricket Club</span>
             </div>
@@ -507,7 +507,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </div>
             <h3 className="text-lg font-bold text-white">Built for How Academies Scale</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              One unified operations dashboard. Send 1-click email invitations to coaches and players, organize age-group squads (U11, U13, U15, U19, Seniors), schedule training sessions, and issue verified digital progression certificates in seconds.
+              One unified operations dashboard. Send 1-click email invitations to coaches and players, organise age-group squads (U11, U13, U15, U19, Seniors), schedule training sessions, and issue verified digital progression certificates in seconds.
             </p>
           </div>
 
@@ -582,7 +582,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
                   <div className="pt-2 pb-4 border-b border-slate-800">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-extrabold text-white">${price.toFixed(2)}</span>
+                      <span className="text-4xl font-extrabold text-white">£{price.toFixed(2)}</span>
                       <span className="text-xs text-slate-400 font-medium">{periodText}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
@@ -809,7 +809,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               <span className="text-purple-400 text-xs">● Multi-Tenant Isolation</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Yes! eCricketCoach supports dual drill catalogs. Official pre-defined drills are shared globally, but any drill created by your coaching staff under the Club Portal is scoped solely to your club ID.
+              Yes! eCricketCoach supports dual drill catalogues. Official pre-defined drills are shared globally, but any drill created by your coaching staff under the Club Portal is scoped solely to your club ID.
             </p>
           </div>
 
@@ -861,8 +861,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               🌐
             </div>
             <h4 className="text-sm font-bold text-white">Global Headquarters</h4>
-            <p className="text-xs text-slate-400">Melbourne Cricket Ground Precinct</p>
-            <p className="text-[11px] text-slate-500">Melbourne, VIC, Australia</p>
+            <p className="text-xs text-slate-400">Lord's Cricket Ground Precinct, St John's Wood</p>
+            <p className="text-[11px] text-slate-500">London NW8 8QN, United Kingdom</p>
           </div>
         </div>
       </section>
@@ -887,7 +887,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               <p className="text-xs text-slate-400 mt-1">
                 Amount:{' '}
                 <span className="font-bold text-emerald-400">
-                  ${(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)}
+                  £{(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)}
                 </span>{' '}
                 ({billingCycle.toLowerCase()})
               </p>
@@ -946,7 +946,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
                   {selectedPlanForPayment.type === 'CLUB' && (
                     <div>
-                      <label className="text-[11px] font-semibold text-slate-400">Club or Academy Organization Name *</label>
+                      <label className="text-[11px] font-semibold text-slate-400">Club or Academy Organisation Name *</label>
                       <input
                         type="text"
                         required
@@ -1029,7 +1029,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                       </>
                     ) : (
                       <>
-                        <span>Pay ${(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)} & Register</span>
+                        <span>Pay £{(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)} & Register</span>
                         <span>→</span>
                       </>
                     )}

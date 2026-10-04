@@ -20,7 +20,7 @@ export async function initDb() {
       tenant_id VARCHAR(100) NOT NULL,
       customer_name VARCHAR(255) NOT NULL,
       amount NUMERIC(10,2) NOT NULL,
-      currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+      currency VARCHAR(10) NOT NULL DEFAULT 'GBP',
       status VARCHAR(50) NOT NULL,
       invoice_date VARCHAR(50) NOT NULL,
       plan_name VARCHAR(255) NOT NULL
@@ -154,7 +154,7 @@ export async function initDb() {
       data: [
         { id: 'ten-001', name: 'Liam Henderson (Player)', type: 'INDIVIDUAL', email: 'liam.h@crickethub.com', subscriptionPlan: 'INDIVIDUAL', status: 'ACTIVE', billingCycle: 'MONTHLY', mrr: 14.99, activeMembers: 1, joinedAt: '2026-08-12' },
         { id: 'ten-002', name: 'David Warner Coaching Clinic', type: 'COACH', email: 'dw.coaching@crickpro.com', subscriptionPlan: 'COACH_PRO', status: 'ACTIVE', billingCycle: 'MONTHLY', mrr: 49.99, activeMembers: 22, joinedAt: '2026-05-04' },
-        { id: 'ten-003', name: 'Melbourne Cricket Academy', type: 'CLUB', email: 'admin@mca-cricket.org', subscriptionPlan: 'CLUB_ACADEMY', status: 'ACTIVE', billingCycle: 'ANNUAL', mrr: 199.99, activeMembers: 145, joinedAt: '2026-01-15' },
+        { id: 'ten-003', name: 'Marylebone Cricket Club Academy', type: 'CLUB', email: 'admin@mcc-cricket.org.uk', subscriptionPlan: 'CLUB_ACADEMY', status: 'ACTIVE', billingCycle: 'ANNUAL', mrr: 199.99, activeMembers: 145, joinedAt: '2026-01-15' },
         { id: 'ten-004', name: 'Sara Khan (Youth Spinner)', type: 'INDIVIDUAL', email: 'sara.spin@fastmail.com', subscriptionPlan: 'FREE_TRIAL', status: 'TRIAL', billingCycle: 'MONTHLY', mrr: 0.00, activeMembers: 1, joinedAt: '2026-09-24' },
         { id: 'ten-005', name: 'Yorkshire Strikers CC', type: 'CLUB', email: 'treasurer@yorkshirestrikers.co.uk', subscriptionPlan: 'CLUB_ACADEMY', status: 'PAST_DUE', billingCycle: 'MONTHLY', mrr: 199.99, activeMembers: 84, joinedAt: '2026-03-10' }
       ]
@@ -162,10 +162,10 @@ export async function initDb() {
 
     await prisma.invoice.createMany({
       data: [
-        { id: 'INV-1092', tenantId: 'ten-003', customerName: 'Melbourne Cricket Academy', amount: 2399.88, currency: 'USD', status: 'PAID', date: '2026-09-15', planName: 'Club / Academy (Annual)' },
-        { id: 'INV-1091', tenantId: 'ten-002', customerName: 'David Warner Coaching Clinic', amount: 49.99, currency: 'USD', status: 'PAID', date: '2026-09-10', planName: 'Coach Pro' },
-        { id: 'INV-1090', tenantId: 'ten-001', customerName: 'Liam Henderson (Player)', amount: 14.99, currency: 'USD', status: 'PAID', date: '2026-09-12', planName: 'Individual Player' },
-        { id: 'INV-1089', tenantId: 'ten-005', customerName: 'Yorkshire Strikers CC', amount: 199.99, currency: 'USD', status: 'FAILED', date: '2026-09-28', planName: 'Club / Academy (Monthly)' }
+        { id: 'INV-1092', tenantId: 'ten-003', customerName: 'Marylebone Cricket Club Academy', amount: 2399.88, currency: 'GBP', status: 'PAID', date: '2026-09-15', planName: 'Club / Academy (Annual)' },
+        { id: 'INV-1091', tenantId: 'ten-002', customerName: 'David Warner Coaching Clinic', amount: 49.99, currency: 'GBP', status: 'PAID', date: '2026-09-10', planName: 'Coach Pro' },
+        { id: 'INV-1090', tenantId: 'ten-001', customerName: 'Liam Henderson (Player)', amount: 14.99, currency: 'GBP', status: 'PAID', date: '2026-09-12', planName: 'Individual Player' },
+        { id: 'INV-1089', tenantId: 'ten-005', customerName: 'Yorkshire Strikers CC', amount: 199.99, currency: 'GBP', status: 'FAILED', date: '2026-09-28', planName: 'Club / Academy (Monthly)' }
       ]
     });
 
@@ -224,14 +224,14 @@ export async function initDb() {
             id: 'tkt-seed-2',
             ticketRef: 'ECC-672109',
             name: 'Sarah Connor',
-            email: 's.connor@melbournecricket.com',
+            email: 's.connor@mcc-cricket.org.uk',
             category: 'BILLING',
             priority: 'NORMAL',
             subject: 'Invoice tax breakdown requirement for Victorian Cricket Board grant',
             message: 'We require an itemized GST breakdown on our annual Club / Academy invoice #INV-1102 to submit for regional sports development funding.',
             status: 'OPEN',
             tenantRole: 'CLUB_ADMIN',
-            clubName: 'Melbourne Cricket Academy',
+            clubName: 'Marylebone Cricket Club Academy',
             createdAt: '2026-10-02 09:45'
           }
         ]

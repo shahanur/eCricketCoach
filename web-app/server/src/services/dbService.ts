@@ -202,7 +202,7 @@ export class DbService {
         tenantId: inv.tenantId,
         customerName: inv.customerName,
         amount: inv.amount,
-        currency: inv.currency || 'USD',
+        currency: inv.currency || 'GBP',
         status: inv.status,
         date: inv.date,
         planName: inv.planName

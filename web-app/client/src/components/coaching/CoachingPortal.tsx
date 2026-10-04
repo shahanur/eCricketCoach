@@ -87,8 +87,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
     onAddAiDrill(newDrill);
     setConfirmModal({
       isOpen: true,
-      title: 'Drill Adopted into Catalog',
-      message: `AI Recommended Drill "${newDrill.title}" has been successfully added to your training catalog!`,
+      title: 'Drill Adopted into Catalogue',
+      message: `AI Recommended Drill "${newDrill.title}" has been successfully added to your training catalogue!`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setConfirmModal(null)
@@ -169,7 +169,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
               disabled={analyzing}
               className="mt-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-semibold text-xs rounded-lg transition disabled:opacity-50"
             >
-              {analyzing ? 'Analyzing Biomechanics...' : 'Run Simulated AI Video Analysis'}
+              {analyzing ? 'Analysing Biomechanics...' : 'Run Simulated AI Video Analysis'}
             </button>
           </div>
 
@@ -291,7 +291,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
           <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between">
             <div>
               <span className="text-xs font-semibold uppercase text-slate-400">Individual</span>
-              <h4 className="text-xl font-bold text-white mt-1">$14.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
+              <h4 className="text-xl font-bold text-white mt-1">£14.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
               <p className="text-xs text-slate-400 mt-2">Solo training, 5 AI video analyses/month, personal skill levels.</p>
             </div>
             <button className="mt-4 w-full py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700">
@@ -305,7 +305,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
             </span>
             <div>
               <span className="text-xs font-semibold uppercase text-emerald-400">Coach Pro</span>
-              <h4 className="text-xl font-bold text-white mt-1">$49.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
+              <h4 className="text-xl font-bold text-white mt-1">£49.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
               <p className="text-xs text-slate-400 mt-2">Manage up to 25 players, group/squad modeling, assessments & promotion approvals.</p>
             </div>
             <button className="mt-4 w-full py-1.5 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold">
@@ -316,7 +316,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
           <div className="p-4 rounded-lg bg-slate-950 border border-slate-800 flex flex-col justify-between">
             <div>
               <span className="text-xs font-semibold uppercase text-slate-400">Club / Academy</span>
-              <h4 className="text-xl font-bold text-white mt-1">$199.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
+              <h4 className="text-xl font-bold text-white mt-1">£199.99 <span className="text-xs font-normal text-slate-400">/mo</span></h4>
               <p className="text-xs text-slate-400 mt-2">Multi-coach seats, squad segmentation, club-wide drill library & centralized billing.</p>
             </div>
             <button className="mt-4 w-full py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700">

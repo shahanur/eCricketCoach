@@ -66,7 +66,7 @@ drillsRouter.post('/club', async (req: Request, res: Response) => {
       durationMinutes: Number(duration || durationMinutes) || 20,
       source: 'CLUB_CUSTOM',
       clubId: clubId || 'ten-003',
-      clubName: clubName || 'Melbourne Cricket Academy',
+      clubName: clubName || 'Marylebone Cricket Club Academy',
       instructions: instructions || 'Custom drill tailored by club coaching staff.'
     };
 

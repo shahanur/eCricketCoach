@@ -197,7 +197,7 @@ clubRouter.post('/players/:id/upload-drive-video', async (req: Request, res: Res
     return res.json({
       success: true,
       googleDriveStatus: 'SAVED_TO_GOOGLE_DRIVE',
-      googleDrivePath: googleDriveFolder || `/eCricketCoach/Clubs/MelbourneCricketAcademy/${playerName || 'Player'}/${discipline || 'BATTING'}`,
+      googleDrivePath: googleDriveFolder || `/eCricketCoach/Clubs/MaryleboneCricketAcademy/${playerName || 'Player'}/${discipline || 'BATTING'}`,
       fileId: 'gdrive_file_' + Date.now(),
       aiAnalysis
     });

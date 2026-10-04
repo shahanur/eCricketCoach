@@ -140,7 +140,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Select your athlete discipline (Batting, Bowling, Keeping, Fielding) and training context (Individual vs Group).',
         'Click "Simulate AI Biomechanical Video Analysis" or upload player practice footage.',
         'Review the AI Pose score, head-over-ball metrics, front-foot alignment, and arm release velocity.',
-        'Click "Adopt Drill into Catalog" to automatically publish the AI recommended corrective drill to your roster.',
+        'Click "Adopt Drill into Catalogue" to automatically publish the AI recommended corrective drill to your roster.',
         'Evaluate player assessments and promote athletes to higher skill tiers.'
       ]
     },
@@ -167,7 +167,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
       description: 'Managing individual athlete passes, coach pro seats, or multi-squad club academy licenses.',
       steps: [
         'Subscriptions can be configured on Monthly or Annual billing schedules (Annual includes a 2-month discount).',
-        'Official receipts and tax invoices are automatically generated and archived under your organization account.',
+        'Official receipts and tax invoices are automatically generated and archived under your organisation account.',
         'Need to upgrade seats or change payment details? Contact our dedicated billing support desk below for instant assistance.'
       ]
     }
@@ -184,11 +184,11 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
     },
     {
       q: 'How do coaches share drills with players in a specific squad?',
-      a: 'Coaches can build customized training sessions in the Club Portal, attach recommended drills from either the system catalog or AI pose engine, and click "Publish Schedule". All assigned squad members receive immediate access.'
+      a: 'Coaches can build customised training sessions in the Club Portal, attach recommended drills from either the system catalogue or AI pose engine, and click "Publish Schedule". All assigned squad members receive immediate access.'
     },
     {
       q: 'How can our club integrate Google Drive for video storage?',
-      a: 'In the Club Portal under the "Drive Videos" tab, you can link your club\'s Google Drive directory. Player video uploads are synchronized into structured folders named by athlete and discipline, which feeds directly into the AI analyzer.'
+      a: 'In the Club Portal under the "Drive Videos" tab, you can link your club\'s Google Drive directory. Player video uploads are synchronized into structured folders named by athlete and discipline, which feeds directly into the AI analyser.'
     },
     {
       q: 'What should I do if my payment failed or an invoice is pending?',
@@ -421,7 +421,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                 Guaranteed SLA Times
               </h4>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Critical match-day technical issues are prioritized with under 2-hour response times. General inquiries answered within 4 hours.
+                Critical match-day technical issues are prioritised with under 2-hour response times. General inquiries answered within 4 hours.
               </p>
             </div>
           </div>
@@ -476,7 +476,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                     required
                     value={formData.email}
                     onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="e.g. coach@melbournecricket.com"
+                    placeholder="e.g. coach@mcc-cricket.org.uk"
                     className="w-full px-3 py-2 rounded-lg bg-slate-950/80 border border-slate-700 text-white text-xs focus:outline-none focus:border-emerald-400 transition"
                   />
                 </div>
@@ -547,7 +547,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
 
               <div className="flex items-center justify-between pt-2">
                 <span className="text-[11px] text-slate-400">
-                  eCricketCoach Platform Support • Melbourne, Australia
+                  eCricketCoach Platform Support • London, United Kingdom
                 </span>
                 <button
                   type="submit"
