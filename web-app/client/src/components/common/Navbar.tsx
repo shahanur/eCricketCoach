@@ -159,12 +159,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           // Authenticated State: Show persona-specific tabs according to the user's role(s)
           <div className="flex items-center gap-3">
             {/* Persona Switcher Tabs */}
-            <div className="flex items-center rounded-lg bg-slate-800/90 p-1 border border-slate-700/80">
+            <div className="flex items-center rounded-xl bg-slate-800/90 p-1 border border-slate-700/80 h-10 box-border">
               {/* Coach / Player AI Video Biomechanics Portal (Hidden from pure Club Admin who has it integrated in Club Portal) */}
               {hasCoachOrPlayer && !hasClubAdmin && (
                 <button
                   onClick={() => setViewMode('COACHING_PORTAL')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`h-full px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                     viewMode === 'COACHING_PORTAL'
                       ? 'bg-emerald-500 text-slate-950 shadow font-bold'
                       : 'text-slate-400 hover:text-white'
@@ -183,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {hasClubAdmin && (
                 <button
                   onClick={() => setViewMode('CLUB_PORTAL')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`h-full px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                     viewMode === 'CLUB_PORTAL'
                       ? 'bg-purple-500 text-slate-950 shadow font-bold'
                       : 'text-slate-400 hover:text-white'
@@ -202,7 +202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {hasSuperAdmin && (
                 <button
                   onClick={() => setViewMode('ADMIN_PANEL')}
-                  className={`px-3 py-1 rounded text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                  className={`h-full px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                     viewMode === 'ADMIN_PANEL'
                       ? 'bg-cyan-500 text-slate-950 shadow font-bold'
                       : 'text-slate-400 hover:text-white'
@@ -223,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => setViewMode('HELP_SUPPORT')}
               title="Help & Support"
-              className={`md:hidden p-2 rounded-xl border border-slate-700/80 text-xs font-bold transition cursor-pointer ${
+              className={`md:hidden h-10 w-10 flex items-center justify-center rounded-xl border border-slate-700/80 text-xs font-bold transition cursor-pointer box-border ${
                 viewMode === 'HELP_SUPPORT' ? 'bg-slate-800 text-emerald-400' : 'bg-slate-800/80 text-slate-300'
               }`}
             >
@@ -232,24 +232,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Logged-in User Profile Name & Log Out Button */}
             <div className="flex items-center gap-2 sm:gap-3 pl-2 border-l border-slate-800">
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700/80">
+              <div className="flex items-center gap-2 px-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 h-10 box-border">
                 <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-xs font-bold shrink-0">
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div className="text-left">
+                <div className="text-left flex flex-col justify-center">
                   <span className="text-xs font-bold text-white block leading-tight truncate max-w-[140px] sm:max-w-[200px]">
                     {currentUser.name}
                   </span>
                   <div className="flex items-center gap-1 mt-0.5">
                     {hasSuperAdmin ? (
-                      <span className="text-[9px] px-1 rounded bg-cyan-900/60 text-cyan-300 font-semibold font-mono">
+                      <span className="text-[9px] px-1 rounded bg-cyan-900/60 text-cyan-300 font-semibold font-mono leading-none py-0.5">
                         Super-Admin
                       </span>
                     ) : (
                       currentUser.roles.map(r => (
                         <span
                           key={r}
-                          className="text-[9px] px-1 rounded bg-slate-700 text-slate-300 font-mono"
+                          className="text-[9px] px-1 rounded bg-slate-700 text-slate-300 font-mono leading-none py-0.5"
                         >
                           {r.replace('_', ' ')}
                         </span>
@@ -263,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 onClick={onLogout}
                 title="Log out"
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500/20 to-red-500/20 hover:from-rose-500/30 hover:to-red-500/30 border border-rose-500/40 text-rose-200 hover:text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 h-10 box-border rounded-xl bg-gradient-to-r from-rose-500/20 to-red-500/20 hover:from-rose-500/30 hover:to-red-500/30 border border-rose-500/40 text-rose-200 hover:text-white font-bold text-xs shadow-sm transition cursor-pointer"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -288,7 +288,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onOpenLogin}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+              className="flex items-center gap-2 px-4 h-10 box-border rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -310,11 +310,11 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
         {/* Theme Selector (Dark / Soft Light / Pure White) */}
-        <div className="flex items-center rounded-xl bg-slate-800/90 border border-slate-700/80 p-0.5 ml-1 shadow-sm">
+        <div className="flex items-center rounded-xl bg-slate-800/90 border border-slate-700/80 p-1 h-10 box-border ml-1 shadow-sm">
           <button
             onClick={() => (onSelectTheme ? onSelectTheme('dark') : onToggleTheme())}
             title="Dark Theme (Night Nets)"
-            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`h-full px-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
               theme === 'dark'
                 ? 'bg-slate-700 text-amber-400 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -326,7 +326,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => (onSelectTheme ? onSelectTheme('light') : onToggleTheme())}
             title="Soft Slate Light Theme"
-            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`h-full px-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
               theme === 'light'
                 ? 'bg-white text-slate-900 font-bold shadow-sm'
                 : 'text-slate-400 hover:text-white'
@@ -338,7 +338,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => (onSelectTheme ? onSelectTheme('pure-light') : onToggleTheme())}
             title="Pure White Theme (Cricket Whites / Daylight)"
-            className={`px-2 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`h-full px-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
               theme === 'pure-light'
                 ? 'bg-white text-emerald-600 font-bold shadow-sm border border-emerald-400/40'
                 : 'text-slate-400 hover:text-white'
