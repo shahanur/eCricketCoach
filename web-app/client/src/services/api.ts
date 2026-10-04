@@ -321,5 +321,65 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to analyze video clip');
     return res.json();
+  },
+
+  // Google Drive Integration (real OAuth 2.0 + Drive API v3)
+  getGoogleDriveConnectUrl(): string {
+    const token = localStorage.getItem('auth_token') || '';
+    return `${API_BASE}/google-drive/connect?token=${encodeURIComponent(token)}`;
+  },
+
+  async getGoogleDriveStatus(): Promise<import('../types').GoogleDriveStatus> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return { connected: false, email: null };
+    const res = await fetch(`${API_BASE}/google-drive/status`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return { connected: false, email: null };
+    return res.json();
+  },
+
+  async listGoogleDriveVideos(): Promise<{ files: import('../types').DriveVideoFile[]; email?: string }> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) throw new Error('You must be signed in to access Google Drive.');
+    const res = await fetch(`${API_BASE}/google-drive/videos`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to list Google Drive videos');
+    }
+    return res.json();
+  },
+
+  async disconnectGoogleDrive(): Promise<void> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+    await fetch(`${API_BASE}/google-drive/disconnect`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  },
+
+  // Backs up a device-uploaded video into the user's connected Google Drive account, organized
+  // into an eCricketCoach/{playerName}/{discipline} folder structure.
+  async uploadVideoToGoogleDrive(file: File, playerName: string, discipline: string): Promise<import('../types').DriveVideoFile> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) throw new Error('You must be signed in to back up videos to Google Drive.');
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('playerName', playerName);
+    formData.append('discipline', discipline);
+    const res = await fetch(`${API_BASE}/google-drive/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to back up the video to Google Drive.');
+    }
+    const data = await res.json();
+    return data.file;
   }
 };

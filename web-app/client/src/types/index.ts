@@ -155,3 +155,22 @@ export interface VideoAnalysisResult {
     isNewRecommendation: boolean;
   }>;
 }
+
+export interface DriveVideoFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  modifiedTime: string;
+  webViewLink?: string;
+  thumbnailLink?: string;
+  durationMillis?: number | null;
+  width?: number;
+  height?: number;
+}
+
+export interface GoogleDriveStatus {
+  connected: boolean;
+  email: string | null;
+}
+

@@ -126,6 +126,18 @@ export async function initDb() {
       resolved_by VARCHAR(255),
       resolved_at VARCHAR(50),
       created_at VARCHAR(50) NOT NULL
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS google_drive_connections (
+      id VARCHAR(100) PRIMARY KEY,
+      user_id VARCHAR(255) UNIQUE NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      expiry_date BIGINT,
+      scope VARCHAR(500),
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
     )`
   ];
 

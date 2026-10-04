@@ -1,8 +1,26 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult } from '../../types';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile } from '../../types';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check } from 'lucide-react';
+import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder } from 'lucide-react';
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return 'Unknown size';
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(1)} MB`;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 interface ClubPortalProps {
   clubMembers: ClubMember[];
@@ -39,7 +57,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onScheduleSession,
   onPublishSession,
   onAddClubDrill,
-  onSimulateDriveUpload,
   uploadingDriveVideo,
   driveUploadSuccess
 }) => {
@@ -52,7 +69,105 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [clubAnalysisResult, setClubAnalysisResult] = useState<VideoAnalysisResult | null>(null);
   const [videoSourceMode, setVideoSourceMode] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isBackingUpToDrive, setIsBackingUpToDrive] = useState(false);
+  const [driveBackupStatus, setDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Real Google Drive video files, fetched from the connected account via the backend Drive API.
+  const [driveVideoFiles, setDriveVideoFiles] = useState<DriveVideoFile[]>([]);
+  const [modalDriveVideoFiles, setModalDriveVideoFiles] = useState<DriveVideoFile[]>([]);
+  const [selectedDriveVideo, setSelectedDriveVideo] = useState<string>('');
+  const [driveVideosError, setDriveVideosError] = useState<string | null>(null);
+  const [modalDriveVideosError, setModalDriveVideosError] = useState<string | null>(null);
+  const [isSyncingDriveTab, setIsSyncingDriveTab] = useState(false);
+  const [isSyncingDriveModal, setIsSyncingDriveModal] = useState(false);
+
+  // Google Drive Connection State (shared across Video Analysis tab & Roster upload modal)
+  const [isDriveConnected, setIsDriveConnected] = useState(false);
+  const [driveEmail, setDriveEmail] = useState<string>('');
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+
+  const handleDisconnectDrive = async () => {
+    try {
+      await api.disconnectGoogleDrive();
+    } catch {}
+    setIsDriveConnected(false);
+    setDriveEmail('');
+    setDriveVideoFiles([]);
+    setModalDriveVideoFiles([]);
+    setSelectedDriveVideo('');
+    setModalSelectedDriveVideo('');
+    setDriveBackupStatus('IDLE');
+    setModalDriveBackupStatus('IDLE');
+  };
+
+  // Check real Google Drive connection status on mount
+  useEffect(() => {
+    api.getGoogleDriveStatus().then(status => {
+      setIsDriveConnected(status.connected);
+      setDriveEmail(status.email || '');
+    }).catch(() => {});
+  }, []);
+
+  const fetchDriveVideos = async (target: 'TAB' | 'MODAL' = 'TAB') => {
+    try {
+      const { files } = await api.listGoogleDriveVideos();
+      if (target === 'TAB') {
+        setDriveVideoFiles(files);
+        setDriveVideosError(null);
+        if (files.length > 0) {
+          setSelectedDriveVideo(prev => (files.some(f => f.id === prev) ? prev : files[0].id));
+        }
+      } else {
+        setModalDriveVideoFiles(files);
+        setModalDriveVideosError(null);
+        if (files.length > 0) {
+          setModalSelectedDriveVideo(prev => (files.some(f => f.id === prev) ? prev : files[0].id));
+        }
+      }
+      return files;
+    } catch (err: any) {
+      const message = err?.message || 'Failed to fetch videos from Google Drive.';
+      if (target === 'TAB') setDriveVideosError(message);
+      else setModalDriveVideosError(message);
+      return [];
+    }
+  };
+
+  const handleDriveConnected = (email: string) => {
+    setIsDriveConnected(true);
+    setDriveEmail(email);
+    fetchDriveVideos('TAB');
+  };
+
+  // When a device video is selected while Google Drive is connected, automatically back it up
+  // to the user's real Google Drive so every uploaded clip is safely stored in the cloud vault,
+  // organized as eCricketCoach/{Player Name}/{Discipline}.
+  const backupLocalVideoToDrive = async (file: File, target: 'TAB' | 'MODAL') => {
+    if (!isDriveConnected) return;
+    const setBusy = target === 'TAB' ? setIsBackingUpToDrive : setIsModalBackingUpToDrive;
+    const setStatus = target === 'TAB' ? setDriveBackupStatus : setModalDriveBackupStatus;
+    const playerName = target === 'TAB'
+      ? (clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Unassigned Player')
+      : (uploadModalPlayer?.name || 'Unassigned Player');
+    const discipline = target === 'TAB' ? analysisDiscipline : modalUploadDiscipline;
+    setBusy(true);
+    setStatus('IDLE');
+    try {
+      const driveFile = await api.uploadVideoToGoogleDrive(file, playerName, discipline);
+      if (target === 'TAB') {
+        setDriveVideoFiles(prev => [driveFile, ...prev.filter(f => f.id !== driveFile.id)]);
+      } else {
+        setModalDriveVideoFiles(prev => [driveFile, ...prev.filter(f => f.id !== driveFile.id)]);
+      }
+      setStatus('SUCCESS');
+    } catch {
+      setStatus('ERROR');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Manage Squad Players Modal State
   const [managingSquad, setManagingSquad] = useState<Squad | null>(null);
@@ -62,6 +177,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [modalUploadDiscipline, setModalUploadDiscipline] = useState<Discipline>('BATTING');
   const [modalUploadSource, setModalUploadSource] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [modalUploadedFileName, setModalUploadedFileName] = useState<string | null>(null);
+  const [modalUploadError, setModalUploadError] = useState<string | null>(null);
+  const [isModalBackingUpToDrive, setIsModalBackingUpToDrive] = useState(false);
+  const [modalDriveBackupStatus, setModalDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [modalSelectedDriveVideo, setModalSelectedDriveVideo] = useState<string>('');
   const [modalIsAnalyzing, setModalIsAnalyzing] = useState(false);
   const [modalAnalysisResult, setModalAnalysisResult] = useState<VideoAnalysisResult | null>(null);
   const modalFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1146,12 +1265,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">Sync with Athlete Vault:</span>
               <button
-                onClick={() => onSimulateDriveUpload(clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Arjun Tendulkar')}
-                disabled={uploadingDriveVideo}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
+                onClick={async () => {
+                  if (!isDriveConnected) {
+                    setIsDriveModalOpen(true);
+                    return;
+                  }
+                  setIsSyncingDriveTab(true);
+                  await fetchDriveVideos('TAB');
+                  setIsSyncingDriveTab(false);
+                }}
+                disabled={isSyncingDriveTab}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
               >
                 <Cloud className="w-4 h-4 text-cyan-400" />
-                <span>Sync to Google Drive</span>
+                <span>{isDriveConnected ? 'Sync with Google Drive' : 'Connect Google Drive'}</span>
               </button>
             </div>
           </div>
@@ -1212,10 +1339,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <div className="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
                   <button
                     type="button"
-                    onClick={() => setVideoSourceMode('LOCAL_UPLOAD')}
+                    onClick={() => {
+                      setVideoSourceMode('LOCAL_UPLOAD');
+                      setUploadError(null);
+                    }}
                     className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       videoSourceMode === 'LOCAL_UPLOAD'
-                        ? 'bg-emerald-500 text-slate-950 font-bold'
+                        ? 'bg-emerald-500 text-slate-950'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
@@ -1224,15 +1354,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setVideoSourceMode('GOOGLE_DRIVE')}
+                    onClick={() => {
+                      setUploadError(null);
+                      if (!isDriveConnected) {
+                        setIsDriveModalOpen(true);
+                        return;
+                      }
+                      setVideoSourceMode('GOOGLE_DRIVE');
+                    }}
                     className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       videoSourceMode === 'GOOGLE_DRIVE'
-                        ? 'bg-emerald-500 text-slate-950 font-bold'
+                        ? 'bg-emerald-500 text-slate-950'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
                     <Cloud className="w-3.5 h-3.5" />
                     <span>Sync from Google Drive</span>
+                    {isDriveConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
                   </button>
                 </div>
               </div>
@@ -1243,13 +1381,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="video/mp4,video/quicktime,video/webm"
+                    accept="video/*"
                     className="hidden"
                     onChange={e => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        setUploadedVideoName(file.name);
+                      if (!file) return;
+                      if (!file.type.startsWith('video/')) {
+                        setUploadError('Invalid file type! Please select a valid video file (MP4, MOV, WEBM, AVI, M4V).');
+                        setUploadedVideoName(null);
+                        return;
                       }
+                      setUploadError(null);
+                      setUploadedVideoName(file.name);
+                      backupLocalVideoToDrive(file, 'TAB');
                     }}
                   />
                   <div
@@ -1261,7 +1405,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </div>
                     {uploadedVideoName ? (
                       <div>
-                        <p className="text-xs font-bold text-emerald-400 flex items-center justify-center gap-1.5">
+                        <p className="text-xs font-bold text-emerald-400 flex itemscenter justify-center gap-1.5">
                           <Check className="w-4 h-4" /> Ready for AI Analysis: {uploadedVideoName}
                         </p>
                         <p className="text-[11px] text-slate-400 mt-1">Click to replace file</p>
@@ -1272,36 +1416,122 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           Click to select or drag and drop athlete video footage
                         </p>
                         <p className="text-[11px] text-slate-400 mt-1">
-                          Supports MP4, MOV, or WEBM clips up to 60 seconds (Front, Side, or 45° angle)
+                          Strictly video only: MP4, MOV, or WEBM clips up to 60 seconds (Front, Side, or 45° angle)
                         </p>
                       </div>
                     )}
                   </div>
+                  {uploadError && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+                  {uploadedVideoName && isDriveConnected && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                      {isBackingUpToDrive ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-cyan-400" />
+                          <span className="text-slate-300">Backing up to Google Drive{driveEmail ? ` (${driveEmail})` : ''}…</span>
+                        </>
+                      ) : driveBackupStatus === 'SUCCESS' ? (
+                        <>
+                          <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                          <span className="text-emerald-400">Saved to your connected Google Drive.</span>
+                        </>
+                      ) : driveBackupStatus === 'ERROR' ? (
+                        <>
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                          <span className="text-rose-400">Could not back up to Google Drive. Analysis will still proceed locally.</span>
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="w-4 h-4 shrink-0 text-cyan-400" />
+                          <span className="text-slate-400">Will be backed up to Google Drive.</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {uploadedVideoName && !isDriveConnected && (
+                    <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>
+                        Not backed up to the cloud.{' '}
+                        <button type="button" className="underline font-semibold" onClick={() => setIsDriveModalOpen(true)}>
+                          Connect Google Drive
+                        </button>{' '}
+                        to automatically save device uploads.
+                      </span>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Google Drive Sync Option */
-                <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                      <Cloud className="w-5 h-5" />
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-4 h-4 text-cyan-400" />
+                      <span className="text-xs font-semibold text-white">Google Drive Cloud Vault</span>
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        Connected Club Cloud Vault: Google Drive
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        Target Folder: /eCricketCoach/{clubName.replace(/\s+/g, '')}/{clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name}/{analysisDiscipline}
-                      </p>
-                    </div>
+                    <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.5 rounded">
+                      {isDriveConnected ? (driveEmail || 'Connected') : 'Not Connected'}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onSimulateDriveUpload(clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Arjun Tendulkar')}
-                    disabled={uploadingDriveVideo}
-                    className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
-                  >
-                    <span>{uploadingDriveVideo ? 'Syncing...' : 'Fetch Latest Clip from Drive'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setIsSyncingDriveModal(true);
+                        await fetchDriveVideos('MODAL');
+                        setIsSyncingDriveModal(false);
+                      }}
+                      disabled={isSyncingDriveModal}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveModal ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingDriveModal ? 'Syncing...' : 'Sync Latest Clips from Vault'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDisconnectDrive}
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium cursor-pointer transition shrink-0"
+                      title="Disconnect account to switch accounts or refresh permissions"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+
+                  {driveVideosError && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{driveVideosError}</span>
+                    </div>
+                  )}
+
+                  {/* Video Picker from Connected Drive */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                    <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                      <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                      Select Video from Drive ({driveVideoFiles.length} found):
+                    </label>
+                    {driveVideoFiles.length === 0 && !driveVideosError ? (
+                      <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-xs text-slate-400">
+                        No video files loaded yet. Click "Sync Vault" to fetch videos from your Google Drive.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedDriveVideo}
+                        onChange={e => setSelectedDriveVideo(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
+                      >
+                        {driveVideoFiles.map(vf => (
+                          <option key={vf.id} value={vf.id}>
+                            {vf.name} ({formatBytes(vf.sizeBytes)} • {formatRelativeTime(vf.modifiedTime)})
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1310,14 +1540,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div className="pt-2">
               <button
                 type="button"
-                disabled={isAnalyzingVideo}
+                disabled={isAnalyzingVideo || (videoSourceMode === 'LOCAL_UPLOAD' && !uploadedVideoName)}
                 onClick={async () => {
                   setIsAnalyzingVideo(true);
                   setClubAnalysisResult(null);
+                  const activeVideoName = videoSourceMode === 'LOCAL_UPLOAD'
+                    ? (uploadedVideoName || `drive_stream_${selectedAnalysisPlayer}_${analysisDiscipline}.mp4`)
+                    : (driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'drive_video');
                   try {
+                    // PLACEHOLDER: Replace with real AI analysis API call
                     const res = await api.analyzeVideo({
                       discipline: analysisDiscipline,
-                      videoUrl: uploadedVideoName || `drive_stream_${selectedAnalysisPlayer}_${analysisDiscipline}.mp4`
+                      videoUrl: activeVideoName
                     });
                     if (res?.analysis) {
                       setClubAnalysisResult(res.analysis);
@@ -1360,7 +1594,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <span>
                   {isAnalyzingVideo
                     ? 'Running Computer Vision Kinematic Pose Estimation...'
-                    : `Run Biomechanical AI Analysis (${videoSourceMode === 'LOCAL_UPLOAD' ? (uploadedVideoName ? `File: ${uploadedVideoName}` : 'Local Device Video') : 'Google Drive Footage'})`}
+                    : `Run Biomechanical AI Analysis (${videoSourceMode === 'LOCAL_UPLOAD' ? (uploadedVideoName ? `File: ${uploadedVideoName}` : 'Local Device Video') : `Drive: ${driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Select a video'}`})`}
                 </span>
               </button>
             </div>
@@ -1851,7 +2085,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             onClick={() => {
                               onUpdateMemberSquad?.(player.id, 'Unassigned');
                             }}
-                            className="px-2.5 py-1 text-xs rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition cursor-pointer"
+                            className="px-2.5 py-1 text-xs rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition cursor-pointer"
                           >
                             Remove
                           </button>
@@ -1896,6 +2130,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               onClick={() => {
                 setUploadModalPlayer(null);
                 setModalUploadedFileName(null);
+                setModalUploadError(null);
                 setModalAnalysisResult(null);
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
@@ -1952,7 +2187,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       onClick={() => setModalUploadSource('LOCAL_UPLOAD')}
                       className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                         modalUploadSource === 'LOCAL_UPLOAD'
-                          ? 'bg-emerald-500 text-slate-950 font-bold'
+                          ? 'bg-emerald-500 text-slate-950'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -1961,15 +2196,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setModalUploadSource('GOOGLE_DRIVE')}
+                      onClick={() => {
+                        setModalUploadError(null);
+                        if (!isDriveConnected) {
+                          setIsDriveModalOpen(true);
+                          return;
+                        }
+                        setModalUploadSource('GOOGLE_DRIVE');
+                      }}
                       className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                         modalUploadSource === 'GOOGLE_DRIVE'
-                          ? 'bg-emerald-500 text-slate-950 font-bold'
+                          ? 'bg-emerald-500 text-slate-950'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       <Cloud className="w-3.5 h-3.5" />
                       <span>Sync from Google Drive</span>
+                      {isDriveConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
                     </button>
                   </div>
                 </div>
@@ -1979,13 +2222,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <input
                       ref={modalFileInputRef}
                       type="file"
-                      accept="video/mp4,video/quicktime,video/webm"
+                      accept="video/*"
                       className="hidden"
                       onChange={e => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          setModalUploadedFileName(file.name);
+                        if (!file) return;
+                        if (!file.type.startsWith('video/')) {
+                          setModalUploadError('Invalid file type! Please select a valid video file (MP4, MOV, WEBM, AVI, M4V).');
+                          setModalUploadedFileName(null);
+                          return;
                         }
+                        setModalUploadError(null);
+                        setModalUploadedFileName(file.name);
+                        backupLocalVideoToDrive(file, 'MODAL');
                       }}
                     />
                     <div
@@ -2008,11 +2257,54 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             Click to select or drop video file
                           </p>
                           <p className="text-[11px] text-slate-400 mt-1">
-                            Accepts MP4, MOV, or WEBM up to 60s
+                            Strictly video only: MP4, MOV, or WEBM up to 60s
                           </p>
                         </div>
                       )}
                     </div>
+                    {modalUploadError && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{modalUploadError}</span>
+                      </div>
+                    )}
+                    {modalUploadedFileName && isDriveConnected && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
+                        {isModalBackingUpToDrive ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-cyan-400" />
+                            <span className="text-slate-300">Backing up to Google Drive…</span>
+                          </>
+                        ) : modalDriveBackupStatus === 'SUCCESS' ? (
+                          <>
+                            <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                            <span className="text-emerald-400">Saved to your connected Google Drive.</span>
+                          </>
+                        ) : modalDriveBackupStatus === 'ERROR' ? (
+                          <>
+                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                            <span className="text-rose-400">Could not back up to Google Drive. Analysis will still proceed locally.</span>
+                          </>
+                        ) : (
+                          <>
+                            <Cloud className="w-4 h-4 shrink-0 text-cyan-400" />
+                            <span className="text-slate-400">Will be backed up to Google Drive.</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {modalUploadedFileName && !isDriveConnected && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>
+                          Not backed up to the cloud.{' '}
+                          <button type="button" className="underline font-semibold" onClick={() => setIsDriveModalOpen(true)}>
+                            Connect Google Drive
+                          </button>{' '}
+                          to automatically save device uploads.
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
@@ -2022,21 +2314,64 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <span className="text-xs font-semibold text-white">Google Drive Cloud Vault</span>
                       </div>
                       <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.5 rounded">
-                        Connected
+                        {isDriveConnected ? (driveEmail || 'Connected') : 'Not Connected'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-mono">
-                      /eCricketCoach/{clubName.replace(/\s+/g, '')}/{uploadModalPlayer.name.replace(/\s+/g, '')}/{modalUploadDiscipline}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => onSimulateDriveUpload(uploadModalPlayer.name)}
-                      disabled={uploadingDriveVideo}
-                      className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-slate-700 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
-                    >
-                      <Cloud className="w-3.5 h-3.5" />
-                      <span>{uploadingDriveVideo ? 'Syncing with Google Drive...' : 'Sync Latest Clip from Vault'}</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsSyncingDriveModal(true);
+                          await fetchDriveVideos('MODAL');
+                          setIsSyncingDriveModal(false);
+                        }}
+                        disabled={isSyncingDriveModal}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveModal ? 'animate-spin' : ''}`} />
+                        <span>{isSyncingDriveModal ? 'Syncing with Google Drive...' : 'Sync Latest Clips from Vault'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDisconnectDrive}
+                        className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium cursor-pointer transition shrink-0"
+                        title="Disconnect account to switch accounts or refresh permissions"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+
+                    {driveVideosError && (
+                      <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{driveVideosError}</span>
+                      </div>
+                    )}
+
+                    {/* Video Picker from Connected Drive */}
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                      <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
+                        <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                        Select Video from Drive ({modalDriveVideoFiles.length} found):
+                      </label>
+                      {modalDriveVideoFiles.length === 0 && !modalDriveVideosError ? (
+                        <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+                          No video files loaded yet. Click "Sync Latest Clips from Vault" to fetch videos from your Google Drive.
+                        </div>
+                      ) : (
+                        <select
+                          value={modalSelectedDriveVideo}
+                          onChange={e => setModalSelectedDriveVideo(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
+                        >
+                          {modalDriveVideoFiles.map(vf => (
+                            <option key={vf.id} value={vf.id}>
+                              {vf.name} ({formatBytes(vf.sizeBytes)} • {formatRelativeTime(vf.modifiedTime)})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2044,14 +2379,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               {/* Run Analysis Button */}
               <button
                 type="button"
-                disabled={modalIsAnalyzing}
+                disabled={modalIsAnalyzing || (modalUploadSource === 'LOCAL_UPLOAD' && !modalUploadedFileName)}
                 onClick={async () => {
                   setModalIsAnalyzing(true);
                   setModalAnalysisResult(null);
+                  const activeVideoName = modalUploadSource === 'LOCAL_UPLOAD'
+                    ? (modalUploadedFileName || `clip_${uploadModalPlayer.id}_${modalUploadDiscipline}.mp4`)
+                    : (modalDriveVideoFiles.find(f => f.id === modalSelectedDriveVideo)?.name || 'drive_video');
                   try {
+                    // PLACEHOLDER: Replace with real AI analysis API call
                     const res = await api.analyzeVideo({
                       discipline: modalUploadDiscipline,
-                      videoUrl: modalUploadedFileName || `clip_${uploadModalPlayer.id}_${modalUploadDiscipline}.mp4`
+                      videoUrl: activeVideoName
                     });
                     if (res?.analysis) {
                       setModalAnalysisResult(res.analysis);
@@ -2094,7 +2433,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <span>
                   {modalIsAnalyzing
                     ? 'Running Computer Vision Kinematics...'
-                    : `Analyze Video Clip (${modalUploadSource === 'LOCAL_UPLOAD' ? (modalUploadedFileName || 'Uploaded Video') : 'Google Drive'})`}
+                    : `Analyze Video Clip (${modalUploadSource === 'LOCAL_UPLOAD' ? (modalUploadedFileName || 'Uploaded Video') : `Drive: ${modalDriveVideoFiles.find(f => f.id === modalSelectedDriveVideo)?.name || 'Select a video'}`})`}
                 </span>
               </button>
 
@@ -2227,6 +2566,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           onConfirm={portalModal.onConfirm}
           onCancel={portalModal.onCancel || (() => setPortalModal(null))}
           onClose={() => setPortalModal(null)}
+        />
+      )}
+
+      {/* Google Drive Connection Modal */}
+      {isDriveModalOpen && (
+        <GoogleDriveConnectModal
+          isOpen={isDriveModalOpen}
+          onClose={() => setIsDriveModalOpen(false)}
+          onConnected={(email: string) => {
+            handleDriveConnected(email);
+            setIsDriveModalOpen(false);
+          }}
+          initialEmail={driveEmail}
+          userRoleLabel="Club Admin"
         />
       )}
     </div>

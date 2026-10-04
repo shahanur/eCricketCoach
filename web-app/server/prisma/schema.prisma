@@ -153,3 +153,18 @@ model SupportTicketStore {
 
   @@map("support_tickets_store")
 }
+
+model GoogleDriveConnection {
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  email        String
+  accessToken  String    @map("access_token") @db.Text
+  refreshToken String?   @map("refresh_token") @db.Text
+  expiryDate   BigInt?   @map("expiry_date")
+  scope        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("google_drive_connections")
+}
+
