@@ -216,6 +216,17 @@ export const api = {
     return data.member;
   },
 
+  async updateClubMember(memberId: string, updates: Partial<ClubMember>): Promise<ClubMember> {
+    const res = await fetch(`${API_BASE}/club/members/${memberId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error('Failed to update club member');
+    const data = await res.json();
+    return data.member;
+  },
+
   async getSquads(clubId?: string): Promise<Squad[]> {
     const sp = clubId ? `?clubId=${clubId}` : '';
     const res = await fetch(`${API_BASE}/club/squads${sp}`);
@@ -230,6 +241,17 @@ export const api = {
       body: JSON.stringify(squad)
     });
     if (!res.ok) throw new Error('Failed to create squad');
+    const data = await res.json();
+    return data.squad;
+  },
+
+  async updateSquad(squadId: string, updates: Partial<Squad>): Promise<Squad> {
+    const res = await fetch(`${API_BASE}/club/squads/${squadId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error('Failed to update squad');
     const data = await res.json();
     return data.squad;
   },

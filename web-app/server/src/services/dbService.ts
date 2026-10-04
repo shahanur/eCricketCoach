@@ -586,6 +586,25 @@ export class DbService {
     };
   }
 
+  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachName?: string }) {
+    try {
+      const updated = await prisma.squadStore.update({
+        where: { id },
+        data: updates
+      });
+      return {
+        id: updated.id,
+        name: updated.name,
+        ageGroup: updated.ageGroup,
+        discipline: updated.discipline,
+        coachName: updated.coachName,
+        memberCount: updated.memberCount
+      };
+    } catch {
+      return null;
+    }
+  }
+
   // --- Training Sessions ---
   static async getTrainingSessions(clubId?: string) {
     const where: any = {};

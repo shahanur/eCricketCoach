@@ -585,6 +585,27 @@ export default function App() {
     }
   };
 
+  const handleUpdateMemberSquad = async (memberId: string, squadName: string) => {
+    try {
+      await api.updateClubMember(memberId, { squad: squadName });
+    } catch {
+      // ignore
+    }
+    setClubMembers(prev =>
+      prev.map(m => (m.id === memberId ? { ...m, squad: squadName } : m))
+    );
+    // Update squad member count locally and via API
+    setSquads(prev =>
+      prev.map(sq => {
+        const count = clubMembers.filter(m =>
+          m.id === memberId ? squadName === sq.name : m.squad === sq.name
+        ).length;
+        api.updateSquad(sq.id, { memberCount: count }).catch(() => {});
+        return { ...sq, memberCount: count };
+      })
+    );
+  };
+
   const handleScheduleSession = async (session: TrainingSession) => {
     try {
       const saved = await api.scheduleSession(session);
@@ -770,6 +791,7 @@ export default function App() {
             onAcceptMemberInvite={handleAcceptMemberInvite}
             onPromotePlayer={handlePromotePlayer}
             onAddSquad={handleAddSquad}
+            onUpdateMemberSquad={handleUpdateMemberSquad}
             onScheduleSession={handleScheduleSession}
             onPublishSession={handlePublishSession}
             onAddClubDrill={handleAddDrill}

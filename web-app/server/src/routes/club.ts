@@ -54,6 +54,18 @@ clubRouter.post('/members/:id/accept-invitation', async (req: Request, res: Resp
   }
 });
 
+clubRouter.patch('/members/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { squad, currentLevel, invitationStatus } = req.body;
+    const updated = await DbService.updateClubMember(id, { squad, currentLevel, invitationStatus });
+    if (!updated) return res.status(404).json({ error: 'Member not found' });
+    return res.json({ success: true, member: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // 2. Coaches: Squads Management
 clubRouter.get('/squads', async (req: Request, res: Response) => {
   try {
@@ -83,6 +95,18 @@ clubRouter.post('/squads', async (req: Request, res: Response) => {
       memberCount: (memberIds || []).length
     });
     return res.json({ success: true, squad: saved });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+clubRouter.patch('/squads/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { memberCount, name, coachName } = req.body;
+    const updated = await DbService.updateSquad(id, { memberCount, name, coachName });
+    if (!updated) return res.status(404).json({ error: 'Squad not found' });
+    return res.json({ success: true, squad: updated });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

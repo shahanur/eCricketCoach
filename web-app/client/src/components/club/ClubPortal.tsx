@@ -15,6 +15,7 @@ interface ClubPortalProps {
   onAcceptMemberInvite: (id: string) => void;
   onPromotePlayer: (id: string) => void;
   onAddSquad: (squad: Squad) => void;
+  onUpdateMemberSquad?: (memberId: string, squadName: string) => void;
   onScheduleSession: (session: TrainingSession) => void;
   onPublishSession: (id: string) => void;
   onAddClubDrill: (drill: Drill) => void;
@@ -34,6 +35,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onAcceptMemberInvite,
   onPromotePlayer,
   onAddSquad,
+  onUpdateMemberSquad,
   onScheduleSession,
   onPublishSession,
   onAddClubDrill,
@@ -51,6 +53,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [videoSourceMode, setVideoSourceMode] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Manage Squad Players Modal State
+  const [managingSquad, setManagingSquad] = useState<Squad | null>(null);
 
   // General Notification / Action Confirmation Modal State
   const [portalModal, setPortalModal] = useState<{
@@ -775,7 +780,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <p className="text-xs text-slate-400">Primary Focus: <span className="text-emerald-400">{sq.discipline}</span></p>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                   <span className="text-xs text-slate-500">{sq.memberCount} Squad Members</span>
-                  <button className="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded border border-slate-700">
+                  <button
+                    onClick={() => setManagingSquad(sq)}
+                    className="text-xs px-2.5 py-1 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded border border-purple-500/40 transition cursor-pointer"
+                  >
                     Manage Players
                   </button>
                 </div>
@@ -886,7 +894,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <div key={idx} className="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
                           <div>
                             <p className="text-xs font-medium text-white">{d.title}</p>
-                            <p className="text-[11px] text-slate-400">{d.duration} mins • {d.reason}</p>
+                            <p className="text-[11px] text-slate-400 mt-1">{d.duration} mins • {d.reason}</p>
                           </div>
                           <button
                             onClick={() => handleAdoptEvaluationDrill(d)}
@@ -1744,7 +1752,104 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         </div>
       )}
 
-      {/* 4. Action Confirmation & Notification Modal */}
+      {/* 4. Manage Squad Players Modal */}
+      {managingSquad && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative max-h-[85vh] flex flex-col">
+            <button
+              onClick={() => setManagingSquad(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold mb-1">
+                <span>{managingSquad.ageGroup}</span> • <span>{managingSquad.discipline}</span>
+              </div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users size={18} className="text-purple-400" />
+                <span>Manage Squad Players: {managingSquad.name}</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Assign or remove club players from this squad. Coaches assign discipline-focused training to squad members.
+              </p>
+            </div>
+
+            {/* Players list with add/remove toggles */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800/60">
+              {clubMembers
+                .filter(m => m.role === 'PLAYER')
+                .map(player => {
+                  const isInSquad = player.squad === managingSquad.name;
+                  return (
+                    <div
+                      key={player.id}
+                      className="pt-2.5 pb-1 flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-white">{player.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                            player.invitationStatus === 'ACTIVE'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          }`}>
+                            {player.invitationStatus === 'ACTIVE' ? 'Active' : 'Pending'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          {player.ageGroup} • {player.discipline} • Level: <span className="text-slate-300 font-medium">{player.currentLevel}</span>
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          Current Squad: <span className={isInSquad ? 'text-purple-300 font-semibold' : 'text-slate-400'}>{player.squad || 'Unassigned'}</span>
+                        </p>
+                      </div>
+
+                      <div>
+                        {isInSquad ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateMemberSquad?.(player.id, 'Unassigned');
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 transition cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdateMemberSquad?.(player.id, managingSquad.name);
+                            }}
+                            className="px-2.5 py-1 text-xs rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold transition cursor-pointer"
+                          >
+                            Assign to Squad
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                Squad roster: <strong className="text-purple-300">{clubMembers.filter(m => m.squad === managingSquad.name).length}</strong> player(s)
+              </span>
+              <button
+                type="button"
+                onClick={() => setManagingSquad(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-white font-semibold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Action Confirmation & Notification Modal */}
       {portalModal && (
         <ConfirmationModal
           isOpen={portalModal.isOpen}
