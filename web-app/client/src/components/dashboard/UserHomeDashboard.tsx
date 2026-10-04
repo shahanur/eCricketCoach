@@ -135,7 +135,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
             <button
               onClick={() => setViewMode('HELP_SUPPORT')}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-800 via-indigo-950/60 to-slate-800 hover:from-indigo-900/60 hover:via-purple-900/50 hover:to-indigo-900/60 border border-indigo-500/30 hover:border-indigo-400/60 text-slate-100 hover:text-white font-semibold text-xs shadow-md shadow-indigo-950/40 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Help & Support</span>
             </button>
