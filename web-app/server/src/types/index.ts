@@ -102,7 +102,9 @@ export interface TrainingSession {
   drillIds?: string[];
   drillCount?: number;
   isPublished: boolean;
+  isExecuted?: boolean;
   publishedAt?: string;
+  playerNotes?: Record<string, string>;
   postSessionNotes?: string;
   aiAssessment?: any;
 }

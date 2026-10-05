@@ -115,8 +115,10 @@ model TrainingSessionStore {
   sessionDate     String   @map("session_date")
   durationMinutes Int      @default(90) @map("duration_minutes")
   isPublished     Boolean  @default(false) @map("is_published")
+  isExecuted      Boolean  @default(false) @map("is_executed")
   drillCount      Int      @default(0) @map("drill_count")
   drillIds        Json?    @default("[]") @map("drill_ids")
+  playerNotes     Json?    @default("{}") @map("player_notes")
   postNotes       String?  @map("post_notes")
   aiEvaluation    Json?    @map("ai_evaluation")
 
@@ -189,4 +191,3 @@ model VideoAnalysisStore {
 
   @@map("video_analysis_store")
 }
-

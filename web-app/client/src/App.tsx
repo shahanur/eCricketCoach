@@ -668,6 +668,10 @@ export default function App() {
     }
   };
 
+  const handleSessionUpdated = (updatedSession: TrainingSession) => {
+    setSessions(prev => prev.map(session => session.id === updatedSession.id ? updatedSession : session));
+  };
+
   const handleDeleteSession = async (sessionId: string) => {
     const prevSessions = sessions;
     setSessions(prev => prev.filter(s => s.id !== sessionId));
@@ -871,6 +875,7 @@ export default function App() {
             onUpdateMember={handleUpdateMember}
             onScheduleSession={handleScheduleSession}
             onUpdateSession={handleUpdateSession}
+            onSessionUpdated={handleSessionUpdated}
             onDeleteSession={handleDeleteSession}
             onPublishSession={handlePublishSession}
             onAddDrillToSession={handleAddDrillToSession}

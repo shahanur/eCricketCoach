@@ -124,8 +124,10 @@ export interface TrainingSession {
   sessionDate: string;
   durationMinutes: number;
   isPublished: boolean;
+  isExecuted?: boolean;
   drillCount: number;
   drillIds?: string[];
+  playerNotes?: Record<string, string>;
   postNotes?: string;
   aiEvaluation?: any;
 }
@@ -177,4 +179,3 @@ export interface GoogleDriveStatus {
   connected: boolean;
   email: string | null;
 }
-

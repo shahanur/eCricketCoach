@@ -706,8 +706,10 @@ export class DbService {
       sessionDate: s.sessionDate,
       durationMinutes: s.durationMinutes,
       isPublished: s.isPublished,
+      isExecuted: s.isExecuted,
       drillCount: s.drillCount,
       drillIds: Array.isArray(s.drillIds) ? s.drillIds : [],
+      playerNotes: s.playerNotes && typeof s.playerNotes === 'object' ? s.playerNotes : {},
       postNotes: s.postNotes,
       aiEvaluation: s.aiEvaluation
     }));
@@ -723,8 +725,10 @@ export class DbService {
         sessionDate: sess.sessionDate,
         durationMinutes: sess.durationMinutes || 90,
         isPublished: sess.isPublished || false,
+        isExecuted: sess.isExecuted || false,
         drillCount: sess.drillCount || (sess.drills ? sess.drills.length : 0),
         drillIds: sess.drillIds || [],
+        playerNotes: sess.playerNotes || {},
         postNotes: sess.postNotes || null,
         aiEvaluation: sess.aiEvaluation || undefined
       }
@@ -737,8 +741,10 @@ export class DbService {
       sessionDate: created.sessionDate,
       durationMinutes: created.durationMinutes,
       isPublished: created.isPublished,
+      isExecuted: created.isExecuted,
       drillCount: created.drillCount,
       drillIds: Array.isArray(created.drillIds) ? created.drillIds : [],
+      playerNotes: created.playerNotes && typeof created.playerNotes === 'object' ? created.playerNotes : {},
       postNotes: created.postNotes,
       aiEvaluation: created.aiEvaluation
     };
@@ -758,8 +764,10 @@ export class DbService {
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
+        isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
@@ -793,8 +801,10 @@ export class DbService {
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
+        isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
@@ -828,8 +838,10 @@ export class DbService {
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
+        isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
@@ -840,13 +852,22 @@ export class DbService {
 
   // Edits a scheduled training session's core details (title, target squad, date, duration).
   // Used by the Edit Session flow in the Club Portal's Sessions tab.
-  static async updateTrainingSession(id: string, updates: { title?: string; squadName?: string; sessionDate?: string; durationMinutes?: number }) {
+  static async updateTrainingSession(id: string, updates: {
+    title?: string;
+    squadName?: string;
+    sessionDate?: string;
+    durationMinutes?: number;
+    isExecuted?: boolean;
+    playerNotes?: Record<string, string>;
+  }) {
     try {
       const data: any = {};
       if (updates.title !== undefined) data.title = updates.title;
       if (updates.squadName !== undefined) data.squadName = updates.squadName;
       if (updates.sessionDate !== undefined) data.sessionDate = updates.sessionDate;
       if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
+      if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
+      if (updates.playerNotes !== undefined) data.playerNotes = updates.playerNotes;
 
       const updated = await prisma.trainingSessionStore.update({
         where: { id },
@@ -860,8 +881,10 @@ export class DbService {
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
+        isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
@@ -896,8 +919,10 @@ export class DbService {
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
+        isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };

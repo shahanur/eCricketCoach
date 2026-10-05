@@ -164,8 +164,25 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
 clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, squadName, sessionDate, durationMinutes } = req.body;
-    const updated = await DbService.updateTrainingSession(id, { title, squadName, sessionDate, durationMinutes });
+    const { title, squadName, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
+    if (isExecuted !== undefined && typeof isExecuted !== 'boolean') {
+      return res.status(400).json({ error: 'isExecuted must be a boolean' });
+    }
+    if (
+      playerNotes !== undefined &&
+      (!playerNotes || typeof playerNotes !== 'object' || Array.isArray(playerNotes) ||
+        Object.values(playerNotes).some(note => typeof note !== 'string'))
+    ) {
+      return res.status(400).json({ error: 'playerNotes must map player IDs to note strings' });
+    }
+    const updated = await DbService.updateTrainingSession(id, {
+      title,
+      squadName,
+      sessionDate,
+      durationMinutes,
+      isExecuted,
+      playerNotes
+    });
     if (!updated) return res.status(404).json({ error: 'Session not found' });
     return res.json({ success: true, session: updated });
   } catch (err: any) {

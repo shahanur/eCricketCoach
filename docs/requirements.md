@@ -1,146 +1,143 @@
 # Software Requirements Specification (SRS)
 
 ## Project: eCricketCoach
-**Version:** 1.0.0  
-**Date:** September 2026  
+**Version:** 1.1.0
+**Date:** October 5, 2026
+**Status:** As-built implementation baseline
 
 ---
 
-## 1. Executive Summary & Objectives
-**eCricketCoach** is a responsive, multi-tenant cricket training and performance management web application. It connects coaches, individual players, and cricket clubs/academies. 
+## 1. Executive Summary & Scope
 
-Key capabilities include:
-- Multi-tier progressive cricket training framework mapped by discipline and age group.
-- Dynamic training plan modeling with solo and group-adapted drills.
-- Player assessment workflows with promotion gating or AI-recommended drill refinement.
-- Video analysis pipeline for short clips (batting, bowling, keeping, fielding) generating biomechanical insights, drill suggestions, and practice durations.
-- Multi-tenant architecture with subscription tiers (Player, Coach, Club).
-- Social and Enterprise Single Sign-On (Google, Microsoft, Apple, Facebook).
+**eCricketCoach** is a responsive web application prototype for cricket coaching, player development, club administration, drill management, and video analysis. This document describes the behavior present in the repository as of the date above. It is not a statement that every feature is production-ready; incomplete and simulated behavior is explicitly identified.
+
+The current application includes:
+
+- A React single-page web app with home, player/coach, club, system-admin, and help/support views.
+- Google, Microsoft, and Apple sign-in flows that issue JWTs.
+- Club roster, squad, and scheduled training-session management.
+- System and club drill catalog management.
+- Google Drive connection and video browsing/upload, plus Gemini-based video analysis when configured.
+- Subscription plan display and a checkout flow that records a paid application for admin review.
+- Admin views for tenants, invoices, club approvals, notifications, and support tickets.
+
+The implementation is an evolving prototype. External payment processing, email delivery, comprehensive server-side role and tenant authorization, live push notifications, and an asynchronous video-processing queue are not implemented.
 
 ---
 
-## 2. User Personas & Permissions (RBAC)
+## 2. User Personas & Access
 
-| Role | Description | Core Permissions |
+| Role | Current application view | Current behavior |
 |---|---|---|
-| **Individual Player** | Self-training player (youth or adult) | Upload videos, view assigned/tailored plans, track personal skill progression, subscribe to Player plan. |
-| **Coach** | Independent or club coach | Manage multiple players and squads, model customized training plans, conduct assessments, approve promotions, tailor AI recommendations. |
-| **Club Admin** | Academy/Club manager | Organization-level tenant administration, manage club coaches, squad rosters, subscription billing, and club-wide drill library. |
-| **System Admin** | Platform operator | Global metrics, drill moderation, platform tenant oversight. |
+| **Player** | Player/coaching workspace | Can access the player-oriented dashboard and video-analysis features available in the UI. |
+| **Coach** | Coaching portal | Can work with drills, club members, squads, sessions, and player progression flows exposed by the application. |
+| **Club Admin** | Club portal | Can access club roster, squad, session, and club-level workflows exposed by the application. |
+| **System Admin** | Admin panel | Can view and manage tenant/billing records, club approvals, notifications, drills, and support tickets. |
+
+The sign-in callback maps an authenticated tenant to a role and the client selects a corresponding workspace. The API does not consistently enforce role-based permissions or tenant isolation: several admin, club, drill, and session endpoints are not protected by authentication middleware. The role-specific views must not be treated as a security boundary.
 
 ---
 
-## 3. Functional Requirements
+## 3. Functional Requirements (Current Behavior)
 
-### 3.1 Multi-Tenancy & Subscriptions
-- **FR-1.1 Tenant Isolation:** Logical data separation using `tenant_id` on all core entities (users, squads, drills, plans, assessments, video analysis).
-- **FR-1.2 Pricing Models & Plans:**
-  - **Player Plan:** 1 player profile, personal skill roadmap, limited AI video analyses per month.
-  - **Coach Plan:** Manage up to N players/squads, create custom plans, assessments, unlimited drills, AI suggestions.
-  - **Club Plan:** Multi-coach seats, squad segmentation, centralized billing, custom club drill branding.
-- **FR-1.3 Payment Lifecycle:** Integration with Stripe/Paddle supporting recurring subscription, upgrades/downgrades, and cancellation.
-- **FR-1.4 Super-Admin Management Panel:**
-  - Full management of tenants/customers across all tiers (`INDIVIDUAL`, `COACH`, `CLUB`).
-  - Real-time subscription lifecycle management (trial, active, past-due, canceled).
-  - Billing monitoring, monthly recurring revenue (MRR) tracking, and invoice status inspection.
-  - Plan override and manual tier provisioning.
+### 3.1 Sign-In and Session
+- **FR-1.1 Supported providers:** Google, Microsoft, and Apple OAuth/OpenID Connect sign-in are implemented. Facebook sign-in is not implemented.
+- **FR-1.2 Provider configuration:** The API reports whether provider credentials are configured. A provider without credentials is unavailable.
+- **FR-1.3 Token and client state:** Successful sign-in returns an eight-hour JWT. The browser stores the token and user display information in `localStorage`.
+- **FR-1.4 Registration handoff:** An identity not associated with an active/trial tenant is redirected to the registration/checkout flow using a short-lived registration token.
+- **FR-1.5 Role assignment:** Configured admin email addresses receive the `SUPER_ADMIN` role; active tenant type determines `PLAYER`, `COACH`, or `CLUB_ADMIN`.
 
-### 3.2 Club Persona & Onboarding Workflow (Comprehensive)
-- **FR-2.1 Subscription & System Admin Approval Gate:**
-  - Following successful payment for a Club subscription, the system triggers an alert/notification to the System Admin.
-  - The new Club registration enters an **"Awaiting Approval"** queue.
-  - Once approved by the System Admin, the Club Admin account is activated, sending credentials/onboarding link to get into the portal.
-- **FR-2.2 Club Roster Management & Invitation System:**
-  - Club Admin invites Coaches and Players across designated age groups (`U9`, `U11`, `U13`, `U15`, `U19`, `Senior`).
-  - Coaches and players receive email invitation links with status (`PENDING_ACCEPTANCE`, `ACTIVE`). Upon accepting, they gain access to their dedicated roles.
-- **FR-2.3 Squad & Group Formation:**
-  - Coaches can organize accepted players into squads/groups (e.g., *U15 Fast Bowling Unit*, *Senior Top-Order Batters*, *U13 Development Squad*).
-- **FR-2.4 Session-Based Training Plans & Progression Modeling:**
-  - Coaches construct date-specific, session-based training plans incorporating drills from the catalog.
-  - Coaches define progression stage gates/workflows per age group and discipline.
-  - When the coach clicks **"Publish Training"**, squad/group players receive an instant notification with drills, duration, and instructions.
-- **FR-2.5 Post-Session AI Assessment & Drill Recommendation Loop:**
-  - Following a completed training session, coaches enter field notes for the squad or individual players.
-  - AI engine parses coach notes and performance logs to assess competencies, flagging gaps and automatically recommending tailored supplementary drills.
-  - Coach has full authority to **Accept**, **Top-Up**, or **Modify** recommended drills before saving to the player's updated routine.
-- **FR-2.6 Cloud / Google Drive Video Ingestion & AI Biomechanical Analysis:**
-  - Club Admin and Coaches can upload short video clips of individual players (batting, bowling, keeping, fielding).
-  - Clips are securely cataloged and integrated with Google Drive object storage (folder hierarchy: `Club / Squad / Player / Discipline`).
-  - AI analyzes pose kinematics, detects biomechanical flaws, identifies focal areas, and prescribes tailored corrective drills with target repetition durations.
-- **FR-2.7 Individual Player Progression & Achievement Certification:**
-  - Coaches evaluate players against milestone benchmarks.
-  - Based on performance records, video metrics, and coach assessments, the player is either **Promoted** to the next stage or **Retained** for focused practice.
-  - The platform automatically generates a branded, printable/downloadable **Certificate of Achievement & Progression**, detailing:
-    - Player name, age group, discipline, and certified level.
-    - Achieved milestones and competencies.
-    - Coach commendations & AI recommendations for sustained performance.
+### 3.2 Subscription Plans and Administration
+- **FR-2.1 Plan catalog:** The API lists Individual Player, Coach Pro, and Club/Academy plans with monthly and annual prices and feature descriptions.
+- **FR-2.2 Checkout record:** The checkout endpoint records an application, invoice, and admin notification, then puts the application in `AWAITING_APPROVAL`.
+- **FR-2.3 Payment limitation:** Checkout does not integrate with Stripe, Paddle, or another payment processor. The current endpoint records the invoice as `PAID` without charging or verifying a payment method; it is a prototype flow, not production billing.
+- **FR-2.4 Admin management:** The admin API supports listing/filtering tenants, changing tenant status or plan, viewing/updating invoice status, listing and approving pending registrations, and viewing notifications.
+- **FR-2.5 Support desk:** Users can submit support tickets. Admin users can list/filter tickets and record a resolution.
+- **FR-2.6 Notification limitation:** Admin notifications are persisted records displayed in the admin interface. The application does not send email, SMS, or push notifications.
 
-### 3.3 Skill Framework & Level Hierarchy
-- **FR-3.1 Disciplines:**
-  - Batting (Front foot, Back foot, Power hitting, Spin defense)
-  - Bowling (Pace / Swing / Seam, Spin - Off-spin / Leg-spin)
-  - Wicketkeeping (Stance, Glove work, Standing up, Standing back)
-  - Fielding (Ground fielding, Catching - Close / Outfield, Throwing accuracy)
-- **FR-3.2 Demographics & Age Groups:**
-  - Age brackets: Under-9, Under-11, Under-13, Under-15, Under-19, Senior / Adult.
-  - Progression Levels: Level 1 (Foundation) -> Level 2 (Developing) -> Level 3 (Intermediate) -> Level 4 (Advanced) -> Level 5 (Elite).
-- **FR-3.3 Assessments & Promotion:**
-  - Coaches evaluate players against milestone rubrics (e.g., balance at crease, high elbow, seam upright).
-  - Status states: `Not Started`, `In Progress`, `Achieved`, `Needs Focus`.
-  - Passing all criteria triggers an automatic or coach-approved level promotion.
+### 3.3 Club, Squad, and Training Session Workflows
+- **FR-3.1 Roster:** Club members can be listed, invited as a pending record, edited, and changed to active through the invitation-acceptance endpoint.
+- **FR-3.2 Invitation limitation:** Creating or accepting an invitation updates application data only. No invitation email or account provisioning is performed.
+- **FR-3.3 Squads:** Coaches and club users can create, list, update, and delete squads, including age group, discipline, coach display name, and member count.
+- **FR-3.4 Sessions:** Users can create, list, edit, and delete scheduled sessions, associate drill IDs, and publish a session by setting its published state.
+- **FR-3.5 Publish limitation:** Publishing a session does not deliver a notification to players; the API returns a confirmation message and updates the session record.
+- **FR-3.6 Executed sessions and player notes:** A session can be marked as executed; past-dated sessions are also available for review. Coaches can select an executed session and save separate post-session notes for each player assigned to its squad. These notes are stored with the session and persist across reloads.
+- **FR-3.7 Post-session evaluation:** The API evaluates session notes and returns suggested gaps, drills, progression readiness, and commendations. This flow uses deterministic keyword-based rules in the current service; it is not generated by Gemini.
+- **FR-3.8 Player progression:** The progression endpoint supports promoting a member to a supplied level and creating a certificate record, or retaining the member at the current level. The current endpoint does not evaluate a milestone rubric before promotion.
+- **FR-3.9 Certificates:** The API stores and lists progression certificate records. A printable or downloadable certificate export is not exposed by the current API.
 
-### 3.4 Drill Management & Context-Aware Planning
-- **FR-4.1 Context Awareness:**
-  - System recognizes context: `INDIVIDUAL` (1-on-1 / Solo) or `GROUP` (squad / team session).
-  - Drills automatically configure participant counts, equipment, and rotation rules.
-- **FR-4.2 Multi-Tier Drill Catalog & System Admin Pre-defined Sets:**
-  - **System Admin Global Drill Library:** System Admin can create, curate, and maintain official, verified pre-defined drills categorized by discipline (Batting, Bowling, Keeping, Fielding), skill set (e.g., *Power Hitting*, *Seam Bowling*, *Spin Variation*, *Slip Catching*), age bracket, and difficulty.
-  - **Club & Coach Custom Drills:** Coaches and Club Admins can add their own proprietary drills specific to their club tenant or share them across squads.
-  - **Source Attribution:** Drills are flagged as `SYSTEM_PREDEFINED`, `CLUB_CUSTOM`, or `AI_RECOMMENDED`.
-- **FR-4.3 AI Recommendations & Ingestion:**
-  - When assessment identifies weaknesses, AI suggests matching drills from existing drill set.
-  - If a novel drill is generated by AI, coach can preview, accept, and save it permanently to tenant library.
-- **FR-4.4 Customization:** Coaches and players can edit drill parameters (sets, reps, duration, difficulty) within any active training plan.
+### 3.4 Drill Catalog
+- **FR-4.1 Drill metadata:** Drills have a title, discipline, skill set, context (`INDIVIDUAL` or `GROUP`), age group, difficulty, duration, source, and optional instructions/image.
+- **FR-4.2 Catalog sources:** The API supports `SYSTEM_PREDEFINED`, `CLUB_CUSTOM`, and `AI_RECOMMENDED` source values. System and club drill creation endpoints currently create system or club drills.
+- **FR-4.3 Drill operations:** The API supports listing drills with context, discipline, source, and club filters; creating system or club drills; editing drill details; and deleting drills.
+- **FR-4.4 Session use:** Coaches can add/remove drill IDs on a scheduled session. Per-player training plans and customizable sets/repetitions are not implemented as a separate plan workflow.
+- **FR-4.5 AI recommendation limitation:** Video analysis and post-session evaluation return suggested drills, but a general AI-generated drill authoring and permanent catalog-ingestion workflow is not implemented.
 
-### 3.5 Video Upload & AI Analysis
-- **FR-5.1 Video Ingestion:**
-  - Direct chunked/pre-signed upload of short video clips (MP4/MOV, up to 60s, max 100MB).
-  - Video tagged with discipline (Batting, Bowling, Keeping, Fielding) and camera angle (Side-on, Front-on, Behind).
-- **FR-5.2 Asynchronous Analysis Pipeline:**
-  - Container-based background queue processing (Redis + BullMQ / worker).
-  - Keyframe extraction and biomechanical pose estimation.
-  - Detected issues (e.g., falling over off-stump, early arm drop in delivery stride).
-  - Output: Metrics summary, flaw identification, recommended drills, and prescribed training duration.
+### 3.5 Video Analysis and Google Drive
+- **FR-5.1 Video sources:** The video-analysis endpoint accepts an uploaded video file or a video selected by Google Drive file ID.
+- **FR-5.2 Analysis provider:** Uploaded video is analyzed with Google's Gemini multimodal API when `GEMINI_API_KEY` is configured. The service dynamically discovers supported models (or uses configured/fallback model names) and retries transient failures. Gemini outages or quota errors are returned as errors; the analysis service does not substitute a mock video-analysis result.
+- **FR-5.3 Analysis result:** Results include an overall score, detected issues, biomechanical metric descriptions, and one or more recommended drills. Analysis runs as part of the HTTP request; no background worker/queue processes it.
+- **FR-5.4 History and adoption:** When persistence succeeds, signed-in users can retrieve analysis history and details and mark a recommended drill as adopted.
+- **FR-5.5 Google Drive connection:** Signed-in users can connect/disconnect Google Drive, view video files, upload a video, and select a Drive video for analysis. Uploaded files are organized under `eCricketCoach / Player / Discipline` in the user's Drive.
+- **FR-5.6 Upload constraints:** The API uses in-memory multipart upload with a configured maximum file size of 500 MB. The original 60-second and 100-MB limits and chunked/pre-signed upload behavior are not implemented.
+- **FR-5.7 Storage limitation:** Direct video uploads are passed to analysis in the request and are not independently persisted as application video files. A Google Drive upload is stored in the user's Drive; analysis metadata/results are stored in PostgreSQL when persistence succeeds.
+
+### 3.6 User Interface and Preferences
+- **FR-6.1 Workspaces:** The single-page app provides home, coaching, club, admin, dashboard, and help/support views.
+- **FR-6.2 Theme:** The client supports dark, light, and pure-light themes and persists the selected theme in browser storage.
+- **FR-6.3 Help and support:** The help interface presents user guidance and provides a support-ticket submission flow.
 
 ---
 
-## 4. Technical Architecture
+## 4. Technical Architecture (As Implemented)
 
-### 4.1 Frontend (React SPA)
-- **Framework:** React 18+ with TypeScript and Vite.
-- **Design System:** Tailwind CSS for responsive mobile, tablet, and desktop viewports.
-- **Routing & State:** React Router DOM v6, TanStack Query (React Query) for API caching.
-- **Components:** Modular atomic structure (Drills, Assessments, Video Player, Plans).
+### 4.1 Frontend
+- **Framework:** React 18 with TypeScript and Vite.
+- **Styling and icons:** Tailwind CSS and `lucide-react`.
+- **Navigation/state:** A single-page application with local React state and browser storage. React Router and TanStack Query are not dependencies in the current client.
+- **API access:** Client API helpers call the backend through same-origin `/api` paths.
 
-### 4.2 Backend (Containerized Node.js API)
-- **Runtime:** Node.js 20 LTS with Express/Fastify in TypeScript.
-- **Database Layer:** PostgreSQL with connection pooling (`pg` / Prisma / Drizzle).
-- **Task Queue:** Redis + BullMQ for async video processing tasks.
-- **Authentication:** Passport.js / JWT with multi-provider OAuth adapters.
+### 4.2 Backend
+- **Runtime/framework:** Node.js and TypeScript with Express 4.
+- **Database access:** Prisma ORM with PostgreSQL.
+- **Authentication:** Provider-specific OAuth/OpenID Connect flows, JWT signing/verification, and role middleware. Authorization middleware is currently applied only to selected routes; see Section 2.
+- **AI video analysis:** Google Generative AI SDK, using Gemini's video understanding API.
+- **Other integrations:** Google Drive API for user-owned video storage and retrieval.
+- **Redis limitation:** Redis is included in Docker Compose, but no Redis client or BullMQ worker is configured in the application code.
 
-### 4.3 Database Schema (PostgreSQL)
-- `tenants` (id, name, plan_type, status, created_at)
-- `users` (id, tenant_id, email, full_name, role, auth_provider, avatar_url)
-- `player_profiles` (id, user_id, age_group, primary_discipline, current_level)
-- `drills` (id, tenant_id, title, discipline, context_type [INDIVIDUAL/GROUP], min_age, difficulty, instructions, video_url, is_ai_generated)
-- `training_plans` (id, tenant_id, coach_id, target_id, target_type [PLAYER/SQUAD], status)
-- `plan_drills` (id, plan_id, drill_id, duration_minutes, sets, reps, notes, order_index)
-- `assessments` (id, tenant_id, player_id, coach_id, discipline, level_id, status, notes)
-- `video_submissions` (id, tenant_id, player_id, video_url, discipline, status, ai_feedback, recommended_drills)
+### 4.3 Persistence
 
-### 4.4 Containerization & Deployment
-- `docker-compose.yml` orchestrating:
-  - `postgres`: Relational data store
-  - `redis`: Job queue and caching
-  - `server`: Node.js Express API container
-  - `client`: Vite/Nginx frontend container
+The active Prisma schema defines persistence for:
+
+- Customer tenants, invoices, admin notifications, and club approvals.
+- Drill catalog entries, club members, squads, and training sessions.
+- Progression certificates and support tickets.
+- Google Drive connections and video-analysis results.
+
+The Prisma schema maps several application models to tables named with a `_store` suffix. `server/src/config/init.sql` also defines a separate normalized schema for tenants, users, player profiles, drills, training plans, assessments, video analyses, squads, sessions, and certificates. The current route/service implementation primarily uses the Prisma models; the presence of the normalized SQL schema does not mean all of those normalized workflows are implemented or used by the current API.
+
+### 4.4 Local Deployment
+
+`web-app/docker-compose.yml` defines:
+
+- `postgres`: PostgreSQL 16, exposed on host port 5433.
+- `redis`: Redis 7, exposed on host port 6379; not currently consumed by a queue worker.
+- `server`: Express API, exposed on host port 5001.
+- `client`: Vite-built static client served by Nginx on host port 3000.
+
+The stack is intended to run locally with `docker compose up --build` from `web-app`. Provider credentials, `JWT_SECRET`, and `GEMINI_API_KEY` must be configured to enable the corresponding integrations. The Compose defaults are for local development and are not production secrets or production deployment settings.
+
+---
+
+## 5. Known Gaps Before Production
+
+The following previously stated goals are not met by the current implementation and must not be represented as available production capabilities:
+
+- Payment collection, recurring billing, plan changes through a payment provider, refunds, or verified invoice settlement.
+- Server-side authorization and tenant isolation consistently applied to all endpoints and records.
+- Email delivery for invitations, account activation, or session announcements; live/push notification delivery.
+- A Redis/BullMQ-based asynchronous video-processing pipeline.
+- Automated milestone-rubric evaluation, complete player assessment history, or separate individual training-plan management.
+- Video duration/type policy enforcement matching the earlier 60-second/100-MB requirement, chunked uploads, and application-managed video storage.
+- Certificate PDF/print export.
+- Facebook sign-in, formal tenant-wide drill branding, and production administration/audit controls.

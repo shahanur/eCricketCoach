@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification, SupportTicket } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search } from 'lucide-react';
+import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search, Pencil } from 'lucide-react';
 
 interface AdminPanelProps {
   customers: CustomerTenant[];
@@ -565,9 +565,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
                           <button
                             onClick={() => handleOpenResolveModal(t)}
-                            className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                            type="button"
+                            title="Edit resolution"
+                            aria-label="Edit resolution"
+                            className="inline-flex h-7 w-7 items-center justify-center text-slate-400 hover:text-white rounded border border-slate-700 hover:bg-slate-800 cursor-pointer"
                           >
-                            Edit Resolution
+                            <Pencil size={13} />
                           </button>
                         </div>
                       )}

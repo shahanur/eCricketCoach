@@ -40,6 +40,7 @@ interface ClubPortalProps {
   onUpdateMember?: (memberId: string, updates: Partial<ClubMember>) => void;
   onScheduleSession: (session: TrainingSession) => void;
   onUpdateSession?: (sessionId: string, updates: Partial<TrainingSession>) => void;
+  onSessionUpdated?: (session: TrainingSession) => void;
   onDeleteSession?: (sessionId: string) => void;
   onPublishSession: (id: string) => void;
   onAddDrillToSession?: (sessionId: string, drillId?: string) => void;
@@ -66,6 +67,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onUpdateMember,
   onScheduleSession,
   onUpdateSession,
+  onSessionUpdated,
   onDeleteSession,
   onPublishSession,
   onAddDrillToSession,
@@ -435,6 +437,80 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [activeSessionNotes, setActiveSessionNotes] = useState('');
   const [evaluatingSession, setEvaluatingSession] = useState(false);
   const [sessionAiResult, setSessionAiResult] = useState<any>(null);
+  const [selectedExecutedSessionId, setSelectedExecutedSessionId] = useState('');
+  const [playerNoteDrafts, setPlayerNoteDrafts] = useState<Record<string, string>>({});
+  const [savingPlayerNoteId, setSavingPlayerNoteId] = useState<string | null>(null);
+  const [savedPlayerNoteId, setSavedPlayerNoteId] = useState<string | null>(null);
+  const [sessionNotesError, setSessionNotesError] = useState<string | null>(null);
+  const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
+
+  const todayLocal = new Date();
+  const todayDate = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+  const executedSessions = useMemo(
+    () => sessions.filter(session => session.isExecuted || session.sessionDate < todayDate),
+    [sessions, todayDate]
+  );
+  const selectedExecutedSession = executedSessions.find(session => session.id === selectedExecutedSessionId)
+    || executedSessions[0];
+
+  useEffect(() => {
+    if (!executedSessions.some(session => session.id === selectedExecutedSessionId)) {
+      setSelectedExecutedSessionId(executedSessions[0]?.id || '');
+    }
+  }, [executedSessions, selectedExecutedSessionId]);
+
+  useEffect(() => {
+    setPlayerNoteDrafts({});
+    setSavedPlayerNoteId(null);
+    setSessionNotesError(null);
+  }, [selectedExecutedSession?.id]);
+
+  const selectedSessionPlayers = useMemo(() => {
+    if (!selectedExecutedSession) return [];
+    const individualNames = selectedExecutedSession.squadName.startsWith('Individual: ')
+      ? selectedExecutedSession.squadName.slice('Individual: '.length).split(',').map(name => name.trim())
+      : null;
+
+    return clubMembers.filter(member =>
+      member.role === 'PLAYER' &&
+      (individualNames
+        ? individualNames.includes(member.name)
+        : member.squad === selectedExecutedSession.squadName)
+    );
+  }, [clubMembers, selectedExecutedSession]);
+
+  const handleMarkSessionExecuted = async (session: TrainingSession) => {
+    setExecutingSessionId(session.id);
+    setSessionNotesError(null);
+    try {
+      const updated = await api.updateSession(session.id, { isExecuted: true });
+      onSessionUpdated?.(updated);
+      setSelectedExecutedSessionId(updated.id);
+    } catch (error) {
+      setSessionNotesError(error instanceof Error ? error.message : 'Failed to mark the session as executed.');
+    } finally {
+      setExecutingSessionId(null);
+    }
+  };
+
+  const handleSavePlayerNote = async (playerId: string) => {
+    if (!selectedExecutedSession) return;
+    const playerNotes = {
+      ...(selectedExecutedSession.playerNotes || {}),
+      [playerId]: playerNoteDrafts[playerId] || ''
+    };
+    setSavingPlayerNoteId(playerId);
+    setSessionNotesError(null);
+    try {
+      const updated = await api.updateSession(selectedExecutedSession.id, { playerNotes });
+      onSessionUpdated?.(updated);
+      setSavedPlayerNoteId(playerId);
+    } catch (error) {
+      setSessionNotesError(error instanceof Error ? error.message : 'Failed to save the player note.');
+    } finally {
+      setSavingPlayerNoteId(null);
+    }
+  };
 
   const handleCreateClubDrill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1255,6 +1331,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           <button
                             onClick={() => openEditMemberModal(mem)}
                             title="Edit member details"
+                            aria-label="Edit member details"
                             className="inline-flex items-center justify-center h-6 w-6 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded cursor-pointer transition shrink-0"
                           >
                             <Pencil size={11} />
@@ -1355,15 +1432,21 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => openEditSquad(sq)}
-                      className="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
+                      type="button"
+                      title="Edit squad"
+                      aria-label="Edit squad"
+                      className="inline-flex h-7 w-7 items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
                     >
-                      Edit
+                      <Pencil size={13} />
                     </button>
                     <button
                       onClick={() => promptDeleteSquad(sq)}
-                      className="text-xs px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded border border-rose-500/30 transition cursor-pointer"
+                      type="button"
+                      title="Delete squad"
+                      aria-label="Delete squad"
+                      className="inline-flex h-7 w-7 items-center justify-center bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded border border-rose-500/30 transition cursor-pointer"
                     >
-                      Delete
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 </div>
@@ -1427,6 +1510,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                               type="button"
                               onClick={() => onRemoveDrillFromSession?.(s.id, drillId)}
                               title="Remove this drill from the session"
+                              aria-label="Remove this drill from the session"
                               className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
                             >
                               <X size={10} />
@@ -1441,15 +1525,21 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         onClick={() => openEditSession(s)}
-                        className="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
+                        type="button"
+                        title="Edit training session"
+                        aria-label="Edit training session"
+                        className="inline-flex h-7 w-7 items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
                       >
-                        Edit
+                        <Pencil size={13} />
                       </button>
                       <button
                         onClick={() => promptDeleteSession(s)}
-                        className="text-xs px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white rounded border border-rose-500/40 transition cursor-pointer"
+                        type="button"
+                        title="Delete training session"
+                        aria-label="Delete training session"
+                        className="inline-flex h-7 w-7 items-center justify-center bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white rounded border border-rose-500/40 transition cursor-pointer"
                       >
-                        Delete
+                        <Trash2 size={13} />
                       </button>
                       {!s.isPublished ? (
                         <button
@@ -1461,6 +1551,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       ) : (
                         <span className="text-xs text-emerald-400 font-semibold">Active & Notified</span>
                       )}
+                      {s.isExecuted ? (
+                        <span className="text-xs text-cyan-300 font-semibold">Executed</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkSessionExecuted(s)}
+                          disabled={executingSessionId === s.id}
+                          className="text-xs px-3 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-semibold rounded border border-cyan-500/30 disabled:opacity-50"
+                        >
+                          {executingSessionId === s.id ? 'Saving...' : 'Mark as Executed'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1471,14 +1573,84 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           {/* Post-Session Notes & AI Evaluation Loop */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
             <div>
-              <h3 className="font-semibold text-base text-white">Post-Session Coach Notes & AI Review</h3>
+              <h3 className="font-semibold text-base text-white">Executed Session Player Notes & AI Review</h3>
               <p className="text-xs text-slate-400">
-                Enter notes on squad or individual player performance. AI evaluates notes and recommends tailored drill top-ups.
+                Select a completed session to review and save notes for each player assigned to its squad. You can also run the session-wide AI review below.
               </p>
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label htmlFor="executed-session-select" className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Executed session
+                </label>
+                <select
+                  id="executed-session-select"
+                  value={selectedExecutedSession?.id || ''}
+                  onChange={event => setSelectedExecutedSessionId(event.target.value)}
+                  disabled={executedSessions.length === 0}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                >
+                  {executedSessions.length === 0 ? (
+                    <option value="">No executed sessions yet</option>
+                  ) : executedSessions.map(session => (
+                    <option key={session.id} value={session.id}>
+                      {session.title} — {session.squadName} ({session.sessionDate})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {sessionNotesError && (
+                <p role="alert" className="text-xs text-rose-400">{sessionNotesError}</p>
+              )}
+
+              {selectedExecutedSession && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-slate-300">
+                    Player notes — {selectedExecutedSession.squadName}
+                  </h4>
+                  {selectedSessionPlayers.length === 0 ? (
+                    <p className="text-xs text-slate-500">No players are assigned to this session's squad.</p>
+                  ) : selectedSessionPlayers.map(player => (
+                    <div key={player.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2">
+                      <label htmlFor={`session-note-${player.id}`} className="block text-xs font-semibold text-white">
+                        {player.name}
+                      </label>
+                      <textarea
+                        id={`session-note-${player.id}`}
+                        rows={2}
+                        value={playerNoteDrafts[player.id] ?? selectedExecutedSession.playerNotes?.[player.id] ?? ''}
+                        onChange={event => {
+                          setSavedPlayerNoteId(null);
+                          setPlayerNoteDrafts(previous => ({
+                            ...previous,
+                            [player.id]: event.target.value
+                          }));
+                        }}
+                        placeholder={`Add post-session notes for ${player.name}...`}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleSavePlayerNote(player.id)}
+                          disabled={savingPlayerNoteId === player.id}
+                          className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-semibold rounded border border-purple-500/30 disabled:opacity-50"
+                        >
+                          {savingPlayerNoteId === player.id ? 'Saving...' : savedPlayerNoteId === player.id ? 'Saved' : 'Save note'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <label htmlFor="session-wide-ai-notes" className="block text-xs font-semibold text-slate-300">
+                Optional session-wide notes for AI review
+              </label>
               <textarea
+                id="session-wide-ai-notes"
                 rows={4}
                 value={activeSessionNotes}
                 onChange={e => setActiveSessionNotes(e.target.value)}
@@ -1698,6 +1870,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <button
                       onClick={() => openEditDrill(drill)}
                       title="Edit drill"
+                      aria-label="Edit drill"
                       className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
                     >
                       <Pencil size={12} />
@@ -1705,6 +1878,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <button
                       onClick={() => promptDeleteDrill(drill)}
                       title="Delete drill"
+                      aria-label="Delete drill"
                       className="p-1.5 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white rounded border border-rose-500/40 transition cursor-pointer"
                     >
                       <Trash2 size={12} />
@@ -2786,6 +2960,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                 type="button"
                                 onClick={() => onUpdateMemberSquad?.(m.id, 'Unassigned')}
                                 title="Remove from this squad"
+                                aria-label={`Remove ${m.name} from this squad`}
                                 className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
                               >
                                 <X size={10} />
@@ -2808,9 +2983,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         const sq = squads.find(s => s.id === editingSquadId);
                         if (sq) promptDeleteSquad(sq);
                       }}
-                      className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-500 transition cursor-pointer"
+                      title="Delete squad"
+                      aria-label="Delete squad"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-rose-400 hover:text-white hover:bg-rose-500 transition cursor-pointer"
                     >
-                      Delete Squad
+                      <Trash2 size={16} />
                     </button>
                   ) : <span />}
                   <div className="flex items-center gap-2">
@@ -3099,6 +3276,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                     }
                                   }}
                                   title="Remove this drill from the session"
+                                  aria-label="Remove this drill from the session"
                                   className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
                                 >
                                   <X size={10} />

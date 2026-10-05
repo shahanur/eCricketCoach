@@ -95,8 +95,10 @@ export async function initDb() {
       session_date VARCHAR(50) NOT NULL,
       duration_minutes INT DEFAULT 90,
       is_published BOOLEAN DEFAULT FALSE,
+      is_executed BOOLEAN DEFAULT FALSE,
       drill_count INT DEFAULT 0,
       drill_ids JSONB DEFAULT '[]',
+      player_notes JSONB DEFAULT '{}',
       post_notes TEXT,
       ai_evaluation JSONB
     )`,
@@ -174,7 +176,9 @@ export async function initDb() {
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS image_url TEXT`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`
   ];
   for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);
