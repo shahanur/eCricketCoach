@@ -48,7 +48,10 @@ export class DbService {
       source: d.source,
       clubId: d.clubId,
       clubName: d.clubName,
-      instructions: d.instructions
+      squadId: d.squadId,
+      squadName: d.squadName,
+      instructions: d.instructions,
+      imageUrl: d.imageUrl
     }));
   }
 
@@ -64,7 +67,10 @@ export class DbService {
         source: drill.source,
         clubId: drill.clubId || null,
         clubName: drill.clubName || null,
-        instructions: drill.instructions || null
+        squadId: drill.squadId || null,
+        squadName: drill.squadName || null,
+        instructions: drill.instructions || null,
+        imageUrl: drill.imageUrl || null
       }
     });
 
@@ -79,8 +85,65 @@ export class DbService {
       source: created.source,
       clubId: created.clubId,
       clubName: created.clubName,
-      instructions: created.instructions
+      squadId: created.squadId,
+      squadName: created.squadName,
+      instructions: created.instructions,
+      imageUrl: created.imageUrl
     };
+  }
+
+  static async updateDrill(id: string, updates: {
+    title?: string;
+    discipline?: string;
+    skillSet?: string;
+    contextType?: string;
+    duration?: number;
+    instructions?: string;
+    imageUrl?: string | null;
+  }) {
+    try {
+      const data: any = {};
+      if (updates.title !== undefined) data.title = updates.title;
+      if (updates.discipline !== undefined) data.discipline = updates.discipline;
+      if (updates.skillSet !== undefined) data.skillSet = updates.skillSet;
+      if (updates.contextType !== undefined) data.contextType = updates.contextType;
+      if (updates.duration !== undefined) data.duration = updates.duration;
+      if (updates.instructions !== undefined) data.instructions = updates.instructions;
+      if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
+
+      const updated = await prisma.drillStore.update({
+        where: { id },
+        data
+      });
+
+      return {
+        id: updated.id,
+        title: updated.title,
+        discipline: updated.discipline,
+        skillSet: updated.skillSet,
+        contextType: updated.contextType,
+        duration: updated.duration,
+        durationMinutes: updated.duration,
+        source: updated.source,
+        clubId: updated.clubId,
+        clubName: updated.clubName,
+        squadId: updated.squadId,
+        squadName: updated.squadName,
+        instructions: updated.instructions,
+        imageUrl: updated.imageUrl
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  static async deleteDrill(id: string) {
+    try {
+      await prisma.drillStore.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // --- Customers / Tenants ---
@@ -515,11 +578,16 @@ export class DbService {
     };
   }
 
-  static async updateClubMember(id: string, updates: { invitationStatus?: string; currentLevel?: string; squad?: string }) {
+  static async updateClubMember(id: string, updates: { invitationStatus?: string; currentLevel?: string; squad?: string; name?: string; email?: string; role?: string; ageGroup?: string; discipline?: string }) {
     const data: any = {};
     if (updates.invitationStatus !== undefined) data.invitationStatus = updates.invitationStatus;
     if (updates.currentLevel !== undefined) data.currentLevel = updates.currentLevel;
     if (updates.squad !== undefined) data.squad = updates.squad;
+    if (updates.name !== undefined) data.name = updates.name;
+    if (updates.email !== undefined) data.email = updates.email;
+    if (updates.role !== undefined) data.role = updates.role;
+    if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
+    if (updates.discipline !== undefined) data.discipline = updates.discipline;
 
     try {
       const updated = await prisma.clubMemberStore.update({
@@ -586,11 +654,18 @@ export class DbService {
     };
   }
 
-  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachName?: string }) {
+  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachName?: string; ageGroup?: string; discipline?: string }) {
     try {
+      const data: any = {};
+      if (updates.memberCount !== undefined) data.memberCount = updates.memberCount;
+      if (updates.name !== undefined) data.name = updates.name;
+      if (updates.coachName !== undefined) data.coachName = updates.coachName;
+      if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
+      if (updates.discipline !== undefined) data.discipline = updates.discipline;
+
       const updated = await prisma.squadStore.update({
         where: { id },
-        data: updates
+        data
       });
       return {
         id: updated.id,
@@ -602,6 +677,15 @@ export class DbService {
       };
     } catch {
       return null;
+    }
+  }
+
+  static async deleteSquad(id: string) {
+    try {
+      await prisma.squadStore.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -623,6 +707,7 @@ export class DbService {
       durationMinutes: s.durationMinutes,
       isPublished: s.isPublished,
       drillCount: s.drillCount,
+      drillIds: Array.isArray(s.drillIds) ? s.drillIds : [],
       postNotes: s.postNotes,
       aiEvaluation: s.aiEvaluation
     }));
@@ -639,6 +724,7 @@ export class DbService {
         durationMinutes: sess.durationMinutes || 90,
         isPublished: sess.isPublished || false,
         drillCount: sess.drillCount || (sess.drills ? sess.drills.length : 0),
+        drillIds: sess.drillIds || [],
         postNotes: sess.postNotes || null,
         aiEvaluation: sess.aiEvaluation || undefined
       }
@@ -652,6 +738,7 @@ export class DbService {
       durationMinutes: created.durationMinutes,
       isPublished: created.isPublished,
       drillCount: created.drillCount,
+      drillIds: Array.isArray(created.drillIds) ? created.drillIds : [],
       postNotes: created.postNotes,
       aiEvaluation: created.aiEvaluation
     };
@@ -672,11 +759,123 @@ export class DbService {
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
         drillCount: updated.drillCount,
+        drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
     } catch {
       return null;
+    }
+  }
+
+  // Incorporates a drill into a training session by appending it to the session's drill list
+  // and bumping its drill count. Used both when a coach manually adds a drill to a session and
+  // when an AI-recommended drill is adopted for a player with an upcoming squad session.
+  static async incrementSessionDrillCount(id: string, drillId?: string) {
+    try {
+      const existing = await prisma.trainingSessionStore.findUnique({ where: { id } });
+      if (!existing) return null;
+      const currentIds: string[] = Array.isArray(existing.drillIds) ? (existing.drillIds as any) : [];
+      const newIds = drillId ? [...currentIds, drillId] : currentIds;
+
+      const updated = await prisma.trainingSessionStore.update({
+        where: { id },
+        data: {
+          drillCount: drillId ? newIds.length : { increment: 1 },
+          drillIds: drillId ? newIds : undefined
+        }
+      });
+
+      return {
+        id: updated.id,
+        squadName: updated.squadName,
+        title: updated.title,
+        sessionDate: updated.sessionDate,
+        durationMinutes: updated.durationMinutes,
+        isPublished: updated.isPublished,
+        drillCount: updated.drillCount,
+        drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        postNotes: updated.postNotes,
+        aiEvaluation: updated.aiEvaluation
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Removes a single instance of a drill from a session's drill list (used by the "Remove"
+  // action on an already-added session drill in the Club Portal Sessions tab).
+  static async removeDrillFromSession(id: string, drillId: string) {
+    try {
+      const existing = await prisma.trainingSessionStore.findUnique({ where: { id } });
+      if (!existing) return null;
+      const currentIds: string[] = Array.isArray(existing.drillIds) ? (existing.drillIds as any) : [];
+      const idx = currentIds.indexOf(drillId);
+      if (idx !== -1) currentIds.splice(idx, 1);
+
+      const updated = await prisma.trainingSessionStore.update({
+        where: { id },
+        data: {
+          drillCount: currentIds.length,
+          drillIds: currentIds
+        }
+      });
+
+      return {
+        id: updated.id,
+        squadName: updated.squadName,
+        title: updated.title,
+        sessionDate: updated.sessionDate,
+        durationMinutes: updated.durationMinutes,
+        isPublished: updated.isPublished,
+        drillCount: updated.drillCount,
+        drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        postNotes: updated.postNotes,
+        aiEvaluation: updated.aiEvaluation
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // Edits a scheduled training session's core details (title, target squad, date, duration).
+  // Used by the Edit Session flow in the Club Portal's Sessions tab.
+  static async updateTrainingSession(id: string, updates: { title?: string; squadName?: string; sessionDate?: string; durationMinutes?: number }) {
+    try {
+      const data: any = {};
+      if (updates.title !== undefined) data.title = updates.title;
+      if (updates.squadName !== undefined) data.squadName = updates.squadName;
+      if (updates.sessionDate !== undefined) data.sessionDate = updates.sessionDate;
+      if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
+
+      const updated = await prisma.trainingSessionStore.update({
+        where: { id },
+        data
+      });
+
+      return {
+        id: updated.id,
+        squadName: updated.squadName,
+        title: updated.title,
+        sessionDate: updated.sessionDate,
+        durationMinutes: updated.durationMinutes,
+        isPublished: updated.isPublished,
+        drillCount: updated.drillCount,
+        drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
+        postNotes: updated.postNotes,
+        aiEvaluation: updated.aiEvaluation
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  static async deleteTrainingSession(id: string) {
+    try {
+      await prisma.trainingSessionStore.delete({ where: { id } });
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -698,6 +897,7 @@ export class DbService {
         durationMinutes: updated.durationMinutes,
         isPublished: updated.isPublished,
         drillCount: updated.drillCount,
+        drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         postNotes: updated.postNotes,
         aiEvaluation: updated.aiEvaluation
       };
@@ -752,5 +952,98 @@ export class DbService {
       coachNotes: created.coachNotes,
       aiCommendation: created.aiCommendation
     };
+  }
+
+  // --- Video Analysis Results (real Gemini AI output) ---
+  static async createVideoAnalysis(entry: {
+    userId?: string | null;
+    playerId?: string | null;
+    playerName?: string | null;
+    discipline: string;
+    context: string;
+    sourceType: 'LOCAL_UPLOAD' | 'GOOGLE_DRIVE';
+    driveFileId?: string | null;
+    model: string;
+    analysis: any;
+  }) {
+    const created = await prisma.videoAnalysisStore.create({
+      data: {
+        userId: entry.userId || null,
+        playerId: entry.playerId || null,
+        playerName: entry.playerName || null,
+        discipline: entry.discipline,
+        context: entry.context,
+        sourceType: entry.sourceType,
+        driveFileId: entry.driveFileId || null,
+        model: entry.model,
+        overallScore: Math.round(entry.analysis?.overallScore ?? 0),
+        analysis: entry.analysis
+      }
+    });
+
+    return created;
+  }
+
+  static async getVideoAnalyses(filters?: { userId?: string; playerId?: string }) {
+    const where: any = {};
+    if (filters?.userId) where.userId = filters.userId;
+    if (filters?.playerId) where.playerId = filters.playerId;
+
+    const results = await prisma.videoAnalysisStore.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
+    return results.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      playerId: r.playerId,
+      playerName: r.playerName,
+      discipline: r.discipline,
+      context: r.context,
+      sourceType: r.sourceType,
+      driveFileId: r.driveFileId,
+      model: r.model,
+      overallScore: r.overallScore,
+      analysis: r.analysis,
+      drillAdopted: r.drillAdopted,
+      createdAt: r.createdAt
+    }));
+  }
+
+  static async getVideoAnalysisById(id: string) {
+    const r = await prisma.videoAnalysisStore.findUnique({ where: { id } });
+    if (!r) return null;
+    return {
+      id: r.id,
+      userId: r.userId,
+      playerId: r.playerId,
+      playerName: r.playerName,
+      discipline: r.discipline,
+      context: r.context,
+      sourceType: r.sourceType,
+      driveFileId: r.driveFileId,
+      model: r.model,
+      overallScore: r.overallScore,
+      analysis: r.analysis,
+      drillAdopted: r.drillAdopted,
+      createdAt: r.createdAt
+    };
+  }
+
+  static async markVideoAnalysisDrillAdopted(id: string) {
+    try {
+      const updated = await prisma.videoAnalysisStore.update({
+        where: { id },
+        data: { drillAdopted: true }
+      });
+      return {
+        id: updated.id,
+        drillAdopted: updated.drillAdopted
+      };
+    } catch {
+      return null;
+    }
   }
 }

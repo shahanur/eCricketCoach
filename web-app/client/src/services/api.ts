@@ -49,6 +49,23 @@ export const api = {
     return data.drill;
   },
 
+  async deleteDrill(drillId: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/drills/${drillId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete drill');
+    return true;
+  },
+
+  async updateDrill(drillId: string, updates: Partial<Drill>): Promise<Drill> {
+    const res = await fetch(`${API_BASE}/drills/${drillId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error('Failed to update drill');
+    const data = await res.json();
+    return data.drill;
+  },
+
   // Admin & Customers
   async getCustomers(params?: { search?: string; type?: string; status?: string }): Promise<{ customers: CustomerTenant[]; metrics: any }> {
     const sp = new URLSearchParams();
@@ -256,6 +273,12 @@ export const api = {
     return data.squad;
   },
 
+  async deleteSquad(squadId: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/club/squads/${squadId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete squad');
+    return true;
+  },
+
   async getSessions(clubId?: string): Promise<TrainingSession[]> {
     const sp = clubId ? `?clubId=${clubId}` : '';
     const res = await fetch(`${API_BASE}/club/sessions${sp}`);
@@ -283,6 +306,48 @@ export const api = {
     return data.session;
   },
 
+  async updateSession(sessionId: string, updates: Partial<TrainingSession>): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/club/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw new Error('Failed to update session');
+    const data = await res.json();
+    return data.session;
+  },
+
+  // Incorporates a drill (adopted AI recommendation or manually picked by a coach) into an
+  // upcoming training session (appends it to the session's drill list) so it's actually
+  // reflected in that squad's training plan.
+  async addDrillToSession(sessionId: string, drillId?: string): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/club/sessions/${sessionId}/add-drill`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drillId })
+    });
+    if (!res.ok) throw new Error('Failed to add drill to session');
+    const data = await res.json();
+    return data.session;
+  },
+
+  async removeDrillFromSession(sessionId: string, drillId: string): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/club/sessions/${sessionId}/remove-drill`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drillId })
+    });
+    if (!res.ok) throw new Error('Failed to remove drill from session');
+    const data = await res.json();
+    return data.session;
+  },
+
+  async deleteSession(sessionId: string): Promise<boolean> {
+    const res = await fetch(`${API_BASE}/club/sessions/${sessionId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete session');
+    return true;
+  },
+
   async getCertificates(): Promise<Certificate[]> {
     const res = await fetch(`${API_BASE}/club/certificates`);
     if (!res.ok) throw new Error('Failed to fetch certificates');
@@ -299,29 +364,129 @@ export const api = {
     return res.json();
   },
 
-  async uploadDriveVideo(playerId: string, payload: { fileName: string; discipline: string; playerName?: string }): Promise<any> {
-    const res = await fetch(`${API_BASE}/club/players/${playerId}/upload-drive-video`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error('Failed to upload video to Drive');
-    return res.json();
-  },
-
-  async analyzeVideo(payload: { discipline: string; videoUrl?: string }): Promise<{
+  // Real video analysis via the backend (Gemini multimodal video understanding).
+  // Pass videoFile for a device-uploaded clip, or driveFileId for a clip already in Google Drive.
+  // playerId/playerName attribute the saved result to a specific player so history can be filtered.
+  async analyzeVideo(payload: {
+    discipline: string;
+    context?: 'INDIVIDUAL' | 'GROUP';
+    videoFile?: File;
+    driveFileId?: string;
+    videoUrl?: string;
+    playerId?: string;
+    playerName?: string;
+  }): Promise<{
     status: string;
     discipline: string;
     analysis: import('../types').VideoAnalysisResult;
+    analysisId: string | null;
   }> {
+    const token = localStorage.getItem('auth_token');
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+    if (payload.videoFile) {
+      const formData = new FormData();
+      formData.append('file', payload.videoFile, payload.videoFile.name);
+      formData.append('discipline', payload.discipline);
+      if (payload.context) formData.append('context', payload.context);
+      if (payload.playerId) formData.append('playerId', payload.playerId);
+      if (payload.playerName) formData.append('playerName', payload.playerName);
+      const res = await fetch(`${API_BASE}/videos/analyze`, {
+        method: 'POST',
+        headers: authHeader,
+        body: formData
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || 'Failed to analyze video clip');
+      }
+      return res.json();
+    }
+
     const res = await fetch(`${API_BASE}/videos/analyze`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify({
+        discipline: payload.discipline,
+        context: payload.context,
+        driveFileId: payload.driveFileId,
+        videoUrl: payload.videoUrl,
+        playerId: payload.playerId,
+        playerName: payload.playerName
+      })
     });
-    if (!res.ok) throw new Error('Failed to analyze video clip');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || 'Failed to analyze video clip');
+    }
     return res.json();
   },
+
+  // Fetch previously saved real Gemini video analysis results (most recent first), optionally
+  // filtered to a specific player, persisted server-side in video_analysis_store.
+  async getVideoAnalysisHistory(playerId?: string): Promise<{
+    history: Array<{
+      id: string;
+      playerId: string | null;
+      playerName: string | null;
+      discipline: string;
+      context: string;
+      sourceType: string;
+      driveFileId: string | null;
+      model: string;
+      overallScore: number;
+      analysis: import('../types').VideoAnalysisResult;
+      drillAdopted: boolean;
+      createdAt: string;
+    }>;
+  }> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return { history: [] };
+    const query = playerId ? `?playerId=${encodeURIComponent(playerId)}` : '';
+    const res = await fetch(`${API_BASE}/videos/analyze/history${query}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return { history: [] };
+    return res.json();
+  },
+
+  // Fetch a single saved analysis result in full detail (for the detail view).
+  async getVideoAnalysisById(id: string): Promise<{
+    entry: {
+      id: string;
+      playerId: string | null;
+      playerName: string | null;
+      discipline: string;
+      context: string;
+      sourceType: string;
+      driveFileId: string | null;
+      model: string;
+      overallScore: number;
+      analysis: import('../types').VideoAnalysisResult;
+      drillAdopted: boolean;
+      createdAt: string;
+    } | null;
+  }> {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return { entry: null };
+    const res = await fetch(`${API_BASE}/videos/analyze/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return { entry: null };
+    return res.json();
+  },
+
+  // Mark a saved analysis's recommended drill as adopted into the training catalogue.
+  async markVideoAnalysisDrillAdopted(id: string): Promise<{ status: string; drillAdopted: boolean }> {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${API_BASE}/videos/analyze/${id}/adopt-drill`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) throw new Error('Failed to update the analysis result.');
+    return res.json();
+  },
+
 
   // Google Drive Integration (real OAuth 2.0 + Drive API v3)
   getGoogleDriveConnectUrl(): string {

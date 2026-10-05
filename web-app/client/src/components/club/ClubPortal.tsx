@@ -3,7 +3,8 @@ import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, Con
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder } from 'lucide-react';
+import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2 } from 'lucide-react';
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return 'Unknown size';
@@ -33,13 +34,19 @@ interface ClubPortalProps {
   onAcceptMemberInvite: (id: string) => void;
   onPromotePlayer: (id: string) => void;
   onAddSquad: (squad: Squad) => void;
+  onUpdateSquad?: (squadId: string, updates: Partial<Squad>) => void;
+  onDeleteSquad?: (squadId: string) => void;
   onUpdateMemberSquad?: (memberId: string, squadName: string) => void;
+  onUpdateMember?: (memberId: string, updates: Partial<ClubMember>) => void;
   onScheduleSession: (session: TrainingSession) => void;
+  onUpdateSession?: (sessionId: string, updates: Partial<TrainingSession>) => void;
+  onDeleteSession?: (sessionId: string) => void;
   onPublishSession: (id: string) => void;
+  onAddDrillToSession?: (sessionId: string, drillId?: string) => void;
+  onRemoveDrillFromSession?: (sessionId: string, drillId: string) => void;
   onAddClubDrill: (drill: Drill) => void;
-  onSimulateDriveUpload: (playerName: string) => void;
-  uploadingDriveVideo: boolean;
-  driveUploadSuccess: any;
+  onDeleteDrill?: (drillId: string) => void;
+  onUpdateDrill?: (drillId: string, updates: Partial<Drill>) => void;
 }
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
@@ -53,12 +60,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onAcceptMemberInvite,
   onPromotePlayer,
   onAddSquad,
+  onUpdateSquad,
+  onDeleteSquad,
   onUpdateMemberSquad,
+  onUpdateMember,
   onScheduleSession,
+  onUpdateSession,
+  onDeleteSession,
   onPublishSession,
+  onAddDrillToSession,
+  onRemoveDrillFromSession,
   onAddClubDrill,
-  uploadingDriveVideo,
-  driveUploadSuccess
+  onDeleteDrill,
+  onUpdateDrill,
 }) => {
   const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>('ROSTER');
 
@@ -67,8 +81,24 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [analysisDiscipline, setAnalysisDiscipline] = useState<Discipline>('BATTING');
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false);
   const [clubAnalysisResult, setClubAnalysisResult] = useState<VideoAnalysisResult | null>(null);
+  const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
+  const [analysisHistory, setAnalysisHistory] = useState<Array<{
+    id: string;
+    playerId: string | null;
+    playerName: string | null;
+    discipline: string;
+    context: string;
+    sourceType: string;
+    overallScore: number;
+    analysis: VideoAnalysisResult;
+    drillAdopted: boolean;
+    createdAt: string;
+  }>>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [viewingAnalysisId, setViewingAnalysisId] = useState<string | null>(null);
   const [videoSourceMode, setVideoSourceMode] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
+  const [uploadedVideoFile, setUploadedVideoFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isBackingUpToDrive, setIsBackingUpToDrive] = useState(false);
   const [driveBackupStatus, setDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -110,6 +140,27 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     }).catch(() => {});
   }, []);
 
+  const fetchAnalysisHistory = () => {
+    setIsHistoryLoading(true);
+    api.getVideoAnalysisHistory(selectedAnalysisPlayer || undefined)
+      .then(res => setAnalysisHistory(res.history || []))
+      .catch(() => {})
+      .finally(() => setIsHistoryLoading(false));
+  };
+
+  // Load previously saved real Gemini analyses for the currently selected player on mount,
+  // and whenever a different player is selected from the dropdown.
+  useEffect(() => {
+    fetchAnalysisHistory();
+  }, [selectedAnalysisPlayer]);
+
+  // Full (unfiltered) video analysis history across all players, used to cross-reference
+  // AI-recommended drills for whichever squad/players a training session targets.
+  const [allAnalysisHistoryForSession, setAllAnalysisHistoryForSession] = useState<Array<{
+    playerId: string | null;
+    analysis: VideoAnalysisResult;
+  }>>([]);
+
   const fetchDriveVideos = async (target: 'TAB' | 'MODAL' = 'TAB') => {
     try {
       const { files } = await api.listGoogleDriveVideos();
@@ -117,13 +168,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         setDriveVideoFiles(files);
         setDriveVideosError(null);
         if (files.length > 0) {
-          setSelectedDriveVideo(prev => (files.some(f => f.id === prev) ? prev : files[0].id));
+          setSelectedDriveVideo(prev => (files.length === 1 ? files[0].id : (files.some(f => f.id === prev) ? prev : files[0].id)));
         }
       } else {
         setModalDriveVideoFiles(files);
         setModalDriveVideosError(null);
         if (files.length > 0) {
-          setModalSelectedDriveVideo(prev => (files.some(f => f.id === prev) ? prev : files[0].id));
+          setModalSelectedDriveVideo(prev => (files.length === 1 ? files[0].id : (files.some(f => f.id === prev) ? prev : files[0].id)));
         }
       }
       return files;
@@ -157,9 +208,21 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     try {
       const driveFile = await api.uploadVideoToGoogleDrive(file, playerName, discipline);
       if (target === 'TAB') {
-        setDriveVideoFiles(prev => [driveFile, ...prev.filter(f => f.id !== driveFile.id)]);
+        setDriveVideoFiles(prev => {
+          const updated = [driveFile, ...prev.filter(f => f.id !== driveFile.id)];
+          if (updated.length === 1) {
+            setSelectedDriveVideo(updated[0].id);
+          }
+          return updated;
+        });
       } else {
-        setModalDriveVideoFiles(prev => [driveFile, ...prev.filter(f => f.id !== driveFile.id)]);
+        setModalDriveVideoFiles(prev => {
+          const updated = [driveFile, ...prev.filter(f => f.id !== driveFile.id)];
+          if (updated.length === 1) {
+            setModalSelectedDriveVideo(updated[0].id);
+          }
+          return updated;
+        });
       }
       setStatus('SUCCESS');
     } catch {
@@ -169,14 +232,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     }
   };
 
-  // Manage Squad Players Modal State
-  const [managingSquad, setManagingSquad] = useState<Squad | null>(null);
-
   // Player Video Upload / Analysis Modal State
   const [uploadModalPlayer, setUploadModalPlayer] = useState<ClubMember | null>(null);
   const [modalUploadDiscipline, setModalUploadDiscipline] = useState<Discipline>('BATTING');
   const [modalUploadSource, setModalUploadSource] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [modalUploadedFileName, setModalUploadedFileName] = useState<string | null>(null);
+  const [modalUploadedFile, setModalUploadedFile] = useState<File | null>(null);
   const [modalUploadError, setModalUploadError] = useState<string | null>(null);
   const [isModalBackingUpToDrive, setIsModalBackingUpToDrive] = useState(false);
   const [modalDriveBackupStatus, setModalDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -214,19 +275,93 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [rosterDisciplineFilter, setRosterDisciplineFilter] = useState<string>('ALL');
   const [rosterSearchTerm, setRosterSearchTerm] = useState('');
 
+  // Edit Member Modal Form State
+  const [editingMember, setEditingMember] = useState<ClubMember | null>(null);
+  const [editMemberName, setEditMemberName] = useState('');
+  const [editMemberEmail, setEditMemberEmail] = useState('');
+  const [editMemberRole, setEditMemberRole] = useState<'COACH' | 'PLAYER'>('PLAYER');
+  const [editMemberAgeGroup, setEditMemberAgeGroup] = useState('U15');
+  const [editMemberDisciplines, setEditMemberDisciplines] = useState<Discipline[]>(['BATTING']);
+  const [editMemberCurrentLevel, setEditMemberCurrentLevel] = useState<'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE'>('FOUNDATION');
+
+  const openEditMemberModal = (mem: ClubMember) => {
+    setEditingMember(mem);
+    setEditMemberName(mem.name);
+    setEditMemberEmail(mem.email);
+    setEditMemberRole(mem.role);
+    setEditMemberAgeGroup(mem.ageGroup);
+    const discs = (mem.discipline || 'BATTING').split(',').map(d => d.trim().toUpperCase()).filter(Boolean) as Discipline[];
+    setEditMemberDisciplines(discs.length ? discs : ['BATTING']);
+    setEditMemberCurrentLevel(mem.currentLevel);
+  };
+
+  const handleSubmitEditMember = () => {
+    if (!editingMember) return;
+    onUpdateMember?.(editingMember.id, {
+      name: editMemberName.trim(),
+      email: editMemberEmail.trim(),
+      role: editMemberRole,
+      ageGroup: editMemberAgeGroup,
+      discipline: editMemberDisciplines.join(','),
+      currentLevel: editMemberCurrentLevel,
+    });
+    setEditingMember(null);
+  };
+
   // Form New Squad Modal Form
   const [isSquadModalOpen, setIsSquadModalOpen] = useState(false);
+  const [editingSquadId, setEditingSquadId] = useState<string | null>(null);
   const [squadFormName, setSquadFormName] = useState('');
   const [squadFormAgeGroup, setSquadFormAgeGroup] = useState('U15');
   const [squadFormDiscipline, setSquadFormDiscipline] = useState<Discipline>('BOWLING');
   const [squadFormCoach, setSquadFormCoach] = useState('Shane Bond');
 
+  // Player selection panel shown alongside the squad form (filter + search for assigning/removing players)
+  const [squadPanelAgeGroupFilter, setSquadPanelAgeGroupFilter] = useState<string>('ALL');
+  const [squadPanelDisciplineFilter, setSquadPanelDisciplineFilter] = useState<'ALL' | Discipline>('ALL');
+  const [squadPanelSearchTerm, setSquadPanelSearchTerm] = useState('');
+
   // Schedule Session Modal Form
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [sessionFormTitle, setSessionFormTitle] = useState('');
+  const [sessionFormTargetType, setSessionFormTargetType] = useState<'SQUAD' | 'PLAYERS'>('SQUAD');
   const [sessionFormSquad, setSessionFormSquad] = useState('U15 Pace & Power Squad');
+  const [sessionFormPlayerIds, setSessionFormPlayerIds] = useState<string[]>([]);
   const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
   const [sessionFormDuration, setSessionFormDuration] = useState(90);
+  const [sessionFormDrillIds, setSessionFormDrillIds] = useState<string[]>([]);
+
+  // Drill selection panel shown alongside the session form (create & edit)
+  const [sessionDrillFilterDiscipline, setSessionDrillFilterDiscipline] = useState<'ALL' | Discipline>('ALL');
+  const [squadAiRecommendedDrillTitles, setSquadAiRecommendedDrillTitles] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isSessionModalOpen) return;
+    api.getVideoAnalysisHistory()
+      .then(res => setAllAnalysisHistoryForSession(res.history || []))
+      .catch(() => {});
+  }, [isSessionModalOpen]);
+
+  // Recompute AI-recommended drill titles (lowercased, for case-insensitive matching) whenever
+  // the session's target squad/players change, by scanning video analysis history for those members.
+  useEffect(() => {
+    if (!isSessionModalOpen) {
+      return;
+    }
+    const targetMemberIds = sessionFormTargetType === 'SQUAD'
+      ? clubMembers.filter(m => m.squad === sessionFormSquad).map(m => m.id)
+      : sessionFormPlayerIds;
+
+    const titles = new Set<string>();
+    allAnalysisHistoryForSession.forEach(entry => {
+      if (!entry.playerId || !targetMemberIds.includes(entry.playerId)) return;
+      (entry.analysis?.recommendedDrills || []).forEach(rec => {
+        if (rec?.title) titles.add(rec.title.trim().toLowerCase());
+      });
+    });
+    setSquadAiRecommendedDrillTitles(titles);
+  }, [isSessionModalOpen, sessionFormTargetType, sessionFormSquad, sessionFormPlayerIds, clubMembers, allAnalysisHistoryForSession]);
 
   // Drill form state for club coaches
   const [newDrillTitle, setNewDrillTitle] = useState('');
@@ -235,6 +370,66 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [newDrillContext, setNewDrillContext] = useState<ContextType>('INDIVIDUAL');
   const [newDrillDuration, setNewDrillDuration] = useState(20);
   const [newDrillInstructions, setNewDrillInstructions] = useState('');
+  const [newDrillImage, setNewDrillImage] = useState<string | null>(null);
+  const newDrillImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Edit Drill Modal state (setup instructions + setup reference image are editable here too)
+  const [editingDrill, setEditingDrill] = useState<Drill | null>(null);
+  const [editDrillTitle, setEditDrillTitle] = useState('');
+  const [editDrillDiscipline, setEditDrillDiscipline] = useState<Discipline>('BATTING');
+  const [editDrillSkillSet, setEditDrillSkillSet] = useState('');
+  const [editDrillContext, setEditDrillContext] = useState<ContextType>('INDIVIDUAL');
+  const [editDrillDuration, setEditDrillDuration] = useState(20);
+  const [editDrillInstructions, setEditDrillInstructions] = useState('');
+  const [editDrillImage, setEditDrillImage] = useState<string | null>(null);
+  const editDrillImageInputRef = useRef<HTMLInputElement | null>(null);
+
+  const readImageFileAsDataUrl = (file: File, onLoaded: (dataUrl: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') onLoaded(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const openEditDrill = (drill: Drill) => {
+    setEditingDrill(drill);
+    setEditDrillTitle(drill.title);
+    setEditDrillDiscipline(drill.discipline);
+    setEditDrillSkillSet(drill.skillSet);
+    setEditDrillContext(drill.contextType);
+    setEditDrillDuration(drill.duration);
+    setEditDrillInstructions(drill.instructions || '');
+    setEditDrillImage(drill.imageUrl || null);
+  };
+
+  const closeEditDrill = () => {
+    setEditingDrill(null);
+  };
+
+  const handleUpdateDrillSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDrill || !editDrillTitle || !editDrillSkillSet) return;
+    const updates: Partial<Drill> = {
+      title: editDrillTitle,
+      discipline: editDrillDiscipline,
+      skillSet: editDrillSkillSet,
+      contextType: editDrillContext,
+      duration: editDrillDuration,
+      instructions: editDrillInstructions,
+      imageUrl: editDrillImage
+    };
+    onUpdateDrill?.(editingDrill.id, updates);
+    closeEditDrill();
+    setPortalModal({
+      isOpen: true,
+      title: 'Drill Updated',
+      message: `"${updates.title}" has been updated successfully.`,
+      type: 'success',
+      confirmLabel: 'Done',
+      onConfirm: () => setPortalModal(null)
+    });
+  };
 
   // Post Session Notes Evaluation State
   const [activeSessionNotes, setActiveSessionNotes] = useState('');
@@ -253,12 +448,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       duration: newDrillDuration,
       source: 'CLUB_CUSTOM',
       clubName: clubName,
-      instructions: newDrillInstructions
+      instructions: newDrillInstructions,
+      imageUrl: newDrillImage
     };
     onAddClubDrill(drill);
     setNewDrillTitle('');
     setNewDrillSkillSet('');
     setNewDrillInstructions('');
+    setNewDrillImage(null);
+    if (newDrillImageInputRef.current) newDrillImageInputRef.current.value = '';
     setPortalModal({
       isOpen: true,
       title: 'Club Drill Saved',
@@ -379,6 +577,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     });
   };
 
+  const toggleEditMemberDiscipline = (disc: Discipline) => {
+    setEditMemberDisciplines(prev => {
+      if (prev.includes(disc)) {
+        if (prev.length === 1) return prev;
+        return prev.filter(d => d !== disc);
+      }
+      return [...prev, disc];
+    });
+  };
+
   // Filtered members for Club Roster
   const filteredClubMembers = useMemo(() => {
     return clubMembers.filter(mem => {
@@ -414,9 +622,120 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     return Array.from(set).sort();
   }, [clubMembers]);
 
+  // Adopts an AI-recommended drill from a video analysis result into the club's drill catalogue,
+  // AND automatically incorporates it into the player's actual squad training plan: it's tagged
+  // with the player's current squad, and (if that squad has an upcoming/unpublished session)
+  // it's counted into that session's drill itinerary rather than just sitting in a generic list.
+  const adoptAiDrillForPlayer = (
+    playerId: string | null,
+    aiDrill: { title: string; discipline: string; durationMinutes: number; context: string }
+  ) => {
+    const player = playerId ? clubMembers.find(m => m.id === playerId) : undefined;
+    const squad = player ? squads.find(sq => sq.name === player.squad) : undefined;
+    const targetSession = squad
+      ? sessions
+          .filter(s => s.squadName === squad.name && !s.isPublished)
+          .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate))[0]
+      : undefined;
+
+    const newDrill: Drill = {
+      id: 'drill-club-ai-' + Date.now(),
+      title: aiDrill.title,
+      discipline: aiDrill.discipline as Discipline,
+      skillSet: 'Biomechanical Correction',
+      contextType: aiDrill.context as ContextType,
+      duration: aiDrill.durationMinutes,
+      source: 'AI_RECOMMENDED',
+      clubName,
+      squadId: squad?.id || null,
+      squadName: squad?.name || null,
+      instructions: 'Generated via Club AI video pose analysis.'
+    };
+    onAddClubDrill(newDrill);
+    if (targetSession) {
+      onAddDrillToSession?.(targetSession.id);
+    }
+
+    const message = squad
+      ? (targetSession
+          ? `"${aiDrill.title}" has been added to ${clubName}'s drill catalogue for ${squad.name} and incorporated into the upcoming "${targetSession.title}" session (${targetSession.sessionDate}).`
+          : `"${aiDrill.title}" has been added to ${clubName}'s drill catalogue for ${squad.name}. There's no upcoming unpublished session for this squad yet — it will be ready to include next time you schedule one.`)
+      : `"${aiDrill.title}" has been added to ${clubName}'s drill catalogue. This player isn't assigned to a squad yet, so assign one to automatically incorporate future drills into their squad's sessions.`;
+
+    return message;
+  };
+
+  const openEditSquad = (sq: Squad) => {
+    setEditingSquadId(sq.id);
+    setSquadFormName(sq.name);
+    setSquadFormAgeGroup(sq.ageGroup);
+    setSquadFormDiscipline(sq.discipline);
+    setSquadFormCoach(sq.coachName);
+    setSquadPanelAgeGroupFilter('ALL');
+    setSquadPanelDisciplineFilter('ALL');
+    setSquadPanelSearchTerm('');
+    setIsSquadModalOpen(true);
+  };
+
+  const closeSquadModal = () => {
+    setIsSquadModalOpen(false);
+    setEditingSquadId(null);
+    setSquadFormName('');
+  };
+
+  const promptDeleteSquad = (squad: Squad) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Delete Squad',
+      message: (
+        <div className="space-y-2">
+          <p>Delete squad <strong className="text-white">"{squad.name}"</strong> ({squad.ageGroup} • {squad.discipline})?</p>
+          <p className="text-xs text-slate-400">
+            This action cannot be undone. {squad.memberCount > 0 ? `${squad.memberCount} assigned player(s) will become unassigned.` : ''}
+          </p>
+        </div>
+      ),
+      type: 'danger',
+      confirmLabel: 'Delete Squad',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        clubMembers
+          .filter(m => m.squad === squad.name)
+          .forEach(m => onUpdateMemberSquad?.(m.id, 'Unassigned'));
+        onDeleteSquad?.(squad.id);
+        if (editingSquadId === squad.id) {
+          closeSquadModal();
+        }
+      }
+    });
+  };
+
   const handleSquadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!squadFormName.trim()) return;
+
+    if (editingSquadId) {
+      const updates: Partial<Squad> = {
+        name: squadFormName.trim(),
+        ageGroup: squadFormAgeGroup,
+        coachName: squadFormCoach.trim() || 'Shane Bond',
+        discipline: squadFormDiscipline
+      };
+      onUpdateSquad?.(editingSquadId, updates);
+      closeSquadModal();
+      setPortalModal({
+        isOpen: true,
+        title: 'Squad Updated Successfully',
+        message: `Squad "${updates.name}" (${updates.ageGroup} - ${updates.discipline}) has been updated under Coach ${updates.coachName}.`,
+        type: 'success',
+        confirmLabel: 'Done',
+        onConfirm: () => setPortalModal(null)
+      });
+      return;
+    }
+
     const newSquad: Squad = {
       id: 'sq-' + Date.now(),
       name: squadFormName.trim(),
@@ -426,8 +745,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       memberCount: 0
     };
     onAddSquad(newSquad);
-    setIsSquadModalOpen(false);
-    setSquadFormName('');
+    closeSquadModal();
     setPortalModal({
       isOpen: true,
       title: 'Squad Created Successfully',
@@ -441,18 +759,47 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const handleSessionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!sessionFormTitle.trim() || !sessionFormDate) return;
+    if (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0) return;
+
+    const targetLabel = sessionFormTargetType === 'SQUAD'
+      ? sessionFormSquad
+      : `Individual: ${sessionFormPlayerIds
+          .map(id => clubMembers.find(m => m.id === id)?.name)
+          .filter(Boolean)
+          .join(', ')}`;
+
+    if (editingSessionId) {
+      const updates: Partial<TrainingSession> = {
+        squadName: targetLabel,
+        title: sessionFormTitle.trim(),
+        sessionDate: sessionFormDate,
+        durationMinutes: Number(sessionFormDuration) || 90
+      };
+      onUpdateSession?.(editingSessionId, updates);
+      closeSessionModal();
+      setPortalModal({
+        isOpen: true,
+        title: 'Training Session Updated',
+        message: `Session "${updates.title}" for ${updates.squadName} on ${updates.sessionDate} (${updates.durationMinutes} mins) has been updated.`,
+        type: 'success',
+        confirmLabel: 'Done',
+        onConfirm: () => setPortalModal(null)
+      });
+      return;
+    }
+
     const newSession: TrainingSession = {
       id: 'sess-' + Date.now(),
-      squadName: sessionFormSquad,
+      squadName: targetLabel,
       title: sessionFormTitle.trim(),
       sessionDate: sessionFormDate,
       durationMinutes: Number(sessionFormDuration) || 90,
       isPublished: false,
-      drillCount: 3
+      drillCount: sessionFormDrillIds.length,
+      drillIds: sessionFormDrillIds
     };
     onScheduleSession(newSession);
-    setIsSessionModalOpen(false);
-    setSessionFormTitle('');
+    closeSessionModal();
     setPortalModal({
       isOpen: true,
       title: 'Training Session Scheduled',
@@ -461,6 +808,33 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       confirmLabel: 'Done',
       onConfirm: () => setPortalModal(null)
     });
+  };
+
+  const openEditSession = (s: TrainingSession) => {
+    setEditingSessionId(s.id);
+    setSessionFormTitle(s.title);
+    if (s.squadName.startsWith('Individual: ')) {
+      const names = s.squadName.replace('Individual: ', '').split(',').map(n => n.trim());
+      const ids = clubMembers.filter(m => names.includes(m.name)).map(m => m.id);
+      setSessionFormTargetType('PLAYERS');
+      setSessionFormPlayerIds(ids);
+    } else {
+      setSessionFormTargetType('SQUAD');
+      setSessionFormSquad(s.squadName);
+      setSessionFormPlayerIds([]);
+    }
+    setSessionFormDate(s.sessionDate);
+    setSessionFormDuration(s.durationMinutes);
+    setSessionFormDrillIds(s.drillIds || []);
+    setIsSessionModalOpen(true);
+  };
+
+  const closeSessionModal = () => {
+    setIsSessionModalOpen(false);
+    setEditingSessionId(null);
+    setSessionFormTitle('');
+    setSessionFormPlayerIds([]);
+    setSessionFormDrillIds([]);
   };
 
   // Confirmation prompts for actions
@@ -523,6 +897,48 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       onConfirm: () => {
         setPortalModal(null);
         onPublishSession(session.id);
+      }
+    });
+  };
+
+  const promptDeleteSession = (session: TrainingSession) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Delete Training Session',
+      message: (
+        <div className="space-y-2">
+          <p>Delete session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-cyan-400 font-medium">{session.sessionDate}</span>?</p>
+          <p className="text-xs text-slate-400">This action cannot be undone{session.isPublished ? ' and squad athletes who were already notified will no longer see this session' : ''}.</p>
+        </div>
+      ),
+      type: 'danger',
+      confirmLabel: 'Delete Session',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        onDeleteSession?.(session.id);
+      }
+    });
+  };
+
+  const promptDeleteDrill = (drill: Drill) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Delete Drill',
+      message: (
+        <div className="space-y-2">
+          <p>Delete drill <strong className="text-white">"{drill.title}"</strong> from the {clubName} catalogue?</p>
+          <p className="text-xs text-slate-400">This action cannot be undone. Sessions already referencing this drill count will not be affected.</p>
+        </div>
+      ),
+      type: 'danger',
+      confirmLabel: 'Delete Drill',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: () => {
+        setPortalModal(null);
+        onDeleteDrill?.(drill.id);
       }
     });
   };
@@ -836,6 +1252,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       </td>
                       <td className="py-2 px-2 text-right">
                         <div className="inline-flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditMemberModal(mem)}
+                            title="Edit member details"
+                            className="inline-flex items-center justify-center h-6 w-6 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded cursor-pointer transition shrink-0"
+                          >
+                            <Pencil size={11} />
+                          </button>
                           {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
                             <button
                               onClick={() => promptAcceptInvite(mem)}
@@ -884,26 +1307,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </tbody>
             </table>
           </div>
-
-          {/* Google Drive Video Upload Feedback Display */}
-          {uploadingDriveVideo && (
-            <div className="p-3 rounded-lg bg-slate-950 border border-cyan-500/40 text-xs text-cyan-300 animate-pulse">
-              Connecting to Google Drive API and storing player footage for AI pose analysis...
-            </div>
-          )}
-          {driveUploadSuccess && (
-            <div className="p-4 rounded-lg bg-slate-950 border border-cyan-500/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-cyan-400">Google Drive Video Saved & AI Analysed</span>
-                <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-mono">
-                  {driveUploadSuccess.player}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 font-mono text-[11px]">📁 {driveUploadSuccess.drivePath}</p>
-              <p className="text-xs text-slate-300">💡 <span className="font-semibold text-white">AI Finding:</span> {driveUploadSuccess.aiSummary}</p>
-              <p className="text-xs text-emerald-400">🎯 <span className="font-semibold text-white">Recommended Tailored Drill:</span> {driveUploadSuccess.prescribedDrill}</p>
-            </div>
-          )}
         </div>
       )}
 
@@ -918,7 +1321,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </p>
             </div>
             <button
-              onClick={() => setIsSquadModalOpen(true)}
+              onClick={() => {
+                setEditingSquadId(null);
+                setSquadFormName('');
+                setSquadFormAgeGroup('U15');
+                setSquadFormDiscipline('BOWLING');
+                setSquadFormCoach('Shane Bond');
+                setSquadPanelAgeGroupFilter('ALL');
+                setSquadPanelDisciplineFilter('ALL');
+                setSquadPanelSearchTerm('');
+                setIsSquadModalOpen(true);
+              }}
               className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Users size={14} />
@@ -939,12 +1352,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <p className="text-xs text-slate-400">Primary Focus: <span className="text-emerald-400">{sq.discipline}</span></p>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                   <span className="text-xs text-slate-500">{sq.memberCount} Squad Members</span>
-                  <button
-                    onClick={() => setManagingSquad(sq)}
-                    className="text-xs px-2.5 py-1 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded border border-purple-500/40 transition cursor-pointer"
-                  >
-                    Manage Players
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditSquad(sq)}
+                      className="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => promptDeleteSquad(sq)}
+                      className="text-xs px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded border border-rose-500/30 transition cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -963,7 +1384,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <p className="text-xs text-slate-400">Publish training to notify squad athletes.</p>
               </div>
               <button
-                onClick={() => setIsSessionModalOpen(true)}
+                onClick={() => {
+                  setEditingSessionId(null);
+                  setSessionFormTitle('');
+                  setSessionFormTargetType('SQUAD');
+                  setSessionFormSquad(squads[0]?.name || '');
+                  setSessionFormPlayerIds([]);
+                  setSessionFormDrillIds([]);
+                  setIsSessionModalOpen(true);
+                }}
                 className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Calendar size={14} />
@@ -984,18 +1413,55 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </div>
                   <p className="text-xs text-slate-400">Squad: <span className="text-white">{s.squadName}</span></p>
                   <p className="text-xs text-slate-400">Date: <span className="text-cyan-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
-                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                  {s.drillIds && s.drillIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {s.drillIds.map((drillId, idx) => {
+                        const d = drills.find(dr => dr.id === drillId);
+                        return (
+                          <span
+                            key={`${drillId}-${idx}`}
+                            className="inline-flex items-center gap-1 text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                          >
+                            {d?.title || 'Unknown Drill'}
+                            <button
+                              type="button"
+                              onClick={() => onRemoveDrillFromSession?.(s.id, drillId)}
+                              title="Remove this drill from the session"
+                              className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
+                            >
+                              <X size={10} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2">
                     <span className="text-xs text-slate-500">{s.drillCount} Planned Drills</span>
-                    {!s.isPublished ? (
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
-                        onClick={() => promptPublishSession(s)}
-                        className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded cursor-pointer"
+                        onClick={() => openEditSession(s)}
+                        className="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
                       >
-                        Publish & Notify Squad
+                        Edit
                       </button>
-                    ) : (
-                      <span className="text-xs text-emerald-400 font-semibold">Active & Notified</span>
-                    )}
+                      <button
+                        onClick={() => promptDeleteSession(s)}
+                        className="text-xs px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white rounded border border-rose-500/40 transition cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                      {!s.isPublished ? (
+                        <button
+                          onClick={() => promptPublishSession(s)}
+                          className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded cursor-pointer"
+                        >
+                          Publish & Notify Squad
+                        </button>
+                      ) : (
+                        <span className="text-xs text-emerald-400 font-semibold">Active & Notified</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1145,14 +1611,42 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400">Instructions / Notes</label>
+                <label className="text-xs text-slate-400">Setup Instructions</label>
                 <textarea
                   rows={2}
                   value={newDrillInstructions}
                   onChange={e => setNewDrillInstructions(e.target.value)}
-                  placeholder="Equipment needed, station rotation cues..."
+                  placeholder="Equipment needed, cone/marker placement, station rotation cues..."
                   className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Setup Image (optional)</label>
+                <input
+                  ref={newDrillImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) readImageFileAsDataUrl(file, setNewDrillImage);
+                  }}
+                  className="w-full mt-1 text-[11px] text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                />
+                {newDrillImage && (
+                  <div className="mt-2 relative inline-block">
+                    <img src={newDrillImage} alt="Drill setup preview" className="max-h-28 rounded-lg border border-slate-800" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewDrillImage(null);
+                        if (newDrillImageInputRef.current) newDrillImageInputRef.current.value = '';
+                      }}
+                      className="absolute -top-2 -right-2 bg-rose-500 hover:bg-rose-400 text-white rounded-full p-1 transition cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 type="submit"
@@ -1176,8 +1670,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
               {drills.map(drill => (
-                <div key={drill.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between">
-                  <div>
+                <div key={drill.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3">
+                  {drill.imageUrl && (
+                    <img
+                      src={drill.imageUrl}
+                      alt={`${drill.title} setup`}
+                      className="w-14 h-14 object-cover rounded-lg border border-slate-800 shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="text-xs font-bold text-white">{drill.title}</h4>
                       <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
@@ -1193,9 +1694,155 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       {drill.duration} mins • {drill.discipline} • {drill.skillSet} • {drill.contextType}
                     </p>
                   </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <button
+                      onClick={() => openEditDrill(drill)}
+                      title="Edit drill"
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded border border-slate-700 transition cursor-pointer"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      onClick={() => promptDeleteDrill(drill)}
+                      title="Delete drill"
+                      className="p-1.5 bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white rounded border border-rose-500/40 transition cursor-pointer"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Drill Modal: update any drill's details, setup instructions, and setup reference image. */}
+      {editingDrill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeEditDrill}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <h3 className="text-base font-bold text-white">Edit Drill</h3>
+              <p className="text-xs text-slate-400 mt-1">Update this drill's details, setup instructions, and reference image.</p>
+            </div>
+            <form onSubmit={handleUpdateDrillSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+              <div>
+                <label className="text-xs text-slate-400">Drill Title</label>
+                <input
+                  type="text"
+                  required
+                  value={editDrillTitle}
+                  onChange={e => setEditDrillTitle(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-slate-400">Discipline</label>
+                  <select
+                    value={editDrillDiscipline}
+                    onChange={e => setEditDrillDiscipline(e.target.value as Discipline)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-white"
+                  >
+                    <option value="BATTING">Batting</option>
+                    <option value="BOWLING">Bowling</option>
+                    <option value="KEEPING">Keeping</option>
+                    <option value="FIELDING">Fielding</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-400">Context</label>
+                  <select
+                    value={editDrillContext}
+                    onChange={e => setEditDrillContext(e.target.value as ContextType)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-white"
+                  >
+                    <option value="INDIVIDUAL">Individual (1-on-1)</option>
+                    <option value="GROUP">Group (Squad)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Skill Set Focus</label>
+                <input
+                  type="text"
+                  required
+                  value={editDrillSkillSet}
+                  onChange={e => setEditDrillSkillSet(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Duration (Minutes)</label>
+                <input
+                  type="number"
+                  min="5"
+                  max="120"
+                  value={editDrillDuration}
+                  onChange={e => setEditDrillDuration(Number(e.target.value))}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Setup Instructions</label>
+                <textarea
+                  rows={2}
+                  value={editDrillInstructions}
+                  onChange={e => setEditDrillInstructions(e.target.value)}
+                  placeholder="Equipment needed, cone/marker placement, station rotation cues..."
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Setup Image (optional)</label>
+                <input
+                  ref={editDrillImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) readImageFileAsDataUrl(file, setEditDrillImage);
+                  }}
+                  className="w-full mt-1 text-[11px] text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+                />
+                {editDrillImage && (
+                  <div className="mt-2 relative inline-block">
+                    <img src={editDrillImage} alt="Drill setup preview" className="max-h-28 rounded-lg border border-slate-800" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditDrillImage(null);
+                        if (editDrillImageInputRef.current) editDrillImageInputRef.current.value = '';
+                      }}
+                      className="absolute -top-2 -right-2 bg-rose-500 hover:bg-rose-400 text-white rounded-full p-1 transition cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={closeEditDrill}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1296,6 +1943,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   onChange={e => {
                     setSelectedAnalysisPlayer(e.target.value);
                     setUploadedVideoName(null);
+                    setUploadedVideoFile(null);
+                    setUploadError(null);
+                    setDriveBackupStatus('IDLE');
+                    setClubAnalysisResult(null);
+                    setLastAnalysisId(null);
+                    setViewingAnalysisId(null);
                   }}
                   className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 >
@@ -1389,10 +2042,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       if (!file.type.startsWith('video/')) {
                         setUploadError('Invalid file type! Please select a valid video file (MP4, MOV, WEBM, AVI, M4V).');
                         setUploadedVideoName(null);
+                        setUploadedVideoFile(null);
                         return;
                       }
                       setUploadError(null);
                       setUploadedVideoName(file.name);
+                      setUploadedVideoFile(file);
                       backupLocalVideoToDrive(file, 'TAB');
                     }}
                   />
@@ -1544,46 +2199,31 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 onClick={async () => {
                   setIsAnalyzingVideo(true);
                   setClubAnalysisResult(null);
-                  const activeVideoName = videoSourceMode === 'LOCAL_UPLOAD'
-                    ? (uploadedVideoName || `drive_stream_${selectedAnalysisPlayer}_${analysisDiscipline}.mp4`)
-                    : (driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'drive_video');
+                  setLastAnalysisId(null);
+                  const selectedMember = clubMembers.find(m => m.id === selectedAnalysisPlayer);
                   try {
-                    // PLACEHOLDER: Replace with real AI analysis API call
-                    const res = await api.analyzeVideo({
-                      discipline: analysisDiscipline,
-                      videoUrl: activeVideoName
-                    });
+                    const res = videoSourceMode === 'LOCAL_UPLOAD'
+                      ? await api.analyzeVideo({
+                          discipline: analysisDiscipline,
+                          context: 'INDIVIDUAL',
+                          videoFile: uploadedVideoFile || undefined,
+                          playerId: selectedAnalysisPlayer,
+                          playerName: selectedMember?.name
+                        })
+                      : await api.analyzeVideo({
+                          discipline: analysisDiscipline,
+                          context: 'INDIVIDUAL',
+                          driveFileId: selectedDriveVideo,
+                          playerId: selectedAnalysisPlayer,
+                          playerName: selectedMember?.name
+                        });
                     if (res?.analysis) {
                       setClubAnalysisResult(res.analysis);
+                      setLastAnalysisId(res.analysisId || null);
+                      fetchAnalysisHistory();
                     }
-                  } catch {
-                    setTimeout(() => {
-                      setClubAnalysisResult({
-                        overallScore: 81,
-                        detectedIssues: [
-                          analysisDiscipline === 'BATTING'
-                            ? 'Head falling slightly off-axis during front-foot drive balance'
-                            : 'Front non-bowling arm collapses 60ms prior to release point'
-                        ],
-                        biomechanicalMetrics: {
-                          headPosition: 'Slightly off-axis (-4 deg)',
-                          footAlignment: 'Pointing towards mid-off instead of cover',
-                          backliftAngle: analysisDiscipline === 'BATTING' ? 'Optimal 42 deg' : undefined,
-                          releasePoint: analysisDiscipline === 'BOWLING' ? '172 deg high release' : undefined
-                        },
-                        recommendedDrills: [
-                          {
-                            title: analysisDiscipline === 'BATTING'
-                              ? 'Drop Ball Front Foot Drive Drill'
-                              : 'Target Towel High Arm Extension Drill',
-                            discipline: analysisDiscipline,
-                            durationMinutes: 20,
-                            context: 'INDIVIDUAL',
-                            isNewRecommendation: true
-                          }
-                        ]
-                      });
-                    }, 800);
+                  } catch (err: any) {
+                    setUploadError(err?.message || 'Failed to analyze the video. Please try again.');
                   } finally {
                     setIsAnalyzingVideo(false);
                   }
@@ -1599,13 +2239,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </button>
             </div>
           </div>
-
-          {/* Google Drive Status if Active */}
-          {uploadingDriveVideo && (
-            <div className="p-3 rounded-lg bg-slate-950 border border-cyan-500/40 text-xs text-cyan-300 animate-pulse">
-              Connecting to Google Drive API and storing player footage for AI pose analysis...
-            </div>
-          )}
 
           {/* AI Analysis Result Cards */}
           {clubAnalysisResult && (
@@ -1688,22 +2321,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const newDrill: Drill = {
-                              id: 'drill-club-ai-' + Date.now(),
-                              title: drill.title,
-                              discipline: drill.discipline as Discipline,
-                              skillSet: 'Biomechanical Correction',
-                              contextType: drill.context,
-                              duration: drill.durationMinutes,
-                              source: 'AI_RECOMMENDED',
-                              clubName,
-                              instructions: 'Generated via Club AI video pose analysis.'
-                            };
-                            onAddClubDrill(newDrill);
+                            const message = adoptAiDrillForPlayer(selectedAnalysisPlayer || null, drill);
+                            if (lastAnalysisId) {
+                              api.markVideoAnalysisDrillAdopted(lastAnalysisId)
+                                .then(() => fetchAnalysisHistory())
+                                .catch(() => {});
+                            }
                             setPortalModal({
                               isOpen: true,
                               title: 'Drill Added to Club Catalogue',
-                              message: `"${drill.title}" has been successfully added to ${clubName}'s training drill library!`,
+                              message,
                               type: 'success',
                               confirmLabel: 'Done',
                               onConfirm: () => setPortalModal(null)
@@ -1720,7 +2347,81 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               )}
             </div>
           )}
+
+          {/* Past Analysis History (persisted AI results, filtered to selected player) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-sm text-white">Past AI Video Analyses</h3>
+                <p className="text-xs text-slate-400">
+                  Saved biomechanical analysis history for <strong className="text-white">{clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Selected Player'}</strong>
+                </p>
+              </div>
+              <button
+                onClick={fetchAnalysisHistory}
+                title="Refresh history"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {isHistoryLoading && analysisHistory.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">Loading history...</p>
+            ) : analysisHistory.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">No saved analyses yet for this player. Run an AI analysis above to build their history.</p>
+            ) : (
+              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                {analysisHistory.map(entry => (
+                  <button
+                    type="button"
+                    key={entry.id}
+                    onClick={() => setViewingAnalysisId(entry.id)}
+                    className="w-full text-left p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                          {entry.overallScore}
+                        </span>
+                        <div>
+                          <p className="text-xs font-semibold text-white">{entry.discipline} • {entry.context}</p>
+                          <p className="text-[10px] text-slate-500">{formatRelativeTime(entry.createdAt)} • {entry.sourceType === 'GOOGLE_DRIVE' ? 'Google Drive' : 'Device Upload'}</p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${entry.drillAdopted ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                        {entry.drillAdopted ? 'Drill Adopted' : 'Not Adopted'}
+                      </span>
+                    </div>
+                    {entry.analysis?.detectedIssues?.length > 0 && (
+                      <p className="text-[11px] text-slate-300 mt-2 flex items-start gap-1.5">
+                        <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-amber-400" />
+                        <span>{entry.analysis.detectedIssues[0]}</span>
+                      </p>
+                    )}
+                    {entry.analysis?.recommendedDrills?.length > 0 && (
+                      <p className="text-[11px] text-emerald-400 mt-1">
+                        🎯 {entry.analysis.recommendedDrills[0].title}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Video Analysis Detail Modal (full saved result + drill adoption status) */}
+      {viewingAnalysisId && (
+        <VideoAnalysisDetailModal
+          analysisId={viewingAnalysisId}
+          onClose={() => setViewingAnalysisId(null)}
+          onAdopt={(drill, playerId) => {
+            adoptAiDrillForPlayer(playerId, drill);
+            fetchAnalysisHistory();
+          }}
+        />
       )}
 
       {/* 1. Invite Coach / Player Modal Form */}
@@ -1855,41 +2556,64 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         </div>
       )}
 
-      {/* 2. Form New Squad Modal Form */}
-      {isSquadModalOpen && (
+      {/* Edit Member Modal */}
+      {editingMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setIsSquadModalOpen(false)}
+              onClick={() => setEditingMember(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
             >
               <X size={18} />
             </button>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users size={18} className="text-purple-400" />
-                <span>Form New Squad</span>
+                <Pencil size={18} className="text-purple-400" />
+                <span>Edit {editingMember.role === 'COACH' ? 'Coach' : 'Player'} Details</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1">Create an age-bracket squad under an assigned head coach.</p>
+              <p className="text-xs text-slate-400 mt-1">Update roster details for {editingMember.name}.</p>
             </div>
-            <form onSubmit={handleSquadSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+            <form
+              onSubmit={e => { e.preventDefault(); handleSubmitEditMember(); }}
+              className="space-y-3 pt-2 border-t border-slate-800"
+            >
               <div>
-                <label className="text-[11px] font-semibold text-slate-400">Squad Name *</label>
+                <label className="text-[11px] font-semibold text-slate-400">Full Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. U13 Spin & Flight Unit"
-                  value={squadFormName}
-                  onChange={e => setSquadFormName(e.target.value)}
+                  value={editMemberName}
+                  onChange={e => setEditMemberName(e.target.value)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={editMemberEmail}
+                  onChange={e => setEditMemberEmail(e.target.value)}
                   className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Age Bracket</label>
+                  <label className="text-[11px] font-semibold text-slate-400">Role</label>
                   <select
-                    value={squadFormAgeGroup}
-                    onChange={e => setSquadFormAgeGroup(e.target.value)}
+                    value={editMemberRole}
+                    onChange={e => setEditMemberRole(e.target.value as 'COACH' | 'PLAYER')}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="PLAYER">Player</option>
+                    <option value="COACH">Coach</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Age Group</label>
+                  <select
+                    value={editMemberAgeGroup}
+                    onChange={e => setEditMemberAgeGroup(e.target.value)}
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   >
                     <option value="U9">Under-9</option>
@@ -1900,34 +2624,59 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <option value="Senior">Senior</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
-                  <select
-                    value={squadFormDiscipline}
-                    onChange={e => setSquadFormDiscipline(e.target.value as Discipline)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="BATTING">Batting</option>
-                    <option value="BOWLING">Bowling</option>
-                    <option value="KEEPING">Wicketkeeping</option>
-                    <option value="FIELDING">Fielding</option>
-                  </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                  Disciplines * <span className="text-[10px] text-slate-500 font-normal">(Select one or multiple)</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'BATTING', label: '🏏 Batting' },
+                    { id: 'BOWLING', label: '⚡ Bowling' },
+                    { id: 'KEEPING', label: '🧤 Keeping' },
+                    { id: 'FIELDING', label: '🎯 Fielding' }
+                  ].map(d => {
+                    const isSelected = editMemberDisciplines.includes(d.id as Discipline);
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => toggleEditMemberDiscipline(d.id as Discipline)}
+                        className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer flex items-center justify-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-purple-500 text-white border-purple-400 shadow-md shadow-purple-500/20'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
+                          isSelected ? 'bg-white text-purple-700 border-white' : 'border-slate-600'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                        <span>{d.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-slate-400">Head Coach Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Shane Bond"
-                  value={squadFormCoach}
-                  onChange={e => setSquadFormCoach(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
+                <label className="text-[11px] font-semibold text-slate-400">Current Level</label>
+                <select
+                  value={editMemberCurrentLevel}
+                  onChange={e => setEditMemberCurrentLevel(e.target.value as any)}
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                >
+                  <option value="FOUNDATION">Foundation</option>
+                  <option value="DEVELOPING">Developing</option>
+                  <option value="INTERMEDIATE">Intermediate</option>
+                  <option value="ADVANCED">Advanced</option>
+                  <option value="ELITE">Elite</option>
+                </select>
               </div>
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsSquadModalOpen(false)}
+                  onClick={() => setEditingMember(null)}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                 >
                   Cancel
@@ -1936,10 +2685,245 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
                 >
-                  Create Squad
+                  Save Changes
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Form New Squad Modal Form */}
+      {isSquadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl p-5 sm:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeSquadModal}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
+            >
+              <X size={18} />
+            </button>
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users size={18} className="text-purple-400" />
+                <span>{editingSquadId ? 'Edit Squad' : 'Form New Squad'}</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                {editingSquadId
+                  ? 'Update this squad\'s name, age bracket, discipline, or head coach, and assign players on the right.'
+                  : 'Create an age-bracket squad under an assigned head coach.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-5 pt-2">
+              <form onSubmit={handleSquadSubmit} id="squad-form" className="space-y-3 border-t border-slate-800 pt-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Squad Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. U13 Spin & Flight Unit"
+                    value={squadFormName}
+                    onChange={e => setSquadFormName(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Age Bracket</label>
+                    <select
+                      value={squadFormAgeGroup}
+                      onChange={e => setSquadFormAgeGroup(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="U9">Under-9</option>
+                      <option value="U11">Under-11</option>
+                      <option value="U13">Under-13</option>
+                      <option value="U15">Under-15</option>
+                      <option value="U19">Under-19</option>
+                      <option value="Senior">Senior</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
+                    <select
+                      value={squadFormDiscipline}
+                      onChange={e => setSquadFormDiscipline(e.target.value as Discipline)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="BATTING">Batting</option>
+                      <option value="BOWLING">Bowling</option>
+                      <option value="KEEPING">Wicketkeeping</option>
+                      <option value="FIELDING">Fielding</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Head Coach Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Shane Bond"
+                    value={squadFormCoach}
+                    onChange={e => setSquadFormCoach(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                {editingSquadId && (
+                  <div className="pt-3 border-t border-slate-800 space-y-2">
+                    <label className="text-[11px] font-semibold text-slate-400">Current Squad Members</label>
+                    {(() => {
+                      const currentSquadName = squads.find(s => s.id === editingSquadId)?.name;
+                      const members = clubMembers.filter(m => m.role === 'PLAYER' && m.squad === currentSquadName);
+                      return members.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {members.map(m => (
+                            <span
+                              key={m.id}
+                              className="inline-flex items-center gap-1 text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                            >
+                              {m.name}
+                              <button
+                                type="button"
+                                onClick={() => onUpdateMemberSquad?.(m.id, 'Unassigned')}
+                                title="Remove from this squad"
+                                className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
+                              >
+                                <X size={10} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">No players assigned yet — pick from the panel on the right.</p>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-800">
+                  {editingSquadId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sq = squads.find(s => s.id === editingSquadId);
+                        if (sq) promptDeleteSquad(sq);
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-500 transition cursor-pointer"
+                    >
+                      Delete Squad
+                    </button>
+                  ) : <span />}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeSquadModal}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                    >
+                      {editingSquadId ? 'Save Changes' : 'Create Squad'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Right-side player selection panel: assign/remove players for this squad (edit mode only),
+                  with age group, discipline, and search filters. */}
+              <div className="border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-5 space-y-2">
+                <h4 className="text-xs font-bold text-white">Squad Players</h4>
+                {!editingSquadId ? (
+                  <p className="text-[11px] text-slate-500">Save the squad first, then edit it to assign players here.</p>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Search players..."
+                      value={squadPanelSearchTerm}
+                      onChange={e => setSquadPanelSearchTerm(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={squadPanelAgeGroupFilter}
+                        onChange={e => setSquadPanelAgeGroupFilter(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="ALL">All Age Groups</option>
+                        <option value="U9">Under-9</option>
+                        <option value="U11">Under-11</option>
+                        <option value="U13">Under-13</option>
+                        <option value="U15">Under-15</option>
+                        <option value="U19">Under-19</option>
+                        <option value="Senior">Senior</option>
+                      </select>
+                      <select
+                        value={squadPanelDisciplineFilter}
+                        onChange={e => setSquadPanelDisciplineFilter(e.target.value as 'ALL' | Discipline)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="ALL">All Disciplines</option>
+                        <option value="BATTING">Batting</option>
+                        <option value="BOWLING">Bowling</option>
+                        <option value="KEEPING">Wicketkeeping</option>
+                        <option value="FIELDING">Fielding</option>
+                      </select>
+                    </div>
+                    {(() => {
+                      const currentSquadName = squads.find(s => s.id === editingSquadId)?.name;
+                      const term = squadPanelSearchTerm.trim().toLowerCase();
+                      const filteredPlayers = clubMembers
+                        .filter(m => m.role === 'PLAYER')
+                        .filter(m => {
+                          if (squadPanelAgeGroupFilter !== 'ALL' && m.ageGroup !== squadPanelAgeGroupFilter) return false;
+                          if (squadPanelDisciplineFilter !== 'ALL' && m.discipline !== squadPanelDisciplineFilter) return false;
+                          if (term && !m.name.toLowerCase().includes(term)) return false;
+                          return true;
+                        });
+
+                      if (filteredPlayers.length === 0) {
+                        return <p className="text-[11px] text-slate-500">No players match these filters.</p>;
+                      }
+
+                      return (
+                        <div className="max-h-[360px] overflow-y-auto space-y-1.5 pr-1">
+                          {filteredPlayers.map(player => {
+                            const isInSquad = player.squad === currentSquadName;
+                            return (
+                              <button
+                                type="button"
+                                key={player.id}
+                                onClick={() => onUpdateMemberSquad?.(player.id, isInSquad ? 'Unassigned' : (currentSquadName || ''))}
+                                className={`w-full text-left p-2 rounded-lg border transition cursor-pointer ${
+                                  isInSquad
+                                    ? 'bg-purple-500/10 border-purple-500/40'
+                                    : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <span className="text-[11px] font-semibold text-white truncate">{player.name}</span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                    isInSquad ? 'bg-purple-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                  }`}>
+                                    {isInSquad ? 'In Squad' : '+ Add'}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {player.ageGroup} • {player.discipline} • {player.squad || 'Unassigned'}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1947,9 +2931,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       {/* 3. Schedule Session Modal Form */}
       {isSessionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl p-5 sm:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setIsSessionModalOpen(false)}
+              onClick={closeSessionModal}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
             >
               <X size={18} />
@@ -1957,166 +2941,292 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Calendar size={18} className="text-purple-400" />
-                <span>Schedule Training Session</span>
+                <span>{editingSessionId ? 'Edit Training Session' : 'Schedule Training Session'}</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">Assign date, squad, and duration for practice drills.</p>
             </div>
-            <form onSubmit={handleSessionSubmit} className="space-y-3 pt-2 border-t border-slate-800">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400">Session Title *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Death Bowling & Yorker Execution Circuit"
-                  value={sessionFormTitle}
-                  onChange={e => setSessionFormTitle(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-slate-400">Target Squad</label>
-                <input
-                  type="text"
-                  value={sessionFormSquad}
-                  onChange={e => setSessionFormSquad(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-5 pt-2">
+              <form onSubmit={handleSessionSubmit} id="session-form" className="space-y-3 border-t border-slate-800 pt-3">
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
+                  <label className="text-[11px] font-semibold text-slate-400">Session Title *</label>
                   <input
-                    type="date"
+                    type="text"
                     required
-                    value={sessionFormDate}
-                    onChange={e => setSessionFormDate(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    placeholder="e.g. Death Bowling & Yorker Execution Circuit"
+                    value={sessionFormTitle}
+                    onChange={e => setSessionFormTitle(e.target.value)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Duration (Minutes)</label>
-                  <input
-                    type="number"
-                    min="15"
-                    max="240"
-                    value={sessionFormDuration}
-                    onChange={e => setSessionFormDuration(Number(e.target.value))}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsSessionModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
-                >
-                  Schedule Session
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Manage Squad Players Modal */}
-      {managingSquad && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative max-h-[85vh] flex flex-col">
-            <button
-              onClick={() => setManagingSquad(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
-            >
-              <X size={18} />
-            </button>
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold mb-1">
-                <span>{managingSquad.ageGroup}</span> • <span>{managingSquad.discipline}</span>
-              </div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users size={18} className="text-purple-400" />
-                <span>Manage Squad Players: {managingSquad.name}</span>
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Assign or remove club players from this squad. Coaches assign discipline-focused training to squad members.
-              </p>
-            </div>
-
-            {/* Players list with add/remove toggles */}
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800/60">
-              {clubMembers
-                .filter(m => m.role === 'PLAYER')
-                .map(player => {
-                  const isInSquad = player.squad === managingSquad.name;
-                  return (
-                    <div
-                      key={player.id}
-                      className="pt-2.5 pb-1 flex items-center justify-between gap-3"
+                  <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">Assign Training To</label>
+                  <div className="inline-flex rounded-lg bg-slate-950 p-0.5 border border-slate-800 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setSessionFormTargetType('SQUAD')}
+                      className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition cursor-pointer ${
+                        sessionFormTargetType === 'SQUAD'
+                          ? 'bg-purple-500 text-slate-950'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
                     >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-white">{player.name}</span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
-                            player.invitationStatus === 'ACTIVE'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {player.invitationStatus === 'ACTIVE' ? 'Active' : 'Pending'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {player.ageGroup} • {player.discipline} • Level: <span className="text-slate-300 font-medium">{player.currentLevel}</span>
-                        </p>
-                        <p className="text-[10px] text-slate-500">
-                          Current Squad: <span className={isInSquad ? 'text-purple-300 font-semibold' : 'text-slate-400'}>{player.squad || 'Unassigned'}</span>
-                        </p>
-                      </div>
+                      Existing Squad
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSessionFormTargetType('PLAYERS')}
+                      className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition cursor-pointer ${
+                        sessionFormTargetType === 'PLAYERS'
+                          ? 'bg-purple-500 text-slate-950'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Individual Player(s)
+                    </button>
+                  </div>
+                </div>
 
-                      <div>
-                        {isInSquad ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onUpdateMemberSquad?.(player.id, 'Unassigned');
-                            }}
-                            className="px-2.5 py-1 text-xs rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition cursor-pointer"
-                          >
-                            Remove
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onUpdateMemberSquad?.(player.id, managingSquad.name);
-                            }}
-                            className="px-2.5 py-1 text-xs rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold transition cursor-pointer"
-                          >
-                            Assign to Squad
-                          </button>
-                        )}
+                {sessionFormTargetType === 'SQUAD' ? (
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Target Squad</label>
+                    {squads.length > 0 ? (
+                      <select
+                        value={sessionFormSquad}
+                        onChange={e => setSessionFormSquad(e.target.value)}
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      >
+                        {squads.map(sq => (
+                          <option key={sq.id} value={sq.name}>
+                            {sq.name} ({sq.ageGroup} • {sq.discipline})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mt-1 p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-500">
+                        No squads formed yet. Switch to "Individual Player(s)" or form a squad first in the Squads tab.
                       </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400 block mb-1.5">
+                      Select Player(s) {sessionFormPlayerIds.length > 0 && `(${sessionFormPlayerIds.length} selected)`}
+                    </label>
+                    <div className="max-h-36 overflow-y-auto space-y-1 bg-slate-950 border border-slate-800 rounded-lg p-2">
+                      {clubMembers.filter(m => m.role === 'PLAYER').length === 0 && (
+                        <p className="text-[11px] text-slate-500 px-1 py-1">No players in roster yet.</p>
+                      )}
+                      {clubMembers.filter(m => m.role === 'PLAYER').map(p => {
+                        const checked = sessionFormPlayerIds.includes(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-900 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setSessionFormPlayerIds(prev =>
+                                  checked ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className="accent-purple-500"
+                            />
+                            <span className="text-xs text-slate-200">{p.name}</span>
+                            <span className="text-[10px] text-slate-500">({p.ageGroup} • {p.discipline})</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
+                    <input
+                      type="date"
+                      required
+                      value={sessionFormDate}
+                      onChange={e => setSessionFormDate(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Duration (Minutes)</label>
+                    <input
+                      type="number"
+                      min="15"
+                      max="240"
+                      value={sessionFormDuration}
+                      onChange={e => setSessionFormDuration(Number(e.target.value))}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {(() => {
+                  const drillIds = editingSessionId
+                    ? (sessions.find(s => s.id === editingSessionId)?.drillIds || [])
+                    : sessionFormDrillIds;
+                  return (
+                    <div className="pt-3 border-t border-slate-800 space-y-2">
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        Planned Drills {drillIds.length > 0 && `(${drillIds.length})`}
+                      </label>
+                      {drillIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {drillIds.map((drillId, idx) => {
+                            const d = drills.find(dr => dr.id === drillId);
+                            return (
+                              <span
+                                key={`${drillId}-${idx}`}
+                                className="inline-flex items-center gap-1 text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                              >
+                                {d?.title || 'Unknown Drill'}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (editingSessionId) {
+                                      onRemoveDrillFromSession?.(editingSessionId, drillId);
+                                    } else {
+                                      setSessionFormDrillIds(prev => {
+                                        const next = [...prev];
+                                        const removeIdx = next.indexOf(drillId);
+                                        if (removeIdx !== -1) next.splice(removeIdx, 1);
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  title="Remove this drill from the session"
+                                  className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
+                                >
+                                  <X size={10} />
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">No drills added yet — pick from the panel on the right.</p>
+                      )}
                     </div>
                   );
-                })}
-            </div>
+                })()}
 
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Squad roster: <strong className="text-purple-300">{clubMembers.filter(m => m.squad === managingSquad.name).length}</strong> player(s)
-              </span>
-              <button
-                type="button"
-                onClick={() => setManagingSquad(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-white font-semibold rounded-xl transition cursor-pointer"
-              >
-                Close
-              </button>
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={closeSessionModal}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0}
+                    className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {editingSessionId ? 'Save Changes' : 'Schedule Session'}
+                  </button>
+                </div>
+              </form>
+
+              {/* Right-side drill selection panel: system & club drills, starred when AI-recommended
+                  for a player in the targeted squad/selection based on their video analysis history. */}
+              <div className="border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-white">Available Drills</h4>
+                  {squadAiRecommendedDrillTitles.size > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-400">
+                      <Star size={10} fill="currentColor" /> AI Recommended
+                    </span>
+                  )}
+                </div>
+                <select
+                  value={sessionDrillFilterDiscipline}
+                  onChange={e => setSessionDrillFilterDiscipline(e.target.value as 'ALL' | Discipline)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="ALL">All Disciplines</option>
+                  <option value="BATTING">Batting</option>
+                  <option value="BOWLING">Bowling</option>
+                  <option value="KEEPING">Wicketkeeping</option>
+                  <option value="FIELDING">Fielding</option>
+                </select>
+                {(() => {
+                  const currentDrillIds = editingSessionId
+                    ? (sessions.find(s => s.id === editingSessionId)?.drillIds || [])
+                    : sessionFormDrillIds;
+                  const filteredDrills = sessionDrillFilterDiscipline === 'ALL'
+                    ? drills
+                    : drills.filter(d => d.discipline === sessionDrillFilterDiscipline);
+                  const sortedDrills = [...filteredDrills].sort((a, b) => {
+                    const aRec = squadAiRecommendedDrillTitles.has(a.title.trim().toLowerCase()) ? 1 : 0;
+                    const bRec = squadAiRecommendedDrillTitles.has(b.title.trim().toLowerCase()) ? 1 : 0;
+                    return bRec - aRec;
+                  });
+
+                  if (sortedDrills.length === 0) {
+                    return <p className="text-[11px] text-slate-500">No drills available for this discipline.</p>;
+                  }
+
+                  return (
+                    <div className="max-h-[420px] overflow-y-auto space-y-1.5 pr-1">
+                      {sortedDrills.map(d => {
+                        const isRecommended = squadAiRecommendedDrillTitles.has(d.title.trim().toLowerCase());
+                        const isAdded = currentDrillIds.includes(d.id);
+                        return (
+                          <button
+                            type="button"
+                            key={d.id}
+                            onClick={() => {
+                              if (isAdded) {
+                                if (editingSessionId) {
+                                  onRemoveDrillFromSession?.(editingSessionId, d.id);
+                                } else {
+                                  setSessionFormDrillIds(prev => {
+                                    const next = [...prev];
+                                    const idx2 = next.indexOf(d.id);
+                                    if (idx2 !== -1) next.splice(idx2, 1);
+                                    return next;
+                                  });
+                                }
+                              } else if (editingSessionId) {
+                                onAddDrillToSession?.(editingSessionId, d.id);
+                              } else {
+                                setSessionFormDrillIds(prev => [...prev, d.id]);
+                              }
+                            }}
+                            className={`w-full text-left p-2 rounded-lg border transition cursor-pointer ${
+                              isAdded
+                                ? 'bg-cyan-500/10 border-cyan-500/40'
+                                : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-1.5">
+                              <div className="flex items-center gap-1 min-w-0">
+                                {isRecommended && (
+                                  <Star size={11} className="text-amber-400 shrink-0" fill="currentColor" />
+                                )}
+                                <span className="text-[11px] font-semibold text-white truncate">{d.title}</span>
+                              </div>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                isAdded ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {isAdded ? 'Added' : '+ Add'}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5">
+                              {d.discipline} • {d.duration} mins
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         </div>
@@ -2230,10 +3340,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         if (!file.type.startsWith('video/')) {
                           setModalUploadError('Invalid file type! Please select a valid video file (MP4, MOV, WEBM, AVI, M4V).');
                           setModalUploadedFileName(null);
+                          setModalUploadedFile(null);
                           return;
                         }
                         setModalUploadError(null);
                         setModalUploadedFileName(file.name);
+                        setModalUploadedFile(file);
                         backupLocalVideoToDrive(file, 'MODAL');
                       }}
                     />
@@ -2383,46 +3495,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 onClick={async () => {
                   setModalIsAnalyzing(true);
                   setModalAnalysisResult(null);
-                  const activeVideoName = modalUploadSource === 'LOCAL_UPLOAD'
-                    ? (modalUploadedFileName || `clip_${uploadModalPlayer.id}_${modalUploadDiscipline}.mp4`)
-                    : (modalDriveVideoFiles.find(f => f.id === modalSelectedDriveVideo)?.name || 'drive_video');
                   try {
-                    // PLACEHOLDER: Replace with real AI analysis API call
-                    const res = await api.analyzeVideo({
-                      discipline: modalUploadDiscipline,
-                      videoUrl: activeVideoName
-                    });
+                    const res = modalUploadSource === 'LOCAL_UPLOAD'
+                      ? await api.analyzeVideo({
+                          discipline: modalUploadDiscipline,
+                          context: 'INDIVIDUAL',
+                          videoFile: modalUploadedFile || undefined
+                        })
+                      : await api.analyzeVideo({
+                          discipline: modalUploadDiscipline,
+                          context: 'INDIVIDUAL',
+                          driveFileId: modalSelectedDriveVideo
+                        });
                     if (res?.analysis) {
                       setModalAnalysisResult(res.analysis);
                     }
-                  } catch {
-                    setTimeout(() => {
-                      setModalAnalysisResult({
-                        overallScore: 84,
-                        detectedIssues: [
-                          modalUploadDiscipline === 'BATTING'
-                            ? 'Head falling slightly off-axis during dynamic front-foot drive balance'
-                            : 'Front non-bowling arm collapses 60ms prior to release point'
-                        ],
-                        biomechanicalMetrics: {
-                          headPosition: 'Slightly off-axis (-3.5 deg)',
-                          footAlignment: 'Pointing towards cover',
-                          backliftAngle: modalUploadDiscipline === 'BATTING' ? 'Optimal 42 deg' : undefined,
-                          releasePoint: modalUploadDiscipline === 'BOWLING' ? '172 deg high release' : undefined
-                        },
-                        recommendedDrills: [
-                          {
-                            title: modalUploadDiscipline === 'BATTING'
-                              ? 'Drop Ball Front Foot Drive Drill'
-                              : 'Target Towel High Arm Extension Drill',
-                            discipline: modalUploadDiscipline,
-                            durationMinutes: 20,
-                            context: 'INDIVIDUAL',
-                            isNewRecommendation: true
-                          }
-                        ]
-                      });
-                    }, 800);
+                  } catch (err: any) {
+                    setModalUploadError(err?.message || 'Failed to analyze the video. Please try again.');
                   } finally {
                     setModalIsAnalyzing(false);
                   }

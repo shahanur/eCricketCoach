@@ -58,7 +58,10 @@ export async function initDb() {
       source VARCHAR(50) NOT NULL,
       club_id VARCHAR(100),
       club_name VARCHAR(255),
-      instructions TEXT
+      squad_id VARCHAR(100),
+      squad_name VARCHAR(255),
+      instructions TEXT,
+      image_url TEXT
     )`,
 
     `CREATE TABLE IF NOT EXISTS club_members_store (
@@ -93,6 +96,7 @@ export async function initDb() {
       duration_minutes INT DEFAULT 90,
       is_published BOOLEAN DEFAULT FALSE,
       drill_count INT DEFAULT 0,
+      drill_ids JSONB DEFAULT '[]',
       post_notes TEXT,
       ai_evaluation JSONB
     )`,
@@ -138,11 +142,41 @@ export async function initDb() {
       scope VARCHAR(500),
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS video_analysis_store (
+      id VARCHAR(100) PRIMARY KEY,
+      user_id VARCHAR(255),
+      player_id VARCHAR(255),
+      player_name VARCHAR(255),
+      discipline VARCHAR(50) NOT NULL,
+      context VARCHAR(50) NOT NULL,
+      source_type VARCHAR(50) NOT NULL,
+      drive_file_id VARCHAR(255),
+      model VARCHAR(100) NOT NULL,
+      overall_score INT NOT NULL,
+      analysis JSONB NOT NULL,
+      drill_adopted BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
     )`
   ];
 
   // 1. Execute each DDL statement individually
   for (const statement of ddlStatements) {
+    await prisma.$executeRawUnsafe(statement);
+  }
+
+  // 1b. Safe incremental migrations for tables that already existed before these columns were added.
+  const alterStatements = [
+    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS player_id VARCHAR(255)`,
+    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS player_name VARCHAR(255)`,
+    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS drill_adopted BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
+    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
+    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS image_url TEXT`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`
+  ];
+  for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
 

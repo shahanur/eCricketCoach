@@ -3,6 +3,7 @@ import { Discipline, ContextType, Drill, VideoAnalysisResult, DriveVideoFile } f
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
+import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { Upload, Cloud, Play, Check, AlertCircle, RefreshCw, Folder, ExternalLink } from 'lucide-react';
 
 interface CoachingPortalProps {
@@ -32,10 +33,23 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
   const [analyzing, setAnalyzing] = useState(false);
   const [aiFeedback, setAiFeedback] = useState<VideoAnalysisResult | null>(null);
+  const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
+  const [analysisHistory, setAnalysisHistory] = useState<Array<{
+    id: string;
+    discipline: string;
+    context: string;
+    sourceType: string;
+    overallScore: number;
+    analysis: VideoAnalysisResult;
+    drillAdopted: boolean;
+    createdAt: string;
+  }>>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [viewingAnalysisId, setViewingAnalysisId] = useState<string | null>(null);
 
   // Ingestion Source Mode & Upload State
   const [sourceMode, setSourceMode] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
-  const [selectedLocalVideo, setSelectedLocalVideo] = useState<{ name: string; size: string } | null>(null);
+  const [selectedLocalVideo, setSelectedLocalVideo] = useState<{ name: string; size: string; file: File } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isBackingUpToDrive, setIsBackingUpToDrive] = useState(false);
   const [driveBackupStatus, setDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -66,6 +80,19 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
       setIsDriveConnected(status.connected);
       setDriveEmail(status.email || '');
     }).catch(() => {});
+  }, []);
+
+  const fetchAnalysisHistory = () => {
+    setIsHistoryLoading(true);
+    api.getVideoAnalysisHistory()
+      .then(res => setAnalysisHistory(res.history || []))
+      .catch(() => {})
+      .finally(() => setIsHistoryLoading(false));
+  };
+
+  // Load the coach's previously saved real Gemini analyses on mount.
+  useEffect(() => {
+    fetchAnalysisHistory();
   }, []);
 
   const fetchDriveVideos = async () => {
@@ -102,60 +129,26 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
     setAnalyzing(true);
     setAiFeedback(null);
     setUploadError(null);
+    setLastAnalysisId(null);
     try {
-      const selectedDriveFile = driveVideos.find(f => f.id === selectedDriveVideoId);
-      const activeVideoName = sourceMode === 'LOCAL_UPLOAD'
-        ? (selectedLocalVideo?.name || `uploaded_${selectedDiscipline.toLowerCase()}_clip.mp4`)
-        : (selectedDriveFile?.name || selectedDriveFile?.webViewLink || 'drive_video');
-
-      // PLACEHOLDER: Replace with the real AI analysis API call wired to the backend pose-estimation pipeline
-      const res = await api.analyzeVideo({
-        discipline: selectedDiscipline,
-        videoUrl: activeVideoName
-      });
+      const res = sourceMode === 'LOCAL_UPLOAD'
+        ? await api.analyzeVideo({
+            discipline: selectedDiscipline,
+            context: selectedContext,
+            videoFile: selectedLocalVideo?.file
+          })
+        : await api.analyzeVideo({
+            discipline: selectedDiscipline,
+            context: selectedContext,
+            driveFileId: selectedDriveVideoId
+          });
       if (res?.analysis) {
         setAiFeedback(res.analysis);
+        setLastAnalysisId(res.analysisId || null);
+        fetchAnalysisHistory();
       }
-    } catch {
-      // Fallback local analysis
-      setTimeout(() => {
-        setAiFeedback({
-          overallScore: 82,
-          detectedIssues: [
-            selectedDiscipline === 'BATTING'
-              ? 'Head falling slightly off-axis during dynamic front-foot weight transfer'
-              : selectedDiscipline === 'BOWLING'
-              ? 'Front non-bowling arm collapses 60ms prior to delivery stride release'
-              : 'Glove reaction delay on sudden bounce'
-          ],
-          biomechanicalMetrics: {
-            headPosition: 'Slightly off-axis (-4 deg)',
-            footAlignment: 'Pointing towards mid-off instead of cover',
-            backliftAngle: selectedDiscipline === 'BATTING' ? 'Optimal 42 deg' : undefined,
-            releasePoint: selectedDiscipline === 'BOWLING' ? '172 deg high release' : undefined
-          },
-          recommendedDrills: [
-            {
-              title: selectedDiscipline === 'BATTING'
-                ? 'AI Head-over-Ball Weighted Bat Punch Drill'
-                : 'AI Target Towel High Arm Extension Drill',
-              discipline: selectedDiscipline,
-              durationMinutes: 20,
-              context: selectedContext,
-              isNewRecommendation: true
-            },
-            {
-              title: selectedDiscipline === 'BATTING'
-                ? 'Front Foot Drop-Ball Balance & Extension Drill'
-                : 'Target Towel High Arm Extension Drill',
-              discipline: selectedDiscipline,
-              durationMinutes: 25,
-              context: 'INDIVIDUAL',
-              isNewRecommendation: false
-            }
-          ]
-        });
-      }, 800);
+    } catch (err: any) {
+      setUploadError(err?.message || 'Failed to analyze the video. Please try again.');
     } finally {
       setAnalyzing(false);
     }
@@ -176,7 +169,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
     const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
     setSelectedLocalVideo({
       name: file.name,
-      size: `${sizeMb} MB`
+      size: `${sizeMb} MB`,
+      file
     });
 
     // Automatically back the device-uploaded clip up into the coach's connected Google Drive,
@@ -536,7 +530,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
           {/* Action Button: Run AI Kinematic Pose Analysis */}
           <button
             onClick={handleSimulateAnalysis}
-            disabled={analyzing || (sourceMode === 'GOOGLE_DRIVE' && isDriveConnected && driveVideos.length === 0)}
+            disabled={analyzing || (sourceMode === 'LOCAL_UPLOAD' && !selectedLocalVideo) || (sourceMode === 'GOOGLE_DRIVE' && isDriveConnected && driveVideos.length === 0)}
             className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
           >
             <Play className="w-4 h-4 fill-current" />
@@ -598,7 +592,14 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
                         <p className="text-xs text-slate-400">{d.durationMinutes} mins • {d.context}</p>
                       </div>
                       <button
-                        onClick={() => handleAddRecommended(d)}
+                        onClick={() => {
+                          handleAddRecommended(d);
+                          if (lastAnalysisId) {
+                            api.markVideoAnalysisDrillAdopted(lastAnalysisId)
+                              .then(() => fetchAnalysisHistory())
+                              .catch(() => {});
+                          }
+                        }}
                         className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold rounded transition cursor-pointer"
                       >
                         Add to Plans
@@ -610,6 +611,78 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
             </div>
           )}
         </section>
+
+        {/* Past Analysis History (persisted AI results) */}
+        <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-sm text-white">Past AI Video Analyses</h3>
+              <p className="text-xs text-slate-400">Your saved biomechanical analysis history</p>
+            </div>
+            <button
+              onClick={fetchAnalysisHistory}
+              title="Refresh history"
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          {isHistoryLoading && analysisHistory.length === 0 ? (
+            <p className="text-xs text-slate-500 py-4 text-center">Loading history...</p>
+          ) : analysisHistory.length === 0 ? (
+            <p className="text-xs text-slate-500 py-4 text-center">No saved analyses yet. Run an AI analysis above to build your history.</p>
+          ) : (
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              {analysisHistory.map(entry => (
+                <button
+                  type="button"
+                  key={entry.id}
+                  onClick={() => setViewingAnalysisId(entry.id)}
+                  className="w-full text-left p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                        {entry.overallScore}
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold text-white">{entry.discipline} • {entry.context}</p>
+                        <p className="text-[10px] text-slate-500">{formatRelativeTime(entry.createdAt)} • {entry.sourceType === 'GOOGLE_DRIVE' ? 'Google Drive' : 'Device Upload'}</p>
+                      </div>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${entry.drillAdopted ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                      {entry.drillAdopted ? 'Drill Adopted' : 'Not Adopted'}
+                    </span>
+                  </div>
+                  {entry.analysis?.detectedIssues?.length > 0 && (
+                    <p className="text-[11px] text-slate-300 mt-2 flex items-start gap-1.5">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-amber-400" />
+                      <span>{entry.analysis.detectedIssues[0]}</span>
+                    </p>
+                  )}
+                  {entry.analysis?.recommendedDrills?.length > 0 && (
+                    <p className="text-[11px] text-emerald-400 mt-1">
+                      🎯 {entry.analysis.recommendedDrills[0].title}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Video Analysis Detail Modal (full saved result + drill adoption status) */}
+        {viewingAnalysisId && (
+          <VideoAnalysisDetailModal
+            analysisId={viewingAnalysisId}
+            onClose={() => setViewingAnalysisId(null)}
+            onAdopt={(drill) => {
+              handleAddRecommended(drill);
+              fetchAnalysisHistory();
+            }}
+          />
+        )}
 
         {/* Drills & Training Plan Tailoring */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">

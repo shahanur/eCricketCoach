@@ -50,7 +50,7 @@ drillsRouter.post('/admin', async (req: Request, res: Response) => {
 // Coaches / Club Admin: Add Custom Drill for their Club
 drillsRouter.post('/club', async (req: Request, res: Response) => {
   try {
-    const { title, discipline, skillSet, contextType, ageGroup, difficulty, durationMinutes, duration, instructions, clubId, clubName } = req.body;
+    const { title, discipline, skillSet, contextType, ageGroup, difficulty, durationMinutes, duration, instructions, clubId, clubName, squadId, squadName } = req.body;
     if (!title || !discipline || !skillSet) {
       return res.status(400).json({ error: 'Title, discipline, and skillSet are required' });
     }
@@ -67,6 +67,8 @@ drillsRouter.post('/club', async (req: Request, res: Response) => {
       source: 'CLUB_CUSTOM',
       clubId: clubId || 'ten-003',
       clubName: clubName || 'Marylebone Cricket Club Academy',
+      squadId: squadId || null,
+      squadName: squadName || null,
       instructions: instructions || 'Custom drill tailored by club coaching staff.'
     };
 
@@ -76,3 +78,38 @@ drillsRouter.post('/club', async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+// Removes a drill (e.g. club custom drill no longer needed) from the catalogue.
+drillsRouter.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const deleted = await DbService.deleteDrill(id);
+    if (!deleted) return res.status(404).json({ error: 'Drill not found' });
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Edit an existing drill's details, including its setup instructions and setup reference image.
+drillsRouter.patch('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, discipline, skillSet, contextType, durationMinutes, duration, instructions, imageUrl } = req.body;
+    const updated = await DbService.updateDrill(id, {
+      title,
+      discipline,
+      skillSet,
+      contextType,
+      duration: duration !== undefined || durationMinutes !== undefined ? Number(duration || durationMinutes) : undefined,
+      instructions,
+      imageUrl
+    });
+    if (!updated) return res.status(404).json({ error: 'Drill not found' });
+    return res.json({ success: true, drill: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+

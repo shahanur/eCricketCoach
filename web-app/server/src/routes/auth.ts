@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import { prisma } from '../config/prisma.js';
+import { fetchWithRetry } from '../utils/retry.js';
 
 type Provider = 'google' | 'microsoft' | 'apple';
 
@@ -120,7 +121,7 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
 
   const config = providerConfig[provider];
   const callbackUrl = `${appOrigin}/api/auth/${provider}/callback`;
-  const tokenResponse = await fetch(config.tokenUrl, {
+  const tokenResponse = await fetchWithRetry(config.tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -130,7 +131,7 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
       redirect_uri: callbackUrl,
       grant_type: 'authorization_code'
     })
-  });
+  }, { label: `${provider} OAuth token exchange` });
   const tokenData = await tokenResponse.json() as { id_token?: string; error_description?: string };
   if (!tokenResponse.ok || !tokenData.id_token) {
     res.status(401).json({ error: tokenData.error_description || 'Unable to exchange the OAuth authorization code.' });

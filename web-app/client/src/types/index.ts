@@ -23,6 +23,9 @@ export interface Drill {
   source: 'SYSTEM_PREDEFINED' | 'CLUB_CUSTOM' | 'AI_RECOMMENDED';
   clubName?: string;
   instructions?: string;
+  squadId?: string | null;
+  squadName?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface CustomerTenant {
@@ -122,6 +125,7 @@ export interface TrainingSession {
   durationMinutes: number;
   isPublished: boolean;
   drillCount: number;
+  drillIds?: string[];
   postNotes?: string;
   aiEvaluation?: any;
 }

@@ -72,7 +72,10 @@ model DrillStore {
   source       String
   clubId       String? @map("club_id")
   clubName     String? @map("club_name")
+  squadId      String? @map("squad_id")
+  squadName    String? @map("squad_name")
   instructions String?
+  imageUrl     String? @map("image_url")
 
   @@map("drills_store")
 }
@@ -113,6 +116,7 @@ model TrainingSessionStore {
   durationMinutes Int      @default(90) @map("duration_minutes")
   isPublished     Boolean  @default(false) @map("is_published")
   drillCount      Int      @default(0) @map("drill_count")
+  drillIds        Json?    @default("[]") @map("drill_ids")
   postNotes       String?  @map("post_notes")
   aiEvaluation    Json?    @map("ai_evaluation")
 
@@ -166,5 +170,23 @@ model GoogleDriveConnection {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   @@map("google_drive_connections")
+}
+
+model VideoAnalysisStore {
+  id               String   @id @default(cuid())
+  userId           String?  @map("user_id")
+  playerId         String?  @map("player_id")
+  playerName       String?  @map("player_name")
+  discipline       String
+  context          String
+  sourceType       String   @map("source_type")
+  driveFileId      String?  @map("drive_file_id")
+  model            String
+  overallScore     Int      @map("overall_score")
+  analysis         Json
+  drillAdopted     Boolean  @default(false) @map("drill_adopted")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("video_analysis_store")
 }
 

@@ -164,10 +164,6 @@ export default function App() {
   // Support Tickets State
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
 
-  // Drive upload state
-  const [uploadingDriveVideo, setUploadingDriveVideo] = useState(false);
-  const [driveUploadSuccess, setDriveUploadSuccess] = useState<any>(null);
-
   // Initial Load from PostgreSQL APIs
   useEffect(() => {
     async function loadData() {
@@ -225,6 +221,25 @@ export default function App() {
       setDrills(prev => [savedDrill, ...prev]);
     } catch {
       setDrills(prev => [drill, ...prev]);
+    }
+  };
+
+  const handleDeleteDrill = async (drillId: string) => {
+    const prevDrills = drills;
+    setDrills(prev => prev.filter(d => d.id !== drillId));
+    try {
+      await api.deleteDrill(drillId);
+    } catch {
+      setDrills(prevDrills);
+    }
+  };
+
+  const handleUpdateDrill = async (drillId: string, updates: Partial<Drill>) => {
+    try {
+      const updated = await api.updateDrill(drillId, updates);
+      setDrills(prev => prev.map(d => (d.id === drillId ? { ...d, ...(updated || updates) } : d)));
+    } catch {
+      setDrills(prev => prev.map(d => (d.id === drillId ? { ...d, ...updates } : d)));
     }
   };
 
@@ -585,6 +600,35 @@ export default function App() {
     }
   };
 
+  const handleUpdateSquad = async (squadId: string, updates: Partial<Squad>) => {
+    try {
+      const updated = await api.updateSquad(squadId, updates);
+      setSquads(prev => prev.map(sq => (sq.id === squadId ? { ...sq, ...(updated || updates) } : sq)));
+    } catch {
+      setSquads(prev => prev.map(sq => (sq.id === squadId ? { ...sq, ...updates } : sq)));
+    }
+  };
+
+  const handleDeleteSquad = async (squadId: string) => {
+    const prevSquads = squads;
+    setSquads(prev => prev.filter(sq => sq.id !== squadId));
+    try {
+      await api.deleteSquad(squadId);
+    } catch {
+      setSquads(prevSquads);
+    }
+  };
+
+  const handleUpdateMember = async (memberId: string, updates: Partial<ClubMember>) => {
+    const prevMembers = clubMembers;
+    setClubMembers(prev => prev.map(m => (m.id === memberId ? { ...m, ...updates } : m)));
+    try {
+      await api.updateClubMember(memberId, updates);
+    } catch {
+      setClubMembers(prevMembers);
+    }
+  };
+
   const handleUpdateMemberSquad = async (memberId: string, squadName: string) => {
     try {
       await api.updateClubMember(memberId, { squad: squadName });
@@ -613,6 +657,67 @@ export default function App() {
     } catch {
       setSessions(prev => [...prev, session]);
     }
+  };
+
+  const handleUpdateSession = async (sessionId: string, updates: Partial<TrainingSession>) => {
+    try {
+      const updated = await api.updateSession(sessionId, updates);
+      setSessions(prev => prev.map(s => (s.id === sessionId ? { ...s, ...(updated || updates) } : s)));
+    } catch {
+      setSessions(prev => prev.map(s => (s.id === sessionId ? { ...s, ...updates } : s)));
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    const prevSessions = sessions;
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    try {
+      await api.deleteSession(sessionId);
+    } catch {
+      setSessions(prevSessions);
+    }
+  };
+
+  const handleAddDrillToSession = async (sessionId: string, drillId?: string) => {
+    try {
+      const updated = await api.addDrillToSession(sessionId, drillId);
+      if (updated) {
+        setSessions(prev => prev.map(s => (s.id === sessionId ? updated : s)));
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    setSessions(prev =>
+      prev.map(s => (s.id === sessionId
+        ? {
+            ...s,
+            drillCount: s.drillCount + 1,
+            drillIds: drillId ? [...(s.drillIds || []), drillId] : s.drillIds
+          }
+        : s))
+    );
+  };
+
+  const handleRemoveDrillFromSession = async (sessionId: string, drillId: string) => {
+    try {
+      const updated = await api.removeDrillFromSession(sessionId, drillId);
+      if (updated) {
+        setSessions(prev => prev.map(s => (s.id === sessionId ? updated : s)));
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    setSessions(prev =>
+      prev.map(s => {
+        if (s.id !== sessionId) return s;
+        const ids = [...(s.drillIds || [])];
+        const idx = ids.indexOf(drillId);
+        if (idx !== -1) ids.splice(idx, 1);
+        return { ...s, drillIds: ids, drillCount: Math.max(0, s.drillCount - 1) };
+      })
+    );
   };
 
   const handlePublishSession = async (sessionId: string) => {
@@ -644,37 +749,6 @@ export default function App() {
       confirmLabel: 'Done',
       onConfirm: () => setAppModal(null)
     });
-  };
-
-  const handleSimulateDriveUpload = async (playerName: string) => {
-    setUploadingDriveVideo(true);
-    setDriveUploadSuccess(null);
-    try {
-      const result = await api.uploadDriveVideo('mem-4', {
-        fileName: `${playerName.replace(' ', '_')}_Bowling_Spell.mp4`,
-        discipline: 'BOWLING',
-        playerName
-      });
-      setUploadingDriveVideo(false);
-      setDriveUploadSuccess({
-        player: playerName,
-        fileName: `${playerName.replace(' ', '_')}_Bowling_Spell.mp4`,
-        drivePath: result?.googleDrivePath || `Google Drive / eCricketCoach / MaryleboneCricketAcademy / ${playerName} / Bowling`,
-        aiSummary: result?.aiAnalysis?.keyBiomechanicalObservations?.[0] || 'Kinematic analysis complete: Detected front arm dropping 80ms early before ball release.',
-        prescribedDrill: result?.aiAnalysis?.recommendedDrills?.[0] || 'High Non-Bowling Arm Extension & Target Drop Drill (20 mins)'
-      });
-    } catch {
-      setTimeout(() => {
-        setUploadingDriveVideo(false);
-        setDriveUploadSuccess({
-          player: playerName,
-          fileName: `${playerName.replace(' ', '_')}_Bowling_Spell.mp4`,
-          drivePath: `Google Drive / eCricketCoach / MaryleboneCricketAcademy / ${playerName} / Bowling`,
-          aiSummary: 'Kinematic analysis complete: Detected front arm dropping 80ms early before ball release.',
-          prescribedDrill: 'High Non-Bowling Arm Extension & Target Drop Drill (20 mins)'
-        });
-      }, 1000);
-    }
   };
 
   const handleLogout = () => {
@@ -791,13 +865,19 @@ export default function App() {
             onAcceptMemberInvite={handleAcceptMemberInvite}
             onPromotePlayer={handlePromotePlayer}
             onAddSquad={handleAddSquad}
+            onUpdateSquad={handleUpdateSquad}
+            onDeleteSquad={handleDeleteSquad}
             onUpdateMemberSquad={handleUpdateMemberSquad}
+            onUpdateMember={handleUpdateMember}
             onScheduleSession={handleScheduleSession}
+            onUpdateSession={handleUpdateSession}
+            onDeleteSession={handleDeleteSession}
             onPublishSession={handlePublishSession}
+            onAddDrillToSession={handleAddDrillToSession}
+            onRemoveDrillFromSession={handleRemoveDrillFromSession}
             onAddClubDrill={handleAddDrill}
-            onSimulateDriveUpload={handleSimulateDriveUpload}
-            uploadingDriveVideo={uploadingDriveVideo}
-            driveUploadSuccess={driveUploadSuccess}
+            onDeleteDrill={handleDeleteDrill}
+            onUpdateDrill={handleUpdateDrill}
           />
         )}
       </main>

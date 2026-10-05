@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import multer from 'multer';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { fetchWithRetry } from '../utils/retry.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -109,7 +110,7 @@ router.get('/callback', async (req: Request, res: Response) => {
   }
 
   try {
-    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
+    const tokenRes = await fetchWithRetry(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -119,7 +120,7 @@ router.get('/callback', async (req: Request, res: Response) => {
         redirect_uri: driveRedirectUri,
         grant_type: 'authorization_code'
       })
-    });
+    }, { label: 'Google OAuth token exchange' });
     const tokenData = await tokenRes.json() as {
       access_token?: string;
       refresh_token?: string;
@@ -133,9 +134,9 @@ router.get('/callback', async (req: Request, res: Response) => {
       return;
     }
 
-    const userInfoRes = await fetch(GOOGLE_USERINFO_URL, {
+    const userInfoRes = await fetchWithRetry(GOOGLE_USERINFO_URL, {
       headers: { Authorization: `Bearer ${tokenData.access_token}` }
-    });
+    }, { label: 'Google userinfo' });
     const userInfo = await userInfoRes.json() as { email?: string };
     const email = userInfo.email || 'unknown@gmail.com';
     const expiryDate = Date.now() + (tokenData.expires_in || 3600) * 1000;
@@ -169,7 +170,8 @@ router.get('/callback', async (req: Request, res: Response) => {
   }
 });
 
-async function getValidAccessToken(userId: string): Promise<{ accessToken: string; email: string } | null> {
+// Reusable helper (also used by the video analysis route to download Drive-sourced clips)
+export async function getValidAccessToken(userId: string): Promise<{ accessToken: string; email: string } | null> {
   const connection = await prisma.googleDriveConnection.findUnique({ where: { userId } });
   if (!connection) return null;
 
@@ -182,7 +184,7 @@ async function getValidAccessToken(userId: string): Promise<{ accessToken: strin
     return { accessToken: connection.accessToken, email: connection.email };
   }
 
-  const refreshRes = await fetch(GOOGLE_TOKEN_URL, {
+  const refreshRes = await fetchWithRetry(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -191,7 +193,7 @@ async function getValidAccessToken(userId: string): Promise<{ accessToken: strin
       refresh_token: connection.refreshToken,
       grant_type: 'refresh_token'
     })
-  });
+  }, { label: 'Google OAuth token refresh' });
   const refreshData = await refreshRes.json() as { access_token?: string; expires_in?: number };
   if (!refreshRes.ok || !refreshData.access_token) {
     return { accessToken: connection.accessToken, email: connection.email };
@@ -223,15 +225,15 @@ async function findOrCreateFolder(accessToken: string, name: string, parentId?: 
   searchUrl.searchParams.set('fields', 'files(id,name)');
   searchUrl.searchParams.set('spaces', 'drive');
 
-  const searchRes = await fetch(searchUrl.toString(), {
+  const searchRes = await fetchWithRetry(searchUrl.toString(), {
     headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  }, { label: 'Google Drive folder search' });
   const searchData = await searchRes.json() as { files?: { id: string; name: string }[] };
   if (searchRes.ok && searchData.files && searchData.files.length > 0) {
     return searchData.files[0].id;
   }
 
-  const createRes = await fetch(`${GOOGLE_DRIVE_FILES_URL}?fields=id`, {
+  const createRes = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}?fields=id`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -242,7 +244,7 @@ async function findOrCreateFolder(accessToken: string, name: string, parentId?: 
       mimeType: 'application/vnd.google-apps.folder',
       parents: parentId ? [parentId] : undefined
     })
-  });
+  }, { label: 'Google Drive folder create' });
   const createData = await createRes.json() as { id?: string; error?: { message?: string } };
   if (!createRes.ok || !createData.id) {
     throw new Error(createData.error?.message || `Failed to create Google Drive folder "${name}".`);
@@ -283,9 +285,9 @@ router.get('/videos', authenticateToken, async (req: AuthenticatedRequest, res: 
     filesUrl.searchParams.set('orderBy', 'modifiedTime desc');
     filesUrl.searchParams.set('spaces', 'drive');
 
-    const driveRes = await fetch(filesUrl.toString(), {
+    const driveRes = await fetchWithRetry(filesUrl.toString(), {
       headers: { Authorization: `Bearer ${tokenInfo.accessToken}` }
-    });
+    }, { label: 'Google Drive list videos' });
     const driveData = await driveRes.json() as { files?: any[]; error?: { message?: string } };
 
     if (!driveRes.ok) {
@@ -359,14 +361,14 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
     uploadUrl.searchParams.set('uploadType', 'multipart');
     uploadUrl.searchParams.set('fields', 'id,name,mimeType,size,modifiedTime,webViewLink,thumbnailLink,videoMediaMetadata');
 
-    const driveRes = await fetch(uploadUrl.toString(), {
+    const driveRes = await fetchWithRetry(uploadUrl.toString(), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${tokenInfo.accessToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`
       },
       body: multipartBody
-    });
+    }, { label: 'Google Drive video upload' });
     const driveData = await driveRes.json() as any;
 
     if (!driveRes.ok) {
@@ -406,7 +408,10 @@ router.post('/disconnect', authenticateToken, async (req: AuthenticatedRequest, 
   const connection = await prisma.googleDriveConnection.findUnique({ where: { userId } });
   if (connection) {
     try {
-      await fetch(`${GOOGLE_REVOKE_URL}?token=${encodeURIComponent(connection.accessToken)}`, { method: 'POST' });
+      await fetchWithRetry(`${GOOGLE_REVOKE_URL}?token=${encodeURIComponent(connection.accessToken)}`, { method: 'POST' }, {
+        label: 'Google OAuth revoke',
+        maxRetries: 2
+      });
     } catch {
       // Best-effort revoke; continue with local cleanup regardless
     }

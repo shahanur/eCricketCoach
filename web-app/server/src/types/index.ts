@@ -10,7 +10,10 @@ export interface DrillItem {
   source: 'SYSTEM_PREDEFINED' | 'CLUB_CUSTOM' | 'AI_RECOMMENDED';
   clubId?: string;
   clubName?: string;
+  squadId?: string | null;
+  squadName?: string | null;
   instructions?: string;
+  imageUrl?: string | null;
 }
 
 export interface CustomerTenant {
@@ -96,6 +99,8 @@ export interface TrainingSession {
   sessionDate: string;
   durationMinutes: number;
   drills: Array<{ id: string; title: string; duration: number; discipline: string; context: 'INDIVIDUAL' | 'GROUP' }>;
+  drillIds?: string[];
+  drillCount?: number;
   isPublished: boolean;
   publishedAt?: string;
   postSessionNotes?: string;
