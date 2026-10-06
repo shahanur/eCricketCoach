@@ -72,7 +72,7 @@ export interface ClubMember {
   ageGroup: string;
   discipline: string;
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
-  currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+  currentLevel: 'SUPPORT_COACH' | 'FOUNDATION_COACH' | 'CORE_COACH' | 'ADVANCED_COACH' | 'SPECIALIST_COACH' | 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
   squadId?: string;
   squad?: string;
 }
@@ -80,8 +80,12 @@ export interface ClubMember {
 export interface Squad {
   id: string;
   clubId: string;
-  coachId: string;
-  coachName: string;
+  coachId?: string | null;
+  coachName?: string | null;
+  coordinatorCoachId?: string | null;
+  coordinatorCoachName?: string | null;
+  assistantCoachId?: string | null;
+  assistantCoachName?: string | null;
   name: string;
   ageGroup: string;
   discipline: string;
@@ -91,10 +95,15 @@ export interface Squad {
 export interface TrainingSession {
   id: string;
   clubId: string;
-  coachId: string;
-  coachName: string;
+  coachId?: string | null;
+  coachName?: string | null;
+  coordinatorCoachId?: string | null;
+  coordinatorCoachName?: string | null;
+  assistantCoachId?: string | null;
+  assistantCoachName?: string | null;
   squadId: string;
   squadName: string;
+  assignedPlayerIds?: string[];
   title: string;
   sessionDate: string;
   durationMinutes: number;

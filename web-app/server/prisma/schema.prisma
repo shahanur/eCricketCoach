@@ -96,13 +96,18 @@ model ClubMemberStore {
 }
 
 model SquadStore {
-  id          String  @id
-  clubId      String? @map("club_id")
-  name        String
-  ageGroup    String  @map("age_group")
-  discipline  String
-  coachName   String  @map("coach_name")
-  memberCount Int     @default(0) @map("member_count")
+  id                   String  @id
+  clubId               String? @map("club_id")
+  name                 String
+  ageGroup             String  @map("age_group")
+  discipline           String
+  coachId              String? @map("coach_id")
+  coachName            String  @map("coach_name")
+  coordinatorCoachId   String? @map("coordinator_coach_id")
+  coordinatorCoachName String? @map("coordinator_coach_name")
+  assistantCoachId     String? @map("assistant_coach_id")
+  assistantCoachName   String? @map("assistant_coach_name")
+  memberCount          Int     @default(0) @map("member_count")
 
   @@map("squads_store")
 }
@@ -111,6 +116,13 @@ model TrainingSessionStore {
   id              String   @id
   clubId          String?  @map("club_id")
   squadName       String   @map("squad_name")
+  coachId         String?  @map("coach_id")
+  coachName       String?  @map("coach_name")
+  coordinatorCoachId   String?  @map("coordinator_coach_id")
+  coordinatorCoachName String?  @map("coordinator_coach_name")
+  assistantCoachId     String?  @map("assistant_coach_id")
+  assistantCoachName   String?  @map("assistant_coach_name")
+  assignedPlayerIds Json?  @default("[]") @map("assigned_player_ids")
   title           String
   sessionDate     String   @map("session_date")
   durationMinutes Int      @default(90) @map("duration_minutes")
@@ -123,6 +135,25 @@ model TrainingSessionStore {
   aiEvaluation    Json?    @map("ai_evaluation")
 
   @@map("training_sessions_store")
+}
+
+model CoachWorkspaceItem {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  coachId   String   @map("coach_id")
+  kind      String
+  sessionId String?  @map("session_id")
+  playerId  String?  @map("player_id")
+  title     String
+  content   String?  @db.Text
+  status    String   @default("ACTIVE")
+  progress  Int?
+  metadata  Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, coachId, kind])
+  @@map("coach_workspace_items")
 }
 
 model CertificateStore {

@@ -2,8 +2,43 @@ import { Router, Request, Response } from 'express';
 import { DbService } from '../services/dbService.js';
 import { ClubMember, Squad, TrainingSession, Certificate } from '../types/index.js';
 import { AiAnalysisService } from '../services/aiAnalysisService.js';
+import { prisma } from '../config/prisma.js';
 
 export const clubRouter = Router();
+
+async function resolveSquadCoachAssignments(
+  clubId: string,
+  coachId: string,
+  coordinatorCoachId?: string | null,
+  assistantCoachId?: string | null
+) {
+  const selectedIds = [coachId, coordinatorCoachId, assistantCoachId].filter((id): id is string => Boolean(id));
+  if (new Set(selectedIds).size !== selectedIds.length) {
+    throw new Error('Head coach, coordinator, and assistant coach must be different active coaches.');
+  }
+
+  const coaches = await prisma.clubMemberStore.findMany({
+    where: {
+      id: { in: selectedIds },
+      clubId,
+      role: 'COACH',
+      invitationStatus: 'ACTIVE'
+    }
+  });
+  if (coaches.length !== selectedIds.length) {
+    throw new Error('Every squad coaching assignment must be an active coach in this club.');
+  }
+
+  const byId = new Map(coaches.map(coach => [coach.id, coach]));
+  return {
+    coachId,
+    coachName: byId.get(coachId)!.name,
+    coordinatorCoachId: coordinatorCoachId || null,
+    coordinatorCoachName: coordinatorCoachId ? byId.get(coordinatorCoachId)!.name : null,
+    assistantCoachId: assistantCoachId || null,
+    assistantCoachName: assistantCoachId ? byId.get(assistantCoachId)!.name : null
+  };
+}
 
 // 1. Club Admin: Members & Invitations (Coaches & Players)
 clubRouter.get('/members', async (req: Request, res: Response) => {
@@ -18,22 +53,28 @@ clubRouter.get('/members', async (req: Request, res: Response) => {
 
 clubRouter.post('/members/invite', async (req: Request, res: Response) => {
   try {
-    const { name, email, role, ageGroup, discipline, clubId, squad } = req.body;
-    if (!name || !email || !role) {
-      return res.status(400).json({ error: 'Name, email, and role are required' });
+    const { name, email, role, ageGroup, discipline, currentLevel, clubId, squad } = req.body;
+    if (!name || !email || !role || !clubId) {
+      return res.status(400).json({ error: 'Name, email, role, and clubId are required' });
+    }
+    const coachLevels = ['SUPPORT_COACH', 'FOUNDATION_COACH', 'CORE_COACH', 'ADVANCED_COACH', 'SPECIALIST_COACH'];
+    const playerLevels = ['FOUNDATION', 'DEVELOPING', 'INTERMEDIATE', 'ADVANCED', 'ELITE'];
+    const validLevels = role === 'COACH' ? coachLevels : playerLevels;
+    if (currentLevel !== undefined && !validLevels.includes(currentLevel)) {
+      return res.status(400).json({ error: 'Invalid level for the selected role' });
     }
 
     const newMember: ClubMember = {
       id: 'mem-' + Date.now(),
-      clubId: clubId || 'ten-003',
+      clubId,
       name,
       email,
       role,
-      ageGroup: ageGroup || 'U15',
+      ageGroup: role === 'COACH' ? '' : (ageGroup || 'U15'),
       discipline: discipline || 'BATTING',
       invitationStatus: 'PENDING_ACCEPTANCE',
-      currentLevel: 'FOUNDATION',
-      squad: squad || 'Unassigned'
+      currentLevel: currentLevel || (role === 'COACH' ? 'SUPPORT_COACH' : 'FOUNDATION'),
+      squad: role === 'COACH' ? 'Unassigned' : (squad || 'Unassigned')
     };
 
     const saved = await DbService.createClubMember(newMember);
@@ -79,15 +120,23 @@ clubRouter.get('/squads', async (req: Request, res: Response) => {
 
 clubRouter.post('/squads', async (req: Request, res: Response) => {
   try {
-    const { name, ageGroup, discipline, coachId, coachName, memberIds, clubId } = req.body;
+    const { name, ageGroup, discipline, coachId, coordinatorCoachId, assistantCoachId, memberIds, clubId } = req.body;
+    if (!name || !clubId || !coachId) {
+      return res.status(400).json({ error: 'Squad name, clubId, and an active head coach are required.' });
+    }
+    let coachAssignments;
+    try {
+      coachAssignments = await resolveSquadCoachAssignments(clubId, coachId, coordinatorCoachId, assistantCoachId);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid squad coach assignments.' });
+    }
     const newSquad: Squad = {
       id: 'sq-' + Date.now(),
-      clubId: clubId || 'ten-003',
+      clubId,
       name,
       ageGroup,
       discipline,
-      coachId: coachId || 'mem-2',
-      coachName: coachName || 'Shane Bond',
+      ...coachAssignments,
       memberIds: memberIds || []
     };
     const saved = await DbService.createSquad({
@@ -103,8 +152,25 @@ clubRouter.post('/squads', async (req: Request, res: Response) => {
 clubRouter.patch('/squads/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { memberCount, name, coachName, ageGroup, discipline } = req.body;
-    const updated = await DbService.updateSquad(id, { memberCount, name, coachName, ageGroup, discipline });
+    const { memberCount, name, coachId, coordinatorCoachId, assistantCoachId, ageGroup, discipline } = req.body;
+    const existing = await prisma.squadStore.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Squad not found' });
+    const resolvedCoachId = coachId ?? existing.coachId;
+    if (!existing.clubId || !resolvedCoachId) {
+      return res.status(400).json({ error: 'An active head coach from this club is required.' });
+    }
+    let coachAssignments;
+    try {
+      coachAssignments = await resolveSquadCoachAssignments(
+        existing.clubId,
+        resolvedCoachId,
+        coordinatorCoachId !== undefined ? coordinatorCoachId : existing.coordinatorCoachId,
+        assistantCoachId !== undefined ? assistantCoachId : existing.assistantCoachId
+      );
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid squad coach assignments.' });
+    }
+    const updated = await DbService.updateSquad(id, { memberCount, name, ...coachAssignments, ageGroup, discipline });
     if (!updated) return res.status(404).json({ error: 'Squad not found' });
     return res.json({ success: true, squad: updated });
   } catch (err: any) {
@@ -137,14 +203,22 @@ clubRouter.get('/sessions', async (req: Request, res: Response) => {
 
 clubRouter.post('/sessions', async (req: Request, res: Response) => {
   try {
-    const { title, squadId, squadName, sessionDate, durationMinutes, drills, drillIds, clubId } = req.body;
+    const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, drills, drillIds, clubId } = req.body;
+    if (assignedPlayerIds !== undefined && (!Array.isArray(assignedPlayerIds) || assignedPlayerIds.some(id => typeof id !== 'string'))) {
+      return res.status(400).json({ error: 'assignedPlayerIds must be an array of player IDs' });
+    }
     const newSession: TrainingSession = {
       id: 'sess-' + Date.now(),
       clubId: clubId || 'ten-003',
-      coachId: 'mem-2',
-      coachName: 'Shane Bond',
       squadId,
       squadName: squadName || 'U15 Squad',
+      coachId,
+      coachName,
+      coordinatorCoachId,
+      coordinatorCoachName,
+      assistantCoachId,
+      assistantCoachName,
+      assignedPlayerIds: assignedPlayerIds || [],
       title,
       sessionDate,
       durationMinutes: durationMinutes || 90,
@@ -164,7 +238,7 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
 clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, squadName, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
+    const { title, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
     if (isExecuted !== undefined && typeof isExecuted !== 'boolean') {
       return res.status(400).json({ error: 'isExecuted must be a boolean' });
     }
@@ -175,9 +249,19 @@ clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
     ) {
       return res.status(400).json({ error: 'playerNotes must map player IDs to note strings' });
     }
+    if (assignedPlayerIds !== undefined && (!Array.isArray(assignedPlayerIds) || assignedPlayerIds.some(id => typeof id !== 'string'))) {
+      return res.status(400).json({ error: 'assignedPlayerIds must be an array of player IDs' });
+    }
     const updated = await DbService.updateTrainingSession(id, {
       title,
       squadName,
+      coachId,
+      coachName,
+      coordinatorCoachId,
+      coordinatorCoachName,
+      assistantCoachId,
+      assistantCoachName,
+      assignedPlayerIds,
       sessionDate,
       durationMinutes,
       isExecuted,

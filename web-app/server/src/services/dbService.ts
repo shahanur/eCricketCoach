@@ -538,6 +538,7 @@ export class DbService {
 
     return members.map(m => ({
       id: m.id,
+      clubId: m.clubId,
       name: m.name,
       email: m.email,
       role: m.role,
@@ -567,6 +568,7 @@ export class DbService {
 
     return {
       id: created.id,
+      clubId: created.clubId,
       name: created.name,
       email: created.email,
       role: created.role,
@@ -597,6 +599,7 @@ export class DbService {
 
       return {
         id: updated.id,
+        clubId: updated.clubId,
         name: updated.name,
         email: updated.email,
         role: updated.role,
@@ -626,7 +629,12 @@ export class DbService {
       name: s.name,
       ageGroup: s.ageGroup,
       discipline: s.discipline,
+      coachId: s.coachId,
       coachName: s.coachName,
+      coordinatorCoachId: s.coordinatorCoachId,
+      coordinatorCoachName: s.coordinatorCoachName,
+      assistantCoachId: s.assistantCoachId,
+      assistantCoachName: s.assistantCoachName,
       memberCount: s.memberCount
     }));
   }
@@ -639,7 +647,12 @@ export class DbService {
         name: squad.name,
         ageGroup: squad.ageGroup,
         discipline: squad.discipline,
+        coachId: squad.coachId,
         coachName: squad.coachName,
+        coordinatorCoachId: squad.coordinatorCoachId || null,
+        coordinatorCoachName: squad.coordinatorCoachName || null,
+        assistantCoachId: squad.assistantCoachId || null,
+        assistantCoachName: squad.assistantCoachName || null,
         memberCount: squad.memberCount || 0
       }
     });
@@ -649,17 +662,27 @@ export class DbService {
       name: created.name,
       ageGroup: created.ageGroup,
       discipline: created.discipline,
+      coachId: created.coachId,
       coachName: created.coachName,
+      coordinatorCoachId: created.coordinatorCoachId,
+      coordinatorCoachName: created.coordinatorCoachName,
+      assistantCoachId: created.assistantCoachId,
+      assistantCoachName: created.assistantCoachName,
       memberCount: created.memberCount
     };
   }
 
-  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachName?: string; ageGroup?: string; discipline?: string }) {
+  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachId?: string; coachName?: string; coordinatorCoachId?: string | null; coordinatorCoachName?: string | null; assistantCoachId?: string | null; assistantCoachName?: string | null; ageGroup?: string; discipline?: string }) {
     try {
       const data: any = {};
       if (updates.memberCount !== undefined) data.memberCount = updates.memberCount;
       if (updates.name !== undefined) data.name = updates.name;
+      if (updates.coachId !== undefined) data.coachId = updates.coachId;
       if (updates.coachName !== undefined) data.coachName = updates.coachName;
+      if (updates.coordinatorCoachId !== undefined) data.coordinatorCoachId = updates.coordinatorCoachId;
+      if (updates.coordinatorCoachName !== undefined) data.coordinatorCoachName = updates.coordinatorCoachName;
+      if (updates.assistantCoachId !== undefined) data.assistantCoachId = updates.assistantCoachId;
+      if (updates.assistantCoachName !== undefined) data.assistantCoachName = updates.assistantCoachName;
       if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
       if (updates.discipline !== undefined) data.discipline = updates.discipline;
 
@@ -672,7 +695,12 @@ export class DbService {
         name: updated.name,
         ageGroup: updated.ageGroup,
         discipline: updated.discipline,
+        coachId: updated.coachId,
         coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
         memberCount: updated.memberCount
       };
     } catch {
@@ -702,6 +730,13 @@ export class DbService {
     return sessions.map(s => ({
       id: s.id,
       squadName: s.squadName,
+      coachId: s.coachId,
+      coachName: s.coachName,
+      coordinatorCoachId: s.coordinatorCoachId,
+      coordinatorCoachName: s.coordinatorCoachName,
+      assistantCoachId: s.assistantCoachId,
+      assistantCoachName: s.assistantCoachName,
+      assignedPlayerIds: Array.isArray(s.assignedPlayerIds) ? s.assignedPlayerIds : [],
       title: s.title,
       sessionDate: s.sessionDate,
       durationMinutes: s.durationMinutes,
@@ -721,6 +756,13 @@ export class DbService {
         id: sess.id,
         clubId: sess.clubId || 'ten-003',
         squadName: sess.squadName,
+        coachId: sess.coachId || null,
+        coachName: sess.coachName || null,
+        coordinatorCoachId: sess.coordinatorCoachId || null,
+        coordinatorCoachName: sess.coordinatorCoachName || null,
+        assistantCoachId: sess.assistantCoachId || null,
+        assistantCoachName: sess.assistantCoachName || null,
+        assignedPlayerIds: sess.assignedPlayerIds || [],
         title: sess.title,
         sessionDate: sess.sessionDate,
         durationMinutes: sess.durationMinutes || 90,
@@ -737,6 +779,13 @@ export class DbService {
     return {
       id: created.id,
       squadName: created.squadName,
+      coachId: created.coachId,
+      coachName: created.coachName,
+      coordinatorCoachId: created.coordinatorCoachId,
+      coordinatorCoachName: created.coordinatorCoachName,
+      assistantCoachId: created.assistantCoachId,
+      assistantCoachName: created.assistantCoachName,
+      assignedPlayerIds: Array.isArray(created.assignedPlayerIds) ? created.assignedPlayerIds : [],
       title: created.title,
       sessionDate: created.sessionDate,
       durationMinutes: created.durationMinutes,
@@ -760,6 +809,13 @@ export class DbService {
       return {
         id: updated.id,
         squadName: updated.squadName,
+        coachId: updated.coachId,
+        coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
+        assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
@@ -797,6 +853,13 @@ export class DbService {
       return {
         id: updated.id,
         squadName: updated.squadName,
+        coachId: updated.coachId,
+        coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
+        assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
@@ -834,6 +897,13 @@ export class DbService {
       return {
         id: updated.id,
         squadName: updated.squadName,
+        coachId: updated.coachId,
+        coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
+        assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
@@ -855,6 +925,13 @@ export class DbService {
   static async updateTrainingSession(id: string, updates: {
     title?: string;
     squadName?: string;
+    coachId?: string | null;
+    coachName?: string | null;
+    coordinatorCoachId?: string | null;
+    coordinatorCoachName?: string | null;
+    assistantCoachId?: string | null;
+    assistantCoachName?: string | null;
+    assignedPlayerIds?: string[];
     sessionDate?: string;
     durationMinutes?: number;
     isExecuted?: boolean;
@@ -864,6 +941,13 @@ export class DbService {
       const data: any = {};
       if (updates.title !== undefined) data.title = updates.title;
       if (updates.squadName !== undefined) data.squadName = updates.squadName;
+      if (updates.coachId !== undefined) data.coachId = updates.coachId;
+      if (updates.coachName !== undefined) data.coachName = updates.coachName;
+      if (updates.coordinatorCoachId !== undefined) data.coordinatorCoachId = updates.coordinatorCoachId;
+      if (updates.coordinatorCoachName !== undefined) data.coordinatorCoachName = updates.coordinatorCoachName;
+      if (updates.assistantCoachId !== undefined) data.assistantCoachId = updates.assistantCoachId;
+      if (updates.assistantCoachName !== undefined) data.assistantCoachName = updates.assistantCoachName;
+      if (updates.assignedPlayerIds !== undefined) data.assignedPlayerIds = updates.assignedPlayerIds;
       if (updates.sessionDate !== undefined) data.sessionDate = updates.sessionDate;
       if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
       if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
@@ -877,6 +961,13 @@ export class DbService {
       return {
         id: updated.id,
         squadName: updated.squadName,
+        coachId: updated.coachId,
+        coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
+        assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
@@ -915,6 +1006,12 @@ export class DbService {
       return {
         id: updated.id,
         squadName: updated.squadName,
+        coachId: updated.coachId,
+        coachName: updated.coachName,
+        coordinatorCoachId: updated.coordinatorCoachId,
+        coordinatorCoachName: updated.coordinatorCoachName,
+        assistantCoachId: updated.assistantCoachId,
+        assistantCoachName: updated.assistantCoachName,
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,

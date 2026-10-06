@@ -10,6 +10,8 @@ export interface AuthUser {
   name: string;
   email: string;
   roles: UserRole[];
+  coachContext?: 'CLUB' | 'STANDALONE';
+  tenantId?: string;
   clubName?: string;
 }
 
@@ -98,28 +100,43 @@ export interface SupportTicket {
 
 export interface ClubMember {
   id: string;
+  clubId?: string;
   name: string;
   email: string;
   role: 'COACH' | 'PLAYER';
   ageGroup: string;
   discipline: Discipline | string;
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
-  currentLevel: 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
+  currentLevel: 'SUPPORT_COACH' | 'FOUNDATION_COACH' | 'CORE_COACH' | 'ADVANCED_COACH' | 'SPECIALIST_COACH' | 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
   squad: string;
 }
 
 export interface Squad {
   id: string;
+  clubId?: string;
   name: string;
   ageGroup: string;
-  coachName: string;
+  coachId?: string | null;
+  coachName?: string | null;
+  coordinatorCoachId?: string | null;
+  coordinatorCoachName?: string | null;
+  assistantCoachId?: string | null;
+  assistantCoachName?: string | null;
   discipline: Discipline;
   memberCount: number;
 }
 
 export interface TrainingSession {
   id: string;
+  clubId?: string;
   squadName: string;
+  coachId?: string | null;
+  coachName?: string | null;
+  coordinatorCoachId?: string | null;
+  coordinatorCoachName?: string | null;
+  assistantCoachId?: string | null;
+  assistantCoachName?: string | null;
+  assignedPlayerIds?: string[];
   title: string;
   sessionDate: string;
   durationMinutes: number;
@@ -130,6 +147,28 @@ export interface TrainingSession {
   playerNotes?: Record<string, string>;
   postNotes?: string;
   aiEvaluation?: any;
+}
+
+export type CoachWorkspaceKind = 'GOAL' | 'PROGRESS_NOTE' | 'MESSAGE' | 'ATTENDANCE' | 'COLLABORATION' | 'AI_FEEDBACK' | 'FEATURE_IDEA' | 'NOTIFICATION';
+
+export interface CoachWorkspaceItem {
+  id: string;
+  kind: CoachWorkspaceKind;
+  sessionId?: string | null;
+  playerId?: string | null;
+  title: string;
+  content?: string | null;
+  status: string;
+  progress?: number | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoachDashboardData {
+  players: ClubMember[];
+  sessions: TrainingSession[];
+  items: CoachWorkspaceItem[];
 }
 
 export interface Certificate {

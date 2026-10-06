@@ -83,7 +83,12 @@ export async function initDb() {
       name VARCHAR(255) NOT NULL,
       age_group VARCHAR(50) NOT NULL,
       discipline VARCHAR(50) NOT NULL,
+      coach_id VARCHAR(100),
       coach_name VARCHAR(255) NOT NULL,
+      coordinator_coach_id VARCHAR(100),
+      coordinator_coach_name VARCHAR(255),
+      assistant_coach_id VARCHAR(100),
+      assistant_coach_name VARCHAR(255),
       member_count INT DEFAULT 0
     )`,
 
@@ -91,6 +96,7 @@ export async function initDb() {
       id VARCHAR(100) PRIMARY KEY,
       club_id VARCHAR(100),
       squad_name VARCHAR(255) NOT NULL,
+      assigned_player_ids JSONB DEFAULT '[]',
       title VARCHAR(255) NOT NULL,
       session_date VARCHAR(50) NOT NULL,
       duration_minutes INT DEFAULT 90,
@@ -102,6 +108,25 @@ export async function initDb() {
       post_notes TEXT,
       ai_evaluation JSONB
     )`,
+
+    `CREATE TABLE IF NOT EXISTS coach_workspace_items (
+      id VARCHAR(100) PRIMARY KEY,
+      tenant_id VARCHAR(100) NOT NULL,
+      coach_id VARCHAR(255) NOT NULL,
+      kind VARCHAR(50) NOT NULL,
+      session_id VARCHAR(100),
+      player_id VARCHAR(100),
+      title VARCHAR(255) NOT NULL,
+      content TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+      progress INT,
+      metadata JSONB DEFAULT '{}',
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS coach_workspace_items_tenant_coach_kind_idx
+      ON coach_workspace_items (tenant_id, coach_id, kind)`,
 
     `CREATE TABLE IF NOT EXISTS certificates_store (
       id VARCHAR(100) PRIMARY KEY,
@@ -176,7 +201,19 @@ export async function initDb() {
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
     `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS image_url TEXT`,
+    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coach_id VARCHAR(100)`,
+    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coordinator_coach_id VARCHAR(100)`,
+    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coordinator_coach_name VARCHAR(255)`,
+    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
+    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
     `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assigned_player_ids JSONB DEFAULT '[]'`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coach_name VARCHAR(255)`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coordinator_coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coordinator_coach_name VARCHAR(255)`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
     `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`
   ];

@@ -267,6 +267,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'COACH' | 'PLAYER'>('PLAYER');
   const [inviteAgeGroup, setInviteAgeGroup] = useState('U15');
+  const [inviteCoachLevel, setInviteCoachLevel] = useState<'SUPPORT_COACH' | 'FOUNDATION_COACH' | 'CORE_COACH' | 'ADVANCED_COACH' | 'SPECIALIST_COACH'>('SUPPORT_COACH');
   const [inviteDisciplines, setInviteDisciplines] = useState<Discipline[]>(['BATTING']);
   const [inviteSquad, setInviteSquad] = useState('Unassigned');
 
@@ -284,7 +285,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [editMemberRole, setEditMemberRole] = useState<'COACH' | 'PLAYER'>('PLAYER');
   const [editMemberAgeGroup, setEditMemberAgeGroup] = useState('U15');
   const [editMemberDisciplines, setEditMemberDisciplines] = useState<Discipline[]>(['BATTING']);
-  const [editMemberCurrentLevel, setEditMemberCurrentLevel] = useState<'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE'>('FOUNDATION');
+  const [editMemberCurrentLevel, setEditMemberCurrentLevel] = useState<ClubMember['currentLevel']>('FOUNDATION');
 
   const openEditMemberModal = (mem: ClubMember) => {
     setEditingMember(mem);
@@ -316,7 +317,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [squadFormName, setSquadFormName] = useState('');
   const [squadFormAgeGroup, setSquadFormAgeGroup] = useState('U15');
   const [squadFormDiscipline, setSquadFormDiscipline] = useState<Discipline>('BOWLING');
-  const [squadFormCoach, setSquadFormCoach] = useState('Shane Bond');
+  const activeClubCoaches = useMemo(
+    () => clubMembers.filter(member => member.role === 'COACH' && member.invitationStatus === 'ACTIVE'),
+    [clubMembers]
+  );
 
   // Player selection panel shown alongside the squad form (filter + search for assigning/removing players)
   const [squadPanelAgeGroupFilter, setSquadPanelAgeGroupFilter] = useState<string>('ALL');
@@ -329,6 +333,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionFormTitle, setSessionFormTitle] = useState('');
   const [sessionFormTargetType, setSessionFormTargetType] = useState<'SQUAD' | 'PLAYERS'>('SQUAD');
   const [sessionFormSquad, setSessionFormSquad] = useState('U15 Pace & Power Squad');
+  const [sessionFormCoachId, setSessionFormCoachId] = useState('');
+  const [sessionFormCoordinatorId, setSessionFormCoordinatorId] = useState('');
+  const [sessionFormAssistantId, setSessionFormAssistantId] = useState('');
   const [sessionFormPlayerIds, setSessionFormPlayerIds] = useState<string[]>([]);
   const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
   const [sessionFormDuration, setSessionFormDuration] = useState(90);
@@ -443,6 +450,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [savedPlayerNoteId, setSavedPlayerNoteId] = useState<string | null>(null);
   const [sessionNotesError, setSessionNotesError] = useState<string | null>(null);
   const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
+  const [legacyPlayerId, setLegacyPlayerId] = useState('');
+  const [attachingLegacyPlayer, setAttachingLegacyPlayer] = useState(false);
 
   const todayLocal = new Date();
   const todayDate = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
@@ -463,10 +472,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setPlayerNoteDrafts({});
     setSavedPlayerNoteId(null);
     setSessionNotesError(null);
+    setLegacyPlayerId('');
   }, [selectedExecutedSession?.id]);
 
   const selectedSessionPlayers = useMemo(() => {
     if (!selectedExecutedSession) return [];
+    const historicalPlayerIds = selectedExecutedSession.assignedPlayerIds?.length
+      ? selectedExecutedSession.assignedPlayerIds
+      : Object.keys(selectedExecutedSession.playerNotes || {});
+    if (historicalPlayerIds.length) {
+      const assignedPlayerIds = new Set(historicalPlayerIds);
+      return clubMembers.filter(member => member.role === 'PLAYER' && assignedPlayerIds.has(member.id));
+    }
     const individualNames = selectedExecutedSession.squadName.startsWith('Individual: ')
       ? selectedExecutedSession.squadName.slice('Individual: '.length).split(',').map(name => name.trim())
       : null;
@@ -509,6 +526,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setSessionNotesError(error instanceof Error ? error.message : 'Failed to save the player note.');
     } finally {
       setSavingPlayerNoteId(null);
+    }
+  };
+
+  const handleAttachLegacyPlayer = async () => {
+    if (!selectedExecutedSession || !legacyPlayerId) return;
+    setAttachingLegacyPlayer(true);
+    setSessionNotesError(null);
+    try {
+      const updated = await api.updateSession(selectedExecutedSession.id, {
+        assignedPlayerIds: [
+          ...(selectedExecutedSession.assignedPlayerIds || []),
+          legacyPlayerId
+        ]
+      });
+      onSessionUpdated?.(updated);
+      setLegacyPlayerId('');
+    } catch (error) {
+      setSessionNotesError(error instanceof Error ? error.message : 'Failed to attach the player to this session.');
+    } finally {
+      setAttachingLegacyPlayer(false);
     }
   };
 
@@ -616,11 +653,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       name: inviteName.trim(),
       email: inviteEmail.trim(),
       role: inviteRole,
-      ageGroup: inviteAgeGroup,
+      ageGroup: inviteRole === 'COACH' ? '' : inviteAgeGroup,
       discipline: chosenDisciplines.join(', '),
       invitationStatus: 'PENDING_ACCEPTANCE',
-      currentLevel: 'FOUNDATION',
-      squad: inviteSquad
+      currentLevel: inviteRole === 'COACH' ? inviteCoachLevel : 'FOUNDATION',
+      squad: inviteRole === 'COACH' ? 'Unassigned' : inviteSquad
     };
     onInviteMember(newMem);
     setIsInviteModalOpen(false);
@@ -633,7 +670,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       message: (
         <div className="space-y-2">
           <p>An official onboarding link has been dispatched via email to <strong className="text-cyan-400">{newMem.email}</strong>.</p>
-          <p className="text-xs text-slate-400">Role: <strong className="text-white">{newMem.role}</strong> • Disciplines: <strong className="text-purple-300">{newMem.discipline}</strong> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</p>
+          <p className="text-xs text-slate-400">
+            Role: <strong className="text-white">{newMem.role}</strong> • Disciplines: <strong className="text-purple-300">{newMem.discipline}</strong>
+            {newMem.role === 'COACH'
+              ? <> • Level: <strong className="text-emerald-300">{newMem.currentLevel}</strong></>
+              : <> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</>}
+          </p>
         </div>
       ),
       type: 'success',
@@ -746,7 +788,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setSquadFormName(sq.name);
     setSquadFormAgeGroup(sq.ageGroup);
     setSquadFormDiscipline(sq.discipline);
-    setSquadFormCoach(sq.coachName);
     setSquadPanelAgeGroupFilter('ALL');
     setSquadPanelDisciplineFilter('ALL');
     setSquadPanelSearchTerm('');
@@ -796,7 +837,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       const updates: Partial<Squad> = {
         name: squadFormName.trim(),
         ageGroup: squadFormAgeGroup,
-        coachName: squadFormCoach.trim() || 'Shane Bond',
         discipline: squadFormDiscipline
       };
       onUpdateSquad?.(editingSquadId, updates);
@@ -804,7 +844,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setPortalModal({
         isOpen: true,
         title: 'Squad Updated Successfully',
-        message: `Squad "${updates.name}" (${updates.ageGroup} - ${updates.discipline}) has been updated under Coach ${updates.coachName}.`,
+        message: `Squad "${updates.name}" (${updates.ageGroup} - ${updates.discipline}) has been updated.`,
         type: 'success',
         confirmLabel: 'Done',
         onConfirm: () => setPortalModal(null)
@@ -816,7 +856,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       id: 'sq-' + Date.now(),
       name: squadFormName.trim(),
       ageGroup: squadFormAgeGroup,
-      coachName: squadFormCoach.trim() || 'Shane Bond',
       discipline: squadFormDiscipline,
       memberCount: 0
     };
@@ -825,7 +864,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setPortalModal({
       isOpen: true,
       title: 'Squad Created Successfully',
-      message: `Squad "${newSquad.name}" (${newSquad.ageGroup} - ${newSquad.discipline}) is now active under Coach ${newSquad.coachName}.`,
+      message: `Squad "${newSquad.name}" (${newSquad.ageGroup} - ${newSquad.discipline}) is now active.`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setPortalModal(null)
@@ -843,10 +882,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           .map(id => clubMembers.find(m => m.id === id)?.name)
           .filter(Boolean)
           .join(', ')}`;
+    const assignedPlayerIds = sessionFormTargetType === 'SQUAD'
+      ? clubMembers
+          .filter(member => member.role === 'PLAYER' && member.squad === sessionFormSquad)
+          .map(member => member.id)
+      : sessionFormPlayerIds;
+    const headCoach = activeClubCoaches.find(coach => coach.id === sessionFormCoachId);
+    const coordinatorCoach = activeClubCoaches.find(coach => coach.id === sessionFormCoordinatorId);
+    const assistantCoach = activeClubCoaches.find(coach => coach.id === sessionFormAssistantId);
+    if (!headCoach) return;
 
     if (editingSessionId) {
       const updates: Partial<TrainingSession> = {
         squadName: targetLabel,
+        coachId: headCoach.id,
+        coachName: headCoach.name,
+        coordinatorCoachId: coordinatorCoach?.id || null,
+        coordinatorCoachName: coordinatorCoach?.name || null,
+        assistantCoachId: assistantCoach?.id || null,
+        assistantCoachName: assistantCoach?.name || null,
+        assignedPlayerIds,
         title: sessionFormTitle.trim(),
         sessionDate: sessionFormDate,
         durationMinutes: Number(sessionFormDuration) || 90
@@ -867,6 +922,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     const newSession: TrainingSession = {
       id: 'sess-' + Date.now(),
       squadName: targetLabel,
+      coachId: headCoach.id,
+      coachName: headCoach.name,
+      coordinatorCoachId: coordinatorCoach?.id || null,
+      coordinatorCoachName: coordinatorCoach?.name || null,
+      assistantCoachId: assistantCoach?.id || null,
+      assistantCoachName: assistantCoach?.name || null,
+      assignedPlayerIds,
       title: sessionFormTitle.trim(),
       sessionDate: sessionFormDate,
       durationMinutes: Number(sessionFormDuration) || 90,
@@ -889,6 +951,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const openEditSession = (s: TrainingSession) => {
     setEditingSessionId(s.id);
     setSessionFormTitle(s.title);
+    setSessionFormCoachId(s.coachId || activeClubCoaches.find(coach => coach.name === s.coachName)?.id || '');
+    setSessionFormCoordinatorId(s.coordinatorCoachId || '');
+    setSessionFormAssistantId(s.assistantCoachId || '');
     if (s.squadName.startsWith('Individual: ')) {
       const names = s.squadName.replace('Individual: ', '').split(',').map(n => n.trim());
       const ids = clubMembers.filter(m => names.includes(m.name)).map(m => m.id);
@@ -909,6 +974,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setIsSessionModalOpen(false);
     setEditingSessionId(null);
     setSessionFormTitle('');
+    setSessionFormCoachId('');
+    setSessionFormCoordinatorId('');
+    setSessionFormAssistantId('');
     setSessionFormPlayerIds([]);
     setSessionFormDrillIds([]);
   };
@@ -1403,7 +1471,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 setSquadFormName('');
                 setSquadFormAgeGroup('U15');
                 setSquadFormDiscipline('BOWLING');
-                setSquadFormCoach('Shane Bond');
                 setSquadPanelAgeGroupFilter('ALL');
                 setSquadPanelDisciplineFilter('ALL');
                 setSquadPanelSearchTerm('');
@@ -1425,7 +1492,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     {sq.ageGroup}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">Head Coach: <span className="text-white font-medium">{sq.coachName}</span></p>
                 <p className="text-xs text-slate-400">Primary Focus: <span className="text-emerald-400">{sq.discipline}</span></p>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                   <span className="text-xs text-slate-500">{sq.memberCount} Squad Members</span>
@@ -1472,6 +1538,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   setSessionFormTitle('');
                   setSessionFormTargetType('SQUAD');
                   setSessionFormSquad(squads[0]?.name || '');
+                  setSessionFormCoachId(activeClubCoaches[0]?.id || '');
+                  setSessionFormCoordinatorId('');
+                  setSessionFormAssistantId('');
                   setSessionFormPlayerIds([]);
                   setSessionFormDrillIds([]);
                   setIsSessionModalOpen(true);
@@ -1495,6 +1564,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">Squad: <span className="text-white">{s.squadName}</span></p>
+                  {s.coachName && <p className="text-xs text-slate-400">Head Coach: <span className="text-white">{s.coachName}</span></p>}
+                  {s.coordinatorCoachName && <p className="text-xs text-slate-400">Coordinator: <span className="text-white">{s.coordinatorCoachName}</span></p>}
+                  {s.assistantCoachName && <p className="text-xs text-slate-400">Assistant Coach: <span className="text-white">{s.assistantCoachName}</span></p>}
                   <p className="text-xs text-slate-400">Date: <span className="text-cyan-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
                   {s.drillIds && s.drillIds.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -1611,7 +1683,31 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     Player notes — {selectedExecutedSession.squadName}
                   </h4>
                   {selectedSessionPlayers.length === 0 ? (
-                    <p className="text-xs text-slate-500">No players are assigned to this session's squad.</p>
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                      <p className="text-xs text-amber-200">
+                        This legacy session has no saved player assignment. Attach a roster player to add their session notes.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <select
+                          value={legacyPlayerId}
+                          onChange={event => setLegacyPlayerId(event.target.value)}
+                          className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        >
+                          <option value="">Select a player</option>
+                          {clubMembers.filter(member => member.role === 'PLAYER').map(player => (
+                            <option key={player.id} value={player.id}>{player.name} — {player.squad}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleAttachLegacyPlayer}
+                          disabled={!legacyPlayerId || attachingLegacyPlayer}
+                          className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 text-xs font-semibold rounded-lg border border-amber-500/30 disabled:opacity-50"
+                        >
+                          {attachingLegacyPlayer ? 'Attaching...' : 'Attach player'}
+                        </button>
+                      </div>
+                    </div>
                   ) : selectedSessionPlayers.map(player => (
                     <div key={player.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2">
                       <label htmlFor={`session-note-${player.id}`} className="block text-xs font-semibold text-white">
@@ -2650,7 +2746,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <option value="COACH">Coach</option>
                   </select>
                 </div>
-                <div>
+                {inviteRole === 'PLAYER' ? <div>
                   <label className="text-[11px] font-semibold text-slate-400">Age Group</label>
                   <select
                     value={inviteAgeGroup}
@@ -2664,9 +2760,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <option value="U19">Under-19</option>
                     <option value="Senior">Senior</option>
                   </select>
-                </div>
+                </div> : <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Coach Level *</label>
+                  <select
+                    required
+                    value={inviteCoachLevel}
+                    onChange={e => setInviteCoachLevel(e.target.value as typeof inviteCoachLevel)}
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="SUPPORT_COACH">Support Coach</option>
+                    <option value="FOUNDATION_COACH">Foundation Coach</option>
+                    <option value="CORE_COACH">Core Coach</option>
+                    <option value="ADVANCED_COACH">Advanced Coach</option>
+                    <option value="SPECIALIST_COACH">Specialist Coach</option>
+                  </select>
+                </div>}
               </div>
-              <div>
+              {inviteRole === 'PLAYER' && <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1">
                   Disciplines * <span className="text-[10px] text-slate-500 font-normal">(Select one or multiple)</span>
                 </label>
@@ -2699,7 +2809,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     );
                   })}
                 </div>
-              </div>
+              </div>}
               <div>
                 <label className="text-[11px] font-semibold text-slate-400">Assign Squad</label>
                 <input
@@ -2783,7 +2893,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <option value="COACH">Coach</option>
                   </select>
                 </div>
-                <div>
+                {editingMember.role === 'PLAYER' && <div>
                   <label className="text-[11px] font-semibold text-slate-400">Age Group</label>
                   <select
                     value={editMemberAgeGroup}
@@ -2797,7 +2907,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <option value="U19">Under-19</option>
                     <option value="Senior">Senior</option>
                   </select>
-                </div>
+                </div>}
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-slate-400 block mb-1">
@@ -2840,11 +2950,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   onChange={e => setEditMemberCurrentLevel(e.target.value as any)}
                   className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 >
-                  <option value="FOUNDATION">Foundation</option>
-                  <option value="DEVELOPING">Developing</option>
-                  <option value="INTERMEDIATE">Intermediate</option>
-                  <option value="ADVANCED">Advanced</option>
-                  <option value="ELITE">Elite</option>
+                  {editingMember?.role === 'COACH' ? <>
+                    <option value="SUPPORT_COACH">Support Coach</option>
+                    <option value="FOUNDATION_COACH">Foundation Coach</option>
+                    <option value="CORE_COACH">Core Coach</option>
+                    <option value="ADVANCED_COACH">Advanced Coach</option>
+                    <option value="SPECIALIST_COACH">Specialist Coach</option>
+                  </> : <>
+                    <option value="FOUNDATION">Foundation</option>
+                    <option value="DEVELOPING">Developing</option>
+                    <option value="INTERMEDIATE">Intermediate</option>
+                    <option value="ADVANCED">Advanced</option>
+                    <option value="ELITE">Elite</option>
+                  </>}
                 </select>
               </div>
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
@@ -2884,8 +3002,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </h3>
               <p className="text-xs text-slate-400 mt-1">
                 {editingSquadId
-                  ? 'Update this squad\'s name, age bracket, discipline, or head coach, and assign players on the right.'
-                  : 'Create an age-bracket squad under an assigned head coach.'}
+                  ? 'Update this squad\'s name, age bracket, or discipline, and assign players on the right.'
+                  : 'Create an age-bracket squad for organizing participants.'}
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-5 pt-2">
@@ -2931,16 +3049,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </select>
                   </div>
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-400">Head Coach Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Shane Bond"
-                    value={squadFormCoach}
-                    onChange={e => setSquadFormCoach(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+                <p className="text-[11px] text-slate-500">Assign coaches when scheduling a training session.</p>
 
                 {editingSquadId && (
                   <div className="pt-3 border-t border-slate-800 space-y-2">
@@ -3218,6 +3327,37 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </div>
                   </div>
                 )}
+                <div className="space-y-3 border-t border-slate-800 pt-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400">Head Coach *</label>
+                    <select
+                      required
+                      value={sessionFormCoachId}
+                      onChange={e => setSessionFormCoachId(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    >
+                      <option value="">Select an active coach</option>
+                      {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoordinatorId || coach.id === sessionFormAssistantId}>{coach.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400">Coordinator</label>
+                      <select value={sessionFormCoordinatorId} onChange={e => setSessionFormCoordinatorId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                        <option value="">None</option>
+                        {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoachId || coach.id === sessionFormAssistantId}>{coach.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400">Assistant Coach</label>
+                      <select value={sessionFormAssistantId} onChange={e => setSessionFormAssistantId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                        <option value="">None</option>
+                        {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoachId || coach.id === sessionFormCoordinatorId}>{coach.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {activeClubCoaches.length === 0 && <p role="alert" className="text-xs text-amber-400">No active coaches are available. Activate a coach invitation before scheduling a session.</p>}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
@@ -3302,7 +3442,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0}
+                    disabled={!sessionFormCoachId || (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0)}
                     className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingSessionId ? 'Save Changes' : 'Schedule Session'}
