@@ -110,6 +110,34 @@ export interface TrainingSession {
   playerNotes?: Record<string, string>;
   postSessionNotes?: string;
   aiAssessment?: any;
+  executionLog?: SessionExecutionLog | null;
+}
+
+export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT';
+
+export interface SessionExecutionLog {
+  status: 'PREPARING' | 'IN_PROGRESS' | 'COMPLETED';
+  startedAt?: string | null;
+  completedAt?: string | null;
+  checklist: Record<string, boolean>;
+  attendance: Record<string, AttendanceStatus>;
+  drillLog: Array<{
+    id: string;
+    drillId?: string | null;
+    title: string;
+    plannedMinutes: number;
+    actualMinutes: number;
+    completed: boolean;
+    notes: string;
+  }>;
+  incidents: Array<{ id: string; time: string; category: string; note: string }>;
+  evaluation: {
+    objectivesMet: 'YES' | 'PARTIAL' | 'NO' | '';
+    engagement: number;
+    wentWell: string;
+    challenges: string;
+    nextAdjustments: string;
+  };
 }
 
 export interface Certificate {

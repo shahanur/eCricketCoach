@@ -718,7 +718,8 @@ export class DbService {
       drillIds: Array.isArray(s.drillIds) ? s.drillIds : [],
       playerNotes: s.playerNotes && typeof s.playerNotes === 'object' ? s.playerNotes : {},
       postNotes: s.postNotes,
-      aiEvaluation: s.aiEvaluation
+      aiEvaluation: s.aiEvaluation,
+      executionLog: s.executionLog ?? null
     }));
   }
 
@@ -769,7 +770,8 @@ export class DbService {
       drillIds: Array.isArray(created.drillIds) ? created.drillIds : [],
       playerNotes: created.playerNotes && typeof created.playerNotes === 'object' ? created.playerNotes : {},
       postNotes: created.postNotes,
-      aiEvaluation: created.aiEvaluation
+      aiEvaluation: created.aiEvaluation,
+      executionLog: created.executionLog ?? null
     };
   }
 
@@ -800,7 +802,8 @@ export class DbService {
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
-        aiEvaluation: updated.aiEvaluation
+        aiEvaluation: updated.aiEvaluation,
+        executionLog: updated.executionLog ?? null
       };
     } catch {
       return null;
@@ -845,7 +848,8 @@ export class DbService {
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
-        aiEvaluation: updated.aiEvaluation
+        aiEvaluation: updated.aiEvaluation,
+        executionLog: updated.executionLog ?? null
       };
     } catch {
       return null;
@@ -890,7 +894,8 @@ export class DbService {
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
-        aiEvaluation: updated.aiEvaluation
+        aiEvaluation: updated.aiEvaluation,
+        executionLog: updated.executionLog ?? null
       };
     } catch {
       return null;
@@ -914,6 +919,8 @@ export class DbService {
     durationMinutes?: number;
     isExecuted?: boolean;
     playerNotes?: Record<string, string>;
+    postNotes?: string | null;
+    executionLog?: unknown;
   }) {
     try {
       const data: any = {};
@@ -931,6 +938,8 @@ export class DbService {
       if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
       if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
       if (updates.playerNotes !== undefined) data.playerNotes = updates.playerNotes;
+      if (updates.postNotes !== undefined) data.postNotes = updates.postNotes;
+      if (updates.executionLog !== undefined) data.executionLog = updates.executionLog;
 
       const updated = await prisma.trainingSession.update({
         where: { id },
@@ -957,7 +966,8 @@ export class DbService {
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
-        aiEvaluation: updated.aiEvaluation
+        aiEvaluation: updated.aiEvaluation,
+        executionLog: updated.executionLog ?? null
       };
     } catch {
       return null;
@@ -1002,7 +1012,8 @@ export class DbService {
         drillIds: Array.isArray(updated.drillIds) ? updated.drillIds : [],
         playerNotes: updated.playerNotes && typeof updated.playerNotes === 'object' ? updated.playerNotes : {},
         postNotes: updated.postNotes,
-        aiEvaluation: updated.aiEvaluation
+        aiEvaluation: updated.aiEvaluation,
+        executionLog: updated.executionLog ?? null
       };
     } catch {
       return null;

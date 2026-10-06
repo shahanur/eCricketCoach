@@ -2,8 +2,65 @@ import { Router, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { DbService } from '../services/dbService.js';
+import { SessionExecutionLog } from '../types/index.js';
 
 export const coachRouter = Router();
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+const text = (value: unknown, max: number) => typeof value === 'string' ? value.slice(0, max) : '';
+const minutes = (value: unknown) => Number.isFinite(value) ? Math.min(Math.max(Math.round(value as number), 0), 600) : 0;
+
+// Normalises the client-supplied execution log into a bounded, well-typed record.
+export function parseExecutionLog(value: unknown): SessionExecutionLog | null {
+  if (!isRecord(value)) return null;
+  if (value.status !== 'PREPARING' && value.status !== 'IN_PROGRESS' && value.status !== 'COMPLETED') return null;
+  const checklist = isRecord(value.checklist) ? value.checklist : {};
+  const attendance = isRecord(value.attendance) ? value.attendance : {};
+  const evaluation = isRecord(value.evaluation) ? value.evaluation : {};
+  const drillLog = Array.isArray(value.drillLog) ? value.drillLog.slice(0, 50) : [];
+  const incidents = Array.isArray(value.incidents) ? value.incidents.slice(0, 100) : [];
+  const objectivesMet = ['YES', 'PARTIAL', 'NO'].includes(evaluation.objectivesMet as string)
+    ? evaluation.objectivesMet as 'YES' | 'PARTIAL' | 'NO'
+    : '';
+
+  return {
+    status: value.status,
+    startedAt: text(value.startedAt, 40) || null,
+    completedAt: text(value.completedAt, 40) || null,
+    checklist: Object.fromEntries(
+      Object.entries(checklist).slice(0, 50).map(([key, done]) => [key.slice(0, 100), done === true])
+    ),
+    attendance: Object.fromEntries(
+      Object.entries(attendance)
+        .filter(([, status]) => status === 'PRESENT' || status === 'LATE' || status === 'ABSENT')
+        .slice(0, 200)
+        .map(([playerId, status]) => [playerId.slice(0, 100), status as 'PRESENT' | 'LATE' | 'ABSENT'])
+    ),
+    drillLog: drillLog.filter(isRecord).map(entry => ({
+      id: text(entry.id, 100),
+      drillId: text(entry.drillId, 100) || null,
+      title: text(entry.title, 200),
+      plannedMinutes: minutes(entry.plannedMinutes),
+      actualMinutes: minutes(entry.actualMinutes),
+      completed: entry.completed === true,
+      notes: text(entry.notes, 2000)
+    })),
+    incidents: incidents.filter(isRecord).map(entry => ({
+      id: text(entry.id, 100),
+      time: text(entry.time, 40),
+      category: text(entry.category, 50),
+      note: text(entry.note, 1000)
+    })),
+    evaluation: {
+      objectivesMet,
+      engagement: Math.min(Math.max(Math.round(Number(evaluation.engagement) || 0), 0), 5),
+      wentWell: text(evaluation.wentWell, 4000),
+      challenges: text(evaluation.challenges, 4000),
+      nextAdjustments: text(evaluation.nextAdjustments, 4000)
+    }
+  };
+}
 
 coachRouter.use(authenticateToken, async (req: AuthenticatedRequest, res: Response, next) => {
   if (req.user?.role !== 'COACH' || req.user.coachContext !== 'CLUB') {
@@ -37,4 +94,60 @@ coachRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) =
     sessions: allSessions,
     mySessions: coachSessions
   });
+});
+
+// Records live execution of a session (preparation, attendance, drills, notes, evaluation)
+// by a coach assigned to it as lead, coordinator, or assistant.
+coachRouter.patch('/sessions/:id/execution', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const coachId = req.user!.userId;
+    const session = await prisma.trainingSession.findFirst({
+      where: {
+        id: req.params.id,
+        clubId: req.user!.tenantId,
+        OR: [{ coachId }, { coordinatorCoachId: coachId }, { assistantCoachId: coachId }]
+      }
+    });
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+
+    const { executionLog, playerNotes, postNotes, complete } = req.body || {};
+    const parsedLog = parseExecutionLog(executionLog);
+    if (!parsedLog) {
+      res.status(400).json({ error: 'A valid execution log is required.' });
+      return;
+    }
+    // Allow for coaches in timezones up to UTC+14 starting on their local session day.
+    const latestLocalDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    if ((parsedLog.status !== 'PREPARING' || complete) && session.sessionDate > latestLocalDate) {
+      res.status(400).json({ error: 'Sessions can only be started on or after their scheduled date.' });
+      return;
+    }
+    if (
+      playerNotes !== undefined &&
+      (!isRecord(playerNotes) || Object.values(playerNotes).some(note => typeof note !== 'string'))
+    ) {
+      res.status(400).json({ error: 'playerNotes must map player IDs to note strings.' });
+      return;
+    }
+    if (complete !== undefined && typeof complete !== 'boolean') {
+      res.status(400).json({ error: 'complete must be a boolean.' });
+      return;
+    }
+
+    const finalLog: SessionExecutionLog = complete || session.isExecuted
+      ? { ...parsedLog, status: 'COMPLETED', completedAt: parsedLog.completedAt || new Date().toISOString() }
+      : parsedLog;
+    const updated = await DbService.updateTrainingSession(session.id, {
+      executionLog: finalLog,
+      playerNotes: playerNotes as Record<string, string> | undefined,
+      postNotes: postNotes === undefined ? undefined : text(postNotes, 8000) || null,
+      isExecuted: complete ? true : undefined
+    });
+    res.json({ success: true, session: updated });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save session execution.' });
+  }
 });

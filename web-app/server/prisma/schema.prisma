@@ -128,6 +128,7 @@ model TrainingSession {
   playerNotes     Json?    @default("{}") @map("player_notes")
   postNotes       String?  @map("post_notes")
   aiEvaluation    Json?    @map("ai_evaluation")
+  executionLog    Json?    @map("execution_log")
 
   @@map("training_sessions")
 }

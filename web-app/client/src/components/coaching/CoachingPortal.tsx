@@ -258,6 +258,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
       {currentUser.roles.includes('COACH') && currentUser.coachContext === 'CLUB' && (
         <CoachOperations
           currentUser={currentUser}
+          drills={drills}
           onScheduleSession={onScheduleSession}
           onUpdateSession={onUpdateSession}
           onDeleteSession={onDeleteSession}

@@ -12,13 +12,16 @@ import { api } from '../../services/api';
 import {
   AuthUser,
   ClubMember,
+  Drill,
   TrainingSession
 } from '../../types';
+import { SessionExecution } from './SessionExecution';
 
 type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'REPORTS';
 
 interface CoachOperationsProps {
   currentUser: AuthUser;
+  drills: Drill[];
   onScheduleSession: (session: TrainingSession) => void | Promise<void>;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void | Promise<void>;
   onDeleteSession: (sessionId: string) => void | Promise<void>;
@@ -34,6 +37,7 @@ const seasonEnd = `${currentSeasonStartYear + 1}-09-30`;
 
 export const CoachOperations: React.FC<CoachOperationsProps> = ({
   currentUser,
+  drills,
   onScheduleSession,
   onUpdateSession,
   onDeleteSession
@@ -43,6 +47,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [mySessions, setMySessions] = useState<TrainingSession[]>([]);
   const [dashboardError, setDashboardError] = useState('');
+  const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(today);
   const [sessionDuration, setSessionDuration] = useState(90);
@@ -80,6 +85,25 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const deliveredSessions = mySessions.filter(session =>
     session.isExecuted && session.sessionDate >= seasonStart && session.sessionDate <= seasonEnd
   ).length;
+  const executingSession = mySessions.find(session => session.id === executingSessionId) || null;
+  const deliveredWithLog = mySessions.filter(session => session.isExecuted && session.executionLog);
+
+  const openExecution = (session: TrainingSession) => {
+    setTab('SESSIONS');
+    setExecutingSessionId(session.id);
+  };
+
+  const applySavedSession = (updated: TrainingSession) => {
+    const merge = (list: TrainingSession[]) => list.map(session => session.id === updated.id ? { ...session, ...updated } : session);
+    setSessions(merge);
+    setMySessions(merge);
+  };
+
+  const playerAttendance = (player: ClubMember) => {
+    const recorded = sessions.filter(session => session.executionLog?.attendance?.[player.id]);
+    const attended = recorded.filter(session => session.executionLog!.attendance[player.id] !== 'ABSENT').length;
+    return { recorded: recorded.length, attended, rate: recorded.length ? Math.round((attended / recorded.length) * 100) : null };
+  };
 
   const createSession = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -110,15 +134,19 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
   const downloadReport = () => {
     const rows = [
-      ['Player', 'Squad', 'Level', 'Scheduled sessions', 'Delivered sessions', 'Sessions with notes'],
+      ['Player', 'Squad', 'Level', 'Scheduled sessions', 'Delivered sessions', 'Attendance recorded', 'Attended', 'Attendance %', 'Sessions with notes'],
       ...players.map(player => {
         const playerSessions = sessions.filter(session => session.assignedPlayerIds?.includes(player.id));
+        const attendance = playerAttendance(player);
         return [
           player.name,
           player.squad,
           player.currentLevel,
           playerSessions.length,
           playerSessions.filter(session => session.isExecuted).length,
+          attendance.recorded,
+          attendance.attended,
+          attendance.rate ?? '',
           playerSessions.filter(session => Boolean(session.playerNotes?.[player.id])).length
         ];
       })
@@ -201,7 +229,10 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                 {myUpcomingSessions.map(session => (
                   <div key={session.id} className="py-3 flex items-center justify-between gap-3">
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min</p></div>
-                    <time className="shrink-0 text-xs font-semibold text-cyan-300">{session.sessionDate}</time>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <time className="text-xs font-semibold text-cyan-300">{session.sessionDate}</time>
+                      <button onClick={() => openExecution(session)} className="px-2 py-1 text-[11px] border border-emerald-500/40 text-emerald-300 rounded">{session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}</button>
+                    </div>
                   </div>
                 ))}
                 {myUpcomingSessions.length === 0 && <p className="py-4 text-xs text-slate-500">No upcoming sessions assigned to you.</p>}
@@ -218,7 +249,18 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
         </div>
       )}
 
-      {tab === 'SESSIONS' && (
+      {tab === 'SESSIONS' && executingSession && (
+        <SessionExecution
+          key={executingSession.id}
+          session={executingSession}
+          players={players}
+          drills={drills}
+          onClose={() => setExecutingSessionId(null)}
+          onSaved={applySavedSession}
+        />
+      )}
+
+      {tab === 'SESSIONS' && !executingSession && (
         <div className="grid lg:grid-cols-[320px_1fr] gap-6">
           <form onSubmit={createSession} className="space-y-3 border-r-0 lg:border-r border-slate-800 lg:pr-6">
             <h2 className="text-sm font-bold text-white">Schedule session</h2>
@@ -236,11 +278,13 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
             <h2 className="text-sm font-bold text-white">Manage schedule</h2>
             {mySessions.map(session => (
               <div key={session.id} className="border border-slate-800 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min</p></div>
+                <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min{session.isExecuted ? ' · Delivered' : session.executionLog?.status === 'IN_PROGRESS' ? ' · In progress' : ''}</p></div>
                 <div className="flex gap-2">
-                  <input type="date" aria-label={`Reschedule ${session.title}`} value={session.sessionDate} onChange={async event => { await onUpdateSession(session.id, { sessionDate: event.target.value }); await loadDashboard(); }} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white" />
-                  {!session.isExecuted && <button onClick={async () => { await onUpdateSession(session.id, { isExecuted: true }); await loadDashboard(); }} className="px-2.5 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded">Complete</button>}
-                  <button onClick={() => cancelSession(session)} title="Cancel session" aria-label={`Cancel ${session.title}`} className="p-1.5 text-rose-300 border border-rose-500/30 rounded"><Trash2 size={14} /></button>
+                  {!session.isExecuted && <input type="date" aria-label={`Reschedule ${session.title}`} value={session.sessionDate} onChange={async event => { await onUpdateSession(session.id, { sessionDate: event.target.value }); await loadDashboard(); }} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white" />}
+                  <button onClick={() => openExecution(session)} className="px-2.5 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded">
+                    {session.isExecuted ? 'Review' : session.executionLog?.status === 'IN_PROGRESS' ? 'Continue session' : 'Run session'}
+                  </button>
+                  {!session.isExecuted && <button onClick={() => cancelSession(session)} title="Cancel session" aria-label={`Cancel ${session.title}`} className="p-1.5 text-rose-300 border border-rose-500/30 rounded"><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}
@@ -251,10 +295,36 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
       {tab === 'REPORTS' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white flex items-center gap-2"><ClipboardList size={16} /> Participant session report</h2><p className="text-xs text-slate-400">Session and coaching-note activity from club training records.</p></div><button onClick={downloadReport} className="px-3 py-2 border border-cyan-500/40 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export CSV</button></div>
-          <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-slate-500 border-b border-slate-800"><tr><th className="py-2">Participant</th><th>Level</th><th>Squad</th><th>Scheduled sessions</th><th>Delivered sessions</th><th>Sessions with notes</th></tr></thead><tbody>{players.map(player => {
+          <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-slate-500 border-b border-slate-800"><tr><th className="py-2">Participant</th><th>Level</th><th>Squad</th><th>Scheduled sessions</th><th>Delivered sessions</th><th>Attendance</th><th>Sessions with notes</th></tr></thead><tbody>{players.map(player => {
             const playerSessions = sessions.filter(session => session.assignedPlayerIds?.includes(player.id));
-            return <tr key={player.id} className="border-b border-slate-800/60"><td className="py-3 font-semibold text-white">{player.name}</td><td>{player.currentLevel}</td><td>{player.squad}</td><td>{playerSessions.length}</td><td>{playerSessions.filter(session => session.isExecuted).length}</td><td>{playerSessions.filter(session => Boolean(session.playerNotes?.[player.id])).length}</td></tr>;
+            const attendance = playerAttendance(player);
+            return <tr key={player.id} className="border-b border-slate-800/60"><td className="py-3 font-semibold text-white">{player.name}</td><td>{player.currentLevel}</td><td>{player.squad}</td><td>{playerSessions.length}</td><td>{playerSessions.filter(session => session.isExecuted).length}</td><td className={attendance.rate !== null && attendance.rate < 75 ? 'text-amber-300' : ''}>{attendance.rate === null ? '—' : `${attendance.attended}/${attendance.recorded} (${attendance.rate}%)`}</td><td>{playerSessions.filter(session => Boolean(session.playerNotes?.[player.id])).length}</td></tr>;
           })}</tbody></table></div>
+          <div className="space-y-2">
+            <h2 className="text-sm font-bold text-white">My session outcomes</h2>
+            <p className="text-xs text-slate-400">Use attendance, engagement and overruns to shape your next sessions.</p>
+            <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-slate-500 border-b border-slate-800"><tr><th className="py-2">Date</th><th>Session</th><th>Attendance</th><th>Engagement</th><th>Objectives</th><th>Drills done</th><th>Disruptions</th><th>Next adjustments</th><th></th></tr></thead><tbody>
+              {deliveredWithLog.map(session => {
+                const log = session.executionLog!;
+                const attendanceValues = Object.values(log.attendance || {});
+                const attended = attendanceValues.filter(status => status !== 'ABSENT').length;
+                return (
+                  <tr key={session.id} className="border-b border-slate-800/60 align-top">
+                    <td className="py-3 text-slate-300">{session.sessionDate}</td>
+                    <td className="font-semibold text-white">{session.title}</td>
+                    <td>{attendanceValues.length ? `${attended}/${attendanceValues.length}` : '—'}</td>
+                    <td className={log.evaluation.engagement && log.evaluation.engagement <= 2 ? 'text-amber-300' : ''}>{log.evaluation.engagement ? `${log.evaluation.engagement}/5` : '—'}</td>
+                    <td>{log.evaluation.objectivesMet || '—'}</td>
+                    <td>{log.drillLog.filter(entry => entry.completed).length}/{log.drillLog.length}</td>
+                    <td>{log.incidents.length}</td>
+                    <td className="max-w-xs whitespace-pre-line text-slate-300">{log.evaluation.nextAdjustments || '—'}</td>
+                    <td><button onClick={() => openExecution(session)} className="text-cyan-300">Review</button></td>
+                  </tr>
+                );
+              })}
+              {deliveredWithLog.length === 0 && <tr><td colSpan={9} className="py-4 text-slate-500">No delivered sessions with execution records yet.</td></tr>}
+            </tbody></table></div>
+          </div>
         </div>
       )}
     </section>

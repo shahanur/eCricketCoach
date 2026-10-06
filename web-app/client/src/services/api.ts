@@ -9,7 +9,8 @@ import {
   Certificate,
   AdminNotification,
   SupportTicket,
-  CoachDashboardData
+  CoachDashboardData,
+  SessionExecutionUpdate
 } from '../types';
 
 const API_BASE = '/api';
@@ -204,6 +205,17 @@ export const api = {
     const res = await fetch(`${API_BASE}/coach/dashboard`, { headers: authenticatedHeaders() });
     if (!res.ok) throw await responseError(res, 'Failed to load club coach dashboard');
     return res.json();
+  },
+
+  async saveSessionExecution(sessionId: string, update: SessionExecutionUpdate): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/coach/sessions/${encodeURIComponent(sessionId)}/execution`, {
+      method: 'PATCH',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(update)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to save session execution');
+    const data = await res.json();
+    return data.session;
   },
 
   // Subscriptions & Checkout

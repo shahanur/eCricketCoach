@@ -101,7 +101,8 @@ export async function initDb() {
       drill_ids JSONB DEFAULT '[]',
       player_notes JSONB DEFAULT '{}',
       post_notes TEXT,
-      ai_evaluation JSONB
+      ai_evaluation JSONB,
+      execution_log JSONB
     )`,
 
     `CREATE TABLE IF NOT EXISTS certificates (
@@ -200,7 +201,8 @@ export async function initDb() {
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS execution_log JSONB`
   ];
   for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);

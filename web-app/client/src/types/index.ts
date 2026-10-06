@@ -142,6 +142,52 @@ export interface TrainingSession {
   playerNotes?: Record<string, string>;
   postNotes?: string;
   aiEvaluation?: any;
+  executionLog?: SessionExecutionLog | null;
+}
+
+export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT';
+
+export interface SessionDrillLogEntry {
+  id: string;
+  drillId?: string | null;
+  title: string;
+  plannedMinutes: number;
+  actualMinutes: number;
+  completed: boolean;
+  notes: string;
+}
+
+export interface SessionIncident {
+  id: string;
+  time: string;
+  category: string;
+  note: string;
+}
+
+export interface SessionEvaluation {
+  objectivesMet: 'YES' | 'PARTIAL' | 'NO' | '';
+  engagement: number;
+  wentWell: string;
+  challenges: string;
+  nextAdjustments: string;
+}
+
+export interface SessionExecutionLog {
+  status: 'PREPARING' | 'IN_PROGRESS' | 'COMPLETED';
+  startedAt?: string | null;
+  completedAt?: string | null;
+  checklist: Record<string, boolean>;
+  attendance: Record<string, AttendanceStatus>;
+  drillLog: SessionDrillLogEntry[];
+  incidents: SessionIncident[];
+  evaluation: SessionEvaluation;
+}
+
+export interface SessionExecutionUpdate {
+  executionLog: SessionExecutionLog;
+  playerNotes?: Record<string, string>;
+  postNotes?: string;
+  complete?: boolean;
 }
 
 export interface CoachDashboardData {
