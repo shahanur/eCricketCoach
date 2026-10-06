@@ -18,6 +18,13 @@ export interface SessionAiEvaluation {
   }>;
   progressionReadiness: 'READY_FOR_PROMOTION' | 'CONSOLIDATE_CURRENT_STAGE' | 'REQUIRES_REMEDIATION';
   aiCommendation: string;
+  sessionImprovements: string[];
+  followUpPlan: {
+    title: string;
+    objective: string;
+    durationMinutes: number;
+    catalogueDrillIds: string[];
+  };
   generatedAt?: string;
 }
 
@@ -38,7 +45,12 @@ function isValidEvaluation(data: any): data is SessionAiEvaluation {
       (drill.context === 'INDIVIDUAL' || drill.context === 'GROUP') &&
       typeof drill.reason === 'string') &&
     READINESS.includes(data.progressionReadiness) &&
-    typeof data.aiCommendation === 'string'
+    typeof data.aiCommendation === 'string' &&
+    isStringArray(data.sessionImprovements) &&
+    typeof data.followUpPlan?.title === 'string' &&
+    typeof data.followUpPlan.objective === 'string' &&
+    typeof data.followUpPlan.durationMinutes === 'number' &&
+    isStringArray(data.followUpPlan.catalogueDrillIds)
   );
 }
 
@@ -57,9 +69,15 @@ export class SessionEvaluationService {
     const log = session.executionLog as unknown as SessionExecutionLog | null;
     const playerIds = Array.from(new Set([...Object.keys(playerNotes), ...Object.keys(log?.attendance || {})]));
 
-    const [members, drills] = await Promise.all([
+    const drillSelect = { id: true, title: true, discipline: true, skillSet: true, duration: true };
+    const [members, drills, catalogue] = await Promise.all([
       prisma.clubMember.findMany({ where: { id: { in: playerIds } }, select: { id: true, name: true } }),
-      prisma.drill.findMany({ where: { id: { in: drillIds } }, select: { id: true, title: true, discipline: true, skillSet: true, duration: true } })
+      prisma.drill.findMany({ where: { id: { in: drillIds } }, select: drillSelect }),
+      prisma.drill.findMany({
+        where: { OR: [{ source: { not: 'CLUB_CUSTOM' } }, { clubId: session.clubId || '__none__' }] },
+        select: drillSelect,
+        take: 200
+      })
     ]);
     const nameOf = (id: string) => members.find(member => member.id === id)?.name || 'Player';
 
@@ -100,10 +118,29 @@ Using ONLY the information above (do not invent observations that are not suppor
     { "title": string, "discipline": "BATTING" | "BOWLING" | "KEEPING" | "FIELDING", "durationMinutes": number, "context": "INDIVIDUAL" | "GROUP", "reason": string }
   ] (1 to 3 corrective top-up drills targeting the gaps),
   "progressionReadiness": "READY_FOR_PROMOTION" | "CONSOLIDATE_CURRENT_STAGE" | "REQUIRES_REMEDIATION",
-  "aiCommendation": string (one encouraging, specific sentence for the coach and players)
-}`;
+  "aiCommendation": string (one encouraging, specific sentence for the coach and players),
+  "sessionImprovements": string[] (2 to 4 practical changes to how the next session is planned or run, e.g. time management, grouping, engagement, based on the execution log),
+  "followUpPlan": {
+    "title": string (short title for the follow-up session),
+    "objective": string (one sentence describing what the follow-up session should achieve),
+    "durationMinutes": number (between 30 and ${Math.max(session.durationMinutes, 60)}),
+    "catalogueDrillIds": string[] (2 to 5 ids chosen ONLY from the drill catalogue below, in running order, that best address the gaps)
+  }
+}
+
+Drill catalogue (id | title | discipline | skill | minutes):
+${catalogue.map(drill => `${drill.id} | ${drill.title} | ${drill.discipline} | ${drill.skillSet} | ${drill.duration}`).join('\n') || '- Empty'}`;
 
     const result = await GeminiVideoAnalysisService.generateJson([prompt], isValidEvaluation, 'Post-session AI assessment');
-    return { ...result, generatedAt: new Date().toISOString() };
+    const catalogueIds = new Set(catalogue.map(drill => drill.id));
+    return {
+      ...result,
+      followUpPlan: {
+        ...result.followUpPlan,
+        durationMinutes: Math.min(Math.max(Math.round(result.followUpPlan.durationMinutes), 30), 240),
+        catalogueDrillIds: Array.from(new Set(result.followUpPlan.catalogueDrillIds.filter(id => catalogueIds.has(id)))).slice(0, 8)
+      },
+      generatedAt: new Date().toISOString()
+    };
   }
 }

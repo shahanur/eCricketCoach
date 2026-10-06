@@ -246,3 +246,107 @@ coachRouter.patch('/sessions/:id/execution', async (req: AuthenticatedRequest, r
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save session execution.' });
   }
 });
+// Creates a draft follow-up session from a session's saved AI assessment. The coach confirms the
+// date, title, duration and drills (catalogue drills plus any AI-recommended drills, which are saved
+// to the club catalogue). The new session keeps the same squad, players and coaching team and stays
+// unpublished so the club can review it in the planner.
+coachRouter.post('/sessions/:id/follow-up', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const source = await findAssignedSession(req);
+    if (!source) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    const evaluation = isRecord(source.aiEvaluation) ? source.aiEvaluation : null;
+    if (!evaluation || !isRecord(evaluation.followUpPlan)) {
+      res.status(400).json({ error: 'Run the AI analysis for this session before creating a follow-up session.' });
+      return;
+    }
+
+    const { title, sessionDate, durationMinutes, drillIds, recommendedDrillIndexes } = req.body || {};
+    const cleanTitle = text(title, 200).trim();
+    const earliestLocalDate = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    if (!cleanTitle) {
+      res.status(400).json({ error: 'A title is required.' });
+      return;
+    }
+    if (typeof sessionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || sessionDate < earliestLocalDate) {
+      res.status(400).json({ error: 'Choose a valid date from today onwards.' });
+      return;
+    }
+    if (
+      (drillIds !== undefined && (!Array.isArray(drillIds) || drillIds.some(id => typeof id !== 'string'))) ||
+      (recommendedDrillIndexes !== undefined && (!Array.isArray(recommendedDrillIndexes) || recommendedDrillIndexes.some(index => !Number.isInteger(index))))
+    ) {
+      res.status(400).json({ error: 'drillIds must be drill IDs and recommendedDrillIndexes must be integers.' });
+      return;
+    }
+
+    const requestedIds: string[] = Array.from(new Set((drillIds || []) as string[])).slice(0, 20);
+    const catalogueDrills = requestedIds.length
+      ? await prisma.drill.findMany({
+        where: { id: { in: requestedIds }, OR: [{ source: { not: 'CLUB_CUSTOM' } }, { clubId: req.user!.tenantId }] },
+        select: { id: true }
+      })
+      : [];
+    if (catalogueDrills.length !== requestedIds.length) {
+      res.status(400).json({ error: 'One or more drills are not in your catalogue.' });
+      return;
+    }
+
+    const recommended = Array.isArray(evaluation.tailoredRecommendedDrills) ? evaluation.tailoredRecommendedDrills : [];
+    const indexes: number[] = Array.from(new Set((recommendedDrillIndexes || []) as number[]));
+    if (indexes.some(index => index < 0 || index >= recommended.length || !isRecord(recommended[index]))) {
+      res.status(400).json({ error: 'Unknown AI-recommended drill.' });
+      return;
+    }
+    if (!requestedIds.length && !indexes.length) {
+      res.status(400).json({ error: 'Select at least one drill for the follow-up session.' });
+      return;
+    }
+
+    const tenant = await prisma.customerTenant.findUnique({ where: { id: req.user!.tenantId } });
+    const createdDrills = [];
+    for (const index of indexes) {
+      const item = recommended[index] as Record<string, unknown>;
+      createdDrills.push(await DbService.createDrill({
+        id: `drill-club-${Date.now()}-${index}`,
+        title: text(item.title, 200) || 'AI recommended drill',
+        discipline: DISCIPLINES.includes(item.discipline as string) ? item.discipline : 'BATTING',
+        skillSet: 'Post-session follow-up',
+        contextType: item.context === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'GROUP',
+        duration: minutes(item.durationMinutes) || 15,
+        source: 'CLUB_CUSTOM',
+        clubId: req.user!.tenantId,
+        clubName: tenant?.name || null,
+        squadId: source.squadId,
+        squadName: source.squadName,
+        instructions: text(item.reason, 4000) || 'AI-recommended follow-up drill.'
+      }));
+    }
+
+    const allDrillIds = [...requestedIds, ...createdDrills.map(drill => drill.id)];
+    const session = await DbService.createTrainingSession({
+      id: `sess-${Date.now()}`,
+      clubId: source.clubId,
+      squadId: source.squadId,
+      squadName: source.squadName,
+      coachId: source.coachId,
+      coachName: source.coachName,
+      coordinatorCoachId: source.coordinatorCoachId,
+      coordinatorCoachName: source.coordinatorCoachName,
+      assistantCoachId: source.assistantCoachId,
+      assistantCoachName: source.assistantCoachName,
+      assignedPlayerIds: Array.isArray(source.assignedPlayerIds) ? source.assignedPlayerIds : [],
+      title: cleanTitle,
+      sessionDate,
+      durationMinutes: minutes(durationMinutes) || source.durationMinutes,
+      drillIds: allDrillIds,
+      drillCount: allDrillIds.length,
+      isPublished: false
+    });
+    res.status(201).json({ success: true, session: { ...session, clubId: source.clubId }, drills: createdDrills });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to create follow-up session.' });
+  }
+});

@@ -1823,6 +1823,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </div>
                   )}
 
+                  {Array.isArray(sessionAiResult.sessionImprovements) && sessionAiResult.sessionImprovements.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 mb-1">Improve the Next Session:</p>
+                      <ul className="list-disc list-inside text-[11px] text-slate-300 space-y-0.5">
+                        {sessionAiResult.sessionImprovements.map((item: string, idx: number) => <li key={idx}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
                   <div>
                     <p className="text-xs font-bold text-slate-400 mb-1">Recommended Tailored Top-Up Drills:</p>
                     <div className="space-y-2">

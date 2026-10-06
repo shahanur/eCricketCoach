@@ -227,7 +227,9 @@ export default function App() {
   }, [currentUser?.tenantId]);
 
   const handleSessionSynced = (updated: TrainingSession) => {
-    setSessions(prev => prev.map(session => session.id === updated.id ? { ...session, ...updated } : session));
+    setSessions(prev => prev.some(session => session.id === updated.id)
+      ? prev.map(session => session.id === updated.id ? { ...session, ...updated } : session)
+      : [...prev, updated]);
   };
 
   // App handlers backed by PostgreSQL APIs

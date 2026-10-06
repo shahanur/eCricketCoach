@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import {
   AttendanceStatus,
   ClubMember,
   Drill,
+  SessionAiEvaluation,
   SessionDrillLogEntry,
   SessionExecutionLog,
   TrainingSession
@@ -21,6 +22,7 @@ interface SessionExecutionProps {
   onSaved: (session: TrainingSession) => void;
   onRefresh?: () => void | Promise<void>;
   onDrillCreated?: (drill: Drill) => void;
+  onSessionCreated?: (session: TrainingSession) => void;
 }
 
 const DISCIPLINES: Drill['discipline'][] = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'];
@@ -47,6 +49,39 @@ const CHECKLIST: Array<{ id: string; label: string }> = [
 const INCIDENT_CATEGORIES = ['Weather', 'Injury', 'Equipment', 'Facility', 'Behaviour', 'Late start', 'Other'];
 
 const NOTE_TEMPLATE = 'Strengths: \nWork-ons: \nNext focus: ';
+
+interface FollowUpDraft {
+  title: string;
+  sessionDate: string;
+  durationMinutes: number;
+  drillIds: string[];
+  recommendedDrillIndexes: number[];
+}
+
+const READINESS_LABEL: Record<SessionAiEvaluation['progressionReadiness'], string> = {
+  READY_FOR_PROMOTION: 'Ready for promotion',
+  CONSOLIDATE_CURRENT_STAGE: 'Consolidate current stage',
+  REQUIRES_REMEDIATION: 'Requires remediation'
+};
+
+const addDays = (date: string, days: number) => {
+  const [year, month, day] = date.split('-').map(Number);
+  const next = new Date(year, month - 1, day + days);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+};
+
+// Pre-fills the follow-up session from the AI plan: one week after this session (never in the past).
+const buildFollowUpDraft = (session: TrainingSession, evaluation: SessionAiEvaluation): FollowUpDraft => {
+  const weekLater = addDays(session.sessionDate, 7);
+  const today = localToday();
+  return {
+    title: evaluation.followUpPlan?.title || `${session.title} – follow-up`,
+    sessionDate: weekLater < today ? addDays(today, 7) : weekLater,
+    durationMinutes: evaluation.followUpPlan?.durationMinutes || session.durationMinutes,
+    drillIds: evaluation.followUpPlan?.catalogueDrillIds || [],
+    recommendedDrillIndexes: evaluation.tailoredRecommendedDrills.map((_, index) => index)
+  };
+};
 
 const GUIDANCE: Record<string, string[]> = {
   Engagement: [
@@ -167,7 +202,7 @@ const formatElapsed = (ms: number) => {
   return `${hours ? `${hours}:` : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, players, drills, clubName, onClose, onSaved, onRefresh, onDrillCreated }) => {
+export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, players, drills, clubName, onClose, onSaved, onRefresh, onDrillCreated, onSessionCreated }) => {
   const [log, setLog] = useState<SessionExecutionLog>(() => buildInitialLog(session, drills));
   const [catalogueSearch, setCatalogueSearch] = useState('');
   const [catalogueDiscipline, setCatalogueDiscipline] = useState<'ALL' | Drill['discipline']>('ALL');
@@ -184,6 +219,17 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [followUp, setFollowUp] = useState<FollowUpDraft | null>(null);
+  const [followUpBusy, setFollowUpBusy] = useState(false);
+  const [createdFollowUp, setCreatedFollowUp] = useState<TrainingSession | null>(null);
+
+  const aiEvaluation = session.aiEvaluation?.squadSummary ? session.aiEvaluation : null;
+  const aiGeneratedAt = aiEvaluation?.generatedAt || '';
+  useEffect(() => {
+    setFollowUp(aiEvaluation?.followUpPlan ? buildFollowUpDraft(session, aiEvaluation) : null);
+  }, [aiGeneratedAt]);
 
   const isCompleted = Boolean(session.isExecuted) || log.status === 'COMPLETED';
   const canStart = session.sessionDate <= localToday();
@@ -311,6 +357,59 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
       setDrillBusy(false);
     }
   };
+
+  // Saves the latest notes and evaluation first so the AI analyses exactly what the coach recorded.
+  const runAiAnalysis = async () => {
+    const hasNotes = Object.values(playerNotes).some(note => note.trim() && note.trim() !== NOTE_TEMPLATE.trim())
+      || postNotes.trim() || log.evaluation.wentWell.trim() || log.evaluation.challenges.trim();
+    if (!hasNotes) {
+      setAiError('Add player notes, a session summary, or what went well / challenges before running the AI analysis.');
+      return;
+    }
+    setAiBusy(true);
+    setAiError('');
+    setCreatedFollowUp(null);
+    try {
+      if (!(await persist(log))) return;
+      const updated = await api.assessSessionWithAi(session.id, '');
+      onSaved(updated);
+    } catch (analysisError) {
+      setAiError(analysisError instanceof Error ? analysisError.message : 'AI analysis failed.');
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const createFollowUpSession = async () => {
+    if (!followUp) return;
+    setFollowUpBusy(true);
+    setAiError('');
+    try {
+      const result = await api.createFollowUpSession(session.id, followUp);
+      result.drills.forEach(drill => onDrillCreated?.(drill));
+      onSessionCreated?.(result.session);
+      setCreatedFollowUp(result.session);
+    } catch (createError) {
+      setAiError(createError instanceof Error ? createError.message : 'Unable to create follow-up session.');
+    } finally {
+      setFollowUpBusy(false);
+    }
+  };
+
+  const toggleFollowUpDrill = (drillId: string) => setFollowUp(current => current && ({
+    ...current,
+    drillIds: current.drillIds.includes(drillId) ? current.drillIds.filter(id => id !== drillId) : [...current.drillIds, drillId]
+  }));
+  const toggleRecommendedDrill = (index: number) => setFollowUp(current => current && ({
+    ...current,
+    recommendedDrillIndexes: current.recommendedDrillIndexes.includes(index)
+      ? current.recommendedDrillIndexes.filter(item => item !== index)
+      : [...current.recommendedDrillIndexes, index]
+  }));
+  const followUpMinutes = followUp
+    ? followUp.drillIds.reduce((sum, id) => sum + (drills.find(drill => drill.id === id)?.duration || 0), 0)
+      + followUp.recommendedDrillIndexes.reduce((sum, index) => sum + (aiEvaluation?.tailoredRecommendedDrills[index]?.durationMinutes || 0), 0)
+    : 0;
 
   const submitAdhocDrill = () => {
     if (!adhocDrill.title.trim() || !adhocDrill.skillSet.trim()) {
@@ -611,6 +710,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
       )}
 
       {step === 'EVALUATE' && (
+        <div className="space-y-6">
         <div className="grid xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -669,6 +769,110 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               {COMMON_CHALLENGES.map(item => <p key={item.challenge} className="text-slate-300"><span className="text-white font-semibold">{item.challenge}:</span> {item.response}</p>)}
             </div>
           </aside>
+        </div>
+
+        <section aria-labelledby="ai-analysis-heading" className="border border-purple-500/30 rounded-lg p-4 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 id="ai-analysis-heading" className="text-sm font-bold text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-300" /> AI session analysis</h3>
+              <p className="text-xs text-slate-400 mt-1">Gemini reviews your player notes, attendance, drill timings, disruptions and evaluation, then suggests improvements and a follow-up session.</p>
+            </div>
+            <button onClick={runAiAnalysis} disabled={aiBusy || saving} className="px-3 py-2 text-xs font-bold bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white rounded-lg disabled:opacity-50">
+              {aiBusy ? 'Analysing…' : aiEvaluation ? 'Re-run AI analysis' : 'Run AI analysis'}
+            </button>
+          </div>
+          {aiError && <p role="alert" className="text-xs text-red-300">{aiError}</p>}
+
+          {aiEvaluation && (
+            <div className="grid lg:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-purple-300 uppercase">Diagnosis</span>
+                  <span className="bg-purple-500/20 text-purple-200 px-2 py-0.5 rounded font-semibold">{READINESS_LABEL[aiEvaluation.progressionReadiness] || aiEvaluation.progressionReadiness}</span>
+                </div>
+                <p className="text-slate-300">{aiEvaluation.squadSummary}</p>
+                {aiEvaluation.identifiedGaps.length > 0 && (
+                  <div>
+                    <p className="font-semibold text-white mb-1">Gaps</p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-slate-300">{aiEvaluation.identifiedGaps.map(gap => <li key={gap}>{gap}</li>)}</ul>
+                  </div>
+                )}
+                {!!aiEvaluation.playerFeedback?.length && (
+                  <div>
+                    <p className="font-semibold text-white mb-1">Player focus</p>
+                    <ul className="space-y-0.5 text-slate-300">{aiEvaluation.playerFeedback.map(item => <li key={item.playerName}><span className="text-white">{item.playerName}:</span> {item.focus}</li>)}</ul>
+                  </div>
+                )}
+                {!!aiEvaluation.sessionImprovements?.length && (
+                  <div>
+                    <p className="font-semibold text-white mb-1">Improve the next session</p>
+                    <ul className="list-disc pl-4 space-y-0.5 text-slate-300">{aiEvaluation.sessionImprovements.map(item => <li key={item}>{item}</li>)}</ul>
+                    <button onClick={() => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: [log.evaluation.nextAdjustments, ...(aiEvaluation.sessionImprovements || []).map(item => `- ${item}`)].filter(Boolean).join('\n') } })} className="mt-1 text-cyan-300">Add to adjustments</button>
+                  </div>
+                )}
+                <p className="text-slate-400 border-t border-slate-800 pt-2">💬 {aiEvaluation.aiCommendation}</p>
+                {aiEvaluation.generatedAt && <p className="text-[10px] text-slate-500">Generated {new Date(aiEvaluation.generatedAt).toLocaleString()}</p>}
+              </div>
+
+              <div className="border border-slate-800 rounded-lg p-3 space-y-3">
+                <p className="font-bold text-white">Follow-up session</p>
+                {createdFollowUp ? (
+                  <div className="space-y-1 text-emerald-200">
+                    <p className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> "{createdFollowUp.title}" created for {createdFollowUp.sessionDate} with {createdFollowUp.drillCount} drill(s).</p>
+                    <p className="text-slate-400">It is saved as a draft for the club to review and publish in the session planner.</p>
+                  </div>
+                ) : followUp ? (
+                  <>
+                    {aiEvaluation.followUpPlan?.objective && <p className="text-slate-300">{aiEvaluation.followUpPlan.objective}</p>}
+                    <label className="block text-slate-400 space-y-1">Title
+                      <input value={followUp.title} onChange={event => setFollowUp({ ...followUp, title: event.target.value })} className={inputClass} />
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block text-slate-400 space-y-1">Date
+                        <input type="date" min={localToday()} value={followUp.sessionDate} onChange={event => setFollowUp({ ...followUp, sessionDate: event.target.value })} className={inputClass} />
+                      </label>
+                      <label className="block text-slate-400 space-y-1">Minutes
+                        <input type="number" min={15} max={240} value={followUp.durationMinutes} onChange={event => setFollowUp({ ...followUp, durationMinutes: Number(event.target.value) || 0 })} className={inputClass} />
+                      </label>
+                    </div>
+                    <fieldset className="space-y-1">
+                      <legend className="text-slate-400 mb-1">Catalogue drills</legend>
+                      {(aiEvaluation.followUpPlan?.catalogueDrillIds || []).map(id => {
+                        const drill = drills.find(item => item.id === id);
+                        return drill ? (
+                          <label key={id} className="flex items-center gap-2 text-slate-300">
+                            <input type="checkbox" checked={followUp.drillIds.includes(id)} onChange={() => toggleFollowUpDrill(id)} />
+                            {drill.title} <span className="text-slate-500">· {drill.discipline} · {drill.duration} min</span>
+                          </label>
+                        ) : null;
+                      })}
+                      {!aiEvaluation.followUpPlan?.catalogueDrillIds.length && <p className="text-slate-500">No catalogue drills suggested.</p>}
+                    </fieldset>
+                    {aiEvaluation.tailoredRecommendedDrills.length > 0 && (
+                      <fieldset className="space-y-1">
+                        <legend className="text-slate-400 mb-1">New AI-recommended drills (saved to the club catalogue)</legend>
+                        {aiEvaluation.tailoredRecommendedDrills.map((drill, index) => (
+                          <label key={`${drill.title}-${index}`} className="flex items-start gap-2 text-slate-300">
+                            <input type="checkbox" className="mt-0.5" checked={followUp.recommendedDrillIndexes.includes(index)} onChange={() => toggleRecommendedDrill(index)} />
+                            <span>{drill.title} <span className="text-slate-500">· {drill.discipline} · {drill.durationMinutes} min</span><br /><span className="text-slate-500">{drill.reason}</span></span>
+                          </label>
+                        ))}
+                      </fieldset>
+                    )}
+                    <p className={followUpMinutes > followUp.durationMinutes ? 'text-amber-300' : 'text-slate-500'}>Selected drills: {followUpMinutes} min of {followUp.durationMinutes} min</p>
+                    <button
+                      onClick={createFollowUpSession}
+                      disabled={followUpBusy || !followUp.title.trim() || !followUp.sessionDate || (!followUp.drillIds.length && !followUp.recommendedDrillIndexes.length)}
+                      className="px-3 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg disabled:opacity-40"
+                    >
+                      {followUpBusy ? 'Creating…' : 'Create follow-up session'}
+                    </button>
+                  </>
+                ) : <p className="text-slate-500">Re-run the AI analysis to get a follow-up session plan.</p>}
+              </div>
+            </div>
+          )}
+        </section>
         </div>
       )}
     </div>

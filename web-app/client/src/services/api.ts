@@ -253,6 +253,23 @@ export const api = {
     return data.session;
   },
 
+  async createFollowUpSession(sessionId: string, payload: {
+    title: string;
+    sessionDate: string;
+    durationMinutes: number;
+    drillIds: string[];
+    recommendedDrillIndexes: number[];
+  }): Promise<{ session: TrainingSession; drills: Drill[] }> {
+    const res = await fetch(`${API_BASE}/coach/sessions/${encodeURIComponent(sessionId)}/follow-up`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to create follow-up session');
+    const data = await res.json();
+    return { session: data.session, drills: data.drills || [] };
+  },
+
   // Subscriptions & Checkout
   async checkout(payload: {
     planId: string;

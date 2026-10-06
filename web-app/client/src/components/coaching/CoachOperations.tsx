@@ -107,7 +107,9 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   }, [executingSessionId]);
 
   const applySavedSession = (updated: TrainingSession) => {
-    const merge = (list: TrainingSession[]) => list.map(session => session.id === updated.id ? { ...session, ...updated } : session);
+    const merge = (list: TrainingSession[]) => list.some(session => session.id === updated.id)
+      ? list.map(session => session.id === updated.id ? { ...session, ...updated } : session)
+      : [...list, updated];
     setSessions(merge);
     setMySessions(merge);
     onSessionSynced?.(updated);
@@ -274,6 +276,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           onSaved={applySavedSession}
           onRefresh={loadDashboard}
           onDrillCreated={onDrillCreated}
+          onSessionCreated={applySavedSession}
         />
       )}
 

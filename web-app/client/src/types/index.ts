@@ -141,8 +141,31 @@ export interface TrainingSession {
   drillIds?: string[];
   playerNotes?: Record<string, string>;
   postNotes?: string;
-  aiEvaluation?: any;
+  aiEvaluation?: SessionAiEvaluation | null;
   executionLog?: SessionExecutionLog | null;
+}
+
+export interface SessionAiEvaluation {
+  squadSummary: string;
+  identifiedGaps: string[];
+  playerFeedback?: Array<{ playerName: string; focus: string }>;
+  tailoredRecommendedDrills: Array<{
+    title: string;
+    discipline: Discipline;
+    durationMinutes: number;
+    context: ContextType;
+    reason: string;
+  }>;
+  progressionReadiness: 'READY_FOR_PROMOTION' | 'CONSOLIDATE_CURRENT_STAGE' | 'REQUIRES_REMEDIATION';
+  aiCommendation: string;
+  sessionImprovements?: string[];
+  followUpPlan?: {
+    title: string;
+    objective: string;
+    durationMinutes: number;
+    catalogueDrillIds: string[];
+  };
+  generatedAt?: string;
 }
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT';
