@@ -5,6 +5,7 @@ export interface AuthenticatedUser {
   userId: string;
   tenantId: string;
   role: 'SUPER_ADMIN' | 'PLAYER' | 'COACH' | 'CLUB_ADMIN';
+  coachContext?: 'CLUB' | 'STANDALONE';
   email: string;
 }
 

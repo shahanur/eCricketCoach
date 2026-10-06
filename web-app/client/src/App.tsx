@@ -42,6 +42,7 @@ export default function App() {
         const u = JSON.parse(savedUser);
         if (u.roles?.includes('SUPER_ADMIN')) return 'ADMIN_PANEL';
         if (u.roles?.includes('CLUB_ADMIN')) return 'CLUB_PORTAL';
+        if (u.roles?.includes('COACH')) return 'COACHING_PORTAL';
         return 'COACHING_PORTAL';
       }
     } catch {}
@@ -88,10 +89,12 @@ export default function App() {
     const role = hash.get('role');
     if (authToken && role && ['SUPER_ADMIN', 'PLAYER', 'COACH', 'CLUB_ADMIN'].includes(role)) {
       const user: AuthUser = {
-        id: 'social-user',
+        id: hash.get('userId') || 'social-user',
         name: hash.get('name') || (role === 'SUPER_ADMIN' ? 'System Administrator' : 'eCricketCoach member'),
         email: hash.get('email') || '',
         roles: [role as AuthUser['roles'][number]],
+        coachContext: hash.get('coachContext') === 'CLUB' ? 'CLUB' : hash.get('coachContext') === 'STANDALONE' ? 'STANDALONE' : undefined,
+        tenantId: hash.get('tenantId') || undefined,
         clubName: hash.get('clubName') || undefined
       };
       localStorage.setItem('auth_token', authToken);
@@ -101,6 +104,8 @@ export default function App() {
         setViewMode('ADMIN_PANEL');
       } else if (role === 'CLUB_ADMIN') {
         setViewMode('CLUB_PORTAL');
+      } else if (role === 'COACH') {
+        setViewMode('COACHING_PORTAL');
       } else {
         setViewMode('COACHING_PORTAL');
       }
@@ -185,9 +190,9 @@ export default function App() {
           api.getInvoices().catch(() => []),
           api.getClubApprovals().catch(() => []),
           api.getNotifications().catch(() => []),
-          api.getClubMembers().catch(() => []),
-          api.getSquads().catch(() => []),
-          api.getSessions().catch(() => []),
+          currentUser?.tenantId ? api.getClubMembers(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
+          currentUser?.tenantId ? api.getSquads(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
+          currentUser?.tenantId ? api.getSessions(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
           api.getCertificates().catch(() => []),
           api.getSupportTickets().catch(() => [])
         ]);
@@ -197,9 +202,9 @@ export default function App() {
         if (invoicesData?.length) setInvoices(invoicesData);
         if (approvalsData?.length) setClubApprovals(approvalsData);
         if (notifsData?.length) setAdminNotifications(notifsData);
-        if (membersData?.length) setClubMembers(membersData);
-        if (squadsData?.length) setSquads(squadsData);
-        if (sessionsData?.length) setSessions(sessionsData);
+        setClubMembers(membersData || []);
+        setSquads(squadsData || []);
+        setSessions(sessionsData || []);
         if (certsData?.length) setCertificates(certsData);
         if (ticketsData?.length) setSupportTickets(ticketsData);
       } catch (err) {
@@ -207,7 +212,7 @@ export default function App() {
       }
     }
     loadData();
-  }, []);
+  }, [currentUser?.tenantId]);
 
   // App handlers backed by PostgreSQL APIs
   const handleAddDrill = async (drill: Drill) => {
@@ -491,7 +496,7 @@ export default function App() {
 
   const handleInviteMember = async (member: ClubMember) => {
     try {
-      const saved = await api.inviteMember(member);
+      const saved = await api.inviteMember({ ...member, clubId: currentUser?.tenantId });
       setClubMembers(prev => [...prev, saved || member]);
     } catch {
       setClubMembers(prev => [...prev, member]);
@@ -593,7 +598,7 @@ export default function App() {
 
   const handleAddSquad = async (squad: Squad) => {
     try {
-      const saved = await api.addSquad(squad);
+      const saved = await api.addSquad({ ...squad, clubId: currentUser?.tenantId });
       setSquads(prev => [...prev, saved || squad]);
     } catch {
       setSquads(prev => [...prev, squad]);
@@ -652,7 +657,7 @@ export default function App() {
 
   const handleScheduleSession = async (session: TrainingSession) => {
     try {
-      const saved = await api.scheduleSession(session);
+      const saved = await api.scheduleSession({ ...session, clubId: currentUser?.tenantId });
       setSessions(prev => [...prev, saved || session]);
     } catch {
       setSessions(prev => [...prev, session]);
@@ -837,7 +842,16 @@ export default function App() {
         )}
 
         {viewMode === 'COACHING_PORTAL' && (
-          <CoachingPortal drills={drills} onAddAiDrill={handleAddDrill} />
+          <CoachingPortal
+            currentUser={currentUser!}
+            drills={drills}
+            certificates={certificates}
+            onAddAiDrill={handleAddDrill}
+            onScheduleSession={handleScheduleSession}
+            onUpdateSession={handleUpdateSession}
+            onDeleteSession={handleDeleteSession}
+            onPromotePlayer={handlePromotePlayer}
+          />
         )}
 
         {viewMode === 'ADMIN_PANEL' && (

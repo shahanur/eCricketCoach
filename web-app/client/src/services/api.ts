@@ -8,10 +8,26 @@ import {
   TrainingSession,
   Certificate,
   AdminNotification,
-  SupportTicket
+  SupportTicket,
+  CoachDashboardData,
+  CoachWorkspaceItem,
+  CoachWorkspaceKind
 } from '../types';
 
 const API_BASE = '/api';
+
+function authenticatedHeaders(): HeadersInit {
+  const token = localStorage.getItem('auth_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
+
+async function responseError(response: Response, fallback: string): Promise<Error> {
+  const body = await response.json().catch(() => ({}));
+  return new Error(typeof body.error === 'string' ? body.error : fallback);
+}
 
 export const api = {
   // Drills
@@ -183,6 +199,57 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to resolve support ticket');
     return res.json();
+  },
+
+  // Coach workspace records are authenticated and tenant scoped by the server.
+  async getCoachDashboard(): Promise<CoachDashboardData> {
+    const res = await fetch(`${API_BASE}/coach/dashboard`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load club coach dashboard');
+    return res.json();
+  },
+
+  async getCoachWorkspace(kind?: CoachWorkspaceKind): Promise<CoachWorkspaceItem[]> {
+    const query = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+    const res = await fetch(`${API_BASE}/coach/workspace${query}`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load coach workspace');
+    return res.json();
+  },
+
+  async createCoachWorkspaceItem(item: {
+    kind: CoachWorkspaceKind;
+    sessionId?: string;
+    playerId?: string;
+    title: string;
+    content?: string;
+    status?: string;
+    progress?: number;
+    metadata?: Record<string, unknown>;
+  }): Promise<CoachWorkspaceItem> {
+    const res = await fetch(`${API_BASE}/coach/workspace`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(item)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to save coach workspace item');
+    return res.json();
+  },
+
+  async updateCoachWorkspaceItem(id: string, updates: Partial<Pick<CoachWorkspaceItem, 'title' | 'content' | 'status' | 'progress' | 'metadata'>>): Promise<CoachWorkspaceItem> {
+    const res = await fetch(`${API_BASE}/coach/workspace/${id}`, {
+      method: 'PATCH',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to update coach workspace item');
+    return res.json();
+  },
+
+  async deleteCoachWorkspaceItem(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/coach/workspace/${id}`, {
+      method: 'DELETE',
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to delete coach workspace item');
   },
 
   // Subscriptions & Checkout

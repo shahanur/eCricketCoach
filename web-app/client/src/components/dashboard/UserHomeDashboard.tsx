@@ -55,11 +55,12 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
   const isSuperAdmin = currentUser.roles.includes('SUPER_ADMIN');
   const isClubAdmin = currentUser.roles.includes('CLUB_ADMIN');
   const isCoach = currentUser.roles.includes('COACH');
+  const isClubCoach = isCoach && currentUser.coachContext === 'CLUB';
   const isPlayer = currentUser.roles.includes('PLAYER');
 
   // Club context metrics
-  const activeMembersCount = clubMembers.length || 8;
-  const activeSquadsCount = squads.length || 3;
+  const activeMembersCount = clubMembers.length;
+  const activeSquadsCount = squads.length;
   const upcomingSessions = sessions.filter(s => !s.isPublished || new Date(s.sessionDate) >= new Date()).slice(0, 3);
   const relevantDrills = drills.slice(0, 4);
 
@@ -82,7 +83,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   : isClubAdmin
                   ? `${currentUser.clubName || 'Club Academy'} Dashboard`
                   : isCoach
-                  ? 'High Performance Coaching Hub'
+                  ? isClubCoach ? `${currentUser.clubName || 'Club'} Coaching Hub` : 'High Performance Coaching Hub'
                   : 'Athlete Training Center'}
               </span>
             </div>
@@ -95,7 +96,9 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               {isClubAdmin &&
                 `Manage your ${currentUser.clubName || 'Club'} athletes, organise age-group squads, publish practice itineraries, and review AI pose kinematics.`}
               {isCoach &&
-                'Run computer vision biomechanical video analyses, adopt AI corrective routines into your catalogue, and assess player progression.'}
+                (isClubCoach
+                  ? `Manage ${currentUser.clubName || 'club'} sessions, participants, development goals, attendance, communication, and AI-supported coaching plans.`
+                  : 'Run computer vision biomechanical video analyses, adopt AI corrective routines into your catalogue, and assess player progression.')}
               {isPlayer &&
                 `Access your assigned batting and bowling drills, review practice session schedules, and track your verified certificates.`}
             </p>
@@ -128,7 +131,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 onClick={() => setViewMode('COACHING_PORTAL')}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>{isCoach ? 'Coaching & AI App' : 'My Training Drills'}</span>
+                <span>{isCoach ? isClubCoach ? 'Open Club Coaching Workspace' : 'Coaching & AI App' : 'My Training Drills'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
@@ -170,7 +173,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wider">Sessions Scheduled</span>
                 <Calendar className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-bold text-white">{sessions.length || 4}</div>
+              <div className="text-2xl font-bold text-white">{sessions.length}</div>
               <p className="text-[11px] text-slate-400">Practice itineraries on calendar</p>
             </div>
 
@@ -210,7 +213,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wider">Training Sessions</span>
                 <Calendar className="w-4 h-4 text-purple-400" />
               </div>
-              <div className="text-2xl font-bold text-white">{sessions.length || 4}</div>
+              <div className="text-2xl font-bold text-white">{sessions.length}</div>
               <p className="text-[11px] text-slate-400">Published squad workouts</p>
             </div>
 

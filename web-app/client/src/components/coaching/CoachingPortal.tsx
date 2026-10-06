@@ -1,14 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Discipline, ContextType, Drill, VideoAnalysisResult, DriveVideoFile } from '../../types';
+import { AuthUser, Certificate, Discipline, ContextType, Drill, TrainingSession, VideoAnalysisResult, DriveVideoFile } from '../../types';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
+import { CoachOperations } from './CoachOperations';
 import { Upload, Cloud, Play, Check, AlertCircle, RefreshCw, Folder, ExternalLink } from 'lucide-react';
 
 interface CoachingPortalProps {
+  currentUser: AuthUser;
   drills: Drill[];
+  certificates: Certificate[];
   onAddAiDrill: (drill: Drill) => void;
+  onScheduleSession: (session: TrainingSession) => void;
+  onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void;
+  onDeleteSession: (sessionId: string) => void;
+  onPromotePlayer: (playerId: string) => void;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -28,7 +35,16 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
-export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiDrill }) => {
+export const CoachingPortal: React.FC<CoachingPortalProps> = ({
+  currentUser,
+  drills,
+  certificates,
+  onAddAiDrill,
+  onScheduleSession,
+  onUpdateSession,
+  onDeleteSession,
+  onPromotePlayer
+}) => {
   const [selectedDiscipline, setSelectedDiscipline] = useState<Discipline>('BATTING');
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
   const [analyzing, setAnalyzing] = useState(false);
@@ -243,6 +259,22 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
 
   return (
     <div className="space-y-6">
+      {currentUser.roles.includes('COACH') && currentUser.coachContext === 'CLUB' && (
+        <CoachOperations
+          currentUser={currentUser}
+          certificates={certificates}
+          onScheduleSession={onScheduleSession}
+          onUpdateSession={onUpdateSession}
+          onDeleteSession={onDeleteSession}
+          onPromotePlayer={onPromotePlayer}
+        />
+      )}
+
+      <div className="border-t border-slate-800 pt-6">
+        <p className="text-xs font-semibold text-cyan-400 uppercase">AI coaching lab</p>
+        <h2 className="text-xl font-bold text-white">Video analysis and drill design</h2>
+      </div>
+
       {/* Discipline & Context Selector */}
       <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -729,7 +761,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
       </div>
 
       {/* Multi-Tenant Subscription Tiers */}
-      <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      {currentUser.coachContext !== 'CLUB' && (
+        <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
         <h3 className="font-semibold text-lg text-white mb-1">Multi-Tenant Subscription Plans</h3>
         <p className="text-xs text-slate-400 mb-4">Choose your tenancy tier (Player, Coach, or Club / Academy)</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -769,7 +802,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({ drills, onAddAiD
             </button>
           </div>
         </div>
-      </section>
+        </section>
+      )}
 
       {/* Confirmation & Info Modal */}
       {confirmModal && (

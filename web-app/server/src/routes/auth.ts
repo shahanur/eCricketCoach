@@ -35,6 +35,33 @@ const providerConfig: Record<Provider, { clientId?: string; clientSecret?: strin
 const appOrigin = process.env.APP_ORIGIN || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
 
+export async function resolveRosterIdentity(email: string) {
+  const primaryTenant = await prisma.customerTenant.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } }
+  });
+  const activeMember = primaryTenant ? null : await prisma.clubMemberStore.findFirst({
+    where: {
+      email: { equals: email, mode: 'insensitive' },
+      invitationStatus: 'ACTIVE',
+      role: { in: ['COACH', 'PLAYER'] }
+    }
+  });
+  const memberTenant = activeMember?.clubId
+    ? await prisma.customerTenant.findUnique({ where: { id: activeMember.clubId } })
+    : null;
+  const tenant = primaryTenant || memberTenant;
+
+  if (!tenant || !['ACTIVE', 'TRIAL'].includes(tenant.status)) return null;
+
+  return {
+    tenant,
+    member: activeMember,
+    role: activeMember
+      ? activeMember.role as 'COACH' | 'PLAYER'
+      : tenant.type === 'CLUB' ? 'CLUB_ADMIN' as const : tenant.type === 'COACH' ? 'COACH' as const : 'PLAYER' as const
+  };
+}
+
 function getProvider(value: string): Provider | undefined {
   return value === 'google' || value === 'microsoft' || value === 'apple' ? value : undefined;
 }
@@ -184,10 +211,9 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const tenant = await prisma.customerTenant.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } }
-  });
-  if (!tenant || !['ACTIVE', 'TRIAL'].includes(tenant.status)) {
+  const resolvedIdentity = await resolveRosterIdentity(email);
+
+  if (!resolvedIdentity) {
     const registrationToken = jwt.sign({ type: 'registration', email, name, provider }, jwtSecret, { expiresIn: '30m' });
     redirectUrl.searchParams.set('registration_token', registrationToken);
     redirectUrl.searchParams.set('registration_name', name);
@@ -196,9 +222,20 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const role = tenant.type === 'CLUB' ? 'CLUB_ADMIN' : tenant.type === 'COACH' ? 'COACH' : 'PLAYER';
-  const authToken = jwt.sign({ userId: `oauth-${provider}-${identity.sub}`, tenantId: tenant.id, role, email }, jwtSecret, { expiresIn: '8h' });
-  redirectUrl.hash = new URLSearchParams({ auth_token: authToken, name, email, role, clubName: tenant.type === 'CLUB' ? tenant.name : '' }).toString();
+  const { tenant, member, role } = resolvedIdentity;
+  const userId = member?.id || `oauth-${provider}-${identity.sub}`;
+  const coachContext = role === 'COACH' ? (member ? 'CLUB' : 'STANDALONE') : undefined;
+  const authToken = jwt.sign({ userId, tenantId: tenant.id, role, coachContext, email }, jwtSecret, { expiresIn: '8h' });
+  redirectUrl.hash = new URLSearchParams({
+    auth_token: authToken,
+    userId,
+    name,
+    email,
+    role,
+    ...(coachContext ? { coachContext } : {}),
+    tenantId: tenant.id,
+    clubName: tenant.name
+  }).toString();
   res.redirect(redirectUrl.toString());
 }
 

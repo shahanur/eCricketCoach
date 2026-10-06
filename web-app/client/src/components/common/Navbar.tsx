@@ -51,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasSuperAdmin = currentUser?.roles.includes('SUPER_ADMIN');
   const hasClubAdmin = currentUser?.roles.includes('CLUB_ADMIN');
   const hasCoachOrPlayer = currentUser?.roles.some(r => r === 'COACH' || r === 'PLAYER');
+  const isClubCoach = currentUser?.roles.includes('COACH') && currentUser.coachContext === 'CLUB';
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-3 sm:px-4 py-2.5">
@@ -131,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : hasClubAdmin
                     ? `${currentUser.clubName?.split(' ')[0] || 'Club'} Home`
                     : hasCoachOrPlayer
-                    ? currentUser.roles.includes('COACH') ? 'Coach Home' : 'Player Home'
+                    ? currentUser.roles.includes('COACH') ? isClubCoach ? 'Club Coach Home' : 'Coach Home' : 'Player Home'
                     : 'My Home'}
                 </span>
               </button>
@@ -170,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>📹</span>
                     <span>
                       {currentUser.roles.includes('COACH')
-                        ? 'AI Video & Coaching'
+                        ? isClubCoach ? 'Club Coaching Workspace' : 'AI Video & Coaching'
                         : 'My Video & AI'}
                     </span>
                   </button>
@@ -381,7 +382,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : hasClubAdmin
                     ? `${currentUser.clubName?.split(' ')[0] || 'Club'} Home`
                     : hasCoachOrPlayer
-                    ? currentUser.roles.includes('COACH') ? 'Coach Home' : 'Player Home'
+                    ? currentUser.roles.includes('COACH') ? isClubCoach ? 'Club Coach Home' : 'Coach Home' : 'Player Home'
                     : 'My Home'
                   : 'Home'}
               </span>
@@ -420,7 +421,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Video className="w-4 h-4" />
                 <span>
-                  {currentUser.roles.includes('COACH') ? 'AI Video & Coaching Studio' : 'My Video & AI Practice'}
+                  {currentUser.roles.includes('COACH')
+                    ? isClubCoach ? 'Club Coaching Workspace' : 'AI Video & Coaching Studio'
+                    : 'My Video & AI Practice'}
                 </span>
               </button>
             )}
