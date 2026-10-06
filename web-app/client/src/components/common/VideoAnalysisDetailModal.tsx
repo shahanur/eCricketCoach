@@ -153,7 +153,7 @@ export const VideoAnalysisDetailModal: React.FC<VideoAnalysisDetailModalProps> =
                   {entry.analysis.biomechanicalMetrics.releasePoint && (
                     <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-[10px] text-slate-400 uppercase">Arm Release</span>
-                      <p className="text-xs font-bold text-cyan-400 mt-0.5">{entry.analysis.biomechanicalMetrics.releasePoint}</p>
+                      <p className="text-xs font-bold text-sky-400 mt-0.5">{entry.analysis.biomechanicalMetrics.releasePoint}</p>
                     </div>
                   )}
                 </div>

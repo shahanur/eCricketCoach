@@ -210,12 +210,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <button
           onClick={() => setAdminTab('CUSTOMERS')}
           className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            adminTab === 'CUSTOMERS' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            adminTab === 'CUSTOMERS' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Tenants</span>
           <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
-            adminTab === 'CUSTOMERS' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+            adminTab === 'CUSTOMERS' ? 'bg-sky-950 text-sky-200' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
           }`}>
             {customers.length}
           </span>
@@ -257,12 +257,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <button
           onClick={() => setAdminTab('NOTIFICATIONS')}
           className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            adminTab === 'NOTIFICATIONS' ? 'bg-indigo-500 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            adminTab === 'NOTIFICATIONS' ? 'bg-sky-500 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Admin Alerts</span>
           {notifications.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-indigo-900 text-indigo-200 border border-indigo-400 font-extrabold">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] bg-sky-900 text-sky-200 border border-sky-400 font-extrabold">
               {notifications.length}
             </span>
           )}
@@ -283,12 +283,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <button
           onClick={() => setAdminTab('BILLING')}
           className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            adminTab === 'BILLING' ? 'bg-cyan-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            adminTab === 'BILLING' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Billing</span>
           <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
-            adminTab === 'BILLING' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+            adminTab === 'BILLING' ? 'bg-sky-950 text-sky-200' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
           }`}>
             {invoices.length}
           </span>
@@ -309,12 +309,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <span className="text-xs text-slate-400 uppercase font-semibold">Active Support Tickets</span>
-          <p className="text-2xl font-extrabold text-cyan-400 mt-1">{openTicketsCount}</p>
+          <p className="text-2xl font-extrabold text-sky-400 mt-1">{openTicketsCount}</p>
           <span className="text-[11px] text-slate-500">{supportTickets.length} total logged tickets</span>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <span className="text-xs text-slate-400 uppercase font-semibold">System Drills Catalogue</span>
-          <p className="text-2xl font-extrabold text-indigo-400 mt-1">{drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length}</p>
+          <p className="text-2xl font-extrabold text-sky-400 mt-1">{drills.filter(d => d.source === 'SYSTEM_PREDEFINED').length}</p>
           <span className="text-[11px] text-slate-500">Pre-defined curriculum</span>
         </div>
       </div>
@@ -334,7 +334,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     key={type}
                     onClick={() => setCustomerFilterType(type)}
                     className={`px-3 py-1 rounded text-xs font-medium transition cursor-pointer ${
-                      customerFilterType === type ? 'bg-cyan-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      customerFilterType === type ? 'bg-sky-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
                     {type}
@@ -346,7 +346,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 value={customerSearch}
                 onChange={e => setCustomerSearch(e.target.value)}
                 placeholder="Search tenant or email..."
-                className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 w-full sm:w-64"
+                className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 w-full sm:w-64"
               />
             </div>
           </div>
@@ -373,8 +373,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </td>
                     <td className="py-3 px-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        cust.type === 'CLUB' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                        cust.type === 'COACH' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                        cust.type === 'CLUB' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
+                        cust.type === 'COACH' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' :
                         'bg-slate-700/60 text-slate-300'
                       }`}>
                         {cust.type}
@@ -513,7 +513,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       }`}>
                         {t.priority}
                       </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
                         {t.category.replace('_', ' ')}
                       </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -544,8 +544,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs border-t border-slate-800/60">
                     <div className="flex items-center gap-3 text-slate-400 text-[11px]">
                       <span>Customer: <strong className="text-slate-200">{t.name}</strong></span>
-                      <span>Email: <a href={`mailto:${t.email}`} className="text-cyan-400 hover:underline">{t.email}</a></span>
-                      {t.clubName && <span>Club: <strong className="text-purple-300">{t.clubName}</strong></span>}
+                      <span>Email: <a href={`mailto:${t.email}`} className="text-sky-400 hover:underline">{t.email}</a></span>
+                      {t.clubName && <span>Club: <strong className="text-sky-300">{t.clubName}</strong></span>}
                       {t.tenantRole && <span className="bg-slate-800 px-1.5 py-0.2 rounded text-[10px]">{t.tenantRole}</span>}
                     </div>
 
@@ -553,7 +553,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {t.status === 'OPEN' ? (
                         <button
                           onClick={() => handleOpenResolveModal(t)}
-                          className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Resolve Ticket</span>
@@ -654,7 +654,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 type="button"
                 disabled={!resolutionText.trim() || resolvingTicket}
                 onClick={handleConfirmResolve}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>{resolvingTicket ? 'Saving Resolution...' : 'Mark as Resolved & Notify'}</span>
@@ -686,8 +686,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-white text-sm">{appr.clubName}</h4>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                        appr.type === 'CLUB' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
-                        appr.type === 'COACH' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                        appr.type === 'CLUB' ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' :
+                        appr.type === 'COACH' ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' :
                         'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
                       }`}>
                         {appr.type || 'CLUB'}
@@ -697,7 +697,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-slate-300 mt-1">
-                      Applicant: <span className="font-semibold text-white">{appr.adminName}</span> • Email: <span className="text-cyan-300">{appr.adminEmail}</span>
+                      Applicant: <span className="font-semibold text-white">{appr.adminName}</span> • Email: <span className="text-sky-300">{appr.adminEmail}</span>
                     </p>
                     <p className="text-[11px] text-slate-500 mt-0.5">
                       Plan: <span className="text-slate-300 font-medium">{appr.plan}</span> • Billing: {appr.billingCycle || 'ANNUAL'} • Registered: {appr.createdAt}
@@ -705,7 +705,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                   <button
                     onClick={() => promptApproveClub(appr)}
-                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-emerald-500/20 transition whitespace-nowrap cursor-pointer"
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs rounded-lg shadow-lg shadow-emerald-500/20 transition whitespace-nowrap cursor-pointer"
                   >
                     ✓ Approve & Activate Account
                   </button>
@@ -728,7 +728,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 System admin receives immediate transactional email notifications when payments complete and new tenant registrations occur.
               </p>
             </div>
-            <span className="text-xs text-indigo-300 font-mono bg-indigo-950/80 px-2.5 py-1 rounded border border-indigo-700/50">
+            <span className="text-xs text-sky-300 font-mono bg-sky-950/80 px-2.5 py-1 rounded border border-sky-700/50">
               admin@ecricketcoach.com
             </span>
           </div>
@@ -893,7 +893,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {invoices.map(inv => (
                   <tr key={inv.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-3 font-mono text-cyan-400 font-medium">{inv.id}</td>
+                    <td className="py-3 px-3 font-mono text-sky-400 font-medium">{inv.id}</td>
                     <td className="py-3 px-3 font-semibold text-slate-200">{inv.customerName}</td>
                     <td className="py-3 px-3 text-slate-400">{inv.planName}</td>
                     <td className="py-3 px-3 text-slate-400">{inv.date}</td>
@@ -911,7 +911,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {inv.status === 'FAILED' ? (
                         <button
                           onClick={() => promptRetryInvoice(inv)}
-                          className="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded text-[11px] cursor-pointer"
+                          className="px-2.5 py-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded text-[11px] cursor-pointer"
                         >
                           Retry
                         </button>

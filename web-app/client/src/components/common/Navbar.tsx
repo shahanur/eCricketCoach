@@ -64,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-2 focus:outline-none text-left cursor-pointer"
           >
             <span className="text-2xl">🏏</span>
-            <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">
               eCricketCoach
             </span>
           </button>
@@ -184,13 +184,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => handleNavClick('CLUB_PORTAL')}
                     className={`h-8 px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
                       viewMode === 'CLUB_PORTAL'
-                        ? 'bg-purple-500 border-purple-400 text-slate-950 shadow-sm font-bold'
+                        ? 'bg-sky-500 border-sky-400 text-slate-950 shadow-sm font-bold'
                         : 'bg-slate-800/90 border-slate-700/80 text-slate-400 hover:text-white'
                     }`}
                   >
                     <span>Club Portal</span>
                     {currentUser.clubName && (
-                      <span className="text-[10px] bg-purple-900/60 text-purple-200 px-1.5 py-0.5 rounded font-mono">
+                      <span className="text-[10px] bg-sky-900/60 text-sky-200 px-1.5 py-0.5 rounded font-mono">
                         {currentUser.clubName.split(' ')[0]}
                       </span>
                     )}
@@ -203,12 +203,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => handleNavClick('ADMIN_PANEL')}
                     className={`h-8 px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
                       viewMode === 'ADMIN_PANEL'
-                        ? 'bg-cyan-500 border-cyan-400 text-slate-950 shadow-sm font-bold'
+                        ? 'bg-sky-500 border-sky-400 text-slate-950 shadow-sm font-bold'
                         : 'bg-slate-800/90 border-slate-700/80 text-slate-400 hover:text-white'
                     }`}
                   >
                     <span>Admin Panel</span>
-                    <span className="text-[10px] bg-cyan-900/60 text-cyan-200 px-1 rounded">Super-Admin</span>
+                    <span className="text-[10px] bg-sky-900/60 text-sky-200 px-1 rounded">Super-Admin</span>
                     {pendingApprovalsCount > 0 && (
                       <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-slate-950 font-extrabold animate-pulse">
                         {pendingApprovalsCount}
@@ -228,7 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         {currentUser.name}
                       </span>
                       {hasSuperAdmin ? (
-                        <span className="text-[9px] px-1 rounded bg-cyan-900/60 text-cyan-300 font-semibold font-mono leading-tight">
+                        <span className="text-[9px] px-1 rounded bg-sky-900/60 text-sky-300 font-semibold font-mono leading-tight">
                           Super-Admin
                         </span>
                       ) : (
@@ -270,7 +270,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             // Unauthenticated: Clean Login Button
             <button
               onClick={onOpenLogin}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-sm transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-sm transition cursor-pointer"
             >
               <span>Log In</span>
             </button>
@@ -341,7 +341,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="text-xs font-bold text-white">{currentUser.name}</div>
                   <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
                     {hasSuperAdmin ? (
-                      <span className="px-1 rounded bg-cyan-900/60 text-cyan-300 font-mono">Super-Admin</span>
+                      <span className="px-1 rounded bg-sky-900/60 text-sky-300 font-mono">Super-Admin</span>
                     ) : (
                       currentUser.roles.map(r => (
                         <span key={r} className="px-1 rounded bg-slate-700 text-slate-300 font-mono">
@@ -395,8 +395,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleNavClick('CLUB_PORTAL')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   viewMode === 'CLUB_PORTAL'
-                    ? 'bg-purple-500 text-slate-950 font-bold'
-                    : 'text-purple-300 hover:bg-purple-950/40 border border-purple-500/30'
+                    ? 'bg-sky-500 text-slate-950 font-bold'
+                    : 'text-sky-300 hover:bg-sky-950/40 border border-sky-500/30'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -404,7 +404,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Club Portal</span>
                 </div>
                 {currentUser.clubName && (
-                  <span className="text-[10px] bg-purple-900/60 text-purple-200 px-1.5 py-0.5 rounded font-mono">
+                  <span className="text-[10px] bg-sky-900/60 text-sky-200 px-1.5 py-0.5 rounded font-mono">
                     {currentUser.clubName.split(' ')[0]}
                   </span>
                 )}
@@ -434,8 +434,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => handleNavClick('ADMIN_PANEL')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   viewMode === 'ADMIN_PANEL'
-                    ? 'bg-cyan-500 text-slate-950 font-bold'
-                    : 'text-cyan-300 hover:bg-cyan-950/40 border border-cyan-500/30'
+                    ? 'bg-sky-500 text-slate-950 font-bold'
+                    : 'text-sky-300 hover:bg-sky-950/40 border border-sky-500/30'
                 }`}
               >
                 <div className="flex items-center gap-2.5">

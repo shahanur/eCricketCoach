@@ -481,7 +481,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
         <div>
           <button onClick={onClose} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 mb-1"><ArrowLeft size={14} /> Back to schedule</button>
           <h2 className="text-lg font-bold text-white">{session.title}</h2>
-          <p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min · <span className={isCompleted ? 'text-emerald-300' : isLive ? 'text-amber-300' : 'text-cyan-300'}>{statusLabel}</span></p>
+          <p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min · <span className={isCompleted ? 'text-emerald-300' : isLive ? 'text-amber-300' : 'text-sky-300'}>{statusLabel}</span></p>
         </div>
         <div className="flex items-center gap-2">
           {log.startedAt && (
@@ -490,7 +490,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             </span>
           )}
           <button onClick={() => persist(log)} disabled={saving} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1 disabled:opacity-50"><Save size={14} /> Save</button>
-          <button onClick={downloadReport} className="px-3 py-1.5 text-xs border border-cyan-500/40 text-cyan-300 rounded flex items-center gap-1"><Download size={14} /> Report</button>
+          <button onClick={downloadReport} className="px-3 py-1.5 text-xs border border-sky-500/40 text-sky-300 rounded flex items-center gap-1"><Download size={14} /> Report</button>
         </div>
       </div>
 
@@ -596,7 +596,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => setDrillPanel(drillPanel === 'CATALOGUE' ? 'NONE' : 'CATALOGUE')} aria-expanded={drillPanel === 'CATALOGUE'} className="px-3 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded flex items-center gap-1"><Plus size={14} /> Add from catalogue</button>
-                  <button onClick={() => setDrillPanel(drillPanel === 'ADHOC' ? 'NONE' : 'ADHOC')} aria-expanded={drillPanel === 'ADHOC'} className="px-3 py-1.5 text-xs border border-cyan-500/40 text-cyan-300 rounded flex items-center gap-1"><Plus size={14} /> Ad-hoc drill</button>
+                  <button onClick={() => setDrillPanel(drillPanel === 'ADHOC' ? 'NONE' : 'ADHOC')} aria-expanded={drillPanel === 'ADHOC'} className="px-3 py-1.5 text-xs border border-sky-500/40 text-sky-300 rounded flex items-center gap-1"><Plus size={14} /> Ad-hoc drill</button>
                   <button onClick={() => updateLog({ drillLog: insertBeforeCoolDown(log.drillLog, [{ id: newId('block'), drillId: null, title: 'New block', plannedMinutes: 10, actualMinutes: 0, completed: false, notes: '' }]) })} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1"><Plus size={14} /> Add time block</button>
                   {onRefresh && <button onClick={() => onRefresh()} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-300 rounded flex items-center gap-1"><RefreshCw size={14} /> Refresh plan</button>}
                 </div>
@@ -643,7 +643,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
                       </div>
                     </div>
                     <textarea value={adhocDrill.instructions} onChange={event => setAdhocDrill({ ...adhocDrill, instructions: event.target.value })} placeholder="Setup and instructions" aria-label="Ad-hoc drill instructions" rows={2} className={inputClass} />
-                    <button onClick={submitAdhocDrill} disabled={drillBusy} className="px-3 py-1.5 text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded disabled:opacity-40">Add to session &amp; catalogue</button>
+                    <button onClick={submitAdhocDrill} disabled={drillBusy} className="px-3 py-1.5 text-xs font-bold bg-sky-500 hover:bg-sky-400 text-slate-950 rounded disabled:opacity-40">Add to session &amp; catalogue</button>
                   </div>
                 )}
               </div>
@@ -688,7 +688,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               <div key={player.id} className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label htmlFor={`note-${player.id}`} className="text-sm text-white">{player.name} <span className="text-[11px] text-slate-500">{player.discipline} · {player.currentLevel}</span></label>
-                  {!playerNotes[player.id] && <button onClick={() => setPlayerNotes(current => ({ ...current, [player.id]: NOTE_TEMPLATE }))} className="text-[11px] text-cyan-300">Use template</button>}
+                  {!playerNotes[player.id] && <button onClick={() => setPlayerNotes(current => ({ ...current, [player.id]: NOTE_TEMPLATE }))} className="text-[11px] text-sky-300">Use template</button>}
                 </div>
                 <textarea id={`note-${player.id}`} value={playerNotes[player.id] || ''} onChange={event => setPlayerNotes(current => ({ ...current, [player.id]: event.target.value }))} rows={3} placeholder="Strengths, work-ons and next focus" className={inputClass} />
               </div>
@@ -760,7 +760,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               {suggestions.length ? (
                 <>
                   <ul className="list-disc pl-4 space-y-1 text-slate-300">{suggestions.map(item => <li key={item}>{item}</li>)}</ul>
-                  <button onClick={() => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: [log.evaluation.nextAdjustments, ...suggestions.map(item => `- ${item}`)].filter(Boolean).join('\n') } })} className="text-cyan-300">Add to adjustments</button>
+                  <button onClick={() => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: [log.evaluation.nextAdjustments, ...suggestions.map(item => `- ${item}`)].filter(Boolean).join('\n') } })} className="text-sky-300">Add to adjustments</button>
                 </>
               ) : <p className="text-slate-500">No issues detected from the session data.</p>}
             </div>
@@ -771,13 +771,13 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
           </aside>
         </div>
 
-        <section aria-labelledby="ai-analysis-heading" className="border border-purple-500/30 rounded-lg p-4 space-y-4">
+        <section aria-labelledby="ai-analysis-heading" className="border border-sky-500/30 rounded-lg p-4 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 id="ai-analysis-heading" className="text-sm font-bold text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-300" /> AI session analysis</h3>
+              <h3 id="ai-analysis-heading" className="text-sm font-bold text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-sky-300" /> AI session analysis</h3>
               <p className="text-xs text-slate-400 mt-1">Gemini reviews your player notes, attendance, drill timings, disruptions and evaluation, then suggests improvements and a follow-up session.</p>
             </div>
-            <button onClick={runAiAnalysis} disabled={aiBusy || saving} className="px-3 py-2 text-xs font-bold bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white rounded-lg disabled:opacity-50">
+            <button onClick={runAiAnalysis} disabled={aiBusy || saving} className="px-3 py-2 text-xs font-bold bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 rounded-lg disabled:opacity-50">
               {aiBusy ? 'Analysing…' : aiEvaluation ? 'Re-run AI analysis' : 'Run AI analysis'}
             </button>
           </div>
@@ -787,8 +787,8 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             <div className="grid lg:grid-cols-2 gap-4 text-xs">
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-purple-300 uppercase">Diagnosis</span>
-                  <span className="bg-purple-500/20 text-purple-200 px-2 py-0.5 rounded font-semibold">{READINESS_LABEL[aiEvaluation.progressionReadiness] || aiEvaluation.progressionReadiness}</span>
+                  <span className="font-bold text-sky-300 uppercase">Diagnosis</span>
+                  <span className="bg-sky-500/20 text-sky-200 px-2 py-0.5 rounded font-semibold">{READINESS_LABEL[aiEvaluation.progressionReadiness] || aiEvaluation.progressionReadiness}</span>
                 </div>
                 <p className="text-slate-300">{aiEvaluation.squadSummary}</p>
                 {aiEvaluation.identifiedGaps.length > 0 && (
@@ -807,7 +807,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
                   <div>
                     <p className="font-semibold text-white mb-1">Improve the next session</p>
                     <ul className="list-disc pl-4 space-y-0.5 text-slate-300">{aiEvaluation.sessionImprovements.map(item => <li key={item}>{item}</li>)}</ul>
-                    <button onClick={() => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: [log.evaluation.nextAdjustments, ...(aiEvaluation.sessionImprovements || []).map(item => `- ${item}`)].filter(Boolean).join('\n') } })} className="mt-1 text-cyan-300">Add to adjustments</button>
+                    <button onClick={() => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: [log.evaluation.nextAdjustments, ...(aiEvaluation.sessionImprovements || []).map(item => `- ${item}`)].filter(Boolean).join('\n') } })} className="mt-1 text-sky-300">Add to adjustments</button>
                   </div>
                 )}
                 <p className="text-slate-400 border-t border-slate-800 pt-2">💬 {aiEvaluation.aiCommendation}</p>

@@ -43,7 +43,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       case 'danger':
         return <AlertCircle className="w-6 h-6 text-rose-400" />;
       case 'info':
-        return <Info className="w-6 h-6 text-cyan-400" />;
+        return <Info className="w-6 h-6 text-sky-400" />;
       case 'confirm':
       default:
         return <HelpCircle className="w-6 h-6 text-amber-400" />;
@@ -58,7 +58,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       case 'danger':
         return 'bg-rose-500/10 border-rose-500/30';
       case 'info':
-        return 'bg-cyan-500/10 border-cyan-500/30';
+        return 'bg-sky-500/10 border-sky-500/30';
       case 'confirm':
       default:
         return 'bg-amber-500/10 border-amber-500/30';
@@ -71,11 +71,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       case 'warning':
         return 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white shadow-rose-500/20';
       case 'info':
-        return 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 shadow-cyan-500/20';
+        return 'bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 shadow-sky-500/20';
       case 'success':
       case 'confirm':
       default:
-        return 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-500/20';
+        return 'bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 shadow-emerald-500/20';
     }
   };
 

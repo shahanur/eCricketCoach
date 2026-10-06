@@ -274,7 +274,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
       {currentUser.coachContext !== 'CLUB' && (
         <>
           <div className="border-t border-slate-800 pt-6">
-            <p className="text-xs font-semibold text-cyan-400 uppercase">AI coaching lab</p>
+            <p className="text-xs font-semibold text-sky-400 uppercase">AI coaching lab</p>
             <h2 className="text-xl font-bold text-white">Video analysis and drill design</h2>
           </div>
 
@@ -331,7 +331,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
               <h3 className="font-semibold text-lg text-white">AI Video Biomechanics</h3>
               <p className="text-xs text-slate-400">Upload or sync video to analyse posture and receive drill recommendations</p>
             </div>
-            <span className="text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2.5 py-1 rounded-full font-semibold">
+            <span className="text-xs bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2.5 py-1 rounded-full font-semibold">
               Pose Engine v2.4
             </span>
           </div>
@@ -364,7 +364,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
               }}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-2 ${
                 sourceMode === 'GOOGLE_DRIVE'
-                  ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                  ? 'bg-sky-500 text-slate-950 font-bold shadow'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -424,7 +424,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
                 <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-xs flex items-center gap-2">
                   {isBackingUpToDrive ? (
                     <>
-                      <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-cyan-400" />
+                      <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-sky-400" />
                       <span className="text-slate-300">Backing up to Google Drive{driveEmail ? ` (${driveEmail})` : ''}…</span>
                     </>
                   ) : driveBackupStatus === 'SUCCESS' ? (
@@ -439,7 +439,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
                     </>
                   ) : (
                     <>
-                      <Cloud className="w-4 h-4 shrink-0 text-cyan-400" />
+                      <Cloud className="w-4 h-4 shrink-0 text-sky-400" />
                       <span className="text-slate-400">Will be backed up to Google Drive.</span>
                     </>
                   )}
@@ -463,7 +463,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                  <div className="w-9 h-9 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
                     <Cloud className="w-5 h-5" />
                   </div>
                   <div>
@@ -491,7 +491,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
                       type="button"
                       onClick={handleSyncDriveVault}
                       disabled={isSyncingDrive}
-                      className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDrive ? 'animate-spin' : ''}`} />
                       <span>{isSyncingDrive ? 'Syncing...' : 'Sync Vault'}</span>
@@ -508,7 +508,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsDriveModalOpen(true)}
-                    className="px-3 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition"
+                    className="px-3 py-1.5 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow transition"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Connect Drive</span>
@@ -520,7 +520,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
               {isDriveConnected ? (
                 <div className="space-y-1.5 pt-2 border-t border-slate-800">
                   <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                    <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                    <Folder className="w-3.5 h-3.5 text-sky-400" />
                     Select Video from your Google Drive ({driveVideos.length} found):
                   </label>
                   {driveVideosError && (
@@ -537,7 +537,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
                     <select
                       value={selectedDriveVideoId}
                       onChange={e => setSelectedDriveVideoId(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 cursor-pointer"
                     >
                       {driveVideos.map(vf => (
                         <option key={vf.id} value={vf.id}>
@@ -566,7 +566,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
           <button
             onClick={handleSimulateAnalysis}
             disabled={analyzing || (sourceMode === 'LOCAL_UPLOAD' && !selectedLocalVideo) || (sourceMode === 'GOOGLE_DRIVE' && isDriveConnected && driveVideos.length === 0)}
-            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 disabled:opacity-50"
           >
             <Play className="w-4 h-4 fill-current" />
             <span>

@@ -233,7 +233,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                 {upcomingClubSessions.map(session => (
                   <div key={session.id} className="py-3 flex items-center justify-between gap-3">
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min · Led by {session.coachName || 'Coach not assigned'}</p></div>
-                    <time className="shrink-0 text-xs font-semibold text-cyan-300">{session.sessionDate}</time>
+                    <time className="shrink-0 text-xs font-semibold text-sky-300">{session.sessionDate}</time>
                   </div>
                 ))}
                 {upcomingClubSessions.length === 0 && <p className="py-4 text-xs text-slate-500">No upcoming club sessions.</p>}
@@ -246,7 +246,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                   <div key={session.id} className="py-3 flex items-center justify-between gap-3">
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min</p></div>
                     <div className="shrink-0 flex items-center gap-2">
-                      <time className="text-xs font-semibold text-cyan-300">{session.sessionDate}</time>
+                      <time className="text-xs font-semibold text-sky-300">{session.sessionDate}</time>
                       <button onClick={() => openExecution(session)} className="px-2 py-1 text-[11px] border border-emerald-500/40 text-emerald-300 rounded">{session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}</button>
                     </div>
                   </div>
@@ -314,7 +314,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
       {tab === 'REPORTS' && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white flex items-center gap-2"><ClipboardList size={16} /> Participant session report</h2><p className="text-xs text-slate-400">Session and coaching-note activity from club training records.</p></div><button onClick={downloadReport} className="px-3 py-2 border border-cyan-500/40 text-cyan-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export CSV</button></div>
+          <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white flex items-center gap-2"><ClipboardList size={16} /> Participant session report</h2><p className="text-xs text-slate-400">Session and coaching-note activity from club training records.</p></div><button onClick={downloadReport} className="px-3 py-2 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export CSV</button></div>
           <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-slate-500 border-b border-slate-800"><tr><th className="py-2">Participant</th><th>Level</th><th>Squad</th><th>Scheduled sessions</th><th>Delivered sessions</th><th>Attendance</th><th>Sessions with notes</th></tr></thead><tbody>{players.map(player => {
             const playerSessions = sessions.filter(session => session.assignedPlayerIds?.includes(player.id));
             const attendance = playerAttendance(player);
@@ -338,7 +338,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                     <td>{log.drillLog.filter(entry => entry.completed).length}/{log.drillLog.length}</td>
                     <td>{log.incidents.length}</td>
                     <td className="max-w-xs whitespace-pre-line text-slate-300">{log.evaluation.nextAdjustments || '—'}</td>
-                    <td><button onClick={() => openExecution(session)} className="text-cyan-300">Review</button></td>
+                    <td><button onClick={() => openExecution(session)} className="text-sky-300">Review</button></td>
                   </tr>
                 );
               })}

@@ -4,7 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eCricketCoach - Cricket Training & AI Analysis</title>
+    <meta name="theme-color" content="#059669" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Brand palette from images/logo.png: emerald (#059669) blending into sky blue (#0284c7).
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
     <style id="light-theme-styles">
       html.light,
       html.light body {
@@ -116,19 +133,23 @@
       }
 
       /* Preserve contrast for accents */
-      html.light .bg-gradient-to-r.from-emerald-400.to-cyan-400 {
+      html.light .from-emerald-400.to-sky-400 {
         background-image: linear-gradient(to right, #059669, #0284c7) !important;
       }
       html.light .text-emerald-400 {
         color: #047857 !important;
       }
-      html.light .text-emerald-300 {
+      html.light .text-emerald-300,
+      html.light .text-emerald-300\/80 {
         color: #065f46 !important;
       }
-      html.light .text-cyan-400 {
+      html.light .text-sky-400,
+      html.light .group:hover .group-hover\:text-sky-400 {
         color: #0284c7 !important;
       }
-      html.light .text-cyan-300 {
+      html.light .text-sky-300,
+      html.light .hover\:text-sky-300:hover,
+      html.light .text-sky-300\/80 {
         color: #0369a1 !important;
       }
       html.light .text-amber-400 {
@@ -136,18 +157,6 @@
       }
       html.light .text-amber-300 {
         color: #92400e !important;
-      }
-      html.light .text-purple-400 {
-        color: #7c3aed !important;
-      }
-      html.light .text-purple-300 {
-        color: #6d28d9 !important;
-      }
-      html.light .text-purple-200 {
-        color: #ffffff !important;
-      }
-      html.light .text-blue-300 {
-        color: #1d4ed8 !important;
       }
       html.light .text-rose-400 {
         color: #be123c !important;
@@ -171,17 +180,8 @@
       html.light .bg-emerald-500.text-white {
         color: #ffffff !important;
       }
-      html.light .bg-purple-500.text-slate-950,
-      html.light .bg-cyan-500.text-slate-950 {
+      html.light .bg-sky-500.text-slate-950 {
         color: #ffffff !important;
-      }
-      html.light .bg-purple-500\/20 {
-        background-color: #ede9fe !important;
-        border-color: #c4b5fd !important;
-      }
-      html.light .bg-blue-500\/20 {
-        background-color: #dbeafe !important;
-        border-color: #93c5fd !important;
       }
       html.light .bg-emerald-500\/20 {
         background-color: #d1fae5 !important;
@@ -191,7 +191,7 @@
         background-color: #fef3c7 !important;
         border-color: #fde68a !important;
       }
-      html.light .bg-cyan-500\/20 {
+      html.light .bg-sky-500\/20 {
         background-color: #e0f2fe !important;
         border-color: #bae6fd !important;
       }
@@ -199,8 +199,19 @@
         background-color: #ffe4e6 !important;
         border-color: #fecdd3 !important;
       }
-      html.light .bg-purple-600 {
-        background-color: #7c3aed !important;
+      html.light .text-sky-200 {
+        color: #075985 !important;
+      }
+      html.light .text-emerald-200 {
+        color: #065f46 !important;
+      }
+      html.light .bg-sky-950,
+      html.light .bg-sky-900,
+      html.light .bg-sky-900\/60 {
+        background-color: #e0f2fe !important;
+      }
+      html.light .bg-emerald-950 {
+        background-color: #d1fae5 !important;
       }
       html.light .hover\:bg-slate-700:hover {
         background-color: #cbd5e1 !important;
@@ -330,19 +341,23 @@
       }
 
       /* Pure-Light Accents & Badges */
-      html.pure-light .bg-gradient-to-r.from-emerald-400.to-cyan-400 {
+      html.pure-light .from-emerald-400.to-sky-400 {
         background-image: linear-gradient(to right, #059669, #0284c7) !important;
       }
       html.pure-light .text-emerald-400 {
         color: #047857 !important;
       }
-      html.pure-light .text-emerald-300 {
+      html.pure-light .text-emerald-300,
+      html.pure-light .text-emerald-300\/80 {
         color: #065f46 !important;
       }
-      html.pure-light .text-cyan-400 {
+      html.pure-light .text-sky-400,
+      html.pure-light .group:hover .group-hover\:text-sky-400 {
         color: #0284c7 !important;
       }
-      html.pure-light .text-cyan-300 {
+      html.pure-light .text-sky-300,
+      html.pure-light .hover\:text-sky-300:hover,
+      html.pure-light .text-sky-300\/80 {
         color: #0369a1 !important;
       }
       html.pure-light .text-amber-400 {
@@ -350,18 +365,6 @@
       }
       html.pure-light .text-amber-300 {
         color: #92400e !important;
-      }
-      html.pure-light .text-purple-400 {
-        color: #6d28d9 !important;
-      }
-      html.pure-light .text-purple-300 {
-        color: #5b21b6 !important;
-      }
-      html.pure-light .text-purple-200 {
-        color: #ffffff !important;
-      }
-      html.pure-light .text-blue-300 {
-        color: #1e40af !important;
       }
       html.pure-light .text-rose-400 {
         color: #be123c !important;
@@ -378,17 +381,8 @@
       html.pure-light .bg-emerald-500.text-slate-950 {
         color: #ffffff !important;
       }
-      html.pure-light .bg-purple-500.text-slate-950,
-      html.pure-light .bg-cyan-500.text-slate-950 {
+      html.pure-light .bg-sky-500.text-slate-950 {
         color: #ffffff !important;
-      }
-      html.pure-light .bg-purple-500\/20 {
-        background-color: #f3e8ff !important;
-        border-color: #d8b4fe !important;
-      }
-      html.pure-light .bg-blue-500\/20 {
-        background-color: #eff6ff !important;
-        border-color: #bfdbfe !important;
       }
       html.pure-light .bg-emerald-500\/20 {
         background-color: #ecfdf5 !important;
@@ -398,7 +392,7 @@
         background-color: #fffbeb !important;
         border-color: #fde68a !important;
       }
-      html.pure-light .bg-cyan-500\/20 {
+      html.pure-light .bg-sky-500\/20 {
         background-color: #f0f9ff !important;
         border-color: #bae6fd !important;
       }
@@ -406,15 +400,26 @@
         background-color: #fff1f2 !important;
         border-color: #fecdd3 !important;
       }
-      html.pure-light .bg-purple-600 {
-        background-color: #7c3aed !important;
-      }
       html.pure-light .bg-emerald-600 {
         background-color: #047857 !important;
       }
       html.pure-light .bg-emerald-600.text-white,
       html.pure-light .bg-emerald-500.text-white {
         color: #ffffff !important;
+      }
+      html.pure-light .text-sky-200 {
+        color: #0c4a6e !important;
+      }
+      html.pure-light .text-emerald-200 {
+        color: #064e3b !important;
+      }
+      html.pure-light .bg-sky-950,
+      html.pure-light .bg-sky-900,
+      html.pure-light .bg-sky-900\/60 {
+        background-color: #f0f9ff !important;
+      }
+      html.pure-light .bg-emerald-950 {
+        background-color: #ecfdf5 !important;
       }
       html.pure-light .hover\:bg-slate-700:hover {
         background-color: #e2e8f0 !important;

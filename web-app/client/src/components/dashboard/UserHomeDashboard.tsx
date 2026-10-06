@@ -110,7 +110,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             {isSuperAdmin && (
               <button
                 onClick={() => setViewMode('ADMIN_PANEL')}
-                className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Open Admin Panel</span>
                 <ArrowRight className="w-4 h-4" />
@@ -120,7 +120,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             {hasClubPortal && (
               <button
                 onClick={() => setViewMode('CLUB_PORTAL')}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold text-xs shadow-lg shadow-purple-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Launch Club Portal</span>
                 <ArrowRight className="w-4 h-4" />
@@ -130,7 +130,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             {(isCoach || isPlayer) && (
               <button
                 onClick={() => setViewMode('COACHING_PORTAL')}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>{isCoach ? isClubCoach ? 'Open Club Coaching Workspace' : 'Coaching & AI App' : 'My Training Drills'}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -139,7 +139,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
             <button
               onClick={() => setViewMode('HELP_SUPPORT')}
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-800 via-indigo-950/60 to-slate-800 hover:from-indigo-900/60 hover:via-purple-900/50 hover:to-indigo-900/60 border border-indigo-500/30 hover:border-indigo-400/60 text-slate-100 hover:text-white font-semibold text-xs shadow-md shadow-indigo-950/40 transition flex items-center justify-center gap-2 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-800 via-sky-950/60 to-slate-800 hover:from-sky-900/60 hover:via-sky-900/50 hover:to-sky-900/60 border border-sky-500/30 hover:border-sky-400/60 text-slate-100 hover:text-white font-semibold text-xs shadow-md shadow-sky-950/40 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Help & Support</span>
             </button>
@@ -154,7 +154,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">Club Athletes</span>
-                <Users className="w-4 h-4 text-purple-400" />
+                <Users className="w-4 h-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white">{activeMembersCount}</div>
               <p className="text-[11px] text-slate-400">Coaches & Players on roster</p>
@@ -163,7 +163,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">Active Squads</span>
-                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                <ShieldCheck className="w-4 h-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white">{activeSquadsCount}</div>
               <p className="text-[11px] text-slate-400">Age groups & development</p>
@@ -203,7 +203,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">AI Pose Analyses</span>
-                <Video className="w-4 h-4 text-cyan-400" />
+                <Video className="w-4 h-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white">24</div>
               <p className="text-[11px] text-slate-400">Kinematic evaluations run</p>
@@ -212,7 +212,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">Training Sessions</span>
-                <Calendar className="w-4 h-4 text-purple-400" />
+                <Calendar className="w-4 h-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white">{sessions.length}</div>
               <p className="text-[11px] text-slate-400">Published squad workouts</p>
@@ -252,16 +252,16 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">Open Tickets</span>
-                <LifeBuoy className="w-4 h-4 text-cyan-400" />
+                <LifeBuoy className="w-4 h-4 text-sky-400" />
               </div>
-              <div className="text-2xl font-bold text-cyan-400">{openTicketsCount}</div>
+              <div className="text-2xl font-bold text-sky-400">{openTicketsCount}</div>
               <p className="text-[11px] text-slate-400">Tenant support queue</p>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
                 <span className="text-xs font-semibold uppercase tracking-wider">Active Customers</span>
-                <Users className="w-4 h-4 text-purple-400" />
+                <Users className="w-4 h-4 text-sky-400" />
               </div>
               <div className="text-2xl font-bold text-white">{customers.length || 3}</div>
               <p className="text-[11px] text-slate-400">Clubs, coaches & players</p>
@@ -287,13 +287,13 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   {isClubAdmin && (
                   <button
                     onClick={() => setViewMode('CLUB_PORTAL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                      <span className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
                         <Users className="w-4 h-4" />
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 transition" />
                     </div>
                     <h3 className="text-sm font-bold text-white">
                       Roster & Member Invitations
@@ -306,13 +306,13 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
                   <button
                     onClick={() => setViewMode('CLUB_PORTAL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="p-2 rounded-lg bg-purple-500/10 text-purple-400">
+                      <span className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
                         <Calendar className="w-4 h-4" />
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 transition" />
                     </div>
                     <h3 className="text-sm font-bold text-white">Squad Practice Sessions</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
@@ -362,7 +362,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <>
                   <button
                     onClick={() => setViewMode('ADMIN_PANEL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
                       <span className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
@@ -385,18 +385,18 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
                   <button
                     onClick={() => setViewMode('ADMIN_PANEL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                      <span className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
                         <LifeBuoy className="w-4 h-4" />
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 transition" />
                     </div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-bold text-white">Support Tickets Desk</h3>
                       {openTicketsCount > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-cyan-500/20 text-cyan-300 font-extrabold border border-cyan-500/30">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-sky-500/20 text-sky-300 font-extrabold border border-sky-500/30">
                           {openTicketsCount} active
                         </span>
                       )}
@@ -408,7 +408,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
                   <button
                     onClick={() => setViewMode('ADMIN_PANEL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
                       <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -424,13 +424,13 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
                   <button
                     onClick={() => setViewMode('ADMIN_PANEL')}
-                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-cyan-500/50 text-left transition group space-y-2 cursor-pointer"
+                    className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                      <span className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
                         <Sparkles className="w-4 h-4" />
                       </span>
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition" />
+                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 transition" />
                     </div>
                     <h3 className="text-sm font-bold text-white">System Drill Curator</h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
@@ -444,13 +444,13 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               {!isSuperAdmin && (
                 <button
                   onClick={() => setViewMode('HELP_SUPPORT')}
-                  className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-teal-500/50 text-left transition group space-y-2 cursor-pointer"
+                  className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
+                    <span className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
                       <CheckCircle2 className="w-4 h-4" />
                     </span>
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-teal-400 transition" />
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-sky-400 transition" />
                   </div>
                   <h3 className="text-sm font-bold text-white">Support & Team Help Desk</h3>
                   <p className="text-xs text-slate-400 leading-relaxed">
@@ -467,14 +467,14 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                    <ShieldCheck className="w-4 h-4 text-sky-400" />
                     <span>Recent Tenancies & License Status</span>
                   </h3>
                   <p className="text-xs text-slate-400">Platform customer organisations</p>
                 </div>
                 <button
                   onClick={() => setViewMode('ADMIN_PANEL')}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 cursor-pointer"
+                  className="text-xs text-sky-400 hover:text-sky-300 font-semibold flex items-center gap-1 cursor-pointer"
                 >
                   <span>Manage All Tenancies</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -597,7 +597,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                         <span className="text-emerald-400 font-bold">£{appr.amountPaid}</span>
                         <button
                           onClick={() => setViewMode('ADMIN_PANEL')}
-                          className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold cursor-pointer"
+                          className="text-[11px] text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
                         >
                           Review in Admin Panel →
                         </button>
@@ -611,12 +611,12 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               <div className="pt-2 border-t border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <LifeBuoy className="w-3.5 h-3.5 text-cyan-400" />
+                    <LifeBuoy className="w-3.5 h-3.5 text-sky-400" />
                     <span>Recent Support Inquiries</span>
                   </h4>
                   <button
                     onClick={() => setViewMode('ADMIN_PANEL')}
-                    className="text-[11px] text-cyan-400 hover:underline cursor-pointer"
+                    className="text-[11px] text-sky-400 hover:underline cursor-pointer"
                   >
                     View All
                   </button>
@@ -629,7 +629,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                       className="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800 text-xs space-y-1"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-cyan-400 font-mono text-[10px] font-bold">#{tkt.ticketRef}</span>
+                        <span className="text-sky-400 font-mono text-[10px] font-bold">#{tkt.ticketRef}</span>
                         <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
                           tkt.status === 'OPEN' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300'
                         }`}>
@@ -648,7 +648,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               {/* Practice Schedule Itinerary for Clubs, Coaches, Players */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-purple-400" />
+                  <Calendar className="w-4 h-4 text-sky-400" />
                   <span>Upcoming Training Sessions</span>
                 </h3>
 
@@ -658,7 +658,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                     {hasClubPortal && (
                       <button
                         onClick={() => setViewMode('CLUB_PORTAL')}
-                        className="text-purple-400 hover:underline font-semibold block mx-auto cursor-pointer"
+                        className="text-sky-400 hover:underline font-semibold block mx-auto cursor-pointer"
                       >
                         Schedule a practice now
                       </button>

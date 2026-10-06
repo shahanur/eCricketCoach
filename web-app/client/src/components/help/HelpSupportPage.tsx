@@ -116,7 +116,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
       id: 'club-admin',
       role: 'CLUB_ADMIN',
       badge: 'Club Admin',
-      badgeColor: 'border-purple-500/40 text-purple-400 bg-purple-500/10',
+      badgeColor: 'border-sky-500/40 text-sky-400 bg-sky-500/10',
       title: 'Managing Your Club Academy & Rosters',
       description: 'Step-by-step instructions on inviting athletes and coaches, tracking registrations, assigning squads, and configuring club drill libraries.',
       steps: [
@@ -148,7 +148,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
       id: 'player',
       role: 'PLAYER',
       badge: 'Player / Athlete',
-      badgeColor: 'border-cyan-500/40 text-cyan-400 bg-cyan-500/10',
+      badgeColor: 'border-sky-500/40 text-sky-400 bg-sky-500/10',
       title: 'Your Training Hub & Progress Tracking',
       description: 'Everything you need to master your technique, review assigned drills from coaches, and view your verified certifications.',
       steps: [
@@ -294,7 +294,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
             {(currentUser.roles.includes('CLUB_ADMIN') || (currentUser.roles.includes('COACH') && currentUser.coachContext === 'CLUB')) && (
               <button
                 onClick={() => setViewMode('CLUB_PORTAL')}
-                className="text-purple-400 hover:text-purple-300 underline font-semibold flex items-center gap-1 cursor-pointer"
+                className="text-sky-400 hover:text-sky-300 underline font-semibold flex items-center gap-1 cursor-pointer"
               >
                 Go to Club Portal <ChevronRight className="w-3 h-3" />
               </button>
@@ -395,20 +395,20 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                 </div>
 
                 <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">
+                  <span className="text-[10px] text-sky-400 font-bold uppercase tracking-wider block">
                     Club Licensing & Billing
                   </span>
-                  <a href="mailto:billing@ecricketcoach.com" className="font-semibold text-white hover:text-cyan-300 block">
+                  <a href="mailto:billing@ecricketcoach.com" className="font-semibold text-white hover:text-sky-300 block">
                     billing@ecricketcoach.com
                   </a>
                   <span className="text-[11px] text-slate-400">Invoices, enterprise tier upgrades & card updates</span>
                 </div>
 
                 <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider block">
+                  <span className="text-[10px] text-sky-400 font-bold uppercase tracking-wider block">
                     Head Coaching Consultations
                   </span>
-                  <a href="mailto:coaching@ecricketcoach.com" className="font-semibold text-white hover:text-purple-300 block">
+                  <a href="mailto:coaching@ecricketcoach.com" className="font-semibold text-white hover:text-sky-300 block">
                     coaching@ecricketcoach.com
                   </a>
                   <span className="text-[11px] text-slate-400">Custom drill authoring & squad syllabus setup</span>
@@ -552,7 +552,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{isSubmitting ? 'Transmitting Ticket...' : 'Send Message to Team'}</span>

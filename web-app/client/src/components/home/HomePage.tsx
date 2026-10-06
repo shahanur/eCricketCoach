@@ -288,7 +288,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.1]">
           Master modern cricket with{' '}
-          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">
             AI video biomechanics
           </span>{' '}
           and structured coaching.
@@ -301,7 +301,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
         <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
           <a
             href="#pricing"
-            className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2 cursor-pointer"
+            className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2 cursor-pointer"
           >
             <span>View Subscription Plans</span>
             <ArrowRight size={16} />
@@ -335,8 +335,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
             <div className="space-y-2 md:px-6 pt-6 md:pt-0">
               <div className="flex items-baseline gap-2 justify-center md:justify-start">
-                <span className="text-4xl sm:text-5xl font-black text-cyan-400">250+</span>
-                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300/80">drills</span>
+                <span className="text-4xl sm:text-5xl font-black text-sky-400">250+</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-300/80">drills</span>
               </div>
               <h4 className="text-sm font-bold text-white">Curated Coaching Drills</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
@@ -346,8 +346,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
             <div className="space-y-2 md:pl-6 pt-6 md:pt-0">
               <div className="flex items-baseline gap-2 justify-center md:justify-start">
-                <span className="text-4xl sm:text-5xl font-black text-purple-400">5 Tiers</span>
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-300/80">pathway</span>
+                <span className="text-4xl sm:text-5xl font-black text-sky-400">5 Tiers</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-sky-300/80">pathway</span>
               </div>
               <h4 className="text-sm font-bold text-white">Certified Skill Progression</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
@@ -363,9 +363,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </span>
             <div className="flex flex-wrap items-center gap-6 font-semibold text-slate-300">
               <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-emerald-400" /> Marylebone Cricket Club Academy</span>
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-teal-400" /> Surrey County Cricket Academy</span>
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-cyan-400" /> Yorkshire Strikers CC</span>
-              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-purple-400" /> Lord&apos;s Colts Cricket Club</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-sky-400" /> Surrey County Cricket Academy</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-sky-400" /> Yorkshire Strikers CC</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-sky-400" /> Lord&apos;s Colts Cricket Club</span>
             </div>
           </div>
         </div>
@@ -374,7 +374,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
       {/* 3. Core Product Services Explorer */}
       <section className="max-w-6xl mx-auto px-4 space-y-8">
         <div className="text-center space-y-3 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs font-semibold">
             <Layers size={14} /> Core Platform Capabilities
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white">
@@ -491,8 +491,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-teal-500/40 transition">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-sky-500/40 transition">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <Target size={20} />
             </div>
             <h3 className="text-lg font-bold text-white">Coaching Curricula You Already Trust</h3>
@@ -501,8 +501,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-cyan-500/40 transition">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-sky-500/40 transition">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <Users size={20} />
             </div>
             <h3 className="text-lg font-bold text-white">Built for How Academies Scale</h3>
@@ -511,8 +511,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-purple-500/40 transition">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 hover:border-sky-500/40 transition">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
               <TrendingUp size={20} />
             </div>
             <h3 className="text-lg font-bold text-white">Economics that Compound as You Grow</h3>
@@ -608,7 +608,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Included In Plan:</p>
                     {plan.deliverables.map((item, idx) => (
                       <p key={idx} className="text-[11px] text-slate-300 flex items-center gap-1.5">
-                        <span className="text-cyan-400 text-xs">◆</span> {item}
+                        <span className="text-sky-400 text-xs">◆</span> {item}
                       </p>
                     ))}
                   </div>
@@ -671,7 +671,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 flex flex-col justify-between hover:border-slate-700 transition">
             <div className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
                 Academy Architecture
               </span>
               <h4 className="text-sm font-bold text-white leading-snug">
@@ -683,13 +683,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </div>
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
               <span className="flex items-center gap-1"><Clock size={12} /> 5 min read</span>
-              <span className="text-cyan-400 font-semibold">Architecture Spec →</span>
+              <span className="text-sky-400 font-semibold">Architecture Spec →</span>
             </div>
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 flex flex-col justify-between hover:border-slate-700 transition">
             <div className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
                 Curriculum Design
               </span>
               <h4 className="text-sm font-bold text-white leading-snug">
@@ -701,7 +701,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </div>
             <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
               <span className="flex items-center gap-1"><Clock size={12} /> 6 min read</span>
-              <span className="text-purple-400 font-semibold">Curriculum Guide →</span>
+              <span className="text-sky-400 font-semibold">Curriculum Guide →</span>
             </div>
           </div>
         </div>
@@ -709,7 +709,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
       {/* 7. Final Call to Action Banner (DigitalOcean "Start Building Today" Pattern) */}
       <section className="max-w-6xl mx-auto px-4">
-        <div className="rounded-3xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-teal-950/80 border border-emerald-500/30 p-10 sm:p-14 text-center space-y-6 shadow-2xl relative overflow-hidden">
+        <div className="rounded-3xl bg-gradient-to-r from-emerald-950/80 via-slate-900 to-sky-950/80 border border-emerald-500/30 p-10 sm:p-14 text-center space-y-6 shadow-2xl relative overflow-hidden">
           <div className="max-w-2xl mx-auto space-y-3">
             <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
               Start modernizing your cricket training today.
@@ -722,7 +722,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <a
               href="#pricing"
-              className="px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2"
+              className="px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-extrabold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2"
             >
               <span>Choose Your Subscription</span>
               <ArrowRight size={16} />
@@ -740,7 +740,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
       {/* 8. About Us Section */}
       <section id="about-us" className="space-y-6 px-4 scroll-mt-24 max-w-5xl mx-auto">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs font-semibold">
             <span>🏏</span> Our Mission & Heritage
           </div>
           <h2 className="text-3xl font-extrabold text-white">About eCricketCoach</h2>
@@ -761,7 +761,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
           <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <span className="text-purple-400">🌐</span> Enterprise Multi-Tenancy for Grassroots to Pro
+              <span className="text-sky-400">🌐</span> Enterprise Multi-Tenancy for Grassroots to Pro
             </h3>
             <p className="text-xs text-slate-300 leading-relaxed">
               Whether you are an individual cricketer training in your backyard, a freelance coach guiding 20 students across weekend clinics, or a major cricket academy directing multiple junior and senior squads, our isolated tenant architecture ensures private drills, video archives, and progress records remain secure.
@@ -796,7 +796,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
           <div className="p-5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
             <h4 className="text-sm font-bold text-white flex items-center justify-between">
               <span>What video formats and angles are supported for AI Pose Estimation?</span>
-              <span className="text-cyan-400 text-xs">● MP4 / MOV / Cloud</span>
+              <span className="text-sky-400 text-xs">● MP4 / MOV / Cloud</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
               You can record videos using standard smartphone cameras (60fps or 120fps recommended). For batting drives, side-on (square leg) or front-on angles work best. For pace bowling, side-on delivery stride and front-on release corridor angles provide optimal kinematic accuracy.
@@ -806,7 +806,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
           <div className="p-5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
             <h4 className="text-sm font-bold text-white flex items-center justify-between">
               <span>Can coaches create proprietary drills that are hidden from other clubs?</span>
-              <span className="text-purple-400 text-xs">● Multi-Tenant Isolation</span>
+              <span className="text-sky-400 text-xs">● Multi-Tenant Isolation</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
               Yes! eCricketCoach supports dual drill catalogues. Official pre-defined drills are shared globally, but any drill created by your coaching staff under the Club Portal is scoped solely to your club ID.
@@ -828,7 +828,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
       {/* 10. Contact Us Section */}
       <section id="contact-us" className="space-y-6 px-4 scroll-mt-24 max-w-4xl mx-auto">
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-semibold">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs font-semibold">
             <span>💬</span> Get in Touch
           </div>
           <h2 className="text-3xl font-extrabold text-white">Contact Our Team</h2>
@@ -848,7 +848,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
           </div>
 
           <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 text-center space-y-2">
-            <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center mx-auto text-lg">
+            <div className="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto text-lg">
               🏢
             </div>
             <h4 className="text-sm font-bold text-white">Academy Sales</h4>
@@ -857,7 +857,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
           </div>
 
           <div className="p-5 rounded-xl bg-slate-900/60 border border-slate-800 text-center space-y-2">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center mx-auto text-lg">
+            <div className="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto text-lg">
               🌐
             </div>
             <h4 className="text-sm font-bold text-white">Global Headquarters</h4>
@@ -1020,7 +1020,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                   <button
                     type="submit"
                     disabled={isProcessing}
-                    className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 flex items-center gap-2"
                   >
                     {isProcessing ? (
                       <>

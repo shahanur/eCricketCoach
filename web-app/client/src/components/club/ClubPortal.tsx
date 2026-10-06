@@ -680,9 +680,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       title: 'Roster Invitation Dispatched',
       message: (
         <div className="space-y-2">
-          <p>An official onboarding link has been dispatched via email to <strong className="text-cyan-400">{newMem.email}</strong>.</p>
+          <p>An official onboarding link has been dispatched via email to <strong className="text-sky-400">{newMem.email}</strong>.</p>
           <p className="text-xs text-slate-400">
-            Role: <strong className="text-white">{newMem.role}</strong> • Disciplines: <strong className="text-purple-300">{newMem.discipline}</strong>
+            Role: <strong className="text-white">{newMem.role}</strong> • Disciplines: <strong className="text-sky-300">{newMem.discipline}</strong>
             {newMem.role === 'COACH'
               ? <> • Level: <strong className="text-emerald-300">{newMem.currentLevel}</strong></>
               : <> • Age Group: {newMem.ageGroup} • Assigned Squad: {newMem.squad}</>}
@@ -1047,7 +1047,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       title: 'Publish Training Session',
       message: (
         <div className="space-y-2">
-          <p>Publish session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-cyan-400 font-medium">{session.sessionDate}</span>?</p>
+          <p>Publish session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-sky-400 font-medium">{session.sessionDate}</span>?</p>
           <p className="text-xs text-slate-400">This will immediately notify registered squad athletes in <strong className="text-slate-200">{session.squadName}</strong> with planned drill routines.</p>
         </div>
       ),
@@ -1068,7 +1068,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       title: 'Delete Training Session',
       message: (
         <div className="space-y-2">
-          <p>Delete session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-cyan-400 font-medium">{session.sessionDate}</span>?</p>
+          <p>Delete session <strong className="text-white">"{session.title}"</strong> scheduled for <span className="text-sky-400 font-medium">{session.sessionDate}</span>?</p>
           <p className="text-xs text-slate-400">This action cannot be undone{session.isPublished ? ' and squad athletes who were already notified will no longer see this session' : ''}.</p>
         </div>
       ),
@@ -1110,7 +1110,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-white">{clubName}</h1>
-          <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+          <span className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-0.5 rounded-full font-bold">
             {isClubCoach ? 'Club Coach Workspace' : 'Club Admin & Coaching Hub'}
           </span>
         </div>
@@ -1127,12 +1127,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <button
           onClick={() => setClubTab('ROSTER')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            clubTab === 'ROSTER' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            clubTab === 'ROSTER' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Roster & Invites</span>
           <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
-            clubTab === 'ROSTER' ? 'bg-purple-950 text-purple-200' : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+            clubTab === 'ROSTER' ? 'bg-sky-950 text-sky-200' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
           }`}>
             {clubMembers.length}
           </span>
@@ -1141,12 +1141,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <button
           onClick={() => setClubTab('SQUADS')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            clubTab === 'SQUADS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            clubTab === 'SQUADS' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Squads</span>
           <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
-            clubTab === 'SQUADS' ? 'bg-cyan-950 text-cyan-200' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+            clubTab === 'SQUADS' ? 'bg-sky-950 text-sky-200' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
           }`}>
             {squads.length}
           </span>
@@ -1154,7 +1154,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <button
           onClick={() => setClubTab('SESSIONS')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            clubTab === 'SESSIONS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            clubTab === 'SESSIONS' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Training Sessions</span>
@@ -1167,7 +1167,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <button
           onClick={() => setClubTab('CLUB_DRILLS')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-            clubTab === 'CLUB_DRILLS' ? 'bg-purple-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            clubTab === 'CLUB_DRILLS' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Club Drills</span>
@@ -1175,7 +1175,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <button
           onClick={() => setClubTab('PROGRESSION')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
-            clubTab === 'PROGRESSION' ? 'bg-purple-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            clubTab === 'PROGRESSION' ? 'bg-sky-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
           <span>Certificates</span>
@@ -1211,7 +1211,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             {!isClubCoach && (
               <button
                 onClick={() => setIsInviteModalOpen(true)}
-                className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <UserPlus size={14} />
                 <span>+ Invite New Coach / Player</span>
@@ -1228,8 +1228,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role:</span>
                   <div className="inline-flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/60">
                     {[
-                      { key: 'ALL', label: 'All', count: clubMembers.length, color: 'bg-purple-500/20 text-purple-300 border border-purple-500/30' },
-                      { key: 'COACH', label: 'Coaches', count: clubMembers.filter(m => m.role === 'COACH').length, color: 'bg-blue-500/20 text-blue-300 border border-blue-500/30' },
+                      { key: 'ALL', label: 'All', count: clubMembers.length, color: 'bg-sky-500/20 text-sky-300 border border-sky-500/30' },
+                      { key: 'COACH', label: 'Coaches', count: clubMembers.filter(m => m.role === 'COACH').length, color: 'bg-sky-500/20 text-sky-300 border border-sky-500/30' },
                       { key: 'PLAYER', label: 'Players', count: clubMembers.filter(m => m.role === 'PLAYER').length, color: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }
                     ].map(tab => (
                       <button
@@ -1237,13 +1237,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         onClick={() => setRosterRoleFilter(tab.key as any)}
                         className={`px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                           rosterRoleFilter === tab.key
-                            ? 'bg-purple-600 text-white shadow-sm'
+                            ? 'bg-sky-600 text-white shadow-sm'
                             : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                         }`}
                       >
                         <span>{tab.label}</span>
                         <span className={`inline-flex items-center justify-center min-w-[18px] h-4 px-1 rounded-full text-[9px] font-bold ${
-                          rosterRoleFilter === tab.key ? 'bg-purple-900 text-purple-200' : tab.color
+                          rosterRoleFilter === tab.key ? 'bg-sky-900 text-sky-200' : tab.color
                         }`}>
                           {tab.count}
                         </span>
@@ -1265,7 +1265,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         onClick={() => setRosterStatusFilter(tab.key as any)}
                         className={`px-2.5 py-1 rounded-md text-xs font-semibold transition cursor-pointer ${
                           rosterStatusFilter === tab.key
-                            ? 'bg-purple-600 text-white shadow-sm'
+                            ? 'bg-sky-600 text-white shadow-sm'
                             : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
                         }`}
                       >
@@ -1284,7 +1284,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   placeholder="Search name, email, squad..."
                   value={rosterSearchTerm}
                   onChange={e => setRosterSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 transition"
+                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-7 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 transition"
                 />
                 {rosterSearchTerm && (
                   <button
@@ -1300,12 +1300,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             {/* Dropdown Filters for Discipline & Age Group */}
             <div className="flex flex-wrap items-center gap-3 pt-2.5 border-t border-slate-800/80">
               <div className="flex items-center gap-1.5">
-                <Filter size={13} className="text-purple-400" />
+                <Filter size={13} className="text-sky-400" />
                 <span className="text-xs text-slate-300 font-medium">Discipline:</span>
                 <select
                   value={rosterDisciplineFilter}
                   onChange={e => setRosterDisciplineFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-sky-500 cursor-pointer"
                 >
                   <option value="ALL">All Disciplines</option>
                   <option value="BATTING">Batting</option>
@@ -1320,7 +1320,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <select
                   value={rosterAgeGroupFilter}
                   onChange={e => setRosterAgeGroupFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                  className="bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-sky-500 cursor-pointer"
                 >
                   <option value="ALL">All Age Groups</option>
                   {uniqueAgeGroups.map(ag => (
@@ -1338,7 +1338,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setRosterDisciplineFilter('ALL');
                     setRosterSearchTerm('');
                   }}
-                  className="text-xs font-semibold text-purple-400 hover:text-purple-300 underline cursor-pointer ml-auto"
+                  className="text-xs font-semibold text-sky-400 hover:text-sky-300 underline cursor-pointer ml-auto"
                 >
                   Clear all filters
                 </button>
@@ -1376,7 +1376,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       </td>
                       <td className="py-2 px-1.5">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                          mem.role === 'COACH' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          mem.role === 'COACH' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                         }`}>
                           {mem.role}
                         </span>
@@ -1387,9 +1387,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             const trimmed = d.trim().toUpperCase();
                             const discColor =
                               trimmed === 'BATTING' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
-                              trimmed === 'BOWLING' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' :
+                              trimmed === 'BOWLING' ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' :
                               trimmed === 'KEEPING' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
-                              'bg-purple-500/20 text-purple-300 border-purple-500/30';
+                              'bg-sky-500/20 text-sky-300 border-sky-500/30';
                             return (
                               <span
                                 key={i}
@@ -1449,7 +1449,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                   setUploadModalPlayer(mem);
                                 }}
                                 title="Upload athlete video or sync from Google Drive for AI pose analysis"
-                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
                               >
                                 <Video size={11} />
                                 <span>Upload</span>
@@ -1457,7 +1457,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                               <button
                                 onClick={() => promptPromotePlayer(mem)}
                                 title="Promote player to next competency level and issue certificate"
-                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
+                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
                               >
                                 <Award size={11} />
                                 <span>Promote</span>
@@ -1501,7 +1501,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 setSquadPanelSearchTerm('');
                 setIsSquadModalOpen(true);
               }}
-              className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Users size={14} />
               <span>+ Form New Squad</span>
@@ -1513,7 +1513,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               <div key={sq.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-bold text-white text-sm">{sq.name}</h4>
-                  <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">
+                  <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded font-bold">
                     {sq.ageGroup}
                   </span>
                 </div>
@@ -1571,7 +1571,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   setSessionFormDrillIds([]);
                   setIsSessionModalOpen(true);
                 }}
-                className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Calendar size={14} />
                 <span>+ Schedule Session</span>
@@ -1593,7 +1593,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {s.coachName && <p className="text-xs text-slate-400">Head Coach: <span className="text-white">{s.coachName}</span></p>}
                   {s.coordinatorCoachName && <p className="text-xs text-slate-400">Coordinator: <span className="text-white">{s.coordinatorCoachName}</span></p>}
                   {s.assistantCoachName && <p className="text-xs text-slate-400">Assistant Coach: <span className="text-white">{s.assistantCoachName}</span></p>}
-                  <p className="text-xs text-slate-400">Date: <span className="text-cyan-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
+                  <p className="text-xs text-slate-400">Date: <span className="text-sky-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
                   {s.drillIds && s.drillIds.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {s.drillIds.map((drillId, idx) => {
@@ -1601,7 +1601,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         return (
                           <span
                             key={`${drillId}-${idx}`}
-                            className="inline-flex items-center gap-1 text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                            className="inline-flex items-center gap-1 text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/30 pl-2 pr-1 py-0.5 rounded-full"
                           >
                             {d?.title || 'Unknown Drill'}
                             <button
@@ -1650,13 +1650,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <span className="text-xs text-emerald-400 font-semibold">Active & Notified</span>
                       )}
                       {s.isExecuted ? (
-                        <span className="text-xs text-cyan-300 font-semibold">Executed</span>
+                        <span className="text-xs text-sky-300 font-semibold">Executed</span>
                       ) : (
                         <button
                           type="button"
                           onClick={() => handleMarkSessionExecuted(s)}
                           disabled={executingSessionId === s.id}
-                          className="text-xs px-3 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-semibold rounded border border-cyan-500/30 disabled:opacity-50"
+                          className="text-xs px-3 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold rounded border border-sky-500/30 disabled:opacity-50"
                         >
                           {executingSessionId === s.id ? 'Saving...' : 'Mark as Executed'}
                         </button>
@@ -1687,7 +1687,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   value={selectedExecutedSession?.id || ''}
                   onChange={event => setSelectedExecutedSessionId(event.target.value)}
                   disabled={executedSessions.length === 0}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
                 >
                   {executedSessions.length === 0 ? (
                     <option value="">No executed sessions yet</option>
@@ -1751,14 +1751,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           }));
                         }}
                         placeholder={`Add post-session notes for ${player.name}...`}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
                       />
                       <div className="flex justify-end">
                         <button
                           type="button"
                           onClick={() => handleSavePlayerNote(player.id)}
                           disabled={savingPlayerNoteId === player.id}
-                          className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-semibold rounded border border-purple-500/30 disabled:opacity-50"
+                          className="px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs font-semibold rounded border border-sky-500/30 disabled:opacity-50"
                         >
                           {savingPlayerNoteId === player.id ? 'Saving...' : savedPlayerNoteId === player.id ? 'Saved' : 'Save note'}
                         </button>
@@ -1777,24 +1777,24 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 value={activeSessionNotes}
                 onChange={e => setActiveSessionNotes(e.target.value)}
                 placeholder="e.g. Arjun Tendulkar seam presentation was consistent, but front-foot drive balance had head falling over to off-side during simulation..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-purple-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-sky-500"
               />
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleEvaluatePostSession}
                   disabled={evaluatingSession}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-lg transition disabled:opacity-50"
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-lg transition disabled:opacity-50"
                 >
                   {evaluatingSession ? 'AI Evaluating Notes...' : sessionAiResult ? 'Re-run Post-Session AI Assessment' : 'Run Post-Session AI Assessment'}
                 </button>
               </div>
 
               {sessionAiResult && (
-                <div className="p-4 rounded-lg bg-slate-950 border border-purple-500/40 space-y-3 mt-3">
+                <div className="p-4 rounded-lg bg-slate-950 border border-sky-500/40 space-y-3 mt-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-purple-400 uppercase">AI Diagnosis</span>
-                    <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">
+                    <span className="text-xs font-bold text-sky-400 uppercase">AI Diagnosis</span>
+                    <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded font-bold">
                       {String(sessionAiResult.progressionReadiness || '').replace(/_/g, ' ')}
                     </span>
                   </div>
@@ -1879,7 +1879,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   value={newDrillTitle}
                   onChange={e => setNewDrillTitle(e.target.value)}
                   placeholder="e.g. MCA Powerplay Slips Reaction"
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -1916,7 +1916,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   value={newDrillSkillSet}
                   onChange={e => setNewDrillSkillSet(e.target.value)}
                   placeholder="e.g. Death Bowling, Slip Catching"
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -1937,7 +1937,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   value={newDrillInstructions}
                   onChange={e => setNewDrillInstructions(e.target.value)}
                   placeholder="Equipment needed, cone/marker placement, station rotation cues..."
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -1970,7 +1970,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </div>
               <button
                 type="submit"
-                className="w-full py-2 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs rounded transition"
+                className="w-full py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs rounded transition"
               >
                 Save Club Drill
               </button>
@@ -1983,7 +1983,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <h3 className="font-semibold text-base text-white">Available Drill Catalogue</h3>
                 <p className="text-xs text-slate-400">Includes official pre-defined drills & MCA custom drills.</p>
               </div>
-              <span className="text-xs bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded-full font-semibold">
+              <span className="text-xs bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded-full font-semibold">
                 {drills.length} Total Drills
               </span>
             </div>
@@ -2003,8 +2003,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       <h4 className="text-xs font-bold text-white">{drill.title}</h4>
                       <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
                         drill.source === 'SYSTEM_PREDEFINED' ? 'bg-emerald-500/20 text-emerald-300' :
-                        drill.source === 'CLUB_CUSTOM' ? 'bg-purple-500/20 text-purple-300' :
-                        'bg-cyan-500/20 text-cyan-300'
+                        drill.source === 'CLUB_CUSTOM' ? 'bg-sky-500/20 text-sky-300' :
+                        'bg-sky-500/20 text-sky-300'
                       }`}>
                         {drill.source === 'SYSTEM_PREDEFINED' ? 'Pre-defined' : drill.source === 'CLUB_CUSTOM' ? 'Club Custom' : 'AI Ingested'}
                       </span>
@@ -2061,7 +2061,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   required
                   value={editDrillTitle}
                   onChange={e => setEditDrillTitle(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -2097,7 +2097,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   required
                   value={editDrillSkillSet}
                   onChange={e => setEditDrillSkillSet(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -2118,7 +2118,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   value={editDrillInstructions}
                   onChange={e => setEditDrillInstructions(e.target.value)}
                   placeholder="Equipment needed, cone/marker placement, station rotation cues..."
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -2159,7 +2159,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                  className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition"
                 >
                   Save Changes
                 </button>
@@ -2179,7 +2179,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 Printable achievement certificates generated when players pass competency assessments and level promotions.
               </p>
             </div>
-            <span className="text-xs bg-purple-500/20 text-purple-300 px-2.5 py-1 rounded font-bold border border-purple-500/30">
+            <span className="text-xs bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded font-bold border border-sky-500/30">
               {certificates.length} Issued Certificates
             </span>
           </div>
@@ -2246,7 +2246,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 disabled={isSyncingDriveTab}
                 className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
               >
-                <Cloud className="w-4 h-4 text-cyan-400" />
+                <Cloud className="w-4 h-4 text-sky-400" />
                 <span>{isDriveConnected ? 'Sync with Google Drive' : 'Connect Google Drive'}</span>
               </button>
             </div>
@@ -2408,7 +2408,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <div className="mt-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
                       {isBackingUpToDrive ? (
                         <>
-                          <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-cyan-400" />
+                          <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-sky-400" />
                           <span className="text-slate-300">Backing up to Google Drive{driveEmail ? ` (${driveEmail})` : ''}…</span>
                         </>
                       ) : driveBackupStatus === 'SUCCESS' ? (
@@ -2423,7 +2423,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         </>
                       ) : (
                         <>
-                          <Cloud className="w-4 h-4 shrink-0 text-cyan-400" />
+                          <Cloud className="w-4 h-4 shrink-0 text-sky-400" />
                           <span className="text-slate-400">Will be backed up to Google Drive.</span>
                         </>
                       )}
@@ -2447,10 +2447,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Cloud className="w-4 h-4 text-cyan-400" />
+                      <Cloud className="w-4 h-4 text-sky-400" />
                       <span className="text-xs font-semibold text-white">Google Drive Cloud Vault</span>
                     </div>
-                    <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.5 rounded">
+                    <span className="text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded">
                       {isDriveConnected ? (driveEmail || 'Connected') : 'Not Connected'}
                     </span>
                   </div>
@@ -2463,7 +2463,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         setIsSyncingDriveModal(false);
                       }}
                       disabled={isSyncingDriveModal}
-                      className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
+                      className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveModal ? 'animate-spin' : ''}`} />
                       <span>{isSyncingDriveModal ? 'Syncing...' : 'Sync Latest Clips from Vault'}</span>
@@ -2488,7 +2488,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {/* Video Picker from Connected Drive */}
                   <div className="space-y-1.5 pt-2 border-t border-slate-800">
                     <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                      <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                      <Folder className="w-3.5 h-3.5 text-sky-400" />
                       Select Video from Drive ({driveVideoFiles.length} found):
                     </label>
                     {driveVideoFiles.length === 0 && !driveVideosError ? (
@@ -2499,7 +2499,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       <select
                         value={selectedDriveVideo}
                         onChange={e => setSelectedDriveVideo(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 cursor-pointer"
                       >
                         {driveVideoFiles.map(vf => (
                           <option key={vf.id} value={vf.id}>
@@ -2550,7 +2550,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setIsAnalyzingVideo(false);
                   }
                 }}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>
@@ -2616,7 +2616,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {clubAnalysisResult.biomechanicalMetrics.releasePoint && (
                     <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
                       <span className="text-[10px] text-slate-400 uppercase">Arm Release</span>
-                      <p className="text-xs font-bold text-cyan-400 mt-0.5">{clubAnalysisResult.biomechanicalMetrics.releasePoint}</p>
+                      <p className="text-xs font-bold text-sky-400 mt-0.5">{clubAnalysisResult.biomechanicalMetrics.releasePoint}</p>
                     </div>
                   )}
                 </div>
@@ -2758,7 +2758,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <UserPlus size={18} className="text-purple-400" />
+                <UserPlus size={18} className="text-sky-400" />
                 <span>Invite New Coach or Player</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">Send an official invitation link to join {clubName}.</p>
@@ -2772,7 +2772,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   placeholder="e.g. Jasprit Bumrah"
                   value={inviteName}
                   onChange={e => setInviteName(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -2783,7 +2783,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   placeholder="e.g. jasprit@cricket.org"
                   value={inviteEmail}
                   onChange={e => setInviteEmail(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -2792,7 +2792,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <select
                     value={inviteRole}
                     onChange={e => setInviteRole(e.target.value as 'COACH' | 'PLAYER')}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="PLAYER">Player</option>
                     <option value="COACH">Coach</option>
@@ -2803,7 +2803,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <select
                     value={inviteAgeGroup}
                     onChange={e => setInviteAgeGroup(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="U9">Under-9</option>
                     <option value="U11">Under-11</option>
@@ -2818,7 +2818,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     required
                     value={inviteCoachLevel}
                     onChange={e => setInviteCoachLevel(e.target.value as typeof inviteCoachLevel)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="SUPPORT_COACH">Support Coach</option>
                     <option value="FOUNDATION_COACH">Foundation Coach</option>
@@ -2847,12 +2847,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         onClick={() => toggleInviteDiscipline(d.id as Discipline)}
                         className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer flex items-center justify-center gap-1.5 ${
                           isSelected
-                            ? 'bg-purple-500 text-white border-purple-400 shadow-md shadow-purple-500/20'
+                            ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
                             : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                         }`}
                       >
                         <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                          isSelected ? 'bg-white text-purple-700 border-white' : 'border-slate-600'
+                          isSelected ? 'bg-white text-sky-700 border-white' : 'border-slate-600'
                         }`}>
                           {isSelected ? '✓' : ''}
                         </span>
@@ -2869,7 +2869,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   placeholder="e.g. U15 Pace Squad"
                   value={inviteSquad}
                   onChange={e => setInviteSquad(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
@@ -2882,7 +2882,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                  className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition"
                 >
                   Send Invitation
                 </button>
@@ -2904,7 +2904,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Pencil size={18} className="text-purple-400" />
+                <Pencil size={18} className="text-sky-400" />
                 <span>Edit {editingMember.role === 'COACH' ? 'Coach' : 'Player'} Details</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">Update roster details for {editingMember.name}.</p>
@@ -2920,7 +2920,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   required
                   value={editMemberName}
                   onChange={e => setEditMemberName(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div>
@@ -2930,7 +2930,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   required
                   value={editMemberEmail}
                   onChange={e => setEditMemberEmail(e.target.value)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -2939,7 +2939,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <select
                     value={editMemberRole}
                     onChange={e => setEditMemberRole(e.target.value as 'COACH' | 'PLAYER')}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="PLAYER">Player</option>
                     <option value="COACH">Coach</option>
@@ -2950,7 +2950,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <select
                     value={editMemberAgeGroup}
                     onChange={e => setEditMemberAgeGroup(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   >
                     <option value="U9">Under-9</option>
                     <option value="U11">Under-11</option>
@@ -2980,12 +2980,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         onClick={() => toggleEditMemberDiscipline(d.id as Discipline)}
                         className={`px-2.5 py-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer flex items-center justify-center gap-1.5 ${
                           isSelected
-                            ? 'bg-purple-500 text-white border-purple-400 shadow-md shadow-purple-500/20'
+                            ? 'bg-sky-500 text-white border-sky-400 shadow-md shadow-sky-500/20'
                             : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                         }`}
                       >
                         <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] border ${
-                          isSelected ? 'bg-white text-purple-700 border-white' : 'border-slate-600'
+                          isSelected ? 'bg-white text-sky-700 border-white' : 'border-slate-600'
                         }`}>
                           {isSelected ? '✓' : ''}
                         </span>
@@ -3000,7 +3000,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <select
                   value={editMemberCurrentLevel}
                   onChange={e => setEditMemberCurrentLevel(e.target.value as any)}
-                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 >
                   {editingMember?.role === 'COACH' ? <>
                     <option value="SUPPORT_COACH">Support Coach</option>
@@ -3027,7 +3027,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                  className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition"
                 >
                   Save Changes
                 </button>
@@ -3049,7 +3049,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Users size={18} className="text-purple-400" />
+                <Users size={18} className="text-sky-400" />
                 <span>{editingSquadId ? 'Edit Squad' : 'Form New Squad'}</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">
@@ -3068,7 +3068,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     placeholder="e.g. U13 Spin & Flight Unit"
                     value={squadFormName}
                     onChange={e => setSquadFormName(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -3077,7 +3077,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <select
                       value={squadFormAgeGroup}
                       onChange={e => setSquadFormAgeGroup(e.target.value)}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     >
                       <option value="U9">Under-9</option>
                       <option value="U11">Under-11</option>
@@ -3092,7 +3092,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <select
                       value={squadFormDiscipline}
                       onChange={e => setSquadFormDiscipline(e.target.value as Discipline)}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     >
                       <option value="BATTING">Batting</option>
                       <option value="BOWLING">Bowling</option>
@@ -3114,7 +3114,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           {members.map(m => (
                             <span
                               key={m.id}
-                              className="inline-flex items-center gap-1 text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                              className="inline-flex items-center gap-1 text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/30 pl-2 pr-1 py-0.5 rounded-full"
                             >
                               {m.name}
                               <button
@@ -3161,7 +3161,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                      className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition"
                     >
                       {editingSquadId ? 'Save Changes' : 'Create Squad'}
                     </button>
@@ -3182,13 +3182,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       placeholder="Search players..."
                       value={squadPanelSearchTerm}
                       onChange={e => setSquadPanelSearchTerm(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <select
                         value={squadPanelAgeGroupFilter}
                         onChange={e => setSquadPanelAgeGroupFilter(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-sky-500"
                       >
                         <option value="ALL">All Age Groups</option>
                         <option value="U9">Under-9</option>
@@ -3201,7 +3201,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       <select
                         value={squadPanelDisciplineFilter}
                         onChange={e => setSquadPanelDisciplineFilter(e.target.value as 'ALL' | Discipline)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-purple-500"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-2 text-[11px] text-white focus:outline-none focus:border-sky-500"
                       >
                         <option value="ALL">All Disciplines</option>
                         <option value="BATTING">Batting</option>
@@ -3237,14 +3237,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                 onClick={() => onUpdateMemberSquad?.(player.id, isInSquad ? 'Unassigned' : (currentSquadName || ''))}
                                 className={`w-full text-left p-2 rounded-lg border transition cursor-pointer ${
                                   isInSquad
-                                    ? 'bg-purple-500/10 border-purple-500/40'
+                                    ? 'bg-sky-500/10 border-sky-500/40'
                                     : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-1.5">
                                   <span className="text-[11px] font-semibold text-white truncate">{player.name}</span>
                                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                    isInSquad ? 'bg-purple-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                    isInSquad ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                                   }`}>
                                     {isInSquad ? 'In Squad' : '+ Add'}
                                   </span>
@@ -3278,7 +3278,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar size={18} className="text-purple-400" />
+                <Calendar size={18} className="text-sky-400" />
                 <span>{editingSessionId ? 'Edit Training Session' : 'Schedule Training Session'}</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">Assign date, squad, and duration for practice drills.</p>
@@ -3293,7 +3293,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     placeholder="e.g. Death Bowling & Yorker Execution Circuit"
                     value={sessionFormTitle}
                     onChange={e => setSessionFormTitle(e.target.value)}
-                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
                 <div>
@@ -3304,7 +3304,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       onClick={() => setSessionFormTargetType('SQUAD')}
                       className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition cursor-pointer ${
                         sessionFormTargetType === 'SQUAD'
-                          ? 'bg-purple-500 text-slate-950'
+                          ? 'bg-sky-500 text-slate-950'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -3315,7 +3315,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       onClick={() => setSessionFormTargetType('PLAYERS')}
                       className={`flex-1 px-3 py-1.5 rounded text-xs font-semibold transition cursor-pointer ${
                         sessionFormTargetType === 'PLAYERS'
-                          ? 'bg-purple-500 text-slate-950'
+                          ? 'bg-sky-500 text-slate-950'
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
@@ -3335,7 +3335,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           setSessionFormSquadId(e.target.value);
                           setSessionFormSquad(selected?.name || '');
                         }}
-                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                       >
                         {squads.map(sq => (
                           <option key={sq.id} value={sq.id}>
@@ -3373,7 +3373,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                   checked ? prev.filter(id => id !== p.id) : [...prev, p.id]
                                 );
                               }}
-                              className="accent-purple-500"
+                              className="accent-sky-500"
                             />
                             <span className="text-xs text-slate-200">{p.name}</span>
                             <span className="text-[10px] text-slate-500">({p.ageGroup} • {p.discipline})</span>
@@ -3390,7 +3390,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       required
                       value={sessionFormCoachId}
                       onChange={e => setSessionFormCoachId(e.target.value)}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     >
                       <option value="">Select an active coach</option>
                       {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoordinatorId || coach.id === sessionFormAssistantId}>{coach.name}</option>)}
@@ -3399,14 +3399,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-[11px] font-semibold text-slate-400">Coordinator</label>
-                      <select value={sessionFormCoordinatorId} onChange={e => setSessionFormCoordinatorId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                      <select value={sessionFormCoordinatorId} onChange={e => setSessionFormCoordinatorId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
                         <option value="">None</option>
                         {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoachId || coach.id === sessionFormAssistantId}>{coach.name}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-[11px] font-semibold text-slate-400">Assistant Coach</label>
-                      <select value={sessionFormAssistantId} onChange={e => setSessionFormAssistantId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                      <select value={sessionFormAssistantId} onChange={e => setSessionFormAssistantId(e.target.value)} className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
                         <option value="">None</option>
                         {activeClubCoaches.map(coach => <option key={coach.id} value={coach.id} disabled={coach.id === sessionFormCoachId || coach.id === sessionFormCoordinatorId}>{coach.name}</option>)}
                       </select>
@@ -3422,7 +3422,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       required
                       value={sessionFormDate}
                       onChange={e => setSessionFormDate(e.target.value)}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                   <div>
@@ -3433,7 +3433,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       max="240"
                       value={sessionFormDuration}
                       onChange={e => setSessionFormDuration(Number(e.target.value))}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -3454,7 +3454,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             return (
                               <span
                                 key={`${drillId}-${idx}`}
-                                className="inline-flex items-center gap-1 text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 pl-2 pr-1 py-0.5 rounded-full"
+                                className="inline-flex items-center gap-1 text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/30 pl-2 pr-1 py-0.5 rounded-full"
                               >
                                 {d?.title || 'Unknown Drill'}
                                 <button
@@ -3499,7 +3499,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <button
                     type="submit"
                     disabled={!sessionFormCoachId || (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0)}
-                    className="px-5 py-2.5 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold text-xs shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingSessionId ? 'Save Changes' : 'Schedule Session'}
                   </button>
@@ -3520,7 +3520,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <select
                   value={sessionDrillFilterDiscipline}
                   onChange={e => setSessionDrillFilterDiscipline(e.target.value as 'ALL' | Discipline)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                 >
                   <option value="ALL">All Disciplines</option>
                   <option value="BATTING">Batting</option>
@@ -3574,7 +3574,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             }}
                             className={`w-full text-left p-2 rounded-lg border transition cursor-pointer ${
                               isAdded
-                                ? 'bg-cyan-500/10 border-cyan-500/40'
+                                ? 'bg-sky-500/10 border-sky-500/40'
                                 : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                             }`}
                           >
@@ -3586,7 +3586,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                 <span className="text-[11px] font-semibold text-white truncate">{d.title}</span>
                               </div>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                isAdded ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                isAdded ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                               }`}>
                                 {isAdded ? 'Added' : '+ Add'}
                               </span>
@@ -3623,7 +3623,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </button>
 
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold mb-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-semibold mb-1">
                 <span>📹</span>
                 <span>Computer Vision Biomechanics Engine</span>
               </div>
@@ -3758,7 +3758,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       <div className="mt-2 p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-xs flex items-center gap-2">
                         {isModalBackingUpToDrive ? (
                           <>
-                            <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-cyan-400" />
+                            <RefreshCw className="w-4 h-4 shrink-0 animate-spin text-sky-400" />
                             <span className="text-slate-300">Backing up to Google Drive…</span>
                           </>
                         ) : modalDriveBackupStatus === 'SUCCESS' ? (
@@ -3773,7 +3773,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           </>
                         ) : (
                           <>
-                            <Cloud className="w-4 h-4 shrink-0 text-cyan-400" />
+                            <Cloud className="w-4 h-4 shrink-0 text-sky-400" />
                             <span className="text-slate-400">Will be backed up to Google Drive.</span>
                           </>
                         )}
@@ -3796,10 +3796,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Cloud className="w-4 h-4 text-cyan-400" />
+                        <Cloud className="w-4 h-4 text-sky-400" />
                         <span className="text-xs font-semibold text-white">Google Drive Cloud Vault</span>
                       </div>
-                      <span className="text-[10px] bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-2 py-0.5 rounded">
+                      <span className="text-[10px] bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded">
                         {isDriveConnected ? (driveEmail || 'Connected') : 'Not Connected'}
                       </span>
                     </div>
@@ -3812,7 +3812,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           setIsSyncingDriveModal(false);
                         }}
                         disabled={isSyncingDriveModal}
-                        className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
+                        className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveModal ? 'animate-spin' : ''}`} />
                         <span>{isSyncingDriveModal ? 'Syncing with Google Drive...' : 'Sync Latest Clips from Vault'}</span>
@@ -3837,7 +3837,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     {/* Video Picker from Connected Drive */}
                     <div className="space-y-1.5 pt-2 border-t border-slate-800">
                       <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1.5">
-                        <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                        <Folder className="w-3.5 h-3.5 text-sky-400" />
                         Select Video from Drive ({modalDriveVideoFiles.length} found):
                       </label>
                       {modalDriveVideoFiles.length === 0 && !modalDriveVideosError ? (
@@ -3848,7 +3848,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         <select
                           value={modalSelectedDriveVideo}
                           onChange={e => setModalSelectedDriveVideo(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-500 cursor-pointer"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 cursor-pointer"
                         >
                           {modalDriveVideoFiles.map(vf => (
                             <option key={vf.id} value={vf.id}>
@@ -3890,7 +3890,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setModalIsAnalyzing(false);
                   }
                 }}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>
