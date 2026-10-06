@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import { prisma } from '../config/prisma.js';
 import { fetchWithRetry } from '../utils/retry.js';
+import { isAllowedAppOrigin, resolveAppOrigin } from '../utils/appOrigin.js';
 
 type Provider = 'google' | 'microsoft' | 'apple';
 
@@ -32,7 +33,6 @@ const providerConfig: Record<Provider, { clientId?: string; clientSecret?: strin
   }
 };
 
-const appOrigin = process.env.APP_ORIGIN || 'http://localhost:3000';
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
 
 export async function resolveRosterIdentity(email: string) {
@@ -107,8 +107,9 @@ authRouter.get('/:provider', (req: Request, res: Response) => {
   }
 
   const returnTo = safeReturnTo(req.query.returnTo);
-  const state = jwt.sign({ provider, returnTo }, jwtSecret, { expiresIn: '10m' });
-  const callbackUrl = `${appOrigin}/api/auth/${provider}/callback`;
+  const origin = resolveAppOrigin(req);
+  const state = jwt.sign({ provider, returnTo, origin }, jwtSecret, { expiresIn: '10m' });
+  const callbackUrl = `${origin}/api/auth/${provider}/callback`;
   const authorizationUrl = new URL(config.authorizationUrl);
   authorizationUrl.searchParams.set('client_id', config.clientId);
   authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
@@ -134,9 +135,9 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  let statePayload: { provider: Provider; returnTo: string };
+  let statePayload: { provider: Provider; returnTo: string; origin?: string };
   try {
-    statePayload = jwt.verify(state, jwtSecret) as { provider: Provider; returnTo: string };
+    statePayload = jwt.verify(state, jwtSecret) as { provider: Provider; returnTo: string; origin?: string };
   } catch {
     res.status(400).json({ error: 'OAuth state is invalid or expired.' });
     return;
@@ -147,6 +148,7 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
   }
 
   const config = providerConfig[provider];
+  const appOrigin = isAllowedAppOrigin(statePayload.origin) ? statePayload.origin : resolveAppOrigin(req);
   const callbackUrl = `${appOrigin}/api/auth/${provider}/callback`;
   const tokenResponse = await fetchWithRetry(config.tokenUrl, {
     method: 'POST',

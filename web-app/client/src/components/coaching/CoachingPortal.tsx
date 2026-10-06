@@ -14,6 +14,8 @@ interface CoachingPortalProps {
   onScheduleSession: (session: TrainingSession) => void;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void;
   onDeleteSession: (sessionId: string) => void;
+  onDrillCreated?: (drill: Drill) => void;
+  onSessionSynced?: (session: TrainingSession) => void;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -39,7 +41,9 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
   onAddAiDrill,
   onScheduleSession,
   onUpdateSession,
-  onDeleteSession
+  onDeleteSession,
+  onDrillCreated,
+  onSessionSynced
 }) => {
   const [selectedDiscipline, setSelectedDiscipline] = useState<Discipline>('BATTING');
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
@@ -259,6 +263,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
         <CoachOperations
           currentUser={currentUser}
           drills={drills}
+          onDrillCreated={onDrillCreated}
+          onSessionSynced={onSessionSynced}
           onScheduleSession={onScheduleSession}
           onUpdateSession={onUpdateSession}
           onDeleteSession={onDeleteSession}

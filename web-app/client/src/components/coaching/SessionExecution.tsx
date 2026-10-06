@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
 import {
   AttendanceStatus,
@@ -16,9 +16,15 @@ interface SessionExecutionProps {
   session: TrainingSession;
   players: ClubMember[];
   drills: Drill[];
+  clubName?: string;
   onClose: () => void;
   onSaved: (session: TrainingSession) => void;
+  onRefresh?: () => void | Promise<void>;
+  onDrillCreated?: (drill: Drill) => void;
 }
+
+const DISCIPLINES: Drill['discipline'][] = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'];
+const EMPTY_ADHOC = { title: '', discipline: 'BATTING' as Drill['discipline'], skillSet: '', contextType: 'GROUP' as Drill['contextType'], duration: 15, instructions: '' };
 
 const STEPS: Array<{ id: Step; label: string }> = [
   { id: 'PREPARE', label: '1. Prepare' },
@@ -83,20 +89,61 @@ const localToday = () => {
 
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-const buildInitialLog = (session: TrainingSession, drills: Drill[]): SessionExecutionLog => {
-  if (session.executionLog) return session.executionLog;
-  const sessionDrills: SessionDrillLogEntry[] = (session.drillIds || []).map((drillId, index) => {
-    const drill = drills.find(item => item.id === drillId);
-    return {
-      id: `drill-${index}-${drillId}`,
-      drillId,
-      title: drill?.title || 'Planned drill',
-      plannedMinutes: drill?.duration || 15,
-      actualMinutes: 0,
-      completed: false,
-      notes: ''
-    };
+const COOL_DOWN_TITLE = 'Cool-down and debrief';
+
+const catalogueEntry = (drillId: string, drills: Drill[]): SessionDrillLogEntry => {
+  const drill = drills.find(item => item.id === drillId);
+  return {
+    id: newId('drill'),
+    drillId,
+    title: drill?.title || 'Planned drill',
+    plannedMinutes: drill?.duration || 15,
+    actualMinutes: 0,
+    completed: false,
+    notes: ''
+  };
+};
+
+const insertBeforeCoolDown = (drillLog: SessionDrillLogEntry[], entries: SessionDrillLogEntry[]) => {
+  const coolDownIndex = drillLog.length - 1;
+  if (coolDownIndex >= 0 && !drillLog[coolDownIndex].drillId && drillLog[coolDownIndex].title === COOL_DOWN_TITLE) {
+    return [...drillLog.slice(0, coolDownIndex), ...entries, drillLog[coolDownIndex]];
+  }
+  return [...drillLog, ...entries];
+};
+
+// Keeps catalogue-linked drill log entries in step with the session's drill plan, which can be
+// amended after execution started. Untouched entries for removed drills are dropped; recorded work is kept.
+const reconcileDrillLog = (drillLog: SessionDrillLogEntry[], drillIds: string[], drills: Drill[]) => {
+  const wanted = new Map<string, number>();
+  drillIds.forEach(id => wanted.set(id, (wanted.get(id) || 0) + 1));
+  const linked = new Map<string, number>();
+  let changed = false;
+  const kept = drillLog.filter(entry => {
+    if (!entry.drillId) return true;
+    const count = linked.get(entry.drillId) || 0;
+    if (count < (wanted.get(entry.drillId) || 0)) {
+      linked.set(entry.drillId, count + 1);
+      return true;
+    }
+    const hasRecordedWork = entry.completed || entry.actualMinutes > 0 || Boolean(entry.notes.trim());
+    if (!hasRecordedWork) changed = true;
+    return hasRecordedWork;
   });
+  const missing: SessionDrillLogEntry[] = [];
+  wanted.forEach((count, drillId) => {
+    for (let index = linked.get(drillId) || 0; index < count; index += 1) missing.push(catalogueEntry(drillId, drills));
+  });
+  if (!missing.length && !changed) return drillLog;
+  return insertBeforeCoolDown(kept, missing);
+};
+
+const buildInitialLog = (session: TrainingSession, drills: Drill[]): SessionExecutionLog => {
+  if (session.executionLog) {
+    if (session.isExecuted) return session.executionLog;
+    return { ...session.executionLog, drillLog: reconcileDrillLog(session.executionLog.drillLog, session.drillIds || [], drills) };
+  }
+  const sessionDrills = (session.drillIds || []).map(drillId => catalogueEntry(drillId, drills));
   const block = (title: string, plannedMinutes: number): SessionDrillLogEntry => ({
     id: newId('block'), drillId: null, title, plannedMinutes, actualMinutes: 0, completed: false, notes: ''
   });
@@ -106,7 +153,7 @@ const buildInitialLog = (session: TrainingSession, drills: Drill[]): SessionExec
     completedAt: null,
     checklist: {},
     attendance: {},
-    drillLog: [block('Warm-up', 10), ...sessionDrills, block('Cool-down and debrief', 10)],
+    drillLog: [block('Warm-up', 10), ...sessionDrills, block(COOL_DOWN_TITLE, 10)],
     incidents: [],
     evaluation: { objectivesMet: '', engagement: 0, wentWell: '', challenges: '', nextAdjustments: '' }
   };
@@ -120,8 +167,13 @@ const formatElapsed = (ms: number) => {
   return `${hours ? `${hours}:` : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
-export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, players, drills, onClose, onSaved }) => {
+export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, players, drills, clubName, onClose, onSaved, onRefresh, onDrillCreated }) => {
   const [log, setLog] = useState<SessionExecutionLog>(() => buildInitialLog(session, drills));
+  const [catalogueSearch, setCatalogueSearch] = useState('');
+  const [catalogueDiscipline, setCatalogueDiscipline] = useState<'ALL' | Drill['discipline']>('ALL');
+  const [drillPanel, setDrillPanel] = useState<'NONE' | 'CATALOGUE' | 'ADHOC'>('NONE');
+  const [adhocDrill, setAdhocDrill] = useState(EMPTY_ADHOC);
+  const [drillBusy, setDrillBusy] = useState(false);
   const [playerNotes, setPlayerNotes] = useState<Record<string, string>>(session.playerNotes || {});
   const [postNotes, setPostNotes] = useState(session.postNotes || '');
   const [step, setStep] = useState<Step>(session.isExecuted ? 'EVALUATE' : session.executionLog?.status === 'IN_PROGRESS' ? 'RUN' : 'PREPARE');
@@ -142,6 +194,23 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [isLive]);
+
+  const drillIdsKey = (session.drillIds || []).join('|');
+  useEffect(() => {
+    if (session.isExecuted) return;
+    setLog(current => {
+      const drillLog = reconcileDrillLog(current.drillLog, session.drillIds || [], drills);
+      return drillLog === current.drillLog ? current : { ...current, drillLog };
+    });
+  }, [drillIdsKey, drills, session.isExecuted]);
+
+  const catalogue = useMemo(() => {
+    const search = catalogueSearch.trim().toLowerCase();
+    return drills
+      .filter(drill => drill.source !== 'CLUB_CUSTOM' || (clubName && drill.clubName === clubName))
+      .filter(drill => catalogueDiscipline === 'ALL' || drill.discipline === catalogueDiscipline)
+      .filter(drill => !search || `${drill.title} ${drill.skillSet}`.toLowerCase().includes(search));
+  }, [drills, clubName, catalogueDiscipline, catalogueSearch]);
 
   const sessionPlayers = useMemo(() => {
     const assigned = new Set(session.assignedPlayerIds || []);
@@ -201,6 +270,54 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   const startSession = async () => {
     const nextLog: SessionExecutionLog = { ...log, status: 'IN_PROGRESS', startedAt: new Date().toISOString() };
     if (await persist(nextLog)) setStep('ATTENDANCE');
+  };
+
+  const addSessionDrill = async (payload: Parameters<typeof api.addCoachSessionDrill>[1]) => {
+    setDrillBusy(true);
+    setError('');
+    try {
+      const result = await api.addCoachSessionDrill(session.id, payload);
+      if ('drill' in payload) onDrillCreated?.(result.drill);
+      const nextLog = { ...log, drillLog: insertBeforeCoolDown(log.drillLog, [catalogueEntry(result.drill.id, [result.drill])]) };
+      setLog(nextLog);
+      onSaved(result.session);
+      if (await persist(nextLog)) setSavedMessage(`"${result.drill.title}" added to the session${'drill' in payload ? ' and saved to the club catalogue' : ''}.`);
+      setAdhocDrill(EMPTY_ADHOC);
+      setDrillPanel('NONE');
+    } catch (addError) {
+      setError(addError instanceof Error ? addError.message : 'Unable to add drill.');
+    } finally {
+      setDrillBusy(false);
+    }
+  };
+
+  const removeSessionDrill = async (entry: SessionDrillLogEntry) => {
+    const nextLog = { ...log, drillLog: log.drillLog.filter(item => item.id !== entry.id) };
+    if (!entry.drillId) {
+      setLog(nextLog);
+      return;
+    }
+    if (!window.confirm(`Remove "${entry.title}" from this session's plan?`)) return;
+    setDrillBusy(true);
+    setError('');
+    try {
+      const updated = await api.removeCoachSessionDrill(session.id, entry.drillId);
+      setLog(nextLog);
+      onSaved(updated);
+      await persist(nextLog);
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : 'Unable to remove drill.');
+    } finally {
+      setDrillBusy(false);
+    }
+  };
+
+  const submitAdhocDrill = () => {
+    if (!adhocDrill.title.trim() || !adhocDrill.skillSet.trim()) {
+      setError('Ad-hoc drills need a title and skill focus.');
+      return;
+    }
+    addSessionDrill({ drill: { ...adhocDrill, title: adhocDrill.title.trim(), skillSet: adhocDrill.skillSet.trim(), instructions: adhocDrill.instructions.trim() } });
   };
 
   const addIncident = () => {
@@ -371,12 +488,67 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
                   <label className="text-[11px] text-slate-400 flex items-center gap-1">Planned <input type="number" min={0} value={entry.plannedMinutes} onChange={event => updateDrill(entry.id, { plannedMinutes: Number(event.target.value) })} className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-xs text-white" /></label>
                   <label className="text-[11px] text-slate-400 flex items-center gap-1">Actual <input type="number" min={0} value={entry.actualMinutes} onChange={event => updateDrill(entry.id, { actualMinutes: Number(event.target.value) })} className={`w-14 bg-slate-950 border rounded px-1 py-0.5 text-xs text-white ${entry.actualMinutes > entry.plannedMinutes + 5 ? 'border-amber-500' : 'border-slate-700'}`} /></label>
                   <button onClick={() => updateDrill(entry.id, { completed: !entry.completed })} aria-pressed={entry.completed} className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${entry.completed ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-400'}`}><CheckCircle2 size={12} /> Done</button>
-                  <button onClick={() => updateLog({ drillLog: log.drillLog.filter(item => item.id !== entry.id) })} aria-label={`Remove ${entry.title}`} className="p-1 text-rose-300"><Trash2 size={14} /></button>
+                  <button onClick={() => removeSessionDrill(entry)} disabled={drillBusy || isCompleted} aria-label={`Remove ${entry.title}`} title={entry.drillId ? 'Remove from session plan' : 'Remove block'} className="p-1 text-rose-300 disabled:opacity-40"><Trash2 size={14} /></button>
                 </div>
                 <textarea value={entry.notes} onChange={event => updateDrill(entry.id, { notes: event.target.value })} placeholder="What happened? Adaptations, standout performers, issues…" rows={2} className={inputClass} />
               </div>
             ))}
-            <button onClick={() => updateLog({ drillLog: [...log.drillLog, { id: newId('block'), drillId: null, title: 'New drill', plannedMinutes: 10, actualMinutes: 0, completed: false, notes: '' }] })} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1"><Plus size={14} /> Add drill block</button>
+            {!isCompleted && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setDrillPanel(drillPanel === 'CATALOGUE' ? 'NONE' : 'CATALOGUE')} aria-expanded={drillPanel === 'CATALOGUE'} className="px-3 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded flex items-center gap-1"><Plus size={14} /> Add from catalogue</button>
+                  <button onClick={() => setDrillPanel(drillPanel === 'ADHOC' ? 'NONE' : 'ADHOC')} aria-expanded={drillPanel === 'ADHOC'} className="px-3 py-1.5 text-xs border border-cyan-500/40 text-cyan-300 rounded flex items-center gap-1"><Plus size={14} /> Ad-hoc drill</button>
+                  <button onClick={() => updateLog({ drillLog: insertBeforeCoolDown(log.drillLog, [{ id: newId('block'), drillId: null, title: 'New block', plannedMinutes: 10, actualMinutes: 0, completed: false, notes: '' }]) })} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1"><Plus size={14} /> Add time block</button>
+                  {onRefresh && <button onClick={() => onRefresh()} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-300 rounded flex items-center gap-1"><RefreshCw size={14} /> Refresh plan</button>}
+                </div>
+
+                {drillPanel === 'CATALOGUE' && (
+                  <div className="border border-slate-800 rounded-lg p-3 space-y-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input value={catalogueSearch} onChange={event => setCatalogueSearch(event.target.value)} placeholder="Search drills or skills" aria-label="Search drill catalogue" className={inputClass} />
+                      <select value={catalogueDiscipline} onChange={event => setCatalogueDiscipline(event.target.value as 'ALL' | Drill['discipline'])} aria-label="Filter by discipline" className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white">
+                        <option value="ALL">All disciplines</option>
+                        {DISCIPLINES.map(discipline => <option key={discipline} value={discipline}>{discipline.charAt(0) + discipline.slice(1).toLowerCase()}</option>)}
+                      </select>
+                    </div>
+                    <ul className="max-h-64 overflow-y-auto divide-y divide-slate-800">
+                      {catalogue.map(drill => (
+                        <li key={drill.id} className="py-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs text-white truncate">{drill.title}</p>
+                            <p className="text-[11px] text-slate-500">{drill.discipline} · {drill.skillSet} · {drill.duration} min{drill.source === 'CLUB_CUSTOM' ? ' · Club' : ''}</p>
+                          </div>
+                          <button onClick={() => addSessionDrill({ drillId: drill.id })} disabled={drillBusy} className="px-2 py-1 text-xs border border-emerald-500/40 text-emerald-300 rounded disabled:opacity-40">Add</button>
+                        </li>
+                      ))}
+                      {catalogue.length === 0 && <li className="py-3 text-xs text-slate-500">No drills match. Create an ad-hoc drill instead.</li>}
+                    </ul>
+                  </div>
+                )}
+
+                {drillPanel === 'ADHOC' && (
+                  <div className="border border-slate-800 rounded-lg p-3 space-y-2">
+                    <p className="text-[11px] text-slate-400">Ad-hoc drills are added to this session and saved to your club's drill catalogue.</p>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      <input value={adhocDrill.title} onChange={event => setAdhocDrill({ ...adhocDrill, title: event.target.value })} placeholder="Drill title" aria-label="Ad-hoc drill title" className={inputClass} />
+                      <input value={adhocDrill.skillSet} onChange={event => setAdhocDrill({ ...adhocDrill, skillSet: event.target.value })} placeholder="Skill focus (e.g. Front-foot drive)" aria-label="Ad-hoc drill skill focus" className={inputClass} />
+                      <select value={adhocDrill.discipline} onChange={event => setAdhocDrill({ ...adhocDrill, discipline: event.target.value as Drill['discipline'] })} aria-label="Ad-hoc drill discipline" className={inputClass}>
+                        {DISCIPLINES.map(discipline => <option key={discipline} value={discipline}>{discipline.charAt(0) + discipline.slice(1).toLowerCase()}</option>)}
+                      </select>
+                      <div className="flex gap-2">
+                        <select value={adhocDrill.contextType} onChange={event => setAdhocDrill({ ...adhocDrill, contextType: event.target.value as Drill['contextType'] })} aria-label="Ad-hoc drill context" className={inputClass}>
+                          <option value="GROUP">Group</option>
+                          <option value="INDIVIDUAL">Individual</option>
+                        </select>
+                        <label className="text-[11px] text-slate-400 flex items-center gap-1 whitespace-nowrap">Min <input type="number" min={1} value={adhocDrill.duration} onChange={event => setAdhocDrill({ ...adhocDrill, duration: Number(event.target.value) })} className="w-16 bg-slate-950 border border-slate-700 rounded px-1 py-2 text-xs text-white" /></label>
+                      </div>
+                    </div>
+                    <textarea value={adhocDrill.instructions} onChange={event => setAdhocDrill({ ...adhocDrill, instructions: event.target.value })} placeholder="Setup and instructions" aria-label="Ad-hoc drill instructions" rows={2} className={inputClass} />
+                    <button onClick={submitAdhocDrill} disabled={drillBusy} className="px-3 py-1.5 text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 rounded disabled:opacity-40">Add to session &amp; catalogue</button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="border-t border-slate-800 pt-4 space-y-2">
               <h3 className="text-sm font-bold text-white flex items-center gap-2"><AlertTriangle size={14} className="text-amber-400" /> Disruptions and incidents</h3>

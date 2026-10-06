@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { DbService } from '../services/dbService.js';
 import { ClubMember, Squad, TrainingSession, Certificate } from '../types/index.js';
-import { AiAnalysisService } from '../services/aiAnalysisService.js';
+import { SessionEvaluationService } from '../services/sessionEvaluationService.js';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest, requireRole } from '../middleware/auth.js';
 
@@ -333,23 +333,37 @@ clubRouter.patch('/sessions/:id/remove-drill', async (req: Request, res: Respons
 });
 
 // 4. Post-Session Notes, AI Assessment & Tailored Drills Top-Up
-clubRouter.post('/sessions/:id/post-notes-ai-assess', async (req: Request, res: Response) => {
+clubRouter.post('/sessions/:id/post-notes-ai-assess', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
-    const { notes, context } = req.body;
+    const id = String(req.params.id);
+    const notes = typeof req.body?.notes === 'string' ? req.body.notes : '';
 
-    const aiResult = await AiAnalysisService.evaluateSessionNotes(
-      notes || '',
-      'BATTING',
-      context || 'GROUP'
-    );
+    const session = await prisma.trainingSession.findUnique({ where: { id }, select: { clubId: true } });
+    if (!session || session.clubId !== req.user?.tenantId) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
 
-    const updated = await DbService.updateSessionNotesAndEvaluation(id, notes || '', aiResult);
+    const aiResult = await SessionEvaluationService.evaluate(id, notes);
+    if (!aiResult) {
+      return res.status(400).json({ error: 'Add player notes or session observations before running the AI assessment.' });
+    }
+
+    const updated = await DbService.updateSessionNotesAndEvaluation(id, undefined, aiResult);
     if (!updated) return res.status(404).json({ error: 'Session not found' });
 
     return res.json({ success: true, aiResult, session: updated });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.startsWith('GEMINI_QUOTA_EXCEEDED')) {
+      return res.status(429).json({ error: 'The AI assessment quota has been reached. Please try again later.' });
+    }
+    if (/high demand|overloaded|503 Service Unavailable/i.test(message)) {
+      return res.status(503).json({ error: 'The AI service is busy right now. Please try again in a minute.' });
+    }
+    if (message.includes('not configured')) {
+      return res.status(503).json({ error: message });
+    }
+    return res.status(500).json({ error: message });
   }
 });
 

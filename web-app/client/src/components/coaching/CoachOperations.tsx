@@ -25,6 +25,8 @@ interface CoachOperationsProps {
   onScheduleSession: (session: TrainingSession) => void | Promise<void>;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void | Promise<void>;
   onDeleteSession: (sessionId: string) => void | Promise<void>;
+  onDrillCreated?: (drill: Drill) => void;
+  onSessionSynced?: (session: TrainingSession) => void;
 }
 
 const currentDate = new Date();
@@ -40,7 +42,9 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   drills,
   onScheduleSession,
   onUpdateSession,
-  onDeleteSession
+  onDeleteSession,
+  onDrillCreated,
+  onSessionSynced
 }) => {
   const [tab, setTab] = useState<CoachTab>('OVERVIEW');
   const [players, setPlayers] = useState<ClubMember[]>([]);
@@ -91,12 +95,22 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const openExecution = (session: TrainingSession) => {
     setTab('SESSIONS');
     setExecutingSessionId(session.id);
+    loadDashboard();
   };
+
+  // Picks up session amendments made elsewhere (e.g. drills added in the club portal) while a session is open.
+  useEffect(() => {
+    if (!executingSessionId) return;
+    const refresh = () => { loadDashboard(); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [executingSessionId]);
 
   const applySavedSession = (updated: TrainingSession) => {
     const merge = (list: TrainingSession[]) => list.map(session => session.id === updated.id ? { ...session, ...updated } : session);
     setSessions(merge);
     setMySessions(merge);
+    onSessionSynced?.(updated);
   };
 
   const playerAttendance = (player: ClubMember) => {
@@ -255,8 +269,11 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           session={executingSession}
           players={players}
           drills={drills}
+          clubName={currentUser.clubName}
           onClose={() => setExecutingSessionId(null)}
           onSaved={applySavedSession}
+          onRefresh={loadDashboard}
+          onDrillCreated={onDrillCreated}
         />
       )}
 

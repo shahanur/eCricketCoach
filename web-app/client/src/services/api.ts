@@ -218,6 +218,41 @@ export const api = {
     return data.session;
   },
 
+  async addCoachSessionDrill(
+    sessionId: string,
+    payload: { drillId: string } | { drill: Pick<Drill, 'title' | 'discipline' | 'skillSet' | 'contextType' | 'duration' | 'instructions'> }
+  ): Promise<{ session: TrainingSession; drill: Drill }> {
+    const res = await fetch(`${API_BASE}/coach/sessions/${encodeURIComponent(sessionId)}/drills`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to add drill to session');
+    const data = await res.json();
+    return { session: data.session, drill: data.drill };
+  },
+
+  async removeCoachSessionDrill(sessionId: string, drillId: string): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/coach/sessions/${encodeURIComponent(sessionId)}/drills/${encodeURIComponent(drillId)}`, {
+      method: 'DELETE',
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to remove drill from session');
+    const data = await res.json();
+    return data.session;
+  },
+
+  async assessSessionWithAi(sessionId: string, notes: string): Promise<TrainingSession> {
+    const res = await fetch(`${API_BASE}/club/sessions/${encodeURIComponent(sessionId)}/post-notes-ai-assess`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify({ notes })
+    });
+    if (!res.ok) throw await responseError(res, 'AI assessment failed');
+    const data = await res.json();
+    return data.session;
+  },
+
   // Subscriptions & Checkout
   async checkout(payload: {
     planId: string;

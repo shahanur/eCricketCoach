@@ -5,6 +5,7 @@ import multer from 'multer';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { fetchWithRetry } from '../utils/retry.js';
+import { isAllowedAppOrigin, resolveAppOrigin } from '../utils/appOrigin.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
@@ -22,15 +23,15 @@ const GOOGLE_DRIVE_UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/file
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file openid email';
 
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
-const appOrigin = process.env.APP_ORIGIN || 'http://localhost:3000';
 // The OAuth redirect_uri must be publicly reachable and match an Authorized Redirect URI
 // configured on the Google Cloud OAuth Client. Requests are proxied through the client's
-// nginx (/api/ -> server:5001/api/) so we use APP_ORIGIN (the browser-facing origin) here,
+// nginx (/api/ -> server:5001/api/) so we use the browser-facing origin from APP_ORIGIN here,
 // matching the pattern already used by the main social sign-in flow in routes/auth.ts.
-const driveRedirectUri = `${appOrigin}/api/google-drive/callback`;
+const driveRedirectUri = (origin: string) => `${origin}/api/google-drive/callback`;
 
 interface StatePayload {
   userId: string;
+  origin?: string;
 }
 
 function callbackHtml(message: Record<string, string>): string {
@@ -69,11 +70,12 @@ router.get('/connect', (req: Request, res: Response) => {
     return;
   }
 
-  const state = jwt.sign({ userId } as StatePayload, jwtSecret, { expiresIn: '10m' });
+  const origin = resolveAppOrigin(req);
+  const state = jwt.sign({ userId, origin } as StatePayload, jwtSecret, { expiresIn: '10m' });
 
   const authUrl = new URL(GOOGLE_AUTH_URL);
   authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-  authUrl.searchParams.set('redirect_uri', driveRedirectUri);
+  authUrl.searchParams.set('redirect_uri', driveRedirectUri(origin));
   authUrl.searchParams.set('response_type', 'code');
   authUrl.searchParams.set('scope', DRIVE_SCOPE);
   authUrl.searchParams.set('access_type', 'offline');
@@ -101,9 +103,11 @@ router.get('/callback', async (req: Request, res: Response) => {
   }
 
   let userId: string;
+  let origin: string;
   try {
     const decoded = jwt.verify(state, jwtSecret) as StatePayload;
     userId = decoded.userId;
+    origin = isAllowedAppOrigin(decoded.origin) ? decoded.origin : resolveAppOrigin(req);
   } catch {
     res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Your Google Drive connection request expired. Please try again.' }));
     return;
@@ -117,7 +121,7 @@ router.get('/callback', async (req: Request, res: Response) => {
         client_id: GOOGLE_CLIENT_ID!,
         client_secret: GOOGLE_CLIENT_SECRET!,
         code,
-        redirect_uri: driveRedirectUri,
+        redirect_uri: driveRedirectUri(origin),
         grant_type: 'authorization_code'
       })
     }, { label: 'Google OAuth token exchange' });

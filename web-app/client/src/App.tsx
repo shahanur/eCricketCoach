@@ -215,6 +215,21 @@ export default function App() {
     loadData();
   }, [currentUser?.tenantId]);
 
+  // Sessions can be changed by other users (club admin, coaches); refresh when the tab regains focus.
+  useEffect(() => {
+    const tenantId = currentUser?.tenantId;
+    if (!tenantId) return;
+    const refreshSessions = () => {
+      api.getSessions(tenantId).then(setSessions).catch(() => undefined);
+    };
+    window.addEventListener('focus', refreshSessions);
+    return () => window.removeEventListener('focus', refreshSessions);
+  }, [currentUser?.tenantId]);
+
+  const handleSessionSynced = (updated: TrainingSession) => {
+    setSessions(prev => prev.map(session => session.id === updated.id ? { ...session, ...updated } : session));
+  };
+
   // App handlers backed by PostgreSQL APIs
   const handleAddDrill = async (drill: Drill) => {
     try {
@@ -850,6 +865,8 @@ export default function App() {
             onScheduleSession={handleScheduleSession}
             onUpdateSession={handleUpdateSession}
             onDeleteSession={handleDeleteSession}
+            onDrillCreated={drill => setDrills(prev => prev.some(item => item.id === drill.id) ? prev : [drill, ...prev])}
+            onSessionSynced={handleSessionSynced}
           />
         )}
 

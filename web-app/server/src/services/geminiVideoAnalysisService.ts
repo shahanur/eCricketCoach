@@ -167,7 +167,6 @@ export class GeminiVideoAnalysisService {
       throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable video analysis.');
     }
 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const prompt = buildPrompt(discipline, context);
 
     let videoPart: any;
@@ -210,10 +209,21 @@ export class GeminiVideoAnalysisService {
       }
     }
 
-    // Try the dynamically-resolved model candidates in ranked order (best first). If a model is
-    // unavailable/retired (Gemini returns a "not found" style error), fall through to the next
-    // candidate automatically instead of failing the whole request or requiring a manual env
-    // var update. Only the first couple of candidates are attempted to avoid excessive retries.
+    return GeminiVideoAnalysisService.generateJson([prompt, videoPart], isValidResult, 'Gemini video analysis');
+  }
+
+  /**
+   * Sends a prompt (text and optional media parts) to Gemini and returns the validated JSON response.
+   * Tries the dynamically-resolved model candidates in ranked order, retrying transient 429/503
+   * errors with backoff and falling through to the next model when one is unavailable or out of
+   * quota. There is no mock fallback: failures surface as errors (quota errors are prefixed with
+   * GEMINI_QUOTA_EXCEEDED so routes can show an actionable message).
+   */
+  static async generateJson<T>(parts: any[], isValid: (data: any) => data is T, label: string): Promise<T> {
+    if (!GEMINI_API_KEY) {
+      throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable AI analysis.');
+    }
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const candidates = (await resolveModelCandidates()).slice(0, 3);
     let lastError: unknown = null;
 
@@ -222,32 +232,23 @@ export class GeminiVideoAnalysisService {
       const model = genAI.getGenerativeModel({ model: modelName });
 
       try {
-        // Retry on transient Gemini errors (429 rate-limited, 503 "high demand", etc.) with
-        // exponential backoff + jitter instead of silently falling back to fake data or crashing.
-        // Non-transient errors (bad key, invalid request) fail immediately without retrying.
-        // Hard quota exhaustion (daily free-tier request limit) is NOT retried here — retrying
-        // the same model won't help since the limit won't reset within seconds, so we fail fast
-        // and instead fall through to the next model candidate below (each model has its own quota).
         const parsed = await withRetry(
           async attempt => {
-            const result = await model.generateContent([prompt, videoPart]);
-            const text = result.response.text();
-            const data = extractJson(text);
-
-            if (!isValidResult(data)) {
-              // Malformed responses are not a rate-limit/overload issue, so don't retry these.
-              throw new Error('Gemini returned a response that did not match the expected analysis shape.');
+            const result = await model.generateContent(parts);
+            const data = extractJson(result.response.text());
+            if (!isValid(data)) {
+              throw new Error(`Gemini returned a response that did not match the expected ${label} shape.`);
             }
-
-            console.log(`Gemini video analysis succeeded (attempt ${attempt}/${MAX_RETRIES}, model ${modelName}):`, JSON.stringify(data));
+            console.log(`${label} succeeded (attempt ${attempt}/${MAX_RETRIES}, model ${modelName}):`, JSON.stringify(data));
             return data;
           },
           {
             maxRetries: MAX_RETRIES,
             baseDelayMs: BASE_DELAY_MS,
             maxDelayMs: MAX_DELAY_MS,
+            // Hard quota exhaustion won't reset within seconds, so fall through to the next model instead.
             isRetryable: err => isRateLimitOrOverloadedError(err) && !isQuotaExceededError(err),
-            label: 'Gemini video analysis'
+            label
           }
         );
 
@@ -258,27 +259,19 @@ export class GeminiVideoAnalysisService {
         const message = err instanceof Error ? err.message : String(err);
         const isModelUnavailable = /not found|404|is not supported|does not support|unknown model/i.test(message);
         const isQuotaIssue = isQuotaExceededError(err);
+        const isOverloaded = isRateLimitOrOverloadedError(err);
         const hasMoreCandidates = i < candidates.length - 1;
 
-        if (isQuotaIssue && hasMoreCandidates) {
-          console.warn(`Gemini model "${modelName}" has exhausted its quota. Trying next candidate: ${candidates[i + 1]}`);
+        if ((isQuotaIssue || isModelUnavailable || isOverloaded) && hasMoreCandidates) {
+          console.warn(`Gemini model "${modelName}" ${isQuotaIssue ? 'has exhausted its quota' : `is unavailable (${message})`}. Trying next candidate: ${candidates[i + 1]}`);
           continue;
         }
 
-        if (isModelUnavailable && hasMoreCandidates) {
-          console.warn(`Gemini model "${modelName}" is unavailable (${message}). Trying next candidate: ${candidates[i + 1]}`);
-          continue;
-        }
-
-        console.error(`Gemini video analysis failed after all retries (model ${modelName}):`, err);
-
+        console.error(`${label} failed after all retries (model ${modelName}):`, err);
         if (isQuotaIssue) {
-          // Distinct, detectable error so the API route can surface a clear, actionable message
-          // instead of a raw/technical Gemini error string.
           throw new Error(`GEMINI_QUOTA_EXCEEDED: All available Gemini models have reached their current usage quota. ${message}`);
         }
-
-        throw new Error(`Gemini video analysis failed: ${message}`);
+        throw new Error(`${label} failed: ${message}`);
       }
     }
 
@@ -286,9 +279,8 @@ export class GeminiVideoAnalysisService {
     if (isQuotaExceededError(lastError)) {
       throw new Error(`GEMINI_QUOTA_EXCEEDED: All available Gemini models have reached their current usage quota. ${finalMessage}`);
     }
-    throw new Error(`Gemini video analysis failed: ${finalMessage}`);
+    throw new Error(`${label} failed: ${finalMessage}`);
   }
-
   /** Returns the Gemini model name actually used for the most recent successful analysis. */
   static getLastUsedModel(): string | null {
     return lastUsedModel;

@@ -450,7 +450,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   // Post Session Notes Evaluation State
   const [activeSessionNotes, setActiveSessionNotes] = useState('');
   const [evaluatingSession, setEvaluatingSession] = useState(false);
-  const [sessionAiResult, setSessionAiResult] = useState<any>(null);
   const [selectedExecutedSessionId, setSelectedExecutedSessionId] = useState('');
   const [playerNoteDrafts, setPlayerNoteDrafts] = useState<Record<string, string>>({});
   const [savingPlayerNoteId, setSavingPlayerNoteId] = useState<string | null>(null);
@@ -468,6 +467,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   );
   const selectedExecutedSession = executedSessions.find(session => session.id === selectedExecutedSessionId)
     || executedSessions[0];
+  const sessionAiResult = selectedExecutedSession?.aiEvaluation?.squadSummary ? selectedExecutedSession.aiEvaluation : null;
 
   useEffect(() => {
     if (!executedSessions.some(session => session.id === selectedExecutedSessionId)) {
@@ -587,12 +587,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     });
   };
 
-  const handleEvaluatePostSession = () => {
-    if (!activeSessionNotes) {
+  const handleEvaluatePostSession = async () => {
+    if (!selectedExecutedSession) return;
+    const unsavedPlayerNotes = selectedSessionPlayers
+      .map(player => {
+        const draft = playerNoteDrafts[player.id];
+        return draft !== undefined && draft.trim() && draft !== (selectedExecutedSession.playerNotes?.[player.id] || '')
+          ? `${player.name}: ${draft.trim()}`
+          : '';
+      })
+      .filter(Boolean);
+    const savedPlayerNotes = selectedSessionPlayers
+      .map(player => selectedExecutedSession.playerNotes?.[player.id] || '')
+      .filter(note => note.trim());
+    const observations = [activeSessionNotes, selectedExecutedSession.postNotes || '', ...savedPlayerNotes, ...unsavedPlayerNotes]
+      .filter(note => note.trim());
+    if (!observations.length) {
       setPortalModal({
         isOpen: true,
         title: 'Observations Required',
-        message: 'Please enter coach observations or post-session technical notes before requesting AI biomechanical diagnosis.',
+        message: 'Please add player notes, a session summary, or session-wide observations before requesting AI biomechanical diagnosis.',
         type: 'warning',
         confirmLabel: 'OK',
         onConfirm: () => setPortalModal(null)
@@ -600,34 +614,24 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       return;
     }
     setEvaluatingSession(true);
-    setSessionAiResult(null);
-    setTimeout(() => {
-      setEvaluatingSession(false);
-      setSessionAiResult({
-        summary: 'Technical variance identified in front-foot drive balance & seam release height.',
-        gaps: ['Weight transfer stalling prematurely', 'Lateral head tilt at impact'],
-        recommendedDrills: [
-          {
-            title: 'Stationary Cone Head-Over-Ball Transfer Drill',
-            duration: 20,
-            discipline: 'BATTING',
-            context: 'GROUP',
-            reason: 'Locks head directly over impact line before follow-through.'
-          },
-          {
-            title: 'Low Full Toss Drive & Follow-Through Extension',
-            duration: 25,
-            discipline: 'BATTING',
-            context: 'INDIVIDUAL',
-            reason: 'Encourages full weight transfer through the shot.'
-          }
-        ],
-        readiness: 'CONSOLIDATE_CURRENT_STAGE',
-        commendation: 'High intensity shown. Complete recommended top-up drills before next match simulation.'
+    setSessionNotesError(null);
+    try {
+      const extraNotes = [activeSessionNotes.trim(), ...unsavedPlayerNotes].filter(Boolean).join('\n');
+      const updated = await api.assessSessionWithAi(selectedExecutedSession.id, extraNotes);
+      onSessionUpdated?.(updated);
+    } catch (err) {
+      setPortalModal({
+        isOpen: true,
+        title: 'AI Assessment Failed',
+        message: err instanceof Error ? err.message : 'AI assessment failed. Please try again.',
+        type: 'warning',
+        confirmLabel: 'OK',
+        onConfirm: () => setPortalModal(null)
       });
-    }, 1000);
+    } finally {
+      setEvaluatingSession(false);
+    }
   };
-
   const handleAdoptEvaluationDrill = (drillItem: any) => {
     const newDrill: Drill = {
       id: 'drill-rec-' + Date.now(),
@@ -635,7 +639,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       discipline: drillItem.discipline,
       skillSet: 'Post-Session Remediation',
       contextType: drillItem.context,
-      duration: drillItem.duration,
+      duration: drillItem.durationMinutes,
       source: 'AI_RECOMMENDED',
       instructions: drillItem.reason
     };
@@ -1782,13 +1786,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   disabled={evaluatingSession}
                   className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-400 hover:to-indigo-500 text-white font-bold text-xs rounded-lg transition disabled:opacity-50"
                 >
-                  {evaluatingSession ? 'AI Evaluating Notes...' : 'Run Post-Session AI Assessment'}
-                </button>
-                <button
-                  onClick={() => setActiveSessionNotes('Arjun Tendulkar bowling run-up cadence was clean, but front foot drive balance lacked head alignment over ball on full tosses.')}
-                  className="text-xs text-slate-400 hover:text-white underline"
-                >
-                  Load Sample Notes
+                  {evaluatingSession ? 'AI Evaluating Notes...' : sessionAiResult ? 'Re-run Post-Session AI Assessment' : 'Run Post-Session AI Assessment'}
                 </button>
               </div>
 
@@ -1797,19 +1795,42 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-purple-400 uppercase">AI Diagnosis</span>
                     <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">
-                      {sessionAiResult.readiness}
+                      {String(sessionAiResult.progressionReadiness || '').replace(/_/g, ' ')}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300">{sessionAiResult.summary}</p>
+                  <p className="text-xs text-slate-300">{sessionAiResult.squadSummary}</p>
+                  {sessionAiResult.generatedAt && (
+                    <p className="text-[10px] text-slate-500">Generated by Gemini on {new Date(sessionAiResult.generatedAt).toLocaleString()}</p>
+                  )}
+
+                  {Array.isArray(sessionAiResult.identifiedGaps) && sessionAiResult.identifiedGaps.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 mb-1">Identified Gaps:</p>
+                      <ul className="list-disc list-inside text-[11px] text-slate-300 space-y-0.5">
+                        {sessionAiResult.identifiedGaps.map((gap: string, idx: number) => <li key={idx}>{gap}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {Array.isArray(sessionAiResult.playerFeedback) && sessionAiResult.playerFeedback.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 mb-1">Player Focus:</p>
+                      <ul className="text-[11px] text-slate-300 space-y-0.5">
+                        {sessionAiResult.playerFeedback.map((item: any, idx: number) => (
+                          <li key={idx}><span className="font-semibold text-white">{item.playerName}:</span> {item.focus}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div>
                     <p className="text-xs font-bold text-slate-400 mb-1">Recommended Tailored Top-Up Drills:</p>
                     <div className="space-y-2">
-                      {sessionAiResult.recommendedDrills.map((d: any, idx: number) => (
+                      {(sessionAiResult.tailoredRecommendedDrills || []).map((d: any, idx: number) => (
                         <div key={idx} className="p-2.5 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
                           <div>
                             <p className="text-xs font-medium text-white">{d.title}</p>
-                            <p className="text-[11px] text-slate-400 mt-1">{d.duration} mins • {d.reason}</p>
+                            <p className="text-[11px] text-slate-400 mt-1">{d.durationMinutes} mins • {d.reason}</p>
                           </div>
                           <button
                             onClick={() => handleAdoptEvaluationDrill(d)}
@@ -1823,7 +1844,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </div>
 
                   <p className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
-                    💬 <span className="font-semibold text-white">AI Commendation:</span> {sessionAiResult.commendation}
+                    💬 <span className="font-semibold text-white">AI Commendation:</span> {sessionAiResult.aiCommendation}
                   </p>
                 </div>
               )}

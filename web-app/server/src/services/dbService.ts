@@ -983,12 +983,12 @@ export class DbService {
     }
   }
 
-  static async updateSessionNotesAndEvaluation(id: string, notes: string, aiEvaluation: any) {
+  static async updateSessionNotesAndEvaluation(id: string, notes: string | undefined, aiEvaluation: any) {
     try {
       const updated = await prisma.trainingSession.update({
         where: { id },
         data: {
-          postNotes: notes,
+          postNotes: notes === undefined ? undefined : notes,
           aiEvaluation: aiEvaluation || undefined
         }
       });
@@ -1003,6 +1003,7 @@ export class DbService {
         coordinatorCoachName: updated.coordinatorCoachName,
         assistantCoachId: updated.assistantCoachId,
         assistantCoachName: updated.assistantCoachName,
+        assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,

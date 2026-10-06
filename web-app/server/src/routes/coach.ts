@@ -96,18 +96,113 @@ coachRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) =
   });
 });
 
+// Finds a session in the coach's club where they are lead, coordinator, or assistant coach.
+const findAssignedSession = (req: AuthenticatedRequest) => {
+  const coachId = req.user!.userId;
+  return prisma.trainingSession.findFirst({
+    where: {
+      id: req.params.id,
+      clubId: req.user!.tenantId,
+      OR: [{ coachId }, { coordinatorCoachId: coachId }, { assistantCoachId: coachId }]
+    }
+  });
+};
+
+const DISCIPLINES = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'];
+
+// Adds a drill to a session during planning or execution: either an existing catalogue drill
+// (system, AI, or this club's custom drills) or a new ad-hoc drill that is saved to the club catalogue.
+coachRouter.post('/sessions/:id/drills', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const session = await findAssignedSession(req);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    if (session.isExecuted) {
+      res.status(400).json({ error: 'Drills cannot be changed on a delivered session.' });
+      return;
+    }
+
+    const { drillId, drill } = req.body || {};
+    let drillToAdd: { id: string } & Record<string, unknown>;
+    let createdDrill = null;
+
+    if (typeof drillId === 'string' && drillId) {
+      const existing = await prisma.drill.findFirst({
+        where: {
+          id: drillId,
+          OR: [{ source: { not: 'CLUB_CUSTOM' } }, { clubId: req.user!.tenantId }]
+        }
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Drill not found in your catalogue.' });
+        return;
+      }
+      drillToAdd = existing;
+    } else if (isRecord(drill)) {
+      const title = text(drill.title, 200).trim();
+      const skillSet = text(drill.skillSet, 200).trim();
+      if (!title || !skillSet || !DISCIPLINES.includes(drill.discipline as string)) {
+        res.status(400).json({ error: 'Ad-hoc drills need a title, skill focus, and valid discipline.' });
+        return;
+      }
+      const tenant = await prisma.customerTenant.findUnique({ where: { id: req.user!.tenantId } });
+      createdDrill = await DbService.createDrill({
+        id: `drill-club-${Date.now()}`,
+        title,
+        discipline: drill.discipline,
+        skillSet,
+        contextType: drill.contextType === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'GROUP',
+        duration: minutes(drill.duration) || 15,
+        source: 'CLUB_CUSTOM',
+        clubId: req.user!.tenantId,
+        clubName: tenant?.name || null,
+        squadId: session.squadId,
+        squadName: session.squadName,
+        instructions: text(drill.instructions, 4000) || 'Ad-hoc drill added during a training session.'
+      });
+      drillToAdd = createdDrill;
+    } else {
+      res.status(400).json({ error: 'Provide a catalogue drillId or an ad-hoc drill.' });
+      return;
+    }
+
+    const updated = await DbService.incrementSessionDrillCount(session.id, drillToAdd.id);
+    res.status(createdDrill ? 201 : 200).json({ success: true, session: updated, drill: createdDrill || drillToAdd });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to add drill to session.' });
+  }
+});
+
+coachRouter.delete('/sessions/:id/drills/:drillId', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const session = await findAssignedSession(req);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    if (session.isExecuted) {
+      res.status(400).json({ error: 'Drills cannot be changed on a delivered session.' });
+      return;
+    }
+    const drillIds: unknown[] = Array.isArray(session.drillIds) ? session.drillIds : [];
+    if (!drillIds.includes(req.params.drillId)) {
+      res.status(404).json({ error: 'Drill is not part of this session.' });
+      return;
+    }
+    const updated = await DbService.removeDrillFromSession(session.id, req.params.drillId);
+    res.json({ success: true, session: updated });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to remove drill from session.' });
+  }
+});
+
 // Records live execution of a session (preparation, attendance, drills, notes, evaluation)
 // by a coach assigned to it as lead, coordinator, or assistant.
 coachRouter.patch('/sessions/:id/execution', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const coachId = req.user!.userId;
-    const session = await prisma.trainingSession.findFirst({
-      where: {
-        id: req.params.id,
-        clubId: req.user!.tenantId,
-        OR: [{ coachId }, { coordinatorCoachId: coachId }, { assistantCoachId: coachId }]
-      }
-    });
+    const session = await findAssignedSession(req);
     if (!session) {
       res.status(404).json({ error: 'Session not found or not assigned to you.' });
       return;
