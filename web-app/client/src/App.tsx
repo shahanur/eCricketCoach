@@ -42,6 +42,7 @@ export default function App() {
         const u = JSON.parse(savedUser);
         if (u.roles?.includes('SUPER_ADMIN')) return 'ADMIN_PANEL';
         if (u.roles?.includes('CLUB_ADMIN')) return 'CLUB_PORTAL';
+        if (u.roles?.includes('COACH') && u.coachContext === 'CLUB') return 'CLUB_PORTAL';
         if (u.roles?.includes('COACH')) return 'COACHING_PORTAL';
         return 'COACHING_PORTAL';
       }
@@ -105,7 +106,7 @@ export default function App() {
       } else if (role === 'CLUB_ADMIN') {
         setViewMode('CLUB_PORTAL');
       } else if (role === 'COACH') {
-        setViewMode('COACHING_PORTAL');
+        setViewMode(user.coachContext === 'CLUB' ? 'CLUB_PORTAL' : 'COACHING_PORTAL');
       } else {
         setViewMode('COACHING_PORTAL');
       }
@@ -498,40 +499,40 @@ export default function App() {
     try {
       const saved = await api.inviteMember({ ...member, clubId: currentUser?.tenantId });
       setClubMembers(prev => [...prev, saved || member]);
-    } catch {
-      setClubMembers(prev => [...prev, member]);
+    } catch (error) {
+      setAppModal({
+        isOpen: true,
+        title: 'Invitation Failed',
+        message: error instanceof Error ? error.message : 'Unable to invite this member.',
+        type: 'danger',
+        confirmLabel: 'Close',
+        onConfirm: () => setAppModal(null)
+      });
     }
   };
 
   const handleAcceptMemberInvite = async (memberId: string) => {
     try {
       const saved = await api.acceptMemberInvite(memberId);
-      if (saved) {
-        setClubMembers(prev => prev.map(m => (m.id === memberId ? saved : m)));
-        setAppModal({
-          isOpen: true,
-          title: 'Roster Invitation Accepted',
-          message: 'Invitation accepted! Member profile is now active and can access assigned training plans and squad communications.',
-          type: 'success',
-          confirmLabel: 'Done',
-          onConfirm: () => setAppModal(null)
-        });
-        return;
-      }
-    } catch {
-      // fallback
+      setClubMembers(prev => prev.map(m => (m.id === memberId ? saved : m)));
+      setAppModal({
+        isOpen: true,
+        title: 'Roster Invitation Accepted',
+        message: 'Invitation accepted! Member profile is now active and can access assigned training plans and squad communications.',
+        type: 'success',
+        confirmLabel: 'Done',
+        onConfirm: () => setAppModal(null)
+      });
+    } catch (error) {
+      setAppModal({
+        isOpen: true,
+        title: 'Could Not Accept Invitation',
+        message: error instanceof Error ? error.message : 'Unable to accept this invitation.',
+        type: 'danger',
+        confirmLabel: 'Close',
+        onConfirm: () => setAppModal(null)
+      });
     }
-    setClubMembers(prev =>
-      prev.map(m => (m.id === memberId ? { ...m, invitationStatus: 'ACTIVE' } : m))
-    );
-    setAppModal({
-      isOpen: true,
-      title: 'Roster Invitation Accepted',
-      message: 'Invitation accepted! Member profile is now active and can access assigned training plans and squad communications.',
-      type: 'success',
-      confirmLabel: 'Done',
-      onConfirm: () => setAppModal(null)
-    });
   };
 
   const handlePromotePlayer = async (memberId: string) => {
@@ -845,12 +846,10 @@ export default function App() {
           <CoachingPortal
             currentUser={currentUser!}
             drills={drills}
-            certificates={certificates}
             onAddAiDrill={handleAddDrill}
             onScheduleSession={handleScheduleSession}
             onUpdateSession={handleUpdateSession}
             onDeleteSession={handleDeleteSession}
-            onPromotePlayer={handlePromotePlayer}
           />
         )}
 
@@ -873,6 +872,7 @@ export default function App() {
 
         {viewMode === 'CLUB_PORTAL' && (
           <ClubPortal
+            isClubCoach={currentUser?.roles.includes('COACH') === true && currentUser.coachContext === 'CLUB'}
             clubMembers={clubMembers}
             squads={squads}
             sessions={sessions}

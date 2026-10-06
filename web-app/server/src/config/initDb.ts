@@ -35,7 +35,7 @@ export async function initDb() {
       is_read BOOLEAN DEFAULT FALSE
     )`,
 
-    `CREATE TABLE IF NOT EXISTS club_approvals_store (
+    `CREATE TABLE IF NOT EXISTS club_approvals (
       id VARCHAR(100) PRIMARY KEY,
       club_name VARCHAR(255) NOT NULL,
       admin_name VARCHAR(255) NOT NULL,
@@ -48,7 +48,7 @@ export async function initDb() {
       created_at VARCHAR(50) NOT NULL
     )`,
 
-    `CREATE TABLE IF NOT EXISTS drills_store (
+    `CREATE TABLE IF NOT EXISTS drills (
       id VARCHAR(100) PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       discipline VARCHAR(50) NOT NULL,
@@ -64,7 +64,7 @@ export async function initDb() {
       image_url TEXT
     )`,
 
-    `CREATE TABLE IF NOT EXISTS club_members_store (
+    `CREATE TABLE IF NOT EXISTS club_members (
       id VARCHAR(100) PRIMARY KEY,
       club_id VARCHAR(100),
       name VARCHAR(255) NOT NULL,
@@ -77,24 +77,19 @@ export async function initDb() {
       squad VARCHAR(255) DEFAULT 'Unassigned'
     )`,
 
-    `CREATE TABLE IF NOT EXISTS squads_store (
+    `CREATE TABLE IF NOT EXISTS squads (
       id VARCHAR(100) PRIMARY KEY,
       club_id VARCHAR(100),
       name VARCHAR(255) NOT NULL,
       age_group VARCHAR(50) NOT NULL,
       discipline VARCHAR(50) NOT NULL,
-      coach_id VARCHAR(100),
-      coach_name VARCHAR(255) NOT NULL,
-      coordinator_coach_id VARCHAR(100),
-      coordinator_coach_name VARCHAR(255),
-      assistant_coach_id VARCHAR(100),
-      assistant_coach_name VARCHAR(255),
       member_count INT DEFAULT 0
     )`,
 
-    `CREATE TABLE IF NOT EXISTS training_sessions_store (
+    `CREATE TABLE IF NOT EXISTS training_sessions (
       id VARCHAR(100) PRIMARY KEY,
       club_id VARCHAR(100),
+      squad_id VARCHAR(100),
       squad_name VARCHAR(255) NOT NULL,
       assigned_player_ids JSONB DEFAULT '[]',
       title VARCHAR(255) NOT NULL,
@@ -109,26 +104,7 @@ export async function initDb() {
       ai_evaluation JSONB
     )`,
 
-    `CREATE TABLE IF NOT EXISTS coach_workspace_items (
-      id VARCHAR(100) PRIMARY KEY,
-      tenant_id VARCHAR(100) NOT NULL,
-      coach_id VARCHAR(255) NOT NULL,
-      kind VARCHAR(50) NOT NULL,
-      session_id VARCHAR(100),
-      player_id VARCHAR(100),
-      title VARCHAR(255) NOT NULL,
-      content TEXT,
-      status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-      progress INT,
-      metadata JSONB DEFAULT '{}',
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-    )`,
-
-    `CREATE INDEX IF NOT EXISTS coach_workspace_items_tenant_coach_kind_idx
-      ON coach_workspace_items (tenant_id, coach_id, kind)`,
-
-    `CREATE TABLE IF NOT EXISTS certificates_store (
+    `CREATE TABLE IF NOT EXISTS certificates (
       id VARCHAR(100) PRIMARY KEY,
       certificate_number VARCHAR(100) UNIQUE NOT NULL,
       player_id VARCHAR(100),
@@ -141,7 +117,7 @@ export async function initDb() {
       ai_commendation TEXT
     )`,
 
-    `CREATE TABLE IF NOT EXISTS support_tickets_store (
+    `CREATE TABLE IF NOT EXISTS support_tickets (
       id VARCHAR(100) PRIMARY KEY,
       ticket_ref VARCHAR(100) UNIQUE NOT NULL,
       name VARCHAR(255) NOT NULL,
@@ -171,7 +147,7 @@ export async function initDb() {
       updated_at TIMESTAMP DEFAULT NOW()
     )`,
 
-    `CREATE TABLE IF NOT EXISTS video_analysis_store (
+    `CREATE TABLE IF NOT EXISTS video_analyses (
       id VARCHAR(100) PRIMARY KEY,
       user_id VARCHAR(255),
       player_id VARCHAR(255),
@@ -195,38 +171,44 @@ export async function initDb() {
 
   // 1b. Safe incremental migrations for tables that already existed before these columns were added.
   const alterStatements = [
-    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS player_id VARCHAR(255)`,
-    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS player_name VARCHAR(255)`,
-    `ALTER TABLE video_analysis_store ADD COLUMN IF NOT EXISTS drill_adopted BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
-    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
-    `ALTER TABLE drills_store ADD COLUMN IF NOT EXISTS image_url TEXT`,
-    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coach_id VARCHAR(100)`,
-    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coordinator_coach_id VARCHAR(100)`,
-    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS coordinator_coach_name VARCHAR(255)`,
-    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
-    `ALTER TABLE squads_store ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assigned_player_ids JSONB DEFAULT '[]'`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coach_id VARCHAR(100)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coach_name VARCHAR(255)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coordinator_coach_id VARCHAR(100)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS coordinator_coach_name VARCHAR(255)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
-    `ALTER TABLE training_sessions_store ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`
+    `DROP TABLE IF EXISTS coach_workspace_items`,
+    `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS player_id VARCHAR(255)`,
+    `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS player_name VARCHAR(255)`,
+    `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS drill_adopted BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE drills ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
+    `ALTER TABLE drills ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
+    `ALTER TABLE drills ADD COLUMN IF NOT EXISTS image_url TEXT`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS coach_id`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS coach_name`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS coordinator_coach_id`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS coordinator_coach_name`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS assistant_coach_id`,
+    `ALTER TABLE squads DROP COLUMN IF EXISTS assistant_coach_name`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
+    `UPDATE training_sessions AS sessions
+      SET squad_id = squads.id
+      FROM squads AS squads
+      WHERE sessions.squad_id IS NULL
+        AND sessions.club_id = squads.club_id
+        AND sessions.squad_name = squads.name`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS drill_ids JSONB DEFAULT '[]'`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assigned_player_ids JSONB DEFAULT '[]'`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS coach_name VARCHAR(255)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS coordinator_coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS coordinator_coach_name VARCHAR(255)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assistant_coach_id VARCHAR(100)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`
   ];
   for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);
   }
 
-  // 2. Check and seed default data if empty using Prisma
-  const tenantCount = await prisma.customerTenant.count();
-  if (tenantCount === 0) {
-    console.log('�� Seeding initial PostgreSQL data via Prisma...');
-
-    await prisma.drillStore.createMany({
+  const drillCount = await prisma.drill.count();
+  if (drillCount === 0) {
+    await prisma.drill.createMany({
       data: [
         { id: 'drill-sys-1', title: 'Top Hand Control & Front Foot Drive', discipline: 'BATTING', skillSet: 'Front Foot Defense & Drive', contextType: 'INDIVIDUAL', duration: 20, source: 'SYSTEM_PREDEFINED', instructions: 'Underarm drop feeds into marker cones focusing on leading with top-hand and head over ball.' },
         { id: 'drill-sys-2', title: 'Target Spot Bowling Channel Corridor', discipline: 'BOWLING', skillSet: 'Pace & Seam Presentation', contextType: 'INDIVIDUAL', duration: 25, source: 'SYSTEM_PREDEFINED', instructions: 'Place A4 paper targets in the corridor of uncertainty at 6-8 meters length.' },
@@ -236,7 +218,12 @@ export async function initDb() {
         { id: 'drill-club-1', title: 'MCA Death Overs Yorker & Slower Ball Challenge', discipline: 'BOWLING', skillSet: 'Death Bowling & Variations', contextType: 'GROUP', duration: 30, source: 'CLUB_CUSTOM', instructions: 'Proprietary MCA death-overs match simulation with boundary scoring penalties.' }
       ]
     });
+  }
 
+  // 2. Check and seed default data if empty using Prisma
+  const tenantCount = await prisma.customerTenant.count();
+  if (tenantCount === 0) {
+    console.log('Seeding initial PostgreSQL data via Prisma...');
     await prisma.customerTenant.createMany({
       data: [
         { id: 'ten-001', name: 'Liam Henderson (Player)', type: 'INDIVIDUAL', email: 'liam.h@crickethub.com', subscriptionPlan: 'INDIVIDUAL', status: 'ACTIVE', billingCycle: 'MONTHLY', mrr: 14.99, activeMembers: 1, joinedAt: '2026-08-12' },
@@ -270,7 +257,7 @@ export async function initDb() {
       ]
     });
 
-    await prisma.clubMemberStore.createMany({
+    await prisma.clubMember.createMany({
       data: [
         { id: 'mem-1', clubId: 'ten-003', name: 'Brendon McCullum', email: 'brendon@mca.org', role: 'COACH', ageGroup: 'Senior', discipline: 'BATTING', invitationStatus: 'ACTIVE', currentLevel: 'ELITE', squad: 'Senior Top-Order Hitters' },
         { id: 'mem-2', clubId: 'ten-003', name: 'Shane Bond', email: 'shane.b@mca.org', role: 'COACH', ageGroup: 'U15', discipline: 'BOWLING', invitationStatus: 'ACTIVE', currentLevel: 'ELITE', squad: 'U15 Pace & Power Squad' },
@@ -282,16 +269,16 @@ export async function initDb() {
       ]
     });
 
-    await prisma.squadStore.createMany({
+    await prisma.squad.createMany({
       data: [
-        { id: 'sq-1', clubId: 'ten-003', name: 'U15 Pace & Power Squad', ageGroup: 'U15', discipline: 'BOWLING', coachName: 'Shane Bond', memberCount: 3 },
-        { id: 'sq-2', clubId: 'ten-003', name: 'Senior Top-Order Hitters', ageGroup: 'Senior', discipline: 'BATTING', coachName: 'Brendon McCullum', memberCount: 1 }
+        { id: 'sq-1', clubId: 'ten-003', name: 'U15 Pace & Power Squad', ageGroup: 'U15', discipline: 'BOWLING', memberCount: 3 },
+        { id: 'sq-2', clubId: 'ten-003', name: 'Senior Top-Order Hitters', ageGroup: 'Senior', discipline: 'BATTING', memberCount: 1 }
       ]
     });
 
-    const existingTickets = await (prisma as any).supportTicketStore.count();
+    const existingTickets = await (prisma as any).supportTicket.count();
     if (existingTickets === 0) {
-      await (prisma as any).supportTicketStore.createMany({
+      await (prisma as any).supportTicket.createMany({
         data: [
           {
             id: 'tkt-seed-1',

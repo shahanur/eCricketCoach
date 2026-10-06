@@ -24,6 +24,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 interface ClubPortalProps {
+  isClubCoach?: boolean;
   clubMembers: ClubMember[];
   squads: Squad[];
   sessions: TrainingSession[];
@@ -51,6 +52,7 @@ interface ClubPortalProps {
 }
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
+  isClubCoach = false,
   clubMembers,
   squads,
   sessions,
@@ -76,7 +78,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onDeleteDrill,
   onUpdateDrill,
 }) => {
-  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>('ROSTER');
+  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
+
+  useEffect(() => {
+    if (isClubCoach && clubTab === 'ROSTER') setClubTab('SQUADS');
+  }, [isClubCoach, clubTab]);
 
   // Video Analysis State in Club Portal
   const [selectedAnalysisPlayer, setSelectedAnalysisPlayer] = useState<string>('mem-4');
@@ -333,6 +339,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionFormTitle, setSessionFormTitle] = useState('');
   const [sessionFormTargetType, setSessionFormTargetType] = useState<'SQUAD' | 'PLAYERS'>('SQUAD');
   const [sessionFormSquad, setSessionFormSquad] = useState('U15 Pace & Power Squad');
+  const [sessionFormSquadId, setSessionFormSquadId] = useState('');
   const [sessionFormCoachId, setSessionFormCoachId] = useState('');
   const [sessionFormCoordinatorId, setSessionFormCoordinatorId] = useState('');
   const [sessionFormAssistantId, setSessionFormAssistantId] = useState('');
@@ -891,9 +898,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     const coordinatorCoach = activeClubCoaches.find(coach => coach.id === sessionFormCoordinatorId);
     const assistantCoach = activeClubCoaches.find(coach => coach.id === sessionFormAssistantId);
     if (!headCoach) return;
+    const selectedSquad = squads.find(squad => squad.id === sessionFormSquadId)
+      || squads.find(squad => squad.name === sessionFormSquad);
 
     if (editingSessionId) {
       const updates: Partial<TrainingSession> = {
+        squadId: sessionFormTargetType === 'SQUAD' ? selectedSquad?.id || null : null,
         squadName: targetLabel,
         coachId: headCoach.id,
         coachName: headCoach.name,
@@ -921,6 +931,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
     const newSession: TrainingSession = {
       id: 'sess-' + Date.now(),
+      squadId: sessionFormTargetType === 'SQUAD' ? selectedSquad?.id || null : null,
       squadName: targetLabel,
       coachId: headCoach.id,
       coachName: headCoach.name,
@@ -958,10 +969,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       const names = s.squadName.replace('Individual: ', '').split(',').map(n => n.trim());
       const ids = clubMembers.filter(m => names.includes(m.name)).map(m => m.id);
       setSessionFormTargetType('PLAYERS');
+      setSessionFormSquadId('');
       setSessionFormPlayerIds(ids);
     } else {
       setSessionFormTargetType('SQUAD');
       setSessionFormSquad(s.squadName);
+      setSessionFormSquadId(s.squadId || squads.find(squad => squad.name === s.squadName)?.id || '');
       setSessionFormPlayerIds([]);
     }
     setSessionFormDate(s.sessionDate);
@@ -1094,16 +1107,19 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-white">{clubName}</h1>
           <span className="text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
-            Club Admin & Coaching Hub
+            {isClubCoach ? 'Club Coach Workspace' : 'Club Admin & Coaching Hub'}
           </span>
         </div>
         <p className="text-xs text-slate-400 mt-1">
-          Manage roster invitations, squad formation, session-based plans, post-session AI evaluations, Google Drive video uploads, and achievement certificates.
+          {isClubCoach
+            ? 'Manage squads, session-based plans, post-session AI evaluations, Google Drive video uploads, and achievement certificates.'
+            : 'Manage roster invitations, squad formation, session-based plans, post-session AI evaluations, Google Drive video uploads, and achievement certificates.'}
         </p>
       </div>
 
       {/* Full-width Navigation Bar directly above the content panel */}
       <div className="w-full rounded-xl bg-slate-900 border border-slate-800 p-1.5 flex flex-wrap items-center gap-1.5 sm:gap-2 shadow-sm">
+        {!isClubCoach && (
         <button
           onClick={() => setClubTab('ROSTER')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
@@ -1117,6 +1133,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             {clubMembers.length}
           </span>
         </button>
+        )}
         <button
           onClick={() => setClubTab('SQUADS')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
@@ -1176,22 +1193,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       </div>
 
       {/* Club Sub-tab 1: Roster & Invitations */}
-      {clubTab === 'ROSTER' && (
+      {!isClubCoach && clubTab === 'ROSTER' && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-base text-white">Club Roster (Coaches & Players)</h3>
               <p className="text-xs text-slate-400">
-                Club admin invites coaches and players by age group. Users log in once they accept the invite.
+                {isClubCoach
+                  ? 'View and manage your club coaches and players.'
+                  : 'Club admin invites coaches and players by age group. Users log in once they accept the invite.'}
               </p>
             </div>
-            <button
-              onClick={() => setIsInviteModalOpen(true)}
-              className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <UserPlus size={14} />
-              <span>+ Invite New Coach / Player</span>
-            </button>
+            {!isClubCoach && (
+              <button
+                onClick={() => setIsInviteModalOpen(true)}
+                className="px-3.5 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <UserPlus size={14} />
+                <span>+ Invite New Coach / Player</span>
+              </button>
+            )}
           </div>
 
           {/* Roster Filter & Search Bar */}
@@ -1404,7 +1425,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           >
                             <Pencil size={11} />
                           </button>
-                          {mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
+                          {!isClubCoach && mem.invitationStatus === 'PENDING_ACCEPTANCE' && (
                             <button
                               onClick={() => promptAcceptInvite(mem)}
                               className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
@@ -1538,6 +1559,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   setSessionFormTitle('');
                   setSessionFormTargetType('SQUAD');
                   setSessionFormSquad(squads[0]?.name || '');
+                  setSessionFormSquadId(squads[0]?.id || '');
                   setSessionFormCoachId(activeClubCoaches[0]?.id || '');
                   setSessionFormCoordinatorId('');
                   setSessionFormAssistantId('');
@@ -2695,7 +2717,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       )}
 
       {/* 1. Invite Coach / Player Modal Form */}
-      {isInviteModalOpen && (
+      {!isClubCoach && isInviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
@@ -3277,12 +3299,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <label className="text-[11px] font-semibold text-slate-400">Target Squad</label>
                     {squads.length > 0 ? (
                       <select
-                        value={sessionFormSquad}
-                        onChange={e => setSessionFormSquad(e.target.value)}
+                        value={sessionFormSquadId}
+                        onChange={e => {
+                          const selected = squads.find(squad => squad.id === e.target.value);
+                          setSessionFormSquadId(e.target.value);
+                          setSessionFormSquad(selected?.name || '');
+                        }}
                         className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                       >
                         {squads.map(sq => (
-                          <option key={sq.id} value={sq.name}>
+                          <option key={sq.id} value={sq.id}>
                             {sq.name} ({sq.ageGroup} • {sq.discipline})
                           </option>
                         ))}

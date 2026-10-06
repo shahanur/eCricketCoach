@@ -33,7 +33,7 @@ flowchart TD
 
     subgraph DB["PostgreSQL Database"]
         J -.-> DB
-        N -->|Queue Record| P[club_approvals_store]
+        N -->|Queue Record| P[club_approvals]
         N -->|Record Invoice| Q[invoices]
         N -->|Alert Super Admin| R[admin_notifications]
     end
@@ -97,7 +97,7 @@ sequenceDiagram
     User->>Browser: Click "Pay & Complete Registration"
     Browser->>Server: POST /api/subscriptions/checkout (planId, billingCycle, registrationToken)
     Note over Server: Verifies registrationToken with JWT_SECRET<br/>extracts and enforces authenticated email and name
-    Server->>DB: 1. INSERT INTO club_approvals_store (status: 'AWAITING_APPROVAL')
+    Server->>DB: 1. INSERT INTO club_approvals (status: 'AWAITING_APPROVAL')
     Server->>DB: 2. INSERT INTO invoices (status: 'PAID')
     Server->>DB: 3. INSERT INTO admin_notifications (type: 'PAYMENT_RECEIVED')
     Server-->>Browser: 201 Created (Approval item, Invoice, Notification)

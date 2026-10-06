@@ -59,10 +59,10 @@ model ClubApproval {
   status       String
   createdAt    String  @map("created_at")
 
-  @@map("club_approvals_store")
+  @@map("club_approvals")
 }
 
-model DrillStore {
+model Drill {
   id           String  @id
   title        String
   discipline   String
@@ -77,10 +77,10 @@ model DrillStore {
   instructions String?
   imageUrl     String? @map("image_url")
 
-  @@map("drills_store")
+  @@map("drills")
 }
 
-model ClubMemberStore {
+model ClubMember {
   id               String  @id
   clubId           String? @map("club_id")
   name             String
@@ -92,29 +92,24 @@ model ClubMemberStore {
   currentLevel     String  @map("current_level")
   squad            String  @default("Unassigned")
 
-  @@map("club_members_store")
+  @@map("club_members")
 }
 
-model SquadStore {
-  id                   String  @id
-  clubId               String? @map("club_id")
-  name                 String
-  ageGroup             String  @map("age_group")
-  discipline           String
-  coachId              String? @map("coach_id")
-  coachName            String  @map("coach_name")
-  coordinatorCoachId   String? @map("coordinator_coach_id")
-  coordinatorCoachName String? @map("coordinator_coach_name")
-  assistantCoachId     String? @map("assistant_coach_id")
-  assistantCoachName   String? @map("assistant_coach_name")
-  memberCount          Int     @default(0) @map("member_count")
+model Squad {
+  id          String  @id
+  clubId      String? @map("club_id")
+  name        String
+  ageGroup    String  @map("age_group")
+  discipline  String
+  memberCount Int     @default(0) @map("member_count")
 
-  @@map("squads_store")
+  @@map("squads")
 }
 
-model TrainingSessionStore {
+model TrainingSession {
   id              String   @id
   clubId          String?  @map("club_id")
+  squadId         String?  @map("squad_id")
   squadName       String   @map("squad_name")
   coachId         String?  @map("coach_id")
   coachName       String?  @map("coach_name")
@@ -134,29 +129,10 @@ model TrainingSessionStore {
   postNotes       String?  @map("post_notes")
   aiEvaluation    Json?    @map("ai_evaluation")
 
-  @@map("training_sessions_store")
+  @@map("training_sessions")
 }
 
-model CoachWorkspaceItem {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  coachId   String   @map("coach_id")
-  kind      String
-  sessionId String?  @map("session_id")
-  playerId  String?  @map("player_id")
-  title     String
-  content   String?  @db.Text
-  status    String   @default("ACTIVE")
-  progress  Int?
-  metadata  Json?    @default("{}")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([tenantId, coachId, kind])
-  @@map("coach_workspace_items")
-}
-
-model CertificateStore {
+model Certificate {
   id                String  @id
   certificateNumber String  @unique @map("certificate_number")
   playerId          String? @map("player_id")
@@ -168,10 +144,10 @@ model CertificateStore {
   coachNotes        String? @map("coach_notes")
   aiCommendation    String? @map("ai_commendation")
 
-  @@map("certificates_store")
+  @@map("certificates")
 }
 
-model SupportTicketStore {
+model SupportTicket {
   id          String   @id
   ticketRef   String   @unique @map("ticket_ref")
   name        String
@@ -188,7 +164,7 @@ model SupportTicketStore {
   resolvedAt  String?  @map("resolved_at")
   createdAt   String   @map("created_at")
 
-  @@map("support_tickets_store")
+  @@map("support_tickets")
 }
 
 model GoogleDriveConnection {
@@ -205,7 +181,7 @@ model GoogleDriveConnection {
   @@map("google_drive_connections")
 }
 
-model VideoAnalysisStore {
+model VideoAnalysis {
   id               String   @id @default(cuid())
   userId           String?  @map("user_id")
   playerId         String?  @map("player_id")
@@ -220,5 +196,5 @@ model VideoAnalysisStore {
   drillAdopted     Boolean  @default(false) @map("drill_adopted")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  @@map("video_analysis_store")
+  @@map("video_analyses")
 }

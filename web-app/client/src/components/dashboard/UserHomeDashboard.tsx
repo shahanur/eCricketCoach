@@ -56,6 +56,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
   const isClubAdmin = currentUser.roles.includes('CLUB_ADMIN');
   const isCoach = currentUser.roles.includes('COACH');
   const isClubCoach = isCoach && currentUser.coachContext === 'CLUB';
+  const hasClubPortal = isClubAdmin || isClubCoach;
   const isPlayer = currentUser.roles.includes('PLAYER');
 
   // Club context metrics
@@ -80,7 +81,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               <span>
                 {isSuperAdmin
                   ? 'System Administration Portal'
-                  : isClubAdmin
+                  : hasClubPortal
                   ? `${currentUser.clubName || 'Club Academy'} Dashboard`
                   : isCoach
                   ? isClubCoach ? `${currentUser.clubName || 'Club'} Coaching Hub` : 'High Performance Coaching Hub'
@@ -93,7 +94,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
               {isSuperAdmin &&
                 'Global overview of active customer tenancies, recurring subscriptions, onboarding approvals, and system drill catalogues.'}
-              {isClubAdmin &&
+              {hasClubPortal &&
                 `Manage your ${currentUser.clubName || 'Club'} athletes, organise age-group squads, publish practice itineraries, and review AI pose kinematics.`}
               {isCoach &&
                 (isClubCoach
@@ -116,7 +117,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               </button>
             )}
 
-            {isClubAdmin && (
+            {hasClubPortal && (
               <button
                 onClick={() => setViewMode('CLUB_PORTAL')}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white font-bold text-xs shadow-lg shadow-purple-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
@@ -148,7 +149,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
 
       {/* KPI Stats Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {isClubAdmin && (
+        {hasClubPortal && (
           <>
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-1">
               <div className="flex items-center justify-between text-slate-400">
@@ -281,8 +282,9 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {isClubAdmin && (
+              {hasClubPortal && (
                 <>
+                  {isClubAdmin && (
                   <button
                     onClick={() => setViewMode('CLUB_PORTAL')}
                     className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-purple-500/50 text-left transition group space-y-2 cursor-pointer"
@@ -293,11 +295,14 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                       </span>
                       <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-purple-400 transition" />
                     </div>
-                    <h3 className="text-sm font-bold text-white">Roster & Member Invitations</h3>
+                    <h3 className="text-sm font-bold text-white">
+                      Roster & Member Invitations
+                    </h3>
                     <p className="text-xs text-slate-400 leading-relaxed">
                       Invite coaches and athletes, assign multi-discipline tags, and filter active memberships.
                     </p>
                   </button>
+                  )}
 
                   <button
                     onClick={() => setViewMode('CLUB_PORTAL')}
@@ -523,7 +528,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   <span>Featured Skill Development Drills</span>
                 </h3>
                 <button
-                  onClick={() => setViewMode(isClubAdmin ? 'CLUB_PORTAL' : 'COACHING_PORTAL')}
+                  onClick={() => setViewMode(hasClubPortal ? 'CLUB_PORTAL' : 'COACHING_PORTAL')}
                   className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer"
                 >
                   <span>View Full Catalogue</span>
@@ -650,7 +655,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 {upcomingSessions.length === 0 ? (
                   <div className="p-4 rounded-lg bg-slate-950/50 border border-slate-800/80 text-center text-xs text-slate-400 space-y-1">
                     <p>No active sessions scheduled this week.</p>
-                    {isClubAdmin && (
+                    {hasClubPortal && (
                       <button
                         onClick={() => setViewMode('CLUB_PORTAL')}
                         className="text-purple-400 hover:underline font-semibold block mx-auto cursor-pointer"

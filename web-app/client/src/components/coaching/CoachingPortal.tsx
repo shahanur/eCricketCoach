@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AuthUser, Certificate, Discipline, ContextType, Drill, TrainingSession, VideoAnalysisResult, DriveVideoFile } from '../../types';
+import { AuthUser, Discipline, ContextType, Drill, TrainingSession, VideoAnalysisResult, DriveVideoFile } from '../../types';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
@@ -10,12 +10,10 @@ import { Upload, Cloud, Play, Check, AlertCircle, RefreshCw, Folder, ExternalLin
 interface CoachingPortalProps {
   currentUser: AuthUser;
   drills: Drill[];
-  certificates: Certificate[];
   onAddAiDrill: (drill: Drill) => void;
   onScheduleSession: (session: TrainingSession) => void;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void;
   onDeleteSession: (sessionId: string) => void;
-  onPromotePlayer: (playerId: string) => void;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -38,12 +36,10 @@ function formatRelativeTime(iso: string): string {
 export const CoachingPortal: React.FC<CoachingPortalProps> = ({
   currentUser,
   drills,
-  certificates,
   onAddAiDrill,
   onScheduleSession,
   onUpdateSession,
-  onDeleteSession,
-  onPromotePlayer
+  onDeleteSession
 }) => {
   const [selectedDiscipline, setSelectedDiscipline] = useState<Discipline>('BATTING');
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
@@ -262,18 +258,18 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
       {currentUser.roles.includes('COACH') && currentUser.coachContext === 'CLUB' && (
         <CoachOperations
           currentUser={currentUser}
-          certificates={certificates}
           onScheduleSession={onScheduleSession}
           onUpdateSession={onUpdateSession}
           onDeleteSession={onDeleteSession}
-          onPromotePlayer={onPromotePlayer}
         />
       )}
 
-      <div className="border-t border-slate-800 pt-6">
-        <p className="text-xs font-semibold text-cyan-400 uppercase">AI coaching lab</p>
-        <h2 className="text-xl font-bold text-white">Video analysis and drill design</h2>
-      </div>
+      {currentUser.coachContext !== 'CLUB' && (
+        <>
+          <div className="border-t border-slate-800 pt-6">
+            <p className="text-xs font-semibold text-cyan-400 uppercase">AI coaching lab</p>
+            <h2 className="text-xl font-bold text-white">Video analysis and drill design</h2>
+          </div>
 
       {/* Discipline & Context Selector */}
       <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -759,6 +755,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
           </div>
         </section>
       </div>
+        </>
+      )}
 
       {/* Multi-Tenant Subscription Tiers */}
       {currentUser.coachContext !== 'CLUB' && (

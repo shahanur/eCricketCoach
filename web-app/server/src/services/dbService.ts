@@ -32,7 +32,7 @@ export class DbService {
       ];
     }
 
-    const drills = await prisma.drillStore.findMany({
+    const drills = await prisma.drill.findMany({
       where,
       orderBy: { id: 'desc' }
     });
@@ -56,7 +56,7 @@ export class DbService {
   }
 
   static async createDrill(drill: any) {
-    const created = await prisma.drillStore.create({
+    const created = await prisma.drill.create({
       data: {
         id: drill.id,
         title: drill.title,
@@ -111,7 +111,7 @@ export class DbService {
       if (updates.instructions !== undefined) data.instructions = updates.instructions;
       if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
 
-      const updated = await prisma.drillStore.update({
+      const updated = await prisma.drill.update({
         where: { id },
         data
       });
@@ -139,7 +139,7 @@ export class DbService {
 
   static async deleteDrill(id: string) {
     try {
-      await prisma.drillStore.delete({ where: { id } });
+      await prisma.drill.delete({ where: { id } });
       return true;
     } catch {
       return false;
@@ -438,7 +438,7 @@ export class DbService {
       ];
     }
 
-    const tickets = await (prisma as any).supportTicketStore.findMany({
+    const tickets = await (prisma as any).supportTicket.findMany({
       where,
       orderBy: { createdAt: 'desc' }
     });
@@ -467,7 +467,7 @@ export class DbService {
     const id = 'tkt-' + Date.now();
     const createdAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
-    const created = await (prisma as any).supportTicketStore.create({
+    const created = await (prisma as any).supportTicket.create({
       data: {
         id,
         ticketRef,
@@ -501,7 +501,7 @@ export class DbService {
 
   static async resolveSupportTicket(ticketId: string, payload: { resolution: string; resolvedBy: string; status?: string }) {
     const resolvedAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const updated = await (prisma as any).supportTicketStore.update({
+    const updated = await (prisma as any).supportTicket.update({
       where: { id: ticketId },
       data: {
         status: payload.status || 'RESOLVED',
@@ -531,7 +531,7 @@ export class DbService {
     const where: any = {};
     if (clubId) where.clubId = clubId;
 
-    const members = await prisma.clubMemberStore.findMany({
+    const members = await prisma.clubMember.findMany({
       where,
       orderBy: { id: 'asc' }
     });
@@ -551,7 +551,7 @@ export class DbService {
   }
 
   static async createClubMember(member: any) {
-    const created = await prisma.clubMemberStore.create({
+    const created = await prisma.clubMember.create({
       data: {
         id: member.id,
         clubId: member.clubId || 'ten-003',
@@ -592,7 +592,7 @@ export class DbService {
     if (updates.discipline !== undefined) data.discipline = updates.discipline;
 
     try {
-      const updated = await prisma.clubMemberStore.update({
+      const updated = await prisma.clubMember.update({
         where: { id },
         data
       });
@@ -619,7 +619,7 @@ export class DbService {
     const where: any = {};
     if (clubId) where.clubId = clubId;
 
-    const squads = await prisma.squadStore.findMany({
+    const squads = await prisma.squad.findMany({
       where,
       orderBy: { id: 'asc' }
     });
@@ -629,30 +629,18 @@ export class DbService {
       name: s.name,
       ageGroup: s.ageGroup,
       discipline: s.discipline,
-      coachId: s.coachId,
-      coachName: s.coachName,
-      coordinatorCoachId: s.coordinatorCoachId,
-      coordinatorCoachName: s.coordinatorCoachName,
-      assistantCoachId: s.assistantCoachId,
-      assistantCoachName: s.assistantCoachName,
       memberCount: s.memberCount
     }));
   }
 
   static async createSquad(squad: any) {
-    const created = await prisma.squadStore.create({
+    const created = await prisma.squad.create({
       data: {
         id: squad.id,
         clubId: squad.clubId || 'ten-003',
         name: squad.name,
         ageGroup: squad.ageGroup,
         discipline: squad.discipline,
-        coachId: squad.coachId,
-        coachName: squad.coachName,
-        coordinatorCoachId: squad.coordinatorCoachId || null,
-        coordinatorCoachName: squad.coordinatorCoachName || null,
-        assistantCoachId: squad.assistantCoachId || null,
-        assistantCoachName: squad.assistantCoachName || null,
         memberCount: squad.memberCount || 0
       }
     });
@@ -662,31 +650,19 @@ export class DbService {
       name: created.name,
       ageGroup: created.ageGroup,
       discipline: created.discipline,
-      coachId: created.coachId,
-      coachName: created.coachName,
-      coordinatorCoachId: created.coordinatorCoachId,
-      coordinatorCoachName: created.coordinatorCoachName,
-      assistantCoachId: created.assistantCoachId,
-      assistantCoachName: created.assistantCoachName,
       memberCount: created.memberCount
     };
   }
 
-  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; coachId?: string; coachName?: string; coordinatorCoachId?: string | null; coordinatorCoachName?: string | null; assistantCoachId?: string | null; assistantCoachName?: string | null; ageGroup?: string; discipline?: string }) {
+  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; ageGroup?: string; discipline?: string }) {
     try {
       const data: any = {};
       if (updates.memberCount !== undefined) data.memberCount = updates.memberCount;
       if (updates.name !== undefined) data.name = updates.name;
-      if (updates.coachId !== undefined) data.coachId = updates.coachId;
-      if (updates.coachName !== undefined) data.coachName = updates.coachName;
-      if (updates.coordinatorCoachId !== undefined) data.coordinatorCoachId = updates.coordinatorCoachId;
-      if (updates.coordinatorCoachName !== undefined) data.coordinatorCoachName = updates.coordinatorCoachName;
-      if (updates.assistantCoachId !== undefined) data.assistantCoachId = updates.assistantCoachId;
-      if (updates.assistantCoachName !== undefined) data.assistantCoachName = updates.assistantCoachName;
       if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
       if (updates.discipline !== undefined) data.discipline = updates.discipline;
 
-      const updated = await prisma.squadStore.update({
+      const updated = await prisma.squad.update({
         where: { id },
         data
       });
@@ -695,12 +671,6 @@ export class DbService {
         name: updated.name,
         ageGroup: updated.ageGroup,
         discipline: updated.discipline,
-        coachId: updated.coachId,
-        coachName: updated.coachName,
-        coordinatorCoachId: updated.coordinatorCoachId,
-        coordinatorCoachName: updated.coordinatorCoachName,
-        assistantCoachId: updated.assistantCoachId,
-        assistantCoachName: updated.assistantCoachName,
         memberCount: updated.memberCount
       };
     } catch {
@@ -710,7 +680,7 @@ export class DbService {
 
   static async deleteSquad(id: string) {
     try {
-      await prisma.squadStore.delete({ where: { id } });
+      await prisma.squad.delete({ where: { id } });
       return true;
     } catch {
       return false;
@@ -718,17 +688,19 @@ export class DbService {
   }
 
   // --- Training Sessions ---
-  static async getTrainingSessions(clubId?: string) {
+  static async getTrainingSessions(clubId?: string, coachId?: string) {
     const where: any = {};
     if (clubId) where.clubId = clubId;
+    if (coachId) where.coachId = coachId;
 
-    const sessions = await prisma.trainingSessionStore.findMany({
+    const sessions = await prisma.trainingSession.findMany({
       where,
       orderBy: { sessionDate: 'desc' }
     });
 
     return sessions.map(s => ({
       id: s.id,
+      squadId: s.squadId,
       squadName: s.squadName,
       coachId: s.coachId,
       coachName: s.coachName,
@@ -751,10 +723,11 @@ export class DbService {
   }
 
   static async createTrainingSession(sess: any) {
-    const created = await prisma.trainingSessionStore.create({
+    const created = await prisma.trainingSession.create({
       data: {
         id: sess.id,
         clubId: sess.clubId || 'ten-003',
+        squadId: sess.squadId || null,
         squadName: sess.squadName,
         coachId: sess.coachId || null,
         coachName: sess.coachName || null,
@@ -778,6 +751,7 @@ export class DbService {
 
     return {
       id: created.id,
+      squadId: created.squadId,
       squadName: created.squadName,
       coachId: created.coachId,
       coachName: created.coachName,
@@ -801,13 +775,14 @@ export class DbService {
 
   static async publishTrainingSession(id: string) {
     try {
-      const updated = await prisma.trainingSessionStore.update({
+      const updated = await prisma.trainingSession.update({
         where: { id },
         data: { isPublished: true }
       });
 
       return {
         id: updated.id,
+        squadId: updated.squadId,
         squadName: updated.squadName,
         coachId: updated.coachId,
         coachName: updated.coachName,
@@ -837,12 +812,12 @@ export class DbService {
   // when an AI-recommended drill is adopted for a player with an upcoming squad session.
   static async incrementSessionDrillCount(id: string, drillId?: string) {
     try {
-      const existing = await prisma.trainingSessionStore.findUnique({ where: { id } });
+      const existing = await prisma.trainingSession.findUnique({ where: { id } });
       if (!existing) return null;
       const currentIds: string[] = Array.isArray(existing.drillIds) ? (existing.drillIds as any) : [];
       const newIds = drillId ? [...currentIds, drillId] : currentIds;
 
-      const updated = await prisma.trainingSessionStore.update({
+      const updated = await prisma.trainingSession.update({
         where: { id },
         data: {
           drillCount: drillId ? newIds.length : { increment: 1 },
@@ -852,6 +827,7 @@ export class DbService {
 
       return {
         id: updated.id,
+        squadId: updated.squadId,
         squadName: updated.squadName,
         coachId: updated.coachId,
         coachName: updated.coachName,
@@ -880,13 +856,13 @@ export class DbService {
   // action on an already-added session drill in the Club Portal Sessions tab).
   static async removeDrillFromSession(id: string, drillId: string) {
     try {
-      const existing = await prisma.trainingSessionStore.findUnique({ where: { id } });
+      const existing = await prisma.trainingSession.findUnique({ where: { id } });
       if (!existing) return null;
       const currentIds: string[] = Array.isArray(existing.drillIds) ? (existing.drillIds as any) : [];
       const idx = currentIds.indexOf(drillId);
       if (idx !== -1) currentIds.splice(idx, 1);
 
-      const updated = await prisma.trainingSessionStore.update({
+      const updated = await prisma.trainingSession.update({
         where: { id },
         data: {
           drillCount: currentIds.length,
@@ -896,6 +872,7 @@ export class DbService {
 
       return {
         id: updated.id,
+        squadId: updated.squadId,
         squadName: updated.squadName,
         coachId: updated.coachId,
         coachName: updated.coachName,
@@ -925,6 +902,7 @@ export class DbService {
   static async updateTrainingSession(id: string, updates: {
     title?: string;
     squadName?: string;
+    squadId?: string | null;
     coachId?: string | null;
     coachName?: string | null;
     coordinatorCoachId?: string | null;
@@ -940,6 +918,7 @@ export class DbService {
     try {
       const data: any = {};
       if (updates.title !== undefined) data.title = updates.title;
+      if (updates.squadId !== undefined) data.squadId = updates.squadId;
       if (updates.squadName !== undefined) data.squadName = updates.squadName;
       if (updates.coachId !== undefined) data.coachId = updates.coachId;
       if (updates.coachName !== undefined) data.coachName = updates.coachName;
@@ -953,13 +932,14 @@ export class DbService {
       if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
       if (updates.playerNotes !== undefined) data.playerNotes = updates.playerNotes;
 
-      const updated = await prisma.trainingSessionStore.update({
+      const updated = await prisma.trainingSession.update({
         where: { id },
         data
       });
 
       return {
         id: updated.id,
+        squadId: updated.squadId,
         squadName: updated.squadName,
         coachId: updated.coachId,
         coachName: updated.coachName,
@@ -986,7 +966,7 @@ export class DbService {
 
   static async deleteTrainingSession(id: string) {
     try {
-      await prisma.trainingSessionStore.delete({ where: { id } });
+      await prisma.trainingSession.delete({ where: { id } });
       return true;
     } catch {
       return false;
@@ -995,7 +975,7 @@ export class DbService {
 
   static async updateSessionNotesAndEvaluation(id: string, notes: string, aiEvaluation: any) {
     try {
-      const updated = await prisma.trainingSessionStore.update({
+      const updated = await prisma.trainingSession.update({
         where: { id },
         data: {
           postNotes: notes,
@@ -1005,6 +985,7 @@ export class DbService {
 
       return {
         id: updated.id,
+        squadId: updated.squadId,
         squadName: updated.squadName,
         coachId: updated.coachId,
         coachName: updated.coachName,
@@ -1030,7 +1011,7 @@ export class DbService {
 
   // --- Certificates ---
   static async getCertificates() {
-    const certs = await prisma.certificateStore.findMany({
+    const certs = await prisma.certificate.findMany({
       orderBy: { issuedDate: 'desc' }
     });
 
@@ -1048,7 +1029,7 @@ export class DbService {
   }
 
   static async createCertificate(cert: any) {
-    const created = await prisma.certificateStore.create({
+    const created = await prisma.certificate.create({
       data: {
         id: cert.id,
         certificateNumber: cert.certificateNumber,
@@ -1088,7 +1069,7 @@ export class DbService {
     model: string;
     analysis: any;
   }) {
-    const created = await prisma.videoAnalysisStore.create({
+    const created = await prisma.videoAnalysis.create({
       data: {
         userId: entry.userId || null,
         playerId: entry.playerId || null,
@@ -1111,7 +1092,7 @@ export class DbService {
     if (filters?.userId) where.userId = filters.userId;
     if (filters?.playerId) where.playerId = filters.playerId;
 
-    const results = await prisma.videoAnalysisStore.findMany({
+    const results = await prisma.videoAnalysis.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: 50
@@ -1135,7 +1116,7 @@ export class DbService {
   }
 
   static async getVideoAnalysisById(id: string) {
-    const r = await prisma.videoAnalysisStore.findUnique({ where: { id } });
+    const r = await prisma.videoAnalysis.findUnique({ where: { id } });
     if (!r) return null;
     return {
       id: r.id,
@@ -1156,7 +1137,7 @@ export class DbService {
 
   static async markVideoAnalysisDrillAdopted(id: string) {
     try {
-      const updated = await prisma.videoAnalysisStore.update({
+      const updated = await prisma.videoAnalysis.update({
         where: { id },
         data: { drillAdopted: true }
       });

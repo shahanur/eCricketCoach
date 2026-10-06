@@ -9,9 +9,7 @@ import {
   Certificate,
   AdminNotification,
   SupportTicket,
-  CoachDashboardData,
-  CoachWorkspaceItem,
-  CoachWorkspaceKind
+  CoachDashboardData
 } from '../types';
 
 const API_BASE = '/api';
@@ -201,55 +199,11 @@ export const api = {
     return res.json();
   },
 
-  // Coach workspace records are authenticated and tenant scoped by the server.
+  // Club-coach dashboard data comes from club members and training sessions.
   async getCoachDashboard(): Promise<CoachDashboardData> {
     const res = await fetch(`${API_BASE}/coach/dashboard`, { headers: authenticatedHeaders() });
     if (!res.ok) throw await responseError(res, 'Failed to load club coach dashboard');
     return res.json();
-  },
-
-  async getCoachWorkspace(kind?: CoachWorkspaceKind): Promise<CoachWorkspaceItem[]> {
-    const query = kind ? `?kind=${encodeURIComponent(kind)}` : '';
-    const res = await fetch(`${API_BASE}/coach/workspace${query}`, { headers: authenticatedHeaders() });
-    if (!res.ok) throw await responseError(res, 'Failed to load coach workspace');
-    return res.json();
-  },
-
-  async createCoachWorkspaceItem(item: {
-    kind: CoachWorkspaceKind;
-    sessionId?: string;
-    playerId?: string;
-    title: string;
-    content?: string;
-    status?: string;
-    progress?: number;
-    metadata?: Record<string, unknown>;
-  }): Promise<CoachWorkspaceItem> {
-    const res = await fetch(`${API_BASE}/coach/workspace`, {
-      method: 'POST',
-      headers: authenticatedHeaders(),
-      body: JSON.stringify(item)
-    });
-    if (!res.ok) throw await responseError(res, 'Failed to save coach workspace item');
-    return res.json();
-  },
-
-  async updateCoachWorkspaceItem(id: string, updates: Partial<Pick<CoachWorkspaceItem, 'title' | 'content' | 'status' | 'progress' | 'metadata'>>): Promise<CoachWorkspaceItem> {
-    const res = await fetch(`${API_BASE}/coach/workspace/${id}`, {
-      method: 'PATCH',
-      headers: authenticatedHeaders(),
-      body: JSON.stringify(updates)
-    });
-    if (!res.ok) throw await responseError(res, 'Failed to update coach workspace item');
-    return res.json();
-  },
-
-  async deleteCoachWorkspaceItem(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/coach/workspace/${id}`, {
-      method: 'DELETE',
-      headers: authenticatedHeaders()
-    });
-    if (!res.ok) throw await responseError(res, 'Failed to delete coach workspace item');
   },
 
   // Subscriptions & Checkout
@@ -283,19 +237,20 @@ export const api = {
   async inviteMember(member: Partial<ClubMember>): Promise<ClubMember> {
     const res = await fetch(`${API_BASE}/club/members/invite`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authenticatedHeaders(),
       body: JSON.stringify(member)
     });
-    if (!res.ok) throw new Error('Failed to invite member');
+    if (!res.ok) throw await responseError(res, 'Failed to invite member');
     const data = await res.json();
     return data.member;
   },
 
   async acceptMemberInvite(memberId: string): Promise<ClubMember> {
     const res = await fetch(`${API_BASE}/club/members/${memberId}/accept-invitation`, {
-      method: 'POST'
+      method: 'POST',
+      headers: authenticatedHeaders()
     });
-    if (!res.ok) throw new Error('Failed to accept invitation');
+    if (!res.ok) throw await responseError(res, 'Failed to accept invitation');
     const data = await res.json();
     return data.member;
   },
@@ -303,10 +258,10 @@ export const api = {
   async updateClubMember(memberId: string, updates: Partial<ClubMember>): Promise<ClubMember> {
     const res = await fetch(`${API_BASE}/club/members/${memberId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authenticatedHeaders(),
       body: JSON.stringify(updates)
     });
-    if (!res.ok) throw new Error('Failed to update club member');
+    if (!res.ok) throw await responseError(res, 'Failed to update club member');
     const data = await res.json();
     return data.member;
   },

@@ -80,12 +80,6 @@ export interface ClubMember {
 export interface Squad {
   id: string;
   clubId: string;
-  coachId?: string | null;
-  coachName?: string | null;
-  coordinatorCoachId?: string | null;
-  coordinatorCoachName?: string | null;
-  assistantCoachId?: string | null;
-  assistantCoachName?: string | null;
   name: string;
   ageGroup: string;
   discipline: string;
@@ -101,7 +95,7 @@ export interface TrainingSession {
   coordinatorCoachName?: string | null;
   assistantCoachId?: string | null;
   assistantCoachName?: string | null;
-  squadId: string;
+  squadId?: string | null;
   squadName: string;
   assignedPlayerIds?: string[];
   title: string;

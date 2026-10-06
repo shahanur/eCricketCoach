@@ -39,7 +39,7 @@ export async function resolveRosterIdentity(email: string) {
   const primaryTenant = await prisma.customerTenant.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } }
   });
-  const activeMember = primaryTenant ? null : await prisma.clubMemberStore.findFirst({
+  const activeMember = primaryTenant ? null : await prisma.clubMember.findFirst({
     where: {
       email: { equals: email, mode: 'insensitive' },
       invitationStatus: 'ACTIVE',

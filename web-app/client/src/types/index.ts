@@ -116,12 +116,6 @@ export interface Squad {
   clubId?: string;
   name: string;
   ageGroup: string;
-  coachId?: string | null;
-  coachName?: string | null;
-  coordinatorCoachId?: string | null;
-  coordinatorCoachName?: string | null;
-  assistantCoachId?: string | null;
-  assistantCoachName?: string | null;
   discipline: Discipline;
   memberCount: number;
 }
@@ -129,6 +123,7 @@ export interface Squad {
 export interface TrainingSession {
   id: string;
   clubId?: string;
+  squadId?: string | null;
   squadName: string;
   coachId?: string | null;
   coachName?: string | null;
@@ -149,26 +144,10 @@ export interface TrainingSession {
   aiEvaluation?: any;
 }
 
-export type CoachWorkspaceKind = 'GOAL' | 'PROGRESS_NOTE' | 'MESSAGE' | 'ATTENDANCE' | 'COLLABORATION' | 'AI_FEEDBACK' | 'FEATURE_IDEA' | 'NOTIFICATION';
-
-export interface CoachWorkspaceItem {
-  id: string;
-  kind: CoachWorkspaceKind;
-  sessionId?: string | null;
-  playerId?: string | null;
-  title: string;
-  content?: string | null;
-  status: string;
-  progress?: number | null;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface CoachDashboardData {
   players: ClubMember[];
   sessions: TrainingSession[];
-  items: CoachWorkspaceItem[];
+  mySessions: TrainingSession[];
 }
 
 export interface Certificate {

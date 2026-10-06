@@ -52,6 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasClubAdmin = currentUser?.roles.includes('CLUB_ADMIN');
   const hasCoachOrPlayer = currentUser?.roles.some(r => r === 'COACH' || r === 'PLAYER');
   const isClubCoach = currentUser?.roles.includes('COACH') && currentUser.coachContext === 'CLUB';
+  const hasClubPortal = hasClubAdmin || isClubCoach;
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-3 sm:px-4 py-2.5">
@@ -178,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
 
                 {/* Club Portal */}
-                {hasClubAdmin && (
+                {hasClubPortal && (
                   <button
                     onClick={() => handleNavClick('CLUB_PORTAL')}
                     className={`h-8 px-3 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border ${
@@ -389,7 +390,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Portal Action Buttons inside mobile menu */}
-            {currentUser && hasClubAdmin && (
+            {currentUser && hasClubPortal && (
               <button
                 onClick={() => handleNavClick('CLUB_PORTAL')}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${

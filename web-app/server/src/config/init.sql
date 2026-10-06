@@ -1,6 +1,10 @@
 -- eCricketCoach Database Schema
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Keep the historical normalized schema separate from the active Prisma tables.
+CREATE SCHEMA IF NOT EXISTS legacy;
+SET search_path TO legacy, public;
+
 -- Tenants (Multi-Tenancy support: Coach, Individual, Club)
 CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
