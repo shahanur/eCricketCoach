@@ -144,6 +144,9 @@ export interface Certificate {
   id: string;
   certificateNumber: string;
   playerId: string;
+  clubId?: string;
+  clubName?: string;
+  clubLogo?: string | null;
   playerName: string;
   discipline: string;
   achievedLevel: string;

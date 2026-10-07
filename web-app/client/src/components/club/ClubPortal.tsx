@@ -5,7 +5,8 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2 } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings } from 'lucide-react';
+import { downloadCertificatePdf } from '../../utils/certificatePdf';
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return 'Unknown size';
@@ -24,6 +25,16 @@ function formatRelativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+function formatDisciplines(disciplines: Discipline[]): string {
+  const labels: Record<Discipline, string> = {
+    BATTING: 'Batting',
+    BOWLING: 'Bowling',
+    KEEPING: 'Wicketkeeping',
+    FIELDING: 'Fielding'
+  };
+  return disciplines.map(discipline => labels[discipline]).join(', ');
+}
+
 interface ClubPortalProps {
   currentUser: AuthUser;
   isClubCoach?: boolean;
@@ -33,6 +44,7 @@ interface ClubPortalProps {
   certificates: Certificate[];
   drills: Drill[];
   clubName?: string;
+  onDeleteCertificate: (certificateId: string) => Promise<void>;
   onInviteMember: (member: ClubMember) => void;
   onAcceptMemberInvite: (id: string) => void;
   onPromotePlayer: (id: string) => void;
@@ -62,6 +74,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   certificates,
   drills,
   clubName = 'Marylebone Cricket Club Academy',
+  onDeleteCertificate,
   onInviteMember,
   onAcceptMemberInvite,
   onPromotePlayer,
@@ -81,7 +94,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onDeleteDrill,
   onUpdateDrill,
 }) => {
-  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
+  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS' | 'SETTINGS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
 
   useEffect(() => {
     if (isClubCoach && clubTab === 'ROSTER') setClubTab('SQUADS');
@@ -89,6 +102,93 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
   const [latestRatings, setLatestRatings] = useState<Record<string, { average: number; date: string; assessmentId: string }>>({});
   const [openAssessmentId, setOpenAssessmentId] = useState<string | undefined>(undefined);
+  const [clubLogo, setClubLogo] = useState<string | null>(null);
+  const [brandingMessage, setBrandingMessage] = useState('');
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+  const [certificateNameFilter, setCertificateNameFilter] = useState('');
+  const [certificateStartDateFilter, setCertificateStartDateFilter] = useState('');
+  const [certificateEndDateFilter, setCertificateEndDateFilter] = useState('');
+  const filteredCertificates = certificates.filter(certificate => {
+    const matchesName = certificate.playerName.toLowerCase().includes(certificateNameFilter.trim().toLowerCase());
+    const matchesStartDate = !certificateStartDateFilter || certificate.issuedDate >= certificateStartDateFilter;
+    const matchesEndDate = !certificateEndDateFilter || certificate.issuedDate <= certificateEndDateFilter;
+    return matchesName && matchesStartDate && matchesEndDate;
+  });
+
+  const confirmDeleteCertificate = (certificate: Certificate) => {
+    setPortalModal({
+      isOpen: true,
+      title: 'Delete Certificate',
+      message: `Permanently delete certificate #${certificate.certificateNumber} for ${certificate.playerName}? This cannot be undone.`,
+      type: 'danger',
+      confirmLabel: 'Delete Certificate',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: async () => {
+        setPortalModal(null);
+        try {
+          await onDeleteCertificate(certificate.id);
+        } catch (error) {
+          setPortalModal({
+            isOpen: true,
+            title: 'Certificate Could Not Be Deleted',
+            message: error instanceof Error ? error.message : 'Unable to delete this certificate.',
+            type: 'danger',
+            confirmLabel: 'Close',
+            onConfirm: () => setPortalModal(null)
+          });
+        }
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (isClubCoach || !currentUser.tenantId) return;
+    let cancelled = false;
+    api.getClubBranding()
+      .then(({ logoUrl }) => {
+        if (!cancelled) setClubLogo(logoUrl);
+      })
+      .catch(error => {
+        if (!cancelled) setBrandingMessage(error instanceof Error ? error.message : 'Unable to load club branding.');
+      });
+    return () => { cancelled = true; };
+  }, [currentUser.tenantId, isClubCoach]);
+
+  const saveClubLogo = async (logoUrl: string | null) => {
+    setIsSavingBranding(true);
+    setBrandingMessage('');
+    try {
+      const saved = await api.updateClubBranding(logoUrl);
+      setClubLogo(saved.logoUrl);
+      setBrandingMessage(logoUrl ? 'Club logo saved. New certificates will include it.' : 'Club logo removed.');
+    } catch (error) {
+      setBrandingMessage(error instanceof Error ? error.message : 'Unable to save the club logo.');
+    } finally {
+      setIsSavingBranding(false);
+    }
+  };
+
+  const handleClubLogoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/png', 'image/jpeg'].includes(file.type) || file.size > 1024 * 1024) {
+      setBrandingMessage('Choose a PNG or JPEG image smaller than 1 MB.');
+      return;
+    }
+    try {
+      const logoDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read the selected image.'));
+        reader.onerror = () => reject(new Error('Could not read the selected image.'));
+        reader.readAsDataURL(file);
+      });
+      await saveClubLogo(logoDataUrl);
+    } catch (error) {
+      setBrandingMessage(error instanceof Error ? error.message : 'Unable to read the selected image.');
+    }
+  };
 
   useEffect(() => {
     if (clubTab !== 'ROSTER') return;
@@ -351,7 +451,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [editingSquadId, setEditingSquadId] = useState<string | null>(null);
   const [squadFormName, setSquadFormName] = useState('');
   const [squadFormAgeGroup, setSquadFormAgeGroup] = useState('U15');
-  const [squadFormDiscipline, setSquadFormDiscipline] = useState<Discipline>('BOWLING');
+  const [squadFormDisciplines, setSquadFormDisciplines] = useState<Discipline[]>(['BOWLING']);
   const activeClubCoaches = useMemo(
     () => clubMembers.filter(member => member.role === 'COACH' && member.invitationStatus === 'ACTIVE'),
     [clubMembers]
@@ -834,7 +934,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setEditingSquadId(sq.id);
     setSquadFormName(sq.name);
     setSquadFormAgeGroup(sq.ageGroup);
-    setSquadFormDiscipline(sq.discipline);
+    setSquadFormDisciplines(sq.discipline.length ? sq.discipline : ['BOWLING']);
     setSquadPanelAgeGroupFilter('ALL');
     setSquadPanelDisciplineFilter('ALL');
     setSquadPanelSearchTerm('');
@@ -853,7 +953,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       title: 'Delete Squad',
       message: (
         <div className="space-y-2">
-          <p>Delete squad <strong className="text-white">"{squad.name}"</strong> ({squad.ageGroup} • {squad.discipline})?</p>
+          <p>Delete squad <strong className="text-white">"{squad.name}"</strong> ({squad.ageGroup} • {formatDisciplines(squad.discipline)})?</p>
           <p className="text-xs text-slate-400">
             This action cannot be undone. {squad.memberCount > 0 ? `${squad.memberCount} assigned player(s) will become unassigned.` : ''}
           </p>
@@ -878,20 +978,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
   const handleSquadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!squadFormName.trim()) return;
+    if (!squadFormName.trim() || squadFormDisciplines.length === 0) return;
 
     if (editingSquadId) {
       const updates: Partial<Squad> = {
         name: squadFormName.trim(),
         ageGroup: squadFormAgeGroup,
-        discipline: squadFormDiscipline
+        discipline: squadFormDisciplines
       };
       onUpdateSquad?.(editingSquadId, updates);
       closeSquadModal();
       setPortalModal({
         isOpen: true,
         title: 'Squad Updated Successfully',
-        message: `Squad "${updates.name}" (${updates.ageGroup} - ${updates.discipline}) has been updated.`,
+        message: `Squad "${updates.name}" (${updates.ageGroup} - ${updates.discipline?.join(', ')}) has been updated.`,
         type: 'success',
         confirmLabel: 'Done',
         onConfirm: () => setPortalModal(null)
@@ -903,7 +1003,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       id: 'sq-' + Date.now(),
       name: squadFormName.trim(),
       ageGroup: squadFormAgeGroup,
-      discipline: squadFormDiscipline,
+      discipline: squadFormDisciplines,
       memberCount: 0
     };
     onAddSquad(newSquad);
@@ -911,7 +1011,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setPortalModal({
       isOpen: true,
       title: 'Squad Created Successfully',
-      message: `Squad "${newSquad.name}" (${newSquad.ageGroup} - ${newSquad.discipline}) is now active.`,
+      message: `Squad "${newSquad.name}" (${newSquad.ageGroup} - ${newSquad.discipline.join(', ')}) is now active.`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setPortalModal(null)
@@ -1229,6 +1329,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             {certificates.length}
           </span>
         </button>
+        {!isClubCoach && (
+          <button
+            onClick={() => setClubTab('SETTINGS')}
+            className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              clubTab === 'SETTINGS' ? 'bg-slate-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Club Settings</span>
+          </button>
+        )}
         <button
           onClick={() => setClubTab('VIDEO_ANALYSIS')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -1563,7 +1674,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 setEditingSquadId(null);
                 setSquadFormName('');
                 setSquadFormAgeGroup('U15');
-                setSquadFormDiscipline('BOWLING');
+                setSquadFormDisciplines(['BOWLING']);
                 setSquadPanelAgeGroupFilter('ALL');
                 setSquadPanelDisciplineFilter('ALL');
                 setSquadPanelSearchTerm('');
@@ -1585,7 +1696,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     {sq.ageGroup}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">Primary Focus: <span className="text-emerald-400">{sq.discipline}</span></p>
+                <p className="text-xs text-slate-400">Disciplines: <span className="text-emerald-400">{formatDisciplines(sq.discipline)}</span></p>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
                   <span className="text-xs text-slate-500">{sq.memberCount} Squad Members</span>
                   <div className="flex items-center gap-2">
@@ -2285,21 +2396,79 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </p>
             </div>
             <span className="text-xs bg-sky-500/20 text-sky-300 px-2.5 py-1 rounded font-bold border border-sky-500/30">
-              {certificates.length} Issued Certificates
+              {filteredCertificates.length} of {certificates.length} Certificates
             </span>
           </div>
 
+          <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-4 sm:grid-cols-3">
+            <div>
+              <label htmlFor="certificate-name-filter" className="mb-1 block text-[11px] font-semibold text-slate-400">Player name</label>
+              <input
+                id="certificate-name-filter"
+                type="search"
+                value={certificateNameFilter}
+                onChange={event => setCertificateNameFilter(event.target.value)}
+                placeholder="Search player name"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="certificate-start-date" className="mb-1 block text-[11px] font-semibold text-slate-400">Issued from</label>
+              <input
+                id="certificate-start-date"
+                type="date"
+                value={certificateStartDateFilter}
+                onChange={event => setCertificateStartDateFilter(event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:border-sky-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor="certificate-end-date" className="mb-1 block text-[11px] font-semibold text-slate-400">Issued through</label>
+              <input
+                id="certificate-end-date"
+                type="date"
+                value={certificateEndDateFilter}
+                onChange={event => setCertificateEndDateFilter(event.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:border-sky-500 focus:outline-none"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {certificates.map(cert => (
+            {filteredCertificates.map(cert => (
               <div key={cert.id} className="p-5 rounded-xl bg-gradient-to-br from-slate-950 to-slate-900 border-2 border-amber-500/40 relative shadow-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-widest">
                     Certificate of Achievement
                   </span>
-                  <span className="text-[10px] text-slate-400 font-mono">#{cert.certificateNumber}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 font-mono">#{cert.certificateNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => downloadCertificatePdf(cert)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"
+                      aria-label={`Download ${cert.playerName}'s certificate PDF`}
+                    >
+                      <Download size={12} />
+                      PDF
+                    </button>
+                    {!isClubCoach && (
+                      <button
+                        type="button"
+                        onClick={() => confirmDeleteCertificate(cert)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/20"
+                        aria-label={`Delete ${cert.playerName}'s certificate`}
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-center py-2 border-y border-slate-800/80">
+                  {cert.clubLogo && <img src={cert.clubLogo} alt={`${cert.clubName || clubName} logo`} className="mx-auto mb-2 h-12 max-w-24 object-contain" />}
+                  <p className="text-xs font-semibold text-slate-300">{cert.clubName || clubName}</p>
                   <p className="text-xs text-slate-400 uppercase tracking-wider">This certifies that</p>
                   <h4 className="text-xl font-extrabold text-white mt-0.5">{cert.playerName}</h4>
                   <p className="text-xs text-emerald-400 font-semibold mt-1">
@@ -2309,7 +2478,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
                 <div className="text-[11px] text-slate-300 space-y-1">
                   <p><span className="font-semibold text-slate-400">Coach Notes:</span> {cert.coachNotes}</p>
-                  <p><span className="font-semibold text-slate-400">AI Verification:</span> {cert.aiCommendation}</p>
+                  {cert.aiCommendation && <p><span className="font-semibold text-slate-400">AI Verification:</span> {cert.aiCommendation}</p>}
                 </div>
 
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
@@ -2319,7 +2488,43 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </div>
             ))}
           </div>
+          {filteredCertificates.length === 0 && (
+            <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-4 py-6 text-center text-xs text-slate-400">
+              {certificates.length ? 'No certificates match these filters.' : 'No certificates have been issued yet.'}
+            </p>
+          )}
         </div>
+      )}
+
+      {!isClubCoach && clubTab === 'SETTINGS' && (
+        <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+          <div>
+            <h3 className="font-semibold text-base text-white">Club Branding</h3>
+            <p className="text-xs text-slate-400 mt-1">The saved logo appears on certificates issued from this point onward.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5 rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+            <div className="flex h-24 w-36 items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900 p-2">
+              {clubLogo
+                ? <img src={clubLogo} alt={`${clubName} logo preview`} className="max-h-full max-w-full object-contain" />
+                : <span className="text-xs text-slate-500">No club logo uploaded</span>}
+            </div>
+            <div className="space-y-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-sky-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-sky-400">
+                <Upload size={14} />
+                {clubLogo ? 'Replace logo' : 'Upload logo'}
+                <input type="file" accept="image/png,image/jpeg" onChange={handleClubLogoSelected} className="sr-only" disabled={isSavingBranding} />
+              </label>
+              {clubLogo && (
+                <button type="button" onClick={() => void saveClubLogo(null)} disabled={isSavingBranding} className="ml-2 text-xs font-semibold text-rose-300 hover:text-rose-200 disabled:opacity-50">
+                  Remove logo
+                </button>
+              )}
+              <p className="text-[11px] text-slate-500">PNG or JPEG, maximum 1 MB. Logo changes apply to newly issued certificates.</p>
+              {isSavingBranding && <p role="status" className="text-xs text-sky-300">Saving club logo...</p>}
+              {brandingMessage && <p role="status" className="text-xs text-slate-300">{brandingMessage}</p>}
+            </div>
+          </div>
+        </section>
       )}
 
       {/* Club Sub-tab 6: Dedicated AI Biomechanical Video Analysis Engine */}
@@ -3159,7 +3364,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </h3>
               <p className="text-xs text-slate-400 mt-1">
                 {editingSquadId
-                  ? 'Update this squad\'s name, age bracket, or discipline, and assign players on the right.'
+                  ? 'Update this squad\'s name, age bracket, disciplines, and assigned players.'
                   : 'Create an age-bracket squad for organizing participants.'}
               </p>
             </div>
@@ -3192,19 +3397,32 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       <option value="Senior">Senior</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400">Discipline</label>
-                    <select
-                      value={squadFormDiscipline}
-                      onChange={e => setSquadFormDiscipline(e.target.value as Discipline)}
-                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
-                    >
-                      <option value="BATTING">Batting</option>
-                      <option value="BOWLING">Bowling</option>
-                      <option value="KEEPING">Wicketkeeping</option>
-                      <option value="FIELDING">Fielding</option>
-                    </select>
-                  </div>
+                  <fieldset className="space-y-2">
+                    <legend className="text-[11px] font-semibold text-slate-400">Disciplines *</legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        ['BATTING', 'Batting'],
+                        ['BOWLING', 'Bowling'],
+                        ['KEEPING', 'Wicketkeeping'],
+                        ['FIELDING', 'Fielding']
+                      ] as const).map(([discipline, label]) => (
+                        <label key={discipline} className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-2 text-xs text-slate-200 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={squadFormDisciplines.includes(discipline)}
+                            onChange={() => setSquadFormDisciplines(current =>
+                              current.includes(discipline)
+                                ? current.filter(selected => selected !== discipline)
+                                : [...current, discipline]
+                            )}
+                            className="accent-sky-500"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-500">Select every discipline covered by this squad. At least one is required.</p>
+                  </fieldset>
                 </div>
                 <p className="text-[11px] text-slate-500">Assign coaches when scheduling a training session.</p>
 
@@ -3267,6 +3485,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <button
                       type="submit"
                       className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition"
+                      disabled={squadFormDisciplines.length === 0}
                     >
                       {editingSquadId ? 'Save Changes' : 'Create Squad'}
                     </button>
@@ -3444,7 +3663,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       >
                         {squads.map(sq => (
                           <option key={sq.id} value={sq.id}>
-                            {sq.name} ({sq.ageGroup} • {sq.discipline})
+                            {sq.name} ({sq.ageGroup} • {formatDisciplines(sq.discipline)})
                           </option>
                         ))}
                       </select>

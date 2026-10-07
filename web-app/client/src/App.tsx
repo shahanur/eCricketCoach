@@ -43,6 +43,7 @@ export default function App() {
         if (u.roles?.includes('SUPER_ADMIN')) return 'ADMIN_PANEL';
         if (u.roles?.includes('CLUB_ADMIN')) return 'CLUB_PORTAL';
         if (u.roles?.includes('COACH') && u.coachContext === 'CLUB') return 'CLUB_PORTAL';
+        if (u.roles?.includes('PLAYER')) return 'HOME';
         if (u.roles?.includes('COACH')) return 'COACHING_PORTAL';
         return 'COACHING_PORTAL';
       }
@@ -107,6 +108,8 @@ export default function App() {
         setViewMode('CLUB_PORTAL');
       } else if (role === 'COACH') {
         setViewMode(user.coachContext === 'CLUB' ? 'CLUB_PORTAL' : 'COACHING_PORTAL');
+      } else if (role === 'PLAYER') {
+        setViewMode('HOME');
       } else {
         setViewMode('COACHING_PORTAL');
       }
@@ -194,7 +197,10 @@ export default function App() {
           currentUser?.tenantId ? api.getClubMembers(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
           currentUser?.tenantId ? api.getSquads(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
           currentUser?.tenantId ? api.getSessions(currentUser.tenantId).catch(() => []) : Promise.resolve([]),
-          api.getCertificates().catch(() => []),
+          api.getCertificates().catch(error => {
+            console.error('Failed to load certificates:', error);
+            return null;
+          }),
           api.getSupportTickets().catch(() => [])
         ]);
 
@@ -206,7 +212,7 @@ export default function App() {
         setClubMembers(membersData || []);
         setSquads(squadsData || []);
         setSessions(sessionsData || []);
-        if (certsData?.length) setCertificates(certsData);
+        if (certsData) setCertificates(certsData);
         if (ticketsData?.length) setSupportTickets(ticketsData);
       } catch (err) {
         console.error('Failed to load data from backend:', err);
@@ -225,6 +231,21 @@ export default function App() {
     window.addEventListener('focus', refreshSessions);
     return () => window.removeEventListener('focus', refreshSessions);
   }, [currentUser?.tenantId]);
+
+  useEffect(() => {
+    if (!currentUser?.roles.includes('PLAYER')) return;
+    const refreshCertificates = () => {
+      api.getCertificates().then(setCertificates).catch(error => {
+        console.error('Failed to refresh player certificates:', error);
+      });
+    };
+    const interval = window.setInterval(refreshCertificates, 60_000);
+    window.addEventListener('focus', refreshCertificates);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshCertificates);
+    };
+  }, [currentUser?.id, currentUser?.roles]);
 
   const handleSessionSynced = (updated: TrainingSession) => {
     setSessions(prev => prev.some(session => session.id === updated.id)
@@ -565,6 +586,7 @@ export default function App() {
       const res = await api.promotePlayer(memberId, {
         action: 'PROMOTE',
         newLevel: nextLevel,
+        coachName: currentUser?.name || 'Club Coach',
         coachNotes: 'Completed all stage competency gates with distinction across matches and net sessions.'
       });
 
@@ -576,42 +598,29 @@ export default function App() {
         setAppModal({
           isOpen: true,
           title: 'Player Milestone Certified',
-          message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${res.certificate.certificateNumber} has been issued and catalogued.`,
+          message: `🎉 ${member.name} has been promoted to ${nextLevel}! Certificate #${res.certificate.certificateNumber} is available for PDF download in the player's dashboard and in Club Certificates.`,
           type: 'success',
-          confirmLabel: 'View Certificates',
+          confirmLabel: 'Done',
           onConfirm: () => setAppModal(null)
         });
         return;
       }
-    } catch {
-      // fallback
+      throw new Error('The promotion did not return a certificate. No changes were made.');
+    } catch (error) {
+      setAppModal({
+        isOpen: true,
+        title: 'Promotion Could Not Be Completed',
+        message: error instanceof Error ? error.message : 'Unable to promote this player. Please try again.',
+        type: 'danger',
+        confirmLabel: 'Close',
+        onConfirm: () => setAppModal(null)
+      });
     }
+  };
 
-    setClubMembers(prev =>
-      prev.map(m => (m.id === memberId ? { ...m, currentLevel: nextLevel } : m))
-    );
-
-    const newCert: Certificate = {
-      id: 'cert-' + Date.now(),
-      certificateNumber: 'ECC-2026-' + Math.floor(1000 + Math.random() * 9000),
-      playerName: member.name,
-      discipline: member.discipline,
-      achievedLevel: nextLevel,
-      issuedDate: '2026-09-30',
-      coachName: 'Shane Bond',
-      coachNotes: 'Completed all stage competency gates with distinction across matches and net sessions.',
-      aiCommendation: 'Kinematic tracking confirms 92/100 technique stability and repeatable execution.'
-    };
-
-    setCertificates(prev => [newCert, ...prev]);
-    setAppModal({
-      isOpen: true,
-      title: 'Player Milestone Certified',
-      message: `🎉 ${member.name} has been promoted to ${nextLevel}! Digital progression certificate #${newCert.certificateNumber} has been issued and catalogued.`,
-      type: 'success',
-      confirmLabel: 'Done',
-      onConfirm: () => setAppModal(null)
-    });
+  const handleDeleteCertificate = async (certificateId: string) => {
+    await api.deleteCertificate(certificateId);
+    setCertificates(prev => prev.filter(certificate => certificate.id !== certificateId));
   };
 
   const handleAddSquad = async (squad: Squad) => {
@@ -899,6 +908,7 @@ export default function App() {
             certificates={certificates}
             drills={drills}
             clubName={currentUser?.clubName || 'Marylebone Cricket Club Academy'}
+            onDeleteCertificate={handleDeleteCertificate}
             onInviteMember={handleInviteMember}
             onAcceptMemberInvite={handleAcceptMemberInvite}
             onPromotePlayer={handlePromotePlayer}

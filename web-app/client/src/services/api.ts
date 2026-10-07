@@ -495,18 +495,42 @@ export const api = {
   },
 
   async getCertificates(): Promise<Certificate[]> {
-    const res = await fetch(`${API_BASE}/club/certificates`);
-    if (!res.ok) throw new Error('Failed to fetch certificates');
+    const res = await fetch(`${API_BASE}/club/certificates`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to fetch certificates');
     return res.json();
   },
 
-  async promotePlayer(playerId: string, payload: { action: 'PROMOTE'; newLevel: string; coachNotes?: string }): Promise<{ certificate: Certificate; member: ClubMember }> {
+  async deleteCertificate(certificateId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/club/certificates/${encodeURIComponent(certificateId)}`, {
+      method: 'DELETE',
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to delete certificate');
+  },
+
+  async promotePlayer(playerId: string, payload: { action: 'PROMOTE'; newLevel: string; coachName?: string; coachNotes?: string; aiCommendation?: string }): Promise<{ certificate: Certificate; member: ClubMember }> {
     const res = await fetch(`${API_BASE}/club/players/${playerId}/assess-progress`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authenticatedHeaders(),
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Failed to assess and promote player');
+    if (!res.ok) throw await responseError(res, 'Failed to assess and promote player');
+    return res.json();
+  },
+
+  async getClubBranding(): Promise<{ logoUrl: string | null }> {
+    const res = await fetch(`${API_BASE}/club/settings/branding`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to fetch club branding');
+    return res.json();
+  },
+
+  async updateClubBranding(logoUrl: string | null): Promise<{ logoUrl: string | null }> {
+    const res = await fetch(`${API_BASE}/club/settings/branding`, {
+      method: 'PATCH',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify({ logoUrl })
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to save club branding');
     return res.json();
   },
 

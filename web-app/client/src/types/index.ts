@@ -116,7 +116,7 @@ export interface Squad {
   clubId?: string;
   name: string;
   ageGroup: string;
-  discipline: Discipline;
+  discipline: Discipline[];
   memberCount: number;
 }
 
@@ -255,6 +255,10 @@ export interface CoachDashboardData {
 export interface Certificate {
   id: string;
   certificateNumber: string;
+  playerId?: string;
+  clubId?: string;
+  clubName?: string;
+  clubLogo?: string | null;
   playerName: string;
   discipline: string;
   achievedLevel: string;

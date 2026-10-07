@@ -7,6 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "seed:ekota-program": "tsx src/scripts/seedEkotaProgram.ts",
     "db:reset": "tsx src/scripts/resetDb.ts --yes"
   },
   "dependencies": {

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { DbService } from '../services/dbService.js';
-import { ClubMember, Squad, TrainingSession, Certificate } from '../types/index.js';
+import { ClubMember, Squad, TrainingSession } from '../types/index.js';
 import { SessionEvaluationService } from '../services/sessionEvaluationService.js';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest, requireRole } from '../middleware/auth.js';
@@ -122,15 +122,16 @@ clubRouter.get('/squads', async (req: Request, res: Response) => {
 clubRouter.post('/squads', async (req: Request, res: Response) => {
   try {
     const { name, ageGroup, discipline, memberIds, clubId } = req.body;
-    if (!name || !clubId) {
-      return res.status(400).json({ error: 'Squad name and clubId are required.' });
+    const disciplines = normalizeSquadDisciplines(discipline);
+    if (typeof name !== 'string' || !name.trim() || typeof clubId !== 'string' || !clubId || disciplines.length === 0) {
+      return res.status(400).json({ error: 'Squad name, clubId, and at least one valid discipline are required.' });
     }
     const newSquad: Squad = {
       id: 'sq-' + Date.now(),
       clubId,
       name,
       ageGroup,
-      discipline,
+      discipline: disciplines.join(','),
       memberIds: memberIds || []
     };
     const saved = await DbService.createSquad({
@@ -146,7 +147,15 @@ clubRouter.post('/squads', async (req: Request, res: Response) => {
 clubRouter.patch('/squads/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { memberCount, name, ageGroup, discipline } = req.body;
+    const { memberCount, name, ageGroup } = req.body;
+    let discipline: string | undefined = req.body.discipline;
+    if (discipline !== undefined) {
+      const disciplines = normalizeSquadDisciplines(discipline);
+      if (disciplines.length === 0) {
+        return res.status(400).json({ error: 'Select at least one valid squad discipline.' });
+      }
+      discipline = disciplines.join(',');
+    }
     const existing = await prisma.squad.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Squad not found' });
     const updated = await DbService.updateSquad(id, { memberCount, name, ageGroup, discipline });
@@ -156,6 +165,19 @@ clubRouter.patch('/squads/:id', async (req: Request, res: Response) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+function normalizeSquadDisciplines(value: unknown): string[] {
+  const allowed = new Set(['BATTING', 'BOWLING', 'KEEPING', 'FIELDING']);
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+  return [...new Set(values
+    .filter((discipline): discipline is string => typeof discipline === 'string')
+    .map(discipline => discipline.trim().toUpperCase())
+    .filter(discipline => allowed.has(discipline)))];
+}
 
 // Permanently removes a squad (e.g. formed in error, or no longer needed).
 clubRouter.delete('/squads/:id', async (req: Request, res: Response) => {
@@ -371,46 +393,119 @@ clubRouter.post('/sessions/:id/post-notes-ai-assess', authenticateToken, require
 });
 
 // 5. Certificate Generation & Progress Assessment
-clubRouter.get('/certificates', async (_req: Request, res: Response) => {
+clubRouter.get('/certificates', authenticateToken, requireRole(['SUPER_ADMIN', 'CLUB_ADMIN', 'COACH', 'PLAYER']), async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const certs = await DbService.getCertificates();
+    const where = req.user!.role === 'PLAYER'
+      ? { playerId: req.user!.userId }
+      : req.user!.role === 'SUPER_ADMIN'
+        ? {}
+        : { clubId: req.user!.tenantId };
+    const certs = await DbService.getCertificates(where);
     res.json(certs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-clubRouter.post('/players/:id/assess-progress', async (req: Request, res: Response) => {
+clubRouter.delete('/certificates/:id', authenticateToken, requireRole(['CLUB_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const certificate = await prisma.certificate.findFirst({
+      where: { id: req.params.id, clubId: req.user!.tenantId },
+      select: { id: true }
+    });
+    if (!certificate) return res.status(404).json({ error: 'Certificate not found in your club.' });
+
+    await prisma.certificate.delete({ where: { id: certificate.id } });
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+clubRouter.get('/settings/branding', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenant = await prisma.customerTenant.findUnique({ where: { id: req.user!.tenantId } });
+    if (!tenant || tenant.type !== 'CLUB') return res.status(404).json({ error: 'Club not found' });
+    return res.json({ logoUrl: tenant.logoUrl });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+clubRouter.patch('/settings/branding', authenticateToken, requireRole(['CLUB_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  const { logoUrl } = req.body;
+  const imageMatch = typeof logoUrl === 'string'
+    ? logoUrl.match(/^data:image\/(png|jpeg);base64,([A-Za-z0-9+/]+={0,2})$/)
+    : null;
+  const imageBytes = imageMatch ? Buffer.from(imageMatch[2], 'base64') : null;
+  const hasValidImageSignature = imageMatch && imageBytes && (
+    imageMatch[1] === 'png'
+      ? imageBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      : imageBytes[0] === 0xff && imageBytes[1] === 0xd8 && imageBytes[2] === 0xff
+  );
+  if (logoUrl !== null && (!imageMatch || !imageBytes || imageBytes.length > 1024 * 1024 || !hasValidImageSignature)) {
+    return res.status(400).json({ error: 'Upload a PNG or JPEG club logo smaller than 1 MB.' });
+  }
+
+  try {
+    const tenant = await prisma.customerTenant.findUnique({ where: { id: req.user!.tenantId } });
+    if (!tenant || tenant.type !== 'CLUB') return res.status(404).json({ error: 'Club not found' });
+    const updated = await prisma.customerTenant.update({
+      where: { id: tenant.id },
+      data: { logoUrl }
+    });
+    return res.json({ logoUrl: updated.logoUrl });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+clubRouter.post('/players/:id/assess-progress', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { action, newLevel, coachNotes, aiCommendation, playerName, discipline } = req.body;
+    const { action, newLevel, coachNotes, aiCommendation, coachName } = req.body;
 
-    if (action === 'PROMOTE') {
-      const updatedMember = await DbService.updateClubMember(id, { currentLevel: newLevel || 'ADVANCED' });
-
-      const newCert: Certificate = {
-        id: 'cert-' + Date.now(),
-        certificateNumber: 'ECC-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000),
-        playerId: id,
-        playerName: updatedMember?.name || playerName || 'Player',
-        discipline: updatedMember?.discipline || discipline || 'BATTING',
-        achievedLevel: newLevel || 'ADVANCED',
-        issuedDate: new Date().toISOString().split('T')[0],
-        coachName: 'Shane Bond',
-        coachNotes: coachNotes || 'Passed all stage milestones with high distinction.',
-        aiCommendation: aiCommendation || 'Kinematic posture and consistency rating: 89/100.'
-      };
-
-      const savedCert = await DbService.createCertificate(newCert);
-      return res.json({
-        success: true,
-        message: `${newCert.playerName} promoted to ${newCert.achievedLevel}!`,
-        certificate: savedCert,
-        member: updatedMember
-      });
+    if (action !== 'PROMOTE' || typeof newLevel !== 'string' || !newLevel.trim()) {
+      return res.status(400).json({ error: 'A promotion action and target level are required.' });
     }
 
-    return res.json({ success: true, message: `Player retained at current stage for focused skill consolidation.` });
+    const result = await prisma.$transaction(async transaction => {
+      const member = await transaction.clubMember.findUnique({ where: { id } });
+      if (!member || member.clubId !== req.user!.tenantId || member.role !== 'PLAYER') return null;
+
+      const tenant = await transaction.customerTenant.findUnique({ where: { id: member.clubId! } });
+      const updatedMember = await transaction.clubMember.update({
+        where: { id },
+        data: { currentLevel: newLevel }
+      });
+
+      const certificate = await transaction.certificate.create({
+        data: {
+          id: `cert-${Date.now()}`,
+          certificateNumber: `ECC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          playerId: member.id,
+          clubId: member.clubId,
+          clubName: tenant?.name || null,
+          clubLogo: tenant?.logoUrl || null,
+          playerName: member.name,
+          discipline: member.discipline,
+          achievedLevel: newLevel,
+          issuedDate: new Date().toISOString().split('T')[0],
+          coachName: typeof coachName === 'string' && coachName.trim() ? coachName.trim() : req.user!.email,
+          coachNotes: typeof coachNotes === 'string' ? coachNotes : 'Passed all stage milestones with high distinction.',
+          aiCommendation: typeof aiCommendation === 'string' ? aiCommendation : null
+        }
+      });
+      return { member: updatedMember, certificate };
+    });
+
+    if (!result) return res.status(404).json({ error: 'Player not found in your club roster.' });
+    return res.json({
+      success: true,
+      message: `${result.member.name} promoted to ${result.certificate.achievedLevel}!`,
+      certificate: result.certificate,
+      member: result.member
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

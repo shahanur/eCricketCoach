@@ -24,8 +24,10 @@ import {
   CheckCircle2,
   DollarSign,
   AlertTriangle,
-  LifeBuoy
+  LifeBuoy,
+  Download
 } from 'lucide-react';
+import { downloadCertificatePdf } from '../../utils/certificatePdf';
 
 interface UserHomeDashboardProps {
   currentUser: AuthUser;
@@ -58,6 +60,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
   const isClubCoach = isCoach && currentUser.coachContext === 'CLUB';
   const hasClubPortal = isClubAdmin || isClubCoach;
   const isPlayer = currentUser.roles.includes('PLAYER');
+  const playerCertificates = certificates.filter(certificate => certificate.playerId === currentUser.id);
 
   // Club context metrics
   const activeMembersCount = clubMembers.length;
@@ -223,7 +226,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <span className="text-xs font-semibold uppercase tracking-wider">Certificates</span>
                 <Award className="w-4 h-4 text-amber-400" />
               </div>
-              <div className="text-2xl font-bold text-white">{certificates.length || 2}</div>
+              <div className="text-2xl font-bold text-white">{playerCertificates.length}</div>
               <p className="text-[11px] text-slate-400">Player milestones</p>
             </div>
           </>
@@ -269,6 +272,41 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
           </>
         )}
       </div>
+
+      {isPlayer && (
+        <section className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-slate-900 p-5 space-y-3" aria-live="polite">
+          <div className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-amber-300" />
+            <h2 className="text-base font-bold text-white">Achievement certificates</h2>
+            {playerCertificates.length > 0 && (
+              <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-200">
+                {playerCertificates.length} available
+              </span>
+            )}
+          </div>
+          {playerCertificates.length === 0
+            ? <p className="text-xs text-slate-400">When your coach promotes you, your certificate and PDF download will appear here.</p>
+            : <div className="space-y-2">
+                <p className="text-xs text-amber-200">A new achievement certificate is available in your player account.</p>
+                {playerCertificates.map(certificate => (
+                  <div key={certificate.id} className="flex flex-col gap-2 rounded-lg border border-slate-700 bg-slate-950/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{certificate.achievedLevel} {certificate.discipline}</p>
+                      <p className="text-[11px] text-slate-400">{certificate.clubName || 'Club'} · Issued {certificate.issuedDate} · #{certificate.certificateNumber}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => downloadCertificatePdf(certificate)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                    >
+                      <Download size={14} />
+                      Download PDF
+                    </button>
+                  </div>
+                ))}
+              </div>}
+        </section>
+      )}
 
       {/* Main Role-Specific Interactive Modules */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

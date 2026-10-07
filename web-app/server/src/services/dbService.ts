@@ -628,7 +628,7 @@ export class DbService {
       id: s.id,
       name: s.name,
       ageGroup: s.ageGroup,
-      discipline: s.discipline,
+      discipline: s.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
       memberCount: s.memberCount
     }));
   }
@@ -640,7 +640,7 @@ export class DbService {
         clubId: squad.clubId || 'ten-003',
         name: squad.name,
         ageGroup: squad.ageGroup,
-        discipline: squad.discipline,
+        discipline: Array.isArray(squad.discipline) ? squad.discipline.join(',') : squad.discipline,
         memberCount: squad.memberCount || 0
       }
     });
@@ -649,18 +649,18 @@ export class DbService {
       id: created.id,
       name: created.name,
       ageGroup: created.ageGroup,
-      discipline: created.discipline,
+      discipline: created.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
       memberCount: created.memberCount
     };
   }
 
-  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; ageGroup?: string; discipline?: string }) {
+  static async updateSquad(id: string, updates: { memberCount?: number; name?: string; ageGroup?: string; discipline?: string | string[] }) {
     try {
       const data: any = {};
       if (updates.memberCount !== undefined) data.memberCount = updates.memberCount;
       if (updates.name !== undefined) data.name = updates.name;
       if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
-      if (updates.discipline !== undefined) data.discipline = updates.discipline;
+      if (updates.discipline !== undefined) data.discipline = Array.isArray(updates.discipline) ? updates.discipline.join(',') : updates.discipline;
 
       const updated = await prisma.squad.update({
         where: { id },
@@ -670,7 +670,7 @@ export class DbService {
         id: updated.id,
         name: updated.name,
         ageGroup: updated.ageGroup,
-        discipline: updated.discipline,
+        discipline: updated.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
         memberCount: updated.memberCount
       };
     } catch {
@@ -1022,14 +1022,19 @@ export class DbService {
   }
 
   // --- Certificates ---
-  static async getCertificates() {
+  static async getCertificates(where: { playerId?: string; clubId?: string } = {}) {
     const certs = await prisma.certificate.findMany({
+      where,
       orderBy: { issuedDate: 'desc' }
     });
 
     return certs.map(c => ({
       id: c.id,
       certificateNumber: c.certificateNumber,
+      playerId: c.playerId || '',
+      clubId: c.clubId || undefined,
+      clubName: c.clubName || undefined,
+      clubLogo: c.clubLogo,
       playerName: c.playerName,
       discipline: c.discipline,
       achievedLevel: c.achievedLevel,
@@ -1046,6 +1051,9 @@ export class DbService {
         id: cert.id,
         certificateNumber: cert.certificateNumber,
         playerId: cert.playerId || null,
+        clubId: cert.clubId || null,
+        clubName: cert.clubName || null,
+        clubLogo: cert.clubLogo || null,
         playerName: cert.playerName,
         discipline: cert.discipline,
         achievedLevel: cert.achievedLevel,
@@ -1059,6 +1067,10 @@ export class DbService {
     return {
       id: created.id,
       certificateNumber: created.certificateNumber,
+      playerId: created.playerId || '',
+      clubId: created.clubId || undefined,
+      clubName: created.clubName || undefined,
+      clubLogo: created.clubLogo,
       playerName: created.playerName,
       discipline: created.discipline,
       achievedLevel: created.achievedLevel,

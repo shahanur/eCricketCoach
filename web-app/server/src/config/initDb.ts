@@ -7,6 +7,7 @@ export async function initDb() {
       name VARCHAR(255) NOT NULL,
       type VARCHAR(50) NOT NULL,
       email VARCHAR(255) NOT NULL,
+      logo_url TEXT,
       subscription_plan VARCHAR(50) NOT NULL,
       status VARCHAR(50) NOT NULL,
       billing_cycle VARCHAR(50) NOT NULL,
@@ -140,6 +141,9 @@ export async function initDb() {
       id VARCHAR(100) PRIMARY KEY,
       certificate_number VARCHAR(100) UNIQUE NOT NULL,
       player_id VARCHAR(100),
+      club_id VARCHAR(100),
+      club_name VARCHAR(255),
+      club_logo TEXT,
       player_name VARCHAR(255) NOT NULL,
       discipline VARCHAR(50) NOT NULL,
       achieved_level VARCHAR(50) NOT NULL,
@@ -204,6 +208,17 @@ export async function initDb() {
   // 1b. Safe incremental migrations for tables that already existed before these columns were added.
   const alterStatements = [
     `DROP TABLE IF EXISTS coach_workspace_items`,
+    `ALTER TABLE customer_tenants ADD COLUMN IF NOT EXISTS logo_url TEXT`,
+    `ALTER TABLE certificates ADD COLUMN IF NOT EXISTS club_id VARCHAR(100)`,
+    `ALTER TABLE certificates ADD COLUMN IF NOT EXISTS club_name VARCHAR(255)`,
+    `ALTER TABLE certificates ADD COLUMN IF NOT EXISTS club_logo TEXT`,
+    `UPDATE certificates AS cert
+      SET club_id = member.club_id,
+          club_name = tenant.name
+      FROM club_members AS member
+      LEFT JOIN customer_tenants AS tenant ON tenant.id = member.club_id
+      WHERE cert.player_id = member.id
+        AND cert.club_id IS NULL`,
     `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS player_id VARCHAR(255)`,
     `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS player_name VARCHAR(255)`,
     `ALTER TABLE video_analyses ADD COLUMN IF NOT EXISTS drill_adopted BOOLEAN DEFAULT FALSE`,

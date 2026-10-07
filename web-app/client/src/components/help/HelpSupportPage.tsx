@@ -125,7 +125,8 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Filter your roster using the top toolbar to view members by Status, Role, Discipline, or Age Group.',
         'Schedule training sessions and publish them to notify registered squad athletes.',
         'Upload practice session videos to Google Drive cloud sync to automatically trigger kinematic AI pose analysis.',
-        'Review player progression and award official digital competency certificates.'
+        'Upload a PNG or JPEG club logo in Club Settings so new certificates use your club branding.',
+        'Review certificates by player name or issue-date range in Club Certificates, download PDFs, or delete certificates that should no longer be issued; players can download their PDF from their dashboard.'
       ]
     },
     {
@@ -155,7 +156,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Access your personalized Player Dashboard to view your upcoming squad training schedules.',
         'Explore your assigned drill library tailored to your core discipline.',
         'Review AI feedback summaries on uploaded batting and bowling spells.',
-        'Track your earned certificates and skill level achievements as awarded by your coaching staff.'
+        'See new progression certificates on your dashboard and download the branded PDF.'
       ]
     },
     {

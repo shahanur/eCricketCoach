@@ -13,6 +13,7 @@ model CustomerTenant {
   name             String
   type             String
   email            String
+  logoUrl          String?  @map("logo_url") @db.Text
   subscriptionPlan String   @map("subscription_plan")
   status           String
   billingCycle     String   @map("billing_cycle")
@@ -166,6 +167,9 @@ model Certificate {
   id                String  @id
   certificateNumber String  @unique @map("certificate_number")
   playerId          String? @map("player_id")
+  clubId            String? @map("club_id")
+  clubName          String? @map("club_name")
+  clubLogo          String? @map("club_logo") @db.Text
   playerName        String  @map("player_name")
   discipline        String
   achievedLevel     String  @map("achieved_level")
