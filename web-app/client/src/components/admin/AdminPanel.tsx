@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification, SupportTicket } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search, Pencil } from 'lucide-react';
+import { readDrillImage } from '../../utils/drillImage';
 
 interface AdminPanelProps {
   customers: CustomerTenant[];
@@ -11,7 +12,8 @@ interface AdminPanelProps {
   notifications?: AdminNotification[];
   supportTickets?: SupportTicket[];
   onApproveClub: (id: string) => void;
-  onAddSystemDrill: (drill: Drill) => void;
+  onAddSystemDrill: (drill: Drill) => Promise<void>;
+  onUpdateSystemDrill: (id: string, updates: Partial<Drill>) => Promise<void>;
   onUpdateCustomerStatus: (id: string, status: CustomerTenant['status']) => void;
   onUpgradeCustomerPlan: (id: string, plan: CustomerTenant['subscriptionPlan']) => void;
   onRetryInvoice: (id: string) => void;
@@ -27,6 +29,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   supportTickets = [],
   onApproveClub,
   onAddSystemDrill,
+  onUpdateSystemDrill,
   onUpdateCustomerStatus,
   onUpgradeCustomerPlan,
   onRetryInvoice,
@@ -63,32 +66,79 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [newDrillContext, setNewDrillContext] = useState<ContextType>('INDIVIDUAL');
   const [newDrillDuration, setNewDrillDuration] = useState(20);
   const [newDrillInstructions, setNewDrillInstructions] = useState('');
+  const [editingDrillId, setEditingDrillId] = useState<string | null>(null);
+  const [drillImage, setDrillImage] = useState<string | null>(null);
+  const [drillError, setDrillError] = useState('');
+  const [isDrillSaving, setIsDrillSaving] = useState(false);
+  const [imageInputKey, setImageInputKey] = useState(0);
 
-  const handleCreateDrill = (e: React.FormEvent) => {
+  const resetDrillForm = () => {
+    setEditingDrillId(null);
+    setNewDrillTitle('');
+    setNewDrillDiscipline('BATTING');
+    setNewDrillSkillSet('');
+    setNewDrillContext('INDIVIDUAL');
+    setNewDrillDuration(20);
+    setNewDrillInstructions('');
+    setDrillImage(null);
+    setDrillError('');
+    setImageInputKey(value => value + 1);
+  };
+
+  const editSystemDrill = (drill: Drill) => {
+    setEditingDrillId(drill.id);
+    setNewDrillTitle(drill.title);
+    setNewDrillDiscipline(drill.discipline);
+    setNewDrillSkillSet(drill.skillSet);
+    setNewDrillContext(drill.contextType);
+    setNewDrillDuration(drill.duration);
+    setNewDrillInstructions(drill.instructions || '');
+    setDrillImage(drill.imageUrl || null);
+    setDrillError('');
+    setImageInputKey(value => value + 1);
+  };
+
+  const handleCreateDrill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDrillTitle || !newDrillSkillSet) return;
+    if (!newDrillTitle.trim() || !newDrillSkillSet.trim() || isDrillSaving) return;
     const drill: Drill = {
-      id: 'drill-sys-' + Date.now(),
-      title: newDrillTitle,
+      id: editingDrillId || 'drill-sys-' + Date.now(),
+      title: newDrillTitle.trim(),
       discipline: newDrillDiscipline,
-      skillSet: newDrillSkillSet,
+      skillSet: newDrillSkillSet.trim(),
       contextType: newDrillContext,
       duration: Number(newDrillDuration) || 20,
       source: 'SYSTEM_PREDEFINED',
-      instructions: newDrillInstructions || 'Official eCricketCoach pre-defined technical drill.'
+      instructions: newDrillInstructions,
+      imageUrl: drillImage
     };
-    onAddSystemDrill(drill);
-    setNewDrillTitle('');
-    setNewDrillSkillSet('');
-    setNewDrillInstructions('');
+    setIsDrillSaving(true);
+    setDrillError('');
+    try {
+      if (editingDrillId) {
+        await onUpdateSystemDrill(editingDrillId, {
+          title: drill.title, discipline: drill.discipline, skillSet: drill.skillSet,
+          contextType: drill.contextType, duration: drill.duration,
+          instructions: drill.instructions, imageUrl: drill.imageUrl
+        });
+      } else {
+        await onAddSystemDrill(drill);
+      }
+    } catch (error) {
+      setDrillError(error instanceof Error ? error.message : 'Unable to save the global drill.');
+      return;
+    } finally {
+      setIsDrillSaving(false);
+    }
     setConfirmModal({
       isOpen: true,
-      title: 'Official Drill Curated',
-      message: `Official Pre-defined Drill "${drill.title}" has been successfully added to the system library!`,
+      title: editingDrillId ? 'Global Drill Updated' : 'Official Drill Curated',
+      message: `"${drill.title}" has been saved to the shared catalogue. All clubs use this same drill record.`,
       type: 'success',
       confirmLabel: 'Done',
       onConfirm: () => setConfirmModal(null)
     });
+    resetDrillForm();
   };
 
   const promptApproveClub = (appr: ClubApproval) => {
@@ -759,11 +809,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       {adminTab === 'DRILL_CURATOR' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <h3 className="font-semibold text-base text-white">Add Pre-Defined Drill</h3>
+            <h3 className="font-semibold text-base text-white">{editingDrillId ? 'Edit Global Drill' : 'Add Pre-Defined Drill'}</h3>
             <p className="text-xs text-slate-400">
-              Pre-defined drills entered here become instantly available for all coaches across all clubs.
+              Global drills are shared by every club. Updates also appear in sessions that reference this drill.
             </p>
             <form onSubmit={handleCreateDrill} className="space-y-3">
+              {drillError && <p role="alert" className="text-xs text-rose-400">{drillError}</p>}
+              <fieldset disabled={isDrillSaving} className="space-y-3">
               <div>
                 <label className="text-xs text-slate-400">Drill Title</label>
                 <input
@@ -783,6 +835,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onChange={e => setNewDrillDiscipline(e.target.value as Discipline)}
                     className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-white"
                   >
+                    {!['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'].includes(newDrillDiscipline) && (
+                      <option value={newDrillDiscipline}>{newDrillDiscipline}</option>
+                    )}
                     <option value="BATTING">Batting</option>
                     <option value="BOWLING">Bowling</option>
                     <option value="KEEPING">Keeping</option>
@@ -833,16 +888,44 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+              <div>
+                <label htmlFor="global-drill-image" className="text-xs text-slate-400">Setup image (PNG/JPEG, up to 10 MB)</label>
+                <input
+                  key={imageInputKey}
+                  id="global-drill-image"
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  onChange={async event => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      setDrillImage(await readDrillImage(file));
+                      setDrillError('');
+                    } catch (error) {
+                      setDrillError(error instanceof Error ? error.message : 'Unable to read the selected image.');
+                    }
+                  }}
+                  className="w-full mt-1 text-xs text-slate-400"
+                />
+                {drillImage && (
+                  <div className="space-y-2 mt-2">
+                    <img src={drillImage} alt="Global drill setup preview" className="max-h-40 rounded-lg border border-slate-800" />
+                    <button type="button" onClick={() => { setDrillImage(null); setImageInputKey(value => value + 1); }} className="text-xs text-rose-300 underline">Remove image</button>
+                  </div>
+                )}
+              </div>
               <button
                 type="submit"
                 className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded transition"
               >
-                Publish Pre-Defined Drill
+                {isDrillSaving ? 'Saving...' : editingDrillId ? 'Save Global Changes' : 'Publish Pre-Defined Drill'}
               </button>
+              {editingDrillId && <button type="button" onClick={resetDrillForm} className="w-full text-xs text-slate-300 underline">Cancel edit</button>}
+              </fieldset>
             </form>
           </div>
 
-          <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-base text-white">System Pre-Defined Drills Library</h3>
               <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
@@ -852,6 +935,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
               {drills.filter(d => d.source === 'SYSTEM_PREDEFINED').map(drill => (
                 <div key={drill.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between">
+                  {drill.imageUrl && <img src={drill.imageUrl} alt={`${drill.title} setup`} className="w-14 h-14 object-cover rounded-lg mr-3 shrink-0" />}
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="text-xs font-bold text-white">{drill.title}</h4>
@@ -864,9 +948,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       {drill.duration} mins • {drill.discipline} • {drill.contextType}
                     </p>
                   </div>
+                  <div className="space-y-2 ml-3 shrink-0">
                   <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 whitespace-nowrap">
                     Official
                   </span>
+                  <button type="button" disabled={isDrillSaving} onClick={() => editSystemDrill(drill)} aria-label={`Edit ${drill.title}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 disabled:opacity-50">
+                    <Pencil size={13} /> Edit
+                  </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -12,6 +12,7 @@ import { coachRouter } from './routes/coach.js';
 import { assessmentRouter } from './routes/assessments.js';
 import { initDb } from './config/initDb.js';
 import { trainingTemplatesRouter } from './routes/trainingTemplates.js';
+import { DRILL_IMAGE_JSON_LIMIT } from './services/drillImage.js';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ const port = process.env.PORT || 5001;
 
 // Global Middleware
 app.use(cors());
+app.use('/api/drills', express.json({ limit: DRILL_IMAGE_JSON_LIMIT }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false }));
 

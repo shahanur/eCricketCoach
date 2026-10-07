@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Info, Play, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { downloadPdfReport } from '../../utils/pdfReport';
 import {
@@ -214,6 +214,23 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   const [postNotes, setPostNotes] = useState(session.postNotes || '');
   const [step, setStep] = useState<Step>(session.isExecuted ? 'EVALUATE' : session.executionLog?.status === 'IN_PROGRESS' ? 'RUN' : 'PREPARE');
   const [guidanceTab, setGuidanceTab] = useState('Engagement');
+  const [setupEntryId, setSetupEntryId] = useState<string | null>(null);
+  const setupEntry = log.drillLog.find(entry => entry.id === setupEntryId);
+  const setupDrill = setupEntry?.drillId ? drills.find(drill => drill.id === setupEntry.drillId) : undefined;
+  const [setupImage, setSetupImage] = useState<{ url: string; title: string } | null>(null);
+  const setupImageDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!setupImage) return;
+    const dialog = setupImageDialog.current;
+    if (!dialog) return;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [setupImage]);
   const [incidentCategory, setIncidentCategory] = useState(INCIDENT_CATEGORIES[0]);
   const [incidentNote, setIncidentNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -513,6 +530,13 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
       {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
       {savedMessage && <p role="status" className="text-xs text-emerald-400">{savedMessage}</p>}
 
+      {step !== 'RUN' && session.safety?.length ? (
+        <section className="border border-amber-500/30 rounded-lg p-3 space-y-2">
+          <h3 className="text-sm font-bold text-amber-300">Session safety</h3>
+          <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300">{session.safety.map((item, index) => <li key={index}>{item}</li>)}</ul>
+        </section>
+      ) : null}
+
       <div className="flex gap-1 overflow-x-auto border-b border-slate-800 [scrollbar-width:thin]" role="tablist" aria-label="Session execution steps">
         {STEPS.map(item => (
           <button
@@ -600,6 +624,18 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               <div key={entry.id} className={`border rounded-lg p-3 space-y-2 ${entry.completed ? 'border-emerald-500/40' : 'border-slate-800'}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <input aria-label="Drill title" value={entry.title} onChange={event => updateDrill(entry.id, { title: event.target.value })} className="flex-1 min-w-[160px] bg-transparent text-sm font-semibold text-white border-b border-slate-800 focus:outline-none" />
+                  <button
+                    type="button"
+                    aria-label={`Setup instructions for ${entry.title}`}
+                    aria-controls="run-drill-setup"
+                    aria-pressed={setupEntryId === entry.id}
+                    onMouseEnter={() => setSetupEntryId(entry.id)}
+                    onFocus={() => setSetupEntryId(entry.id)}
+                    onClick={() => setSetupEntryId(entry.id)}
+                    className={`p-1 rounded ${setupEntryId === entry.id ? 'text-sky-300 bg-sky-500/10' : 'text-slate-400 hover:text-sky-300'}`}
+                  >
+                    <Info size={16} />
+                  </button>
                   <label className="text-[11px] text-slate-400 flex items-center gap-1">Planned <input type="number" min={0} value={entry.plannedMinutes} onChange={event => updateDrill(entry.id, { plannedMinutes: Number(event.target.value) })} className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-xs text-white" /></label>
                   <label className="text-[11px] text-slate-400 flex items-center gap-1">Actual <input type="number" min={0} value={entry.actualMinutes} onChange={event => updateDrill(entry.id, { actualMinutes: Number(event.target.value) })} className={`w-14 bg-slate-950 border rounded px-1 py-0.5 text-xs text-white ${entry.actualMinutes > entry.plannedMinutes + 5 ? 'border-amber-500' : 'border-slate-700'}`} /></label>
                   <button onClick={() => updateDrill(entry.id, { completed: !entry.completed })} aria-pressed={entry.completed} className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${entry.completed ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-400'}`}><CheckCircle2 size={12} /> Done</button>
@@ -692,7 +728,53 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-300">
               {GUIDANCE[guidanceTab].map(tip => <li key={tip}>{tip}</li>)}
             </ul>
+            <section id="run-drill-setup" aria-live="polite" className="border-t border-slate-800 pt-3 space-y-2">
+              <h4 className="text-sm font-bold text-white">Setup instructions</h4>
+              {setupEntry ? (
+                <>
+                  <p className="text-xs font-semibold text-sky-300">{setupEntry.title}</p>
+                  <p className="text-xs text-slate-300 whitespace-pre-wrap">{setupDrill?.instructions || 'No setup instructions are available for this drill or time block.'}</p>
+                  {setupDrill?.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (setupDrill.imageUrl) setSetupImage({ url: setupDrill.imageUrl, title: setupEntry.title });
+                      }}
+                      aria-label={`Enlarge ${setupEntry.title} setup image`}
+                      aria-haspopup="dialog"
+                      className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                    >
+                      <img src={setupDrill.imageUrl} alt={`${setupEntry.title} setup`} className="w-full cursor-zoom-in rounded-lg border border-slate-800" />
+                      <span className="mt-1 block text-xs text-sky-300">Click to enlarge</span>
+                    </button>
+                  )}
+                </>
+              ) : <p className="text-xs text-slate-400">Hover over a drill's info icon to view its setup. You can also focus or tap the icon.</p>}
+            </section>
+            <section className="border-t border-slate-800 pt-3 space-y-2">
+              <h4 className="text-sm font-bold text-white">Session safety</h4>
+              {session.safety?.length ? (
+                <ul className="list-disc pl-4 space-y-1 text-xs text-slate-300">{session.safety.map((item, index) => <li key={index}>{item}</li>)}</ul>
+              ) : <p className="text-xs text-slate-400">No session-specific safety instructions recorded. Follow the preparation safety checklist.</p>}
+            </section>
           </aside>
+          <dialog
+            ref={setupImageDialog}
+            aria-labelledby="setup-image-title"
+            onClose={() => setSetupImage(null)}
+            onClick={event => { if (event.target === event.currentTarget) setupImageDialog.current?.close(); }}
+            className="m-auto max-h-[95vh] w-[95vw] max-w-6xl overflow-auto rounded-xl border border-slate-700 bg-slate-900 p-0 text-white backdrop:bg-black/80"
+          >
+            {setupImage && (
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id="setup-image-title" className="text-sm font-bold">{setupImage.title} setup</h3>
+                  <button type="button" autoFocus onClick={() => setupImageDialog.current?.close()} aria-label="Close setup image" className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"><X size={20} /></button>
+                </div>
+                <img src={setupImage.url} alt={`${setupImage.title} setup`} className="mx-auto max-h-[80vh] max-w-full object-contain" />
+              </div>
+            )}
+          </dialog>
         </div>
       )}
 

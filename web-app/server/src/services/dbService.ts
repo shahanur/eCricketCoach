@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma.js';
-import { Drill, TrainingSessionTemplate } from '@prisma/client';
+import { Drill, Prisma, TrainingSessionTemplate } from '@prisma/client';
+import { drillImageUrl, parseDrillImage } from './drillImage.js';
 
 interface TrainingTemplateReader {
   trainingSessionTemplate: {
@@ -10,6 +11,11 @@ interface TrainingTemplateReader {
       where: { id: { in: string[] }; source: 'SYSTEM_PREDEFINED'; clubId: null };
     }): Promise<Drill[]>;
   };
+}
+
+interface DrillImageTransaction {
+  drill: { update(args: Prisma.DrillUpdateArgs): Promise<Drill> };
+  drillImage: { deleteMany(args: Prisma.DrillImageDeleteManyArgs): Promise<{ count: number }> };
 }
 
 export class DbService {
@@ -67,8 +73,11 @@ export class DbService {
     }));
   }
 
-  static async createDrill(drill: any) {
-    const created = await prisma.drill.create({
+  static async createDrill(drill: any, writer: {
+    drill: { create(args: Prisma.DrillCreateArgs): Promise<Drill> };
+  } = prisma) {
+    const image = drill.imageUrl ? parseDrillImage(drill.imageUrl) : null;
+    const created = await writer.drill.create({
       data: {
         id: drill.id,
         title: drill.title,
@@ -82,7 +91,8 @@ export class DbService {
         squadId: drill.squadId || null,
         squadName: drill.squadName || null,
         instructions: drill.instructions || null,
-        imageUrl: drill.imageUrl || null
+        imageUrl: image ? drillImageUrl(drill.id, image.data) : null,
+        ...(image ? { image: { create: image } } : {})
       }
     });
 
@@ -112,20 +122,39 @@ export class DbService {
     duration?: number;
     instructions?: string;
     imageUrl?: string | null;
-  }) {
+  }, writer: {
+    $transaction<T>(operation: (tx: DrillImageTransaction) => Promise<T>): Promise<T>;
+  } = prisma) {
+    let image: ReturnType<typeof parseDrillImage> | undefined;
+    if (updates.imageUrl && updates.imageUrl !== drillImageUrl(id)) {
+      if (typeof updates.imageUrl === 'string' && !updates.imageUrl.startsWith('data:')) {
+        const existing = await prisma.drill.findUnique({ where: { id }, select: { imageUrl: true } });
+        if (!existing) return null;
+        if (existing.imageUrl !== updates.imageUrl) parseDrillImage(updates.imageUrl);
+      } else {
+        image = parseDrillImage(updates.imageUrl);
+      }
+    }
     try {
-      const data: any = {};
+      const data: Prisma.DrillUpdateInput = {};
       if (updates.title !== undefined) data.title = updates.title;
       if (updates.discipline !== undefined) data.discipline = updates.discipline;
       if (updates.skillSet !== undefined) data.skillSet = updates.skillSet;
       if (updates.contextType !== undefined) data.contextType = updates.contextType;
       if (updates.duration !== undefined) data.duration = updates.duration;
       if (updates.instructions !== undefined) data.instructions = updates.instructions;
-      if (updates.imageUrl !== undefined) data.imageUrl = updates.imageUrl;
+      if (image) {
+        data.imageUrl = drillImageUrl(id, image.data);
+        data.image = { upsert: { create: image, update: image } };
+      } else if (updates.imageUrl === null) {
+        data.imageUrl = null;
+      }
 
-      const updated = await prisma.drill.update({
-        where: { id },
-        data
+      const updated = await writer.$transaction(async tx => {
+        if (updates.imageUrl === null) {
+          await tx.drillImage.deleteMany({ where: { drillId: id } });
+        }
+        return tx.drill.update({ where: { id }, data });
       });
 
       return {
@@ -144,9 +173,18 @@ export class DbService {
         instructions: updated.instructions,
         imageUrl: updated.imageUrl
       };
-    } catch {
-      return null;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') return null;
+      throw error;
     }
+  }
+
+  static async getDrillImage(id: string) {
+    return prisma.drillImage.findUnique({ where: { drillId: id } });
+  }
+
+  static async getDrillEditScope(id: string) {
+    return prisma.drill.findUnique({ where: { id }, select: { source: true, clubId: true } });
   }
 
   static async deleteDrill(id: string) {
@@ -746,6 +784,7 @@ export class DbService {
       title: s.title,
       sessionDate: s.sessionDate,
       durationMinutes: s.durationMinutes,
+      safety: s.safety,
       isPublished: s.isPublished,
       isExecuted: s.isExecuted,
       drillCount: s.drillCount,
@@ -774,6 +813,7 @@ export class DbService {
         title: sess.title,
         sessionDate: sess.sessionDate,
         durationMinutes: sess.durationMinutes || 90,
+        safety: sess.safety || [],
         isPublished: sess.isPublished || false,
         isExecuted: sess.isExecuted || false,
         drillCount: sess.drillCount || (sess.drills ? sess.drills.length : 0),
@@ -798,6 +838,7 @@ export class DbService {
       title: created.title,
       sessionDate: created.sessionDate,
       durationMinutes: created.durationMinutes,
+      safety: created.safety,
       isPublished: created.isPublished,
       isExecuted: created.isExecuted,
       drillCount: created.drillCount,
@@ -830,6 +871,7 @@ export class DbService {
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
+        safety: updated.safety,
         isPublished: updated.isPublished,
         isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
@@ -876,6 +918,7 @@ export class DbService {
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
+        safety: updated.safety,
         isPublished: updated.isPublished,
         isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
@@ -922,6 +965,7 @@ export class DbService {
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
+        safety: updated.safety,
         isPublished: updated.isPublished,
         isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
@@ -951,6 +995,7 @@ export class DbService {
     assignedPlayerIds?: string[];
     sessionDate?: string;
     durationMinutes?: number;
+    safety?: string[];
     isExecuted?: boolean;
     playerNotes?: Record<string, string>;
     postNotes?: string | null;
@@ -970,6 +1015,7 @@ export class DbService {
       if (updates.assignedPlayerIds !== undefined) data.assignedPlayerIds = updates.assignedPlayerIds;
       if (updates.sessionDate !== undefined) data.sessionDate = updates.sessionDate;
       if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
+      if (updates.safety !== undefined) data.safety = updates.safety;
       if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
       if (updates.playerNotes !== undefined) data.playerNotes = updates.playerNotes;
       if (updates.postNotes !== undefined) data.postNotes = updates.postNotes;
@@ -994,6 +1040,7 @@ export class DbService {
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
+        safety: updated.safety,
         isPublished: updated.isPublished,
         isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,
@@ -1041,6 +1088,7 @@ export class DbService {
         title: updated.title,
         sessionDate: updated.sessionDate,
         durationMinutes: updated.durationMinutes,
+        safety: updated.safety,
         isPublished: updated.isPublished,
         isExecuted: updated.isExecuted,
         drillCount: updated.drillCount,

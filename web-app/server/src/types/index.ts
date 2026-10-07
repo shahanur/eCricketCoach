@@ -102,6 +102,7 @@ export interface TrainingSession {
   sessionDate: string;
   durationMinutes: number;
   drills: Array<{ id: string; title: string; duration: number; discipline: string; context: 'INDIVIDUAL' | 'GROUP' }>;
+  safety?: string[];
   drillIds?: string[];
   drillCount?: number;
   isPublished: boolean;

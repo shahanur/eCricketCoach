@@ -341,6 +341,7 @@ coachRouter.post('/sessions/:id/follow-up', async (req: AuthenticatedRequest, re
       title: cleanTitle,
       sessionDate,
       durationMinutes: minutes(durationMinutes) || source.durationMinutes,
+      safety: source.safety,
       drillIds: allDrillIds,
       drillCount: allDrillIds.length,
       isPublished: false

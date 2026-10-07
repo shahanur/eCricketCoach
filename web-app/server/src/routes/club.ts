@@ -204,6 +204,10 @@ clubRouter.get('/sessions', async (req: Request, res: Response) => {
 
 clubRouter.post('/sessions', async (req: Request, res: Response) => {
   try {
+    const safety = req.body.safety;
+    if (safety !== undefined && (!Array.isArray(safety) || safety.some(item => typeof item !== 'string'))) {
+      return res.status(400).json({ error: 'safety must be an array of instructions' });
+    }
     const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, drills, drillIds, clubId } = req.body;
     if (assignedPlayerIds !== undefined && (!Array.isArray(assignedPlayerIds) || assignedPlayerIds.some(id => typeof id !== 'string'))) {
       return res.status(400).json({ error: 'assignedPlayerIds must be an array of player IDs' });
@@ -233,6 +237,7 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
       title,
       sessionDate,
       durationMinutes: durationMinutes || 90,
+      safety: safety || [],
       drills: drills || [],
       drillIds: drillIds || [],
       drillCount: Array.isArray(drillIds) ? drillIds.length : 0,
@@ -248,6 +253,10 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
 // Edit a scheduled (not-yet-published) training session's core details.
 clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
   try {
+    const safety = req.body.safety;
+    if (safety !== undefined && (!Array.isArray(safety) || safety.some(item => typeof item !== 'string'))) {
+      return res.status(400).json({ error: 'safety must be an array of instructions' });
+    }
     const { id } = req.params;
     const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
     if (isExecuted !== undefined && typeof isExecuted !== 'boolean') {
@@ -287,6 +296,7 @@ clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
       assignedPlayerIds,
       sessionDate,
       durationMinutes,
+      safety,
       isExecuted,
       playerNotes
     });

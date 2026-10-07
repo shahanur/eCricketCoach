@@ -145,6 +145,39 @@ export default function App() {
 
   // Master Drill Catalog
   const [drills, setDrills] = useState<Drill[]>([]);
+  const [catalogueError, setCatalogueError] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    let loading = false;
+    const refresh = async () => {
+      if (document.hidden || loading) return;
+      loading = true;
+      try {
+        const rows = await api.getDrills();
+        if (active) {
+          setDrills(rows);
+          setCatalogueError('');
+        }
+      } catch (error) {
+        console.error('Unable to refresh shared drill catalogue:', error);
+        if (active) setCatalogueError('Unable to refresh the drill catalogue. Retrying automatically.');
+      } finally {
+        loading = false;
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [currentUser?.id, currentUser?.tenantId]);
 
   // Master Customer Tenancies
   const [customers, setCustomers] = useState<CustomerTenant[]>([]);
@@ -263,7 +296,8 @@ export default function App() {
         savedDrill = await api.addAdminDrill(drill);
       }
       setDrills(prev => [savedDrill, ...prev]);
-    } catch {
+    } catch (error) {
+      if (drill.imageUrl || drill.source === 'SYSTEM_PREDEFINED') throw error;
       setDrills(prev => [drill, ...prev]);
     }
   };
@@ -279,12 +313,8 @@ export default function App() {
   };
 
   const handleUpdateDrill = async (drillId: string, updates: Partial<Drill>) => {
-    try {
-      const updated = await api.updateDrill(drillId, updates);
-      setDrills(prev => prev.map(d => (d.id === drillId ? { ...d, ...(updated || updates) } : d)));
-    } catch {
-      setDrills(prev => prev.map(d => (d.id === drillId ? { ...d, ...updates } : d)));
-    }
+    const updated = await api.updateDrill(drillId, updates);
+    setDrills(prev => prev.map(d => (d.id === drillId ? updated : d)));
   };
 
   // Called from HomePage when a user subscribes and pays
@@ -833,6 +863,7 @@ export default function App() {
 
       {/* Main Content Areas */}
       <main className="flex-1 max-w-screen-2xl w-full mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 space-y-6">
+        {catalogueError && <p role="alert" className="text-xs text-rose-400">{catalogueError}</p>}
         {viewMode === 'HOME' && !currentUser && (
           <HomePage
             onRegisterPlan={handleRegisterFromHomePage}
@@ -887,6 +918,7 @@ export default function App() {
             supportTickets={supportTickets}
             onApproveClub={handleApproveClub}
             onAddSystemDrill={handleAddDrill}
+            onUpdateSystemDrill={handleUpdateDrill}
             onUpdateCustomerStatus={handleUpdateCustomerStatus}
             onUpgradeCustomerPlan={handleUpgradeCustomerPlan}
             onRetryInvoice={handleRetryInvoice}

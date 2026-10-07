@@ -74,7 +74,7 @@ export const TrainingTemplatePicker: React.FC<TrainingTemplatePickerProps> = ({ 
           </details>
           {onApply && (
             <>
-              <p className="text-[11px] text-slate-400">Applying replaces this draft's title, duration, and planned drills. Date, players, squad, and coaches stay unchanged.</p>
+              <p className="text-[11px] text-slate-400">Applying replaces this draft's title, duration, safety instructions, and planned drills. Date, players, squad, and coaches stay unchanged.</p>
               <button type="button" onClick={() => onApply(selected)} className="px-3 py-2 rounded-lg bg-sky-500 text-slate-950 text-xs font-bold">Use template</button>
             </>
           )}

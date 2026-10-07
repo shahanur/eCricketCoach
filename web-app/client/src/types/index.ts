@@ -149,6 +149,7 @@ export interface TrainingSession {
   sessionDate: string;
   durationMinutes: number;
   isPublished: boolean;
+  safety?: string[];
   isExecuted?: boolean;
   drillCount: number;
   drillIds?: string[];

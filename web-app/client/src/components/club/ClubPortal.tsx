@@ -8,6 +8,7 @@ import { PlayerAssessments } from './PlayerAssessments';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
+import { readDrillImage } from '../../utils/drillImage';
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return 'Unknown size';
@@ -61,9 +62,9 @@ interface ClubPortalProps {
   onPublishSession: (id: string) => void;
   onAddDrillToSession?: (sessionId: string, drillId?: string) => void;
   onRemoveDrillFromSession?: (sessionId: string, drillId: string) => void;
-  onAddClubDrill: (drill: Drill) => void;
+  onAddClubDrill: (drill: Drill) => void | Promise<void>;
   onDeleteDrill?: (drillId: string) => void;
-  onUpdateDrill?: (drillId: string, updates: Partial<Drill>) => void;
+  onUpdateDrill?: (drillId: string, updates: Partial<Drill>) => void | Promise<void>;
 }
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
@@ -499,6 +500,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionFormPlayerIds, setSessionFormPlayerIds] = useState<string[]>([]);
   const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
   const [sessionFormDuration, setSessionFormDuration] = useState(90);
+  const [sessionFormSafety, setSessionFormSafety] = useState('');
   const [sessionFormDrillIds, setSessionFormDrillIds] = useState<string[]>([]);
   const [isSessionSaving, setIsSessionSaving] = useState(false);
   const [sessionSaveError, setSessionSaveError] = useState('');
@@ -553,17 +555,21 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [editDrillDuration, setEditDrillDuration] = useState(20);
   const [editDrillInstructions, setEditDrillInstructions] = useState('');
   const [editDrillImage, setEditDrillImage] = useState<string | null>(null);
+  const [drillImageError, setDrillImageError] = useState('');
+  const [isDrillSaving, setIsDrillSaving] = useState(false);
   const editDrillImageInputRef = useRef<HTMLInputElement | null>(null);
 
-  const readImageFileAsDataUrl = (file: File, onLoaded: (dataUrl: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') onLoaded(reader.result);
-    };
-    reader.readAsDataURL(file);
+  const readImageFileAsDataUrl = async (file: File, onLoaded: (dataUrl: string) => void) => {
+    setDrillImageError('');
+    try {
+      onLoaded(await readDrillImage(file));
+    } catch (error) {
+      setDrillImageError(error instanceof Error ? error.message : 'Unable to read the selected image.');
+    }
   };
 
   const openEditDrill = (drill: Drill) => {
+    setDrillImageError('');
     setEditingDrill(drill);
     setEditDrillTitle(drill.title);
     setEditDrillDiscipline(drill.discipline);
@@ -578,9 +584,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setEditingDrill(null);
   };
 
-  const handleUpdateDrillSubmit = (e: React.FormEvent) => {
+  const handleUpdateDrillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingDrill || !editDrillTitle || !editDrillSkillSet) return;
+    if (!editingDrill || !editDrillTitle || !editDrillSkillSet || isDrillSaving) return;
     const updates: Partial<Drill> = {
       title: editDrillTitle,
       discipline: editDrillDiscipline,
@@ -590,7 +596,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       instructions: editDrillInstructions,
       imageUrl: editDrillImage
     };
-    onUpdateDrill?.(editingDrill.id, updates);
+    setIsDrillSaving(true);
+    setDrillImageError('');
+    try {
+      await onUpdateDrill?.(editingDrill.id, updates);
+    } catch (error) {
+      setDrillImageError(error instanceof Error ? error.message : 'Unable to save drill.');
+      return;
+    } finally {
+      setIsDrillSaving(false);
+    }
     closeEditDrill();
     setPortalModal({
       isOpen: true,
@@ -757,9 +772,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     }
   };
 
-  const handleCreateClubDrill = (e: React.FormEvent) => {
+  const handleCreateClubDrill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDrillTitle || !newDrillSkillSet) return;
+    if (!newDrillTitle || !newDrillSkillSet || isDrillSaving) return;
     const drill: Drill = {
       id: 'club-' + Date.now(),
       title: newDrillTitle,
@@ -772,7 +787,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       instructions: newDrillInstructions,
       imageUrl: newDrillImage
     };
-    onAddClubDrill(drill);
+    setIsDrillSaving(true);
+    setDrillImageError('');
+    try {
+      await onAddClubDrill(drill);
+    } catch (error) {
+      setDrillImageError(error instanceof Error ? error.message : 'Unable to save drill.');
+      return;
+    } finally {
+      setIsDrillSaving(false);
+    }
     setNewDrillTitle('');
     setNewDrillSkillSet('');
     setNewDrillInstructions('');
@@ -1121,7 +1145,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         assignedPlayerIds,
         title: sessionFormTitle.trim(),
         sessionDate: sessionFormDate,
-        durationMinutes: Number(sessionFormDuration) || 90
+        durationMinutes: Number(sessionFormDuration) || 90,
+        safety: sessionFormSafety.split('\n').map(item => item.trim()).filter(Boolean)
       };
       onUpdateSession?.(editingSessionId, updates);
       closeSessionModal();
@@ -1150,6 +1175,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       title: sessionFormTitle.trim(),
       sessionDate: sessionFormDate,
       durationMinutes: Number(sessionFormDuration) || 90,
+      safety: sessionFormSafety.split('\n').map(item => item.trim()).filter(Boolean),
       isPublished: false,
       drillCount: sessionFormDrillIds.length,
       drillIds: sessionFormDrillIds
@@ -1194,6 +1220,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     }
     setSessionFormDate(s.sessionDate);
     setSessionFormDuration(s.durationMinutes);
+    setSessionFormSafety((s.safety || []).join('\n'));
     setSessionFormDrillIds(s.drillIds || []);
     setIsSessionModalOpen(true);
   };
@@ -1208,6 +1235,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setSessionFormAssistantId('');
     setSessionFormPlayerIds([]);
     setSessionFormDrillIds([]);
+    setSessionFormSafety('');
   };
 
   // Confirmation prompts for actions
@@ -1824,6 +1852,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   setSessionFormAssistantId('');
                   setSessionFormPlayerIds([]);
                   setSessionFormDrillIds([]);
+                  setSessionFormSafety('');
                   setIsSessionModalOpen(true);
                 }}
                 className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -1924,6 +1953,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {s.coordinatorCoachName && <p className="text-xs text-slate-400">Coordinator: <span className="text-white">{s.coordinatorCoachName}</span></p>}
                   {s.assistantCoachName && <p className="text-xs text-slate-400">Assistant Coach: <span className="text-white">{s.assistantCoachName}</span></p>}
                   <p className="text-xs text-slate-400">Date: <span className="text-sky-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
+                  {s.safety?.length ? (
+                    <details className="text-xs text-slate-400">
+                      <summary className="cursor-pointer font-semibold text-amber-300">Session safety</summary>
+                      <ul className="list-disc pl-4 pt-1 space-y-1">{s.safety.map((item, index) => <li key={index}>{item}</li>)}</ul>
+                    </details>
+                  ) : null}
                   {s.drillIds && s.drillIds.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {s.drillIds.map((drillId, idx) => {
@@ -2246,6 +2281,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               Coaches can model proprietary drills tailored to {clubName} athletes.
             </p>
             <form onSubmit={handleCreateClubDrill} className="space-y-3">
+              {drillImageError && <p role="alert" className="text-xs text-rose-400">{drillImageError}</p>}
+              {isDrillSaving && <p role="status" className="text-xs text-sky-300">Saving drill...</p>}
               <div>
                 <label className="text-xs text-slate-400">Drill Title</label>
                 <input
@@ -2320,7 +2357,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <input
                   ref={newDrillImageInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg"
                   onChange={e => {
                     const file = e.target.files?.[0];
                     if (file) readImageFileAsDataUrl(file, setNewDrillImage);
@@ -2390,6 +2427,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {drill.source !== 'SYSTEM_PREDEFINED' && (
+                      <>
                     <button
                       onClick={() => openEditDrill(drill)}
                       title="Edit drill"
@@ -2406,6 +2445,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     >
                       <Trash2 size={12} />
                     </button>
+                      </>
+                    )}
+                    {drill.source === 'SYSTEM_PREDEFINED' && <span className="text-[10px] text-slate-400">Managed globally</span>}
                   </div>
                 </div>
               ))}
@@ -2429,6 +2471,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               <p className="text-xs text-slate-400 mt-1">Update this drill's details, setup instructions, and reference image.</p>
             </div>
             <form onSubmit={handleUpdateDrillSubmit} className="space-y-3 pt-2 border-t border-slate-800">
+              {drillImageError && <p role="alert" className="text-xs text-rose-400">{drillImageError}</p>}
+              {isDrillSaving && <p role="status" className="text-xs text-sky-300">Saving drill...</p>}
               <div>
                 <label className="text-xs text-slate-400">Drill Title</label>
                 <input
@@ -2501,7 +2545,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <input
                   ref={editDrillImageInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg"
                   onChange={e => {
                     const file = e.target.files?.[0];
                     if (file) readImageFileAsDataUrl(file, setEditDrillImage);
@@ -3774,6 +3818,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <TrainingTemplatePicker onApply={template => {
                     setSessionFormTitle(template.title);
                     setSessionFormDuration(template.durationMinutes);
+                    setSessionFormSafety(template.safety.join('\n'));
                     setSessionFormDrillIds([...template.drillIds]);
                   }} />
                 )}
@@ -3930,6 +3975,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </div>
                 </div>
 
+                <div>
+                  <label htmlFor="session-form-safety" className="text-[11px] font-semibold text-slate-400">Session safety (one instruction per line)</label>
+                  <textarea
+                    id="session-form-safety"
+                    value={sessionFormSafety}
+                    onChange={event => setSessionFormSafety(event.target.value)}
+                    rows={3}
+                    placeholder="Protective equipment, safe distances, warm-up precautions..."
+                    className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
                 {(() => {
                   const drillIds = editingSessionId
                     ? (sessions.find(s => s.id === editingSessionId)?.drillIds || [])

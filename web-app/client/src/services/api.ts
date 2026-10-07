@@ -68,7 +68,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(drill)
     });
-    if (!res.ok) throw new Error('Failed to create club drill');
+    if (!res.ok) throw await responseError(res, 'Failed to create club drill');
     const data = await res.json();
     return data.drill;
   },
@@ -82,10 +82,10 @@ export const api = {
   async updateDrill(drillId: string, updates: Partial<Drill>): Promise<Drill> {
     const res = await fetch(`${API_BASE}/drills/${drillId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authenticatedHeaders(),
       body: JSON.stringify(updates)
     });
-    if (!res.ok) throw new Error('Failed to update drill');
+    if (!res.ok) throw await responseError(res, 'Failed to update drill');
     const data = await res.json();
     return data.drill;
   },

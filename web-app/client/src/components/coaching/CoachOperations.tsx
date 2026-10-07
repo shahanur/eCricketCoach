@@ -62,6 +62,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(today);
   const [sessionDuration, setSessionDuration] = useState(90);
+  const [sessionSafety, setSessionSafety] = useState('');
   const [sessionDrillIds, setSessionDrillIds] = useState<string[]>([]);
   const [isSessionSaving, setIsSessionSaving] = useState(false);
   const squadNames = Array.from(new Set(players.map(player => player.squad).filter(squad => squad !== 'Unassigned')));
@@ -154,6 +155,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
       assignedPlayerIds,
       sessionDate,
       durationMinutes: sessionDuration,
+      safety: sessionSafety.split('\n').map(item => item.trim()).filter(Boolean),
       isPublished: false,
       drillCount: sessionDrillIds.length,
       drillIds: sessionDrillIds
@@ -170,6 +172,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     await loadDashboard();
     setSessionTitle('');
     setSessionDrillIds([]);
+    setSessionSafety('');
   };
 
   const cancelSession = async (session: TrainingSession) => {
@@ -368,6 +371,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
             <TrainingTemplatePicker onApply={template => {
               setSessionTitle(template.title);
               setSessionDuration(template.durationMinutes);
+              setSessionSafety(template.safety.join('\n'));
               setSessionDrillIds([...template.drillIds]);
             }} />
             {sessionDrillIds.length > 0 && (
@@ -384,6 +388,8 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
               <input type="date" value={sessionDate} onChange={event => setSessionDate(event.target.value)} required className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
               <input type="number" min={15} step={5} value={sessionDuration} onChange={event => setSessionDuration(Number(event.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
             </div>
+            <label htmlFor="coach-session-safety" className="block text-xs text-slate-400">Session safety (one instruction per line)</label>
+            <textarea id="coach-session-safety" value={sessionSafety} onChange={event => setSessionSafety(event.target.value)} rows={3} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
             <button disabled={isSessionSaving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><Plus size={14} /> {isSessionSaving ? 'Scheduling...' : 'Create draft'}</button>
           </form>
           <div className="space-y-2">

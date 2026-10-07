@@ -248,7 +248,8 @@ export async function initDb() {
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS assistant_coach_name VARCHAR(255)`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`,
-    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS execution_log JSONB`
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS execution_log JSONB`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS safety TEXT[] NOT NULL DEFAULT '{}'`
   ];
   for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);

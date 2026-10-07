@@ -77,8 +77,18 @@ model Drill {
   squadName    String? @map("squad_name")
   instructions String?
   imageUrl     String? @map("image_url")
+  image        DrillImage?
 
   @@map("drills")
+}
+
+model DrillImage {
+  drillId  String @id @map("drill_id")
+  data     Bytes  @db.ByteA
+  mimeType String @map("mime_type")
+  drill    Drill  @relation(fields: [drillId], references: [id], onDelete: Cascade)
+
+  @@map("drill_images")
 }
 
 model ClubMember {
@@ -136,6 +146,7 @@ model TrainingSession {
   title           String
   sessionDate     String   @map("session_date")
   durationMinutes Int      @default(90) @map("duration_minutes")
+  safety          String[] @default([])
   isPublished     Boolean  @default(false) @map("is_published")
   isExecuted      Boolean  @default(false) @map("is_executed")
   drillCount      Int      @default(0) @map("drill_count")

@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test:training-templates": "tsx --test src/routes/trainingTemplates.test.ts",
+    "test:drill-images": "tsx --test src/routes/drillImages.test.ts",
+    "test:global-drills": "tsx --test src/routes/globalDrills.test.ts",
     "db:reset": "tsx src/scripts/resetDb.ts --yes"
   },
   "dependencies": {
