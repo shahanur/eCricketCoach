@@ -55,16 +55,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasClubPortal = hasClubAdmin || isClubCoach;
 
   return (
-    <header className="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-3 sm:px-4 py-2.5">
+    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/90 px-3 py-2.5 shadow-lg shadow-slate-950/20 backdrop-blur sm:px-4">
       <div className="flex items-center justify-between">
         {/* Left: Brand Logo & Desktop Navigation */}
         <div className="flex items-center space-x-3 sm:space-x-6">
           <button
             onClick={() => handleNavClick('HOME')}
-            className="flex items-center space-x-2 focus:outline-none text-left cursor-pointer"
+            className="flex shrink-0 items-center space-x-2 rounded-sm text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
           >
             <span className="text-2xl">🏏</span>
-            <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-sky-400 bg-clip-text text-transparent">
+            <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent sm:text-xl">
               eCricketCoach
             </span>
           </button>

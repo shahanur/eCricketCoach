@@ -15,6 +15,8 @@ const INLINE_SIZE_LIMIT = 15 * 1024 * 1024;
 // retry several times with exponential backoff + jitter before giving up, rather than
 // masking the failure behind fake/mock data or crashing the request.
 const MAX_RETRIES = 5;
+// Per-request ceiling so a stalled Gemini call fails instead of leaving the UI waiting indefinitely.
+const REQUEST_TIMEOUT_MS = 45000;
 const BASE_DELAY_MS = 1000;
 const MAX_DELAY_MS = 20000;
 
@@ -54,7 +56,7 @@ async function fetchAvailableGeminiModels(): Promise<string[]> {
   return models
     .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
     .map(m => String(m.name || '').replace(/^models\//, ''))
-    .filter(name => name && !/embedding|aqa|vision$/i.test(name));
+    .filter(name => name && !/embedding|aqa|vision$|tts|image|audio|live|robotics|computer|omni|lyria|deep-research|customtools/i.test(name));
 }
 
 /**
@@ -65,10 +67,12 @@ async function fetchAvailableGeminiModels(): Promise<string[]> {
  */
 async function resolveModelCandidates(): Promise<string[]> {
   const envOverride = process.env.GEMINI_MODEL?.trim();
-  if (envOverride) {
-    return [envOverride];
-  }
+  const discovered = await discoverModelCandidates();
+  // The override is tried first, but discovered models remain as fallbacks if it stalls or is overloaded.
+  return envOverride ? [envOverride, ...discovered.filter(name => name !== envOverride)] : discovered;
+}
 
+async function discoverModelCandidates(): Promise<string[]> {
   const now = Date.now();
   if (cachedModelCandidates.length > 0 && now - cachedCandidatesFetchedAt < MODEL_CACHE_TTL_MS) {
     return cachedModelCandidates;
@@ -224,7 +228,7 @@ export class GeminiVideoAnalysisService {
       throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable AI analysis.');
     }
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const candidates = (await resolveModelCandidates()).slice(0, 3);
+    const candidates = (await resolveModelCandidates()).slice(0, 4);
     let lastError: unknown = null;
 
     for (let i = 0; i < candidates.length; i++) {
@@ -234,7 +238,14 @@ export class GeminiVideoAnalysisService {
       try {
         const parsed = await withRetry(
           async attempt => {
-            const result = await model.generateContent(parts);
+            // The SDK's own `timeout` option makes requests hang in this runtime, so race against a timer instead.
+            let timer: NodeJS.Timeout | undefined;
+            const result = await Promise.race([
+              model.generateContent(parts),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS);
+              })
+            ]).finally(() => clearTimeout(timer));
             const data = extractJson(result.response.text());
             if (!isValid(data)) {
               throw new Error(`Gemini returned a response that did not match the expected ${label} shape.`);
@@ -259,7 +270,7 @@ export class GeminiVideoAnalysisService {
         const message = err instanceof Error ? err.message : String(err);
         const isModelUnavailable = /not found|404|is not supported|does not support|unknown model/i.test(message);
         const isQuotaIssue = isQuotaExceededError(err);
-        const isOverloaded = isRateLimitOrOverloadedError(err);
+        const isOverloaded = isRateLimitOrOverloadedError(err) || /abort|timed? ?out|fetch failed/i.test(message);
         const hasMoreCandidates = i < candidates.length - 1;
 
         if ((isQuotaIssue || isModelUnavailable || isOverloaded) && hasMoreCandidates) {

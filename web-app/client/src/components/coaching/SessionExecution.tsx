@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Play, Plus, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
 import { api } from '../../services/api';
+import { downloadPdfReport } from '../../utils/pdfReport';
 import {
   AttendanceStatus,
   ClubMember,
@@ -360,6 +361,10 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
 
   // Saves the latest notes and evaluation first so the AI analyses exactly what the coach recorded.
   const runAiAnalysis = async () => {
+    if (!isCompleted) {
+      setAiError('Complete the session before running the AI analysis.');
+      return;
+    }
     const hasNotes = Object.values(playerNotes).some(note => note.trim() && note.trim() !== NOTE_TEMPLATE.trim())
       || postNotes.trim() || log.evaluation.wentWell.trim() || log.evaluation.challenges.trim();
     if (!hasNotes) {
@@ -435,76 +440,87 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
 
   const downloadReport = () => {
     const attendanceLabel = (status?: AttendanceStatus) => status ? status.charAt(0) + status.slice(1).toLowerCase() : 'Not recorded';
-    const lines = [
-      `SESSION REPORT – ${session.title}`,
-      `Date: ${session.sessionDate}   Squad: ${session.squadName}   Lead coach: ${session.coachName || '-'}`,
-      `Planned duration: ${session.durationMinutes} min   Actual drill time: ${actualMinutes} min`,
-      `Started: ${log.startedAt ? new Date(log.startedAt).toLocaleString() : '-'}   Completed: ${log.completedAt ? new Date(log.completedAt).toLocaleString() : '-'}`,
-      '',
-      `PREPARATION (${checklistDone}/${CHECKLIST.length})`,
-      ...CHECKLIST.map(item => `[${log.checklist[item.id] ? 'x' : ' '}] ${item.label}`),
-      '',
-      `ATTENDANCE (${attendingPlayers.length}/${sessionPlayers.length}, ${attendanceRate}%)`,
-      ...sessionPlayers.map(player => `- ${player.name}: ${attendanceLabel(log.attendance[player.id])}`),
-      '',
-      'DRILLS',
-      ...log.drillLog.map(entry => `- ${entry.title}: planned ${entry.plannedMinutes} min, actual ${entry.actualMinutes} min, ${entry.completed ? 'completed' : 'not completed'}${entry.notes ? ` – ${entry.notes}` : ''}`),
-      '',
-      'DISRUPTIONS',
-      ...(log.incidents.length ? log.incidents.map(item => `- ${new Date(item.time).toLocaleTimeString()} [${item.category}] ${item.note}`) : ['- None']),
-      '',
-      'PLAYER PROGRESS NOTES',
-      ...sessionPlayers.filter(player => playerNotes[player.id]?.trim()).map(player => `- ${player.name}:\n  ${playerNotes[player.id].trim().replace(/\n/g, '\n  ')}`),
-      '',
-      'EVALUATION',
-      `Objectives met: ${log.evaluation.objectivesMet || '-'}   Engagement: ${log.evaluation.engagement || '-'}/5`,
-      `What went well: ${log.evaluation.wentWell || '-'}`,
-      `Challenges: ${log.evaluation.challenges || '-'}`,
-      `Adjustments for next session: ${log.evaluation.nextAdjustments || '-'}`,
-      '',
-      `Session summary: ${postNotes || '-'}`
-    ];
-    const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/plain' }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `session-report-${session.sessionDate}-${session.id}.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    const when = (value?: string | null) => value ? new Date(value).toLocaleString() : '-';
+    downloadPdfReport({
+      title: 'Session Report',
+      subtitle: `${session.title} - ${session.sessionDate}`,
+      filename: `session-report-${session.sessionDate}-${session.id}.pdf`,
+      blocks: [
+        {
+          type: 'facts',
+          items: [
+            ['Squad', session.squadName],
+            ['Lead coach', session.coachName || '-'],
+            ['Planned duration', `${session.durationMinutes} min`],
+            ['Actual drill time', `${actualMinutes} min`],
+            ['Started', when(log.startedAt)],
+            ['Completed', when(log.completedAt)]
+          ]
+        },
+        { type: 'heading', text: `Preparation (${checklistDone}/${CHECKLIST.length})` },
+        { type: 'table', head: ['Item', 'Done'], rows: CHECKLIST.map(item => [item.label, log.checklist[item.id] ? 'Yes' : 'No']) },
+        { type: 'heading', text: `Attendance (${attendingPlayers.length}/${sessionPlayers.length}, ${attendanceRate}%)` },
+        { type: 'table', head: ['Player', 'Status'], rows: sessionPlayers.map(player => [player.name, attendanceLabel(log.attendance[player.id])]) },
+        { type: 'heading', text: 'Drills' },
+        {
+          type: 'table',
+          head: ['Drill', 'Planned', 'Actual', 'Completed', 'Notes'],
+          rows: log.drillLog.map(entry => [entry.title, `${entry.plannedMinutes} min`, `${entry.actualMinutes} min`, entry.completed ? 'Yes' : 'No', entry.notes || ''])
+        },
+        { type: 'heading', text: 'Disruptions' },
+        { type: 'bullets', items: log.incidents.map(item => `${new Date(item.time).toLocaleTimeString()} [${item.category}] ${item.note}`) },
+        { type: 'heading', text: 'Player progress notes' },
+        ...sessionPlayers
+          .filter(player => playerNotes[player.id]?.trim())
+          .map(player => ({ type: 'text' as const, label: player.name, text: playerNotes[player.id].trim() })),
+        { type: 'heading', text: 'Evaluation' },
+        {
+          type: 'facts',
+          items: [
+            ['Objectives met', log.evaluation.objectivesMet || '-'],
+            ['Engagement', `${log.evaluation.engagement || '-'}/5`],
+            ['What went well', log.evaluation.wentWell || '-'],
+            ['Challenges', log.evaluation.challenges || '-'],
+            ['Next adjustments', log.evaluation.nextAdjustments || '-']
+          ]
+        },
+        { type: 'text', label: 'Session summary', text: postNotes }
+      ]
+    });
   };
-
   const inputClass = 'w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white';
   const statusLabel = isCompleted ? 'Completed' : isLive ? 'In progress' : 'Preparing';
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <div>
+      <div className="flex flex-col justify-between gap-3 border-b border-slate-800 pb-4 md:flex-row md:items-center">
+        <div className="min-w-0">
           <button onClick={onClose} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 mb-1"><ArrowLeft size={14} /> Back to schedule</button>
-          <h2 className="text-lg font-bold text-white">{session.title}</h2>
-          <p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min · <span className={isCompleted ? 'text-emerald-300' : isLive ? 'text-amber-300' : 'text-sky-300'}>{statusLabel}</span></p>
+          <h2 className="break-words text-lg font-bold text-white sm:text-xl">{session.title}</h2>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min · <span className={isCompleted ? 'text-emerald-300' : isLive ? 'text-amber-300' : 'text-teal-300'}>{statusLabel}</span></p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {log.startedAt && (
             <span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded border ${elapsedMinutes > session.durationMinutes ? 'border-rose-500/50 text-rose-300' : 'border-slate-700 text-slate-200'}`}>
               <Clock size={14} /> {formatElapsed(elapsedMs)} / {session.durationMinutes}:00
             </span>
           )}
           <button onClick={() => persist(log)} disabled={saving} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1 disabled:opacity-50"><Save size={14} /> Save</button>
-          <button onClick={downloadReport} className="px-3 py-1.5 text-xs border border-sky-500/40 text-sky-300 rounded flex items-center gap-1"><Download size={14} /> Report</button>
+          <button onClick={downloadReport} className="px-3 py-1.5 text-xs border border-teal-500/40 text-teal-300 rounded-lg flex items-center gap-1 transition hover:bg-teal-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"><Download size={14} /> PDF Report</button>
         </div>
       </div>
 
       {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
       {savedMessage && <p role="status" className="text-xs text-emerald-400">{savedMessage}</p>}
 
-      <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Session execution steps">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-800 [scrollbar-width:thin]" role="tablist" aria-label="Session execution steps">
         {STEPS.map(item => (
           <button
             key={item.id}
             role="tab"
             aria-selected={step === item.id}
             onClick={() => setStep(item.id)}
-            className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap ${step === item.id ? 'border-emerald-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}
+            className={`shrink-0 px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400 ${step === item.id ? 'border-teal-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}
           >
             {item.label}
           </button>
@@ -755,6 +771,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
               <p className="text-slate-300">Time: {actualMinutes} min recorded vs {session.durationMinutes} min slot</p>
               <p className="text-slate-300">Disruptions: {log.incidents.length}</p>
             </div>
+            {isCompleted && (
             <div className="border border-slate-800 rounded-lg p-3 space-y-2">
               <h3 className="text-sm font-bold text-white">Suggested adjustments</h3>
               {suggestions.length ? (
@@ -764,6 +781,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
                 </>
               ) : <p className="text-slate-500">No issues detected from the session data.</p>}
             </div>
+            )}
             <div className="border border-slate-800 rounded-lg p-3 space-y-2">
               <h3 className="text-sm font-bold text-white">Common challenges</h3>
               {COMMON_CHALLENGES.map(item => <p key={item.challenge} className="text-slate-300"><span className="text-white font-semibold">{item.challenge}:</span> {item.response}</p>)}
@@ -771,6 +789,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
           </aside>
         </div>
 
+        {isCompleted && (
         <section aria-labelledby="ai-analysis-heading" className="border border-sky-500/30 rounded-lg p-4 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -873,6 +892,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             </div>
           )}
         </section>
+        )}
         </div>
       )}
     </div>

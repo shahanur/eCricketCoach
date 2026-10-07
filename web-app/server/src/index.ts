@@ -9,6 +9,7 @@ import { aiRouter } from './routes/ai.js';
 import { authRouter } from './routes/auth.js';
 import { googleDriveRouter } from './routes/googleDrive.js';
 import { coachRouter } from './routes/coach.js';
+import { assessmentRouter } from './routes/assessments.js';
 import { initDb } from './config/initDb.js';
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/drills', drillsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/club', clubRouter);
+app.use('/api/club/assessments', assessmentRouter);
 app.use('/api/videos', aiRouter);
 app.use('/api/google-drive', googleDriveRouter);
 app.use('/api/coach', coachRouter);

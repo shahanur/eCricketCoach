@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   Download,
   Plus,
@@ -9,15 +10,18 @@ import {
   Users
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { downloadPdfReport } from '../../utils/pdfReport';
 import {
   AuthUser,
   ClubMember,
   Drill,
+  PlayerAssessment,
   TrainingSession
 } from '../../types';
+import { PlayerAssessments } from '../club/PlayerAssessments';
 import { SessionExecution } from './SessionExecution';
 
-type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'REPORTS';
+type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'ASSESSMENTS' | 'REPORTS';
 
 interface CoachOperationsProps {
   currentUser: AuthUser;
@@ -50,6 +54,8 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [players, setPlayers] = useState<ClubMember[]>([]);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [mySessions, setMySessions] = useState<TrainingSession[]>([]);
+  const [assessments, setAssessments] = useState<PlayerAssessment[]>([]);
+  const [focusedAssessmentId, setFocusedAssessmentId] = useState('');
   const [dashboardError, setDashboardError] = useState('');
   const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
   const [sessionTitle, setSessionTitle] = useState('');
@@ -60,10 +66,14 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
   const loadDashboard = async () => {
     try {
-      const dashboard = await api.getCoachDashboard();
+      const [dashboard, assessmentRows] = await Promise.all([
+        api.getCoachDashboard(),
+        api.getPlayerAssessments()
+      ]);
       setPlayers(dashboard.players);
       setSessions(dashboard.sessions);
       setMySessions(dashboard.mySessions);
+      setAssessments(assessmentRows);
       setDashboardError('');
     } catch (error) {
       setDashboardError(error instanceof Error ? error.message : 'Unable to load club coach dashboard.');
@@ -85,6 +95,12 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const upcomingClubSessions = useMemo(
     () => sessions.filter(session => !session.isExecuted).sort((a, b) => a.sessionDate.localeCompare(b.sessionDate)),
     [sessions]
+  );
+  const upcomingAssessments = useMemo(
+    () => assessments
+      .filter(assessment => assessment.status !== 'COMPLETED' && assessment.scheduledDate >= today)
+      .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || (a.scheduledTime || '').localeCompare(b.scheduledTime || '')),
+    [assessments]
   );
   const deliveredSessions = mySessions.filter(session =>
     session.isExecuted && session.sessionDate >= seasonStart && session.sessionDate <= seasonEnd
@@ -176,6 +192,32 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const downloadPdf = () => {
+    downloadPdfReport({
+      title: 'Participant Session Report',
+      subtitle: `${currentUser.clubName || 'Club'} - ${currentUser.name} - ${today}`,
+      filename: `coach-performance-report-${today}.pdf`,
+      blocks: [{
+        type: 'table',
+        head: ['Player', 'Squad', 'Level', 'Scheduled', 'Delivered', 'Attendance', 'Attendance %', 'With notes'],
+        rows: players.map(player => {
+          const playerSessions = sessions.filter(session => session.assignedPlayerIds?.includes(player.id));
+          const attendance = playerAttendance(player);
+          return [
+            player.name,
+            player.squad,
+            player.currentLevel,
+            playerSessions.length,
+            playerSessions.filter(session => session.isExecuted).length,
+            `${attendance.attended}/${attendance.recorded}`,
+            attendance.rate !== null && attendance.rate !== undefined ? `${attendance.rate}%` : '-',
+            playerSessions.filter(session => Boolean(session.playerNotes?.[player.id])).length
+          ];
+        })
+      }]
+    });
+  };
+
   return (
     <section className="space-y-4">
       <div className="border-b border-slate-800 pb-4 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
@@ -185,7 +227,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           <p className="text-xs text-slate-400 mt-1">Plan sessions, monitor club events, and measure development.</p>
         </div>
         <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Coach workspace sections">
-          {(['OVERVIEW', 'SESSIONS', 'REPORTS'] as CoachTab[]).map(value => (
+          {(['OVERVIEW', 'SESSIONS', 'ASSESSMENTS', 'REPORTS'] as CoachTab[]).map(value => (
             <button
               key={value}
               role="tab"
@@ -203,9 +245,10 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
       {tab === 'OVERVIEW' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
             {([
               { label: 'Upcoming sessions', value: myUpcomingSessions.length, icon: Calendar, detailTab: 'SESSIONS' as CoachTab },
+              { label: 'Upcoming assessments', value: upcomingAssessments.length, icon: ClipboardCheck, detailTab: 'ASSESSMENTS' as CoachTab },
               { label: 'Delivered sessions', value: deliveredSessions, icon: Calendar, detail: `Oct ${currentSeasonStartYear} – Sep ${currentSeasonStartYear + 1}` },
               { label: 'Active participants', value: players.filter(player => player.invitationStatus === 'ACTIVE').length, icon: Users }
             ] as Array<{ label: string; value: number; icon: React.ElementType; detail?: string; detailTab?: CoachTab }>).map(({ label, value, icon: Icon, detail, detailTab }) => {
@@ -226,7 +269,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                 : <div key={label} className={className}>{content}</div>;
             })}
           </div>
-          <div className="grid lg:grid-cols-2 gap-5">
+          <div className="grid lg:grid-cols-3 gap-5">
             <div>
               <h2 className="text-sm font-bold text-white mb-3">Next sessions and events</h2>
               <div className="divide-y divide-slate-800 border-y border-slate-800">
@@ -252,6 +295,31 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                   </div>
                 ))}
                 {myUpcomingSessions.length === 0 && <p className="py-4 text-xs text-slate-500">No upcoming sessions assigned to you.</p>}
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white mb-3">Upcoming assessments</h2>
+              <div className="divide-y divide-slate-800 border-y border-slate-800">
+                {upcomingAssessments.slice(0, 6).map(assessment => (
+                  <div key={assessment.id} className="py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{assessment.playerName}</p>
+                      <p className="truncate text-xs text-slate-400">{assessment.title} · {assessment.discipline}</p>
+                      <p className="text-[11px] text-slate-500">{assessment.scheduledDate}{assessment.scheduledTime ? ` at ${assessment.scheduledTime}` : ''}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFocusedAssessmentId(assessment.id);
+                        setTab('ASSESSMENTS');
+                      }}
+                      className="shrink-0 rounded border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10"
+                    >
+                      View
+                    </button>
+                  </div>
+                ))}
+                {upcomingAssessments.length === 0 && <p className="py-4 text-xs text-slate-500">No upcoming assessments assigned to you.</p>}
               </div>
             </div>
           </div>
@@ -312,9 +380,19 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
         </div>
       )}
 
+      {tab === 'ASSESSMENTS' && (
+        <PlayerAssessments
+          currentUser={currentUser}
+          members={players}
+          sessions={sessions}
+          initialAssessmentId={focusedAssessmentId}
+          onAssessmentsChanged={setAssessments}
+        />
+      )}
+
       {tab === 'REPORTS' && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white flex items-center gap-2"><ClipboardList size={16} /> Participant session report</h2><p className="text-xs text-slate-400">Session and coaching-note activity from club training records.</p></div><button onClick={downloadReport} className="px-3 py-2 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export CSV</button></div>
+          <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white flex items-center gap-2"><ClipboardList size={16} /> Participant session report</h2><p className="text-xs text-slate-400">Session and coaching-note activity from club training records.</p></div><button onClick={downloadReport} className="px-3 py-2 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export CSV</button><button onClick={downloadPdf} className="px-3 py-2 border border-sky-500/40 text-sky-300 rounded-lg text-xs font-semibold flex items-center gap-2"><Download size={14} /> Export PDF</button></div>
           <div className="overflow-x-auto"><table className="w-full text-xs"><thead className="text-left text-slate-500 border-b border-slate-800"><tr><th className="py-2">Participant</th><th>Level</th><th>Squad</th><th>Scheduled sessions</th><th>Delivered sessions</th><th>Attendance</th><th>Sessions with notes</th></tr></thead><tbody>{players.map(player => {
             const playerSessions = sessions.filter(session => session.assignedPlayerIds?.includes(player.id));
             const attendance = playerAttendance(player);

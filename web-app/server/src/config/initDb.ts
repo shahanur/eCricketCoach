@@ -105,6 +105,37 @@ export async function initDb() {
       execution_log JSONB
     )`,
 
+    `CREATE TABLE IF NOT EXISTS player_assessments (
+      id VARCHAR(100) PRIMARY KEY,
+      club_id VARCHAR(100) NOT NULL,
+      player_id VARCHAR(100) NOT NULL,
+      player_name VARCHAR(255) NOT NULL,
+      coach_id VARCHAR(100) NOT NULL,
+      coach_name VARCHAR(255) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      discipline VARCHAR(50) NOT NULL,
+      scheduled_date VARCHAR(10) NOT NULL,
+      scheduled_time VARCHAR(5),
+      status VARCHAR(50) NOT NULL DEFAULT 'SCHEDULED',
+      metrics JSONB NOT NULL DEFAULT '[]',
+      strengths TEXT NOT NULL DEFAULT '',
+      focus_areas TEXT NOT NULL DEFAULT '',
+      coach_feedback TEXT NOT NULL DEFAULT '',
+      player_feedback TEXT NOT NULL DEFAULT '',
+      training_session_id VARCHAR(100),
+      video_analysis_id VARCHAR(100),
+      ai_insights JSONB,
+      started_at TIMESTAMP,
+      completed_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )`,
+    `ALTER TABLE player_assessments
+      ADD COLUMN IF NOT EXISTS player_feedback TEXT NOT NULL DEFAULT ''`,
+    `CREATE INDEX IF NOT EXISTS player_assessments_club_id_player_id_scheduled_date_idx
+      ON player_assessments (club_id, player_id, scheduled_date)`,
+    `CREATE INDEX IF NOT EXISTS player_assessments_club_id_coach_id_status_idx
+      ON player_assessments (club_id, coach_id, status)`,
+
     `CREATE TABLE IF NOT EXISTS certificates (
       id VARCHAR(100) PRIMARY KEY,
       certificate_number VARCHAR(100) UNIQUE NOT NULL,

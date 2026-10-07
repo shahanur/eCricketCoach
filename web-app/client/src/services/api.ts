@@ -10,7 +10,9 @@ import {
   AdminNotification,
   SupportTicket,
   CoachDashboardData,
-  SessionExecutionUpdate
+  SessionExecutionUpdate,
+  PlayerAssessment,
+  AssessmentMetric
 } from '../types';
 
 const API_BASE = '/api';
@@ -204,6 +206,64 @@ export const api = {
   async getCoachDashboard(): Promise<CoachDashboardData> {
     const res = await fetch(`${API_BASE}/coach/dashboard`, { headers: authenticatedHeaders() });
     if (!res.ok) throw await responseError(res, 'Failed to load club coach dashboard');
+    return res.json();
+  },
+
+  async getPlayerAssessments(): Promise<PlayerAssessment[]> {
+    const res = await fetch(`${API_BASE}/club/assessments`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load player assessments');
+    return res.json();
+  },
+
+  async schedulePlayerAssessment(input: {
+    title: string;
+    playerId: string;
+    coachId?: string;
+    discipline: string;
+    scheduledDate: string;
+    scheduledTime?: string;
+    trainingSessionId?: string;
+    videoAnalysisId?: string;
+  }): Promise<PlayerAssessment> {
+    const res = await fetch(`${API_BASE}/club/assessments`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(input)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to schedule player assessment');
+    return res.json();
+  },
+
+  async updatePlayerAssessment(
+    assessmentId: string,
+    update: {
+      status?: 'IN_PROGRESS' | 'COMPLETED';
+      metrics?: AssessmentMetric[];
+      strengths?: string;
+      focusAreas?: string;
+      coachFeedback?: string;
+      playerFeedback?: string;
+    }
+  ): Promise<PlayerAssessment> {
+    const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}`, {
+      method: 'PATCH',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(update)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to update player assessment');
+    return res.json();
+  },
+
+  async generatePlayerAssessmentInsights(assessmentId: string): Promise<PlayerAssessment> {
+    const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}/insights`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      signal: AbortSignal.timeout(180000)
+    }).catch(err => {
+      if (err?.name === 'TimeoutError') throw new Error('AI insights timed out. Please try again.');
+      throw err;
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to generate assessment insights');
     return res.json();
   },
 

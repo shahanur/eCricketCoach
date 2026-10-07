@@ -133,6 +133,35 @@ model TrainingSession {
   @@map("training_sessions")
 }
 
+model PlayerAssessment {
+  id                String    @id
+  clubId            String    @map("club_id")
+  playerId          String    @map("player_id")
+  playerName        String    @map("player_name")
+  coachId           String    @map("coach_id")
+  coachName         String    @map("coach_name")
+  title             String
+  discipline        String
+  scheduledDate     String    @map("scheduled_date")
+  scheduledTime     String?   @map("scheduled_time")
+  status            String    @default("SCHEDULED")
+  metrics           Json      @default("[]")
+  strengths         String    @default("") @db.Text
+  focusAreas        String    @default("") @map("focus_areas") @db.Text
+  coachFeedback     String    @default("") @map("coach_feedback") @db.Text
+  playerFeedback    String    @default("") @map("player_feedback") @db.Text
+  trainingSessionId String?   @map("training_session_id")
+  videoAnalysisId   String?   @map("video_analysis_id")
+  aiInsights        Json?     @map("ai_insights")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([clubId, playerId, scheduledDate])
+  @@index([clubId, coachId, status])
+  @@map("player_assessments")
+}
+
 model Certificate {
   id                String  @id
   certificateNumber String  @unique @map("certificate_number")

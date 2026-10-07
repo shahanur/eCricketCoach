@@ -338,9 +338,12 @@ clubRouter.post('/sessions/:id/post-notes-ai-assess', authenticateToken, require
     const id = String(req.params.id);
     const notes = typeof req.body?.notes === 'string' ? req.body.notes : '';
 
-    const session = await prisma.trainingSession.findUnique({ where: { id }, select: { clubId: true } });
+    const session = await prisma.trainingSession.findUnique({ where: { id }, select: { clubId: true, isExecuted: true } });
     if (!session || session.clubId !== req.user?.tenantId) {
       return res.status(404).json({ error: 'Session not found' });
+    }
+    if (!session.isExecuted) {
+      return res.status(409).json({ error: 'Complete the session before running the AI analysis.' });
     }
 
     const aiResult = await SessionEvaluationService.evaluate(id, notes);

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile } from '../../types';
+import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile } from '../../types';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
+import { PlayerAssessments } from './PlayerAssessments';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2 } from 'lucide-react';
 
 function formatBytes(bytes: number | null): string {
@@ -24,6 +25,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 interface ClubPortalProps {
+  currentUser: AuthUser;
   isClubCoach?: boolean;
   clubMembers: ClubMember[];
   squads: Squad[];
@@ -52,6 +54,7 @@ interface ClubPortalProps {
 }
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
+  currentUser,
   isClubCoach = false,
   clubMembers,
   squads,
@@ -78,11 +81,37 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onDeleteDrill,
   onUpdateDrill,
 }) => {
-  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
+  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
 
   useEffect(() => {
     if (isClubCoach && clubTab === 'ROSTER') setClubTab('SQUADS');
   }, [isClubCoach, clubTab]);
+
+  const [latestRatings, setLatestRatings] = useState<Record<string, { average: number; date: string; assessmentId: string }>>({});
+  const [openAssessmentId, setOpenAssessmentId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (clubTab !== 'ROSTER') return;
+    let cancelled = false;
+    api.getPlayerAssessments()
+      .then(assessments => {
+        if (cancelled) return;
+        const latest: Record<string, { average: number; date: string; assessmentId: string; at: number }> = {};
+        for (const a of assessments) {
+          if (a.status !== 'COMPLETED') continue;
+          const scores = a.metrics.map(m => m.score).filter((s): s is number => typeof s === 'number');
+          if (!scores.length) continue;
+          const date = a.completedAt || a.scheduledDate;
+          const at = new Date(date).getTime() || 0;
+          if (!latest[a.playerId] || at > latest[a.playerId].at) {
+            latest[a.playerId] = {             average: scores.reduce((s, n) => s + n, 0) / scores.length, date, assessmentId: a.id, at };
+          }
+        }
+                    setLatestRatings(Object.fromEntries(Object.entries(latest).map(([id, v]) => [id, { average: v.average, date: v.date, assessmentId: v.assessmentId }])));
+      })
+      .catch(() => { if (!cancelled) setLatestRatings({}); });
+    return () => { cancelled = true; };
+  }, [clubTab]);
 
   // Video Analysis State in Club Portal
   const [selectedAnalysisPlayer, setSelectedAnalysisPlayer] = useState<string>('mem-4');
@@ -278,7 +307,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [inviteSquad, setInviteSquad] = useState('Unassigned');
 
   // Club Roster Filtering & Search State
-  const [rosterRoleFilter, setRosterRoleFilter] = useState<'ALL' | 'COACH' | 'PLAYER'>('ALL');
+  const [rosterRoleFilter, setRosterRoleFilter] = useState<'COACH' | 'PLAYER'>('COACH');
   const [rosterStatusFilter, setRosterStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PENDING'>('ALL');
   const [rosterAgeGroupFilter, setRosterAgeGroupFilter] = useState<string>('ALL');
   const [rosterDisciplineFilter, setRosterDisciplineFilter] = useState<string>('ALL');
@@ -457,6 +486,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionNotesError, setSessionNotesError] = useState<string | null>(null);
   const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
   const [legacyPlayerId, setLegacyPlayerId] = useState('');
+  const [focusedSessionPlayerId, setFocusedSessionPlayerId] = useState<string | null>(null);
   const [attachingLegacyPlayer, setAttachingLegacyPlayer] = useState(false);
 
   const todayLocal = new Date();
@@ -482,7 +512,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setLegacyPlayerId('');
   }, [selectedExecutedSession?.id]);
 
-  const selectedSessionPlayers = useMemo(() => {
+  const allSelectedSessionPlayers = useMemo(() => {
     if (!selectedExecutedSession) return [];
     const historicalPlayerIds = selectedExecutedSession.assignedPlayerIds?.length
       ? selectedExecutedSession.assignedPlayerIds
@@ -502,6 +532,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         : member.squad === selectedExecutedSession.squadName)
     );
   }, [clubMembers, selectedExecutedSession]);
+
+  const selectedSessionPlayers = useMemo(() => {
+    const all = allSelectedSessionPlayers;
+    return focusedSessionPlayerId ? all.filter(p => p.id === focusedSessionPlayerId) : all;
+  }, [allSelectedSessionPlayers, focusedSessionPlayerId]);
+  const focusedSessionPlayer = focusedSessionPlayerId ? clubMembers.find(m => m.id === focusedSessionPlayerId) : undefined;
 
   const handleMarkSessionExecuted = async (session: TrainingSession) => {
     setExecutingSessionId(session.id);
@@ -588,7 +624,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   };
 
   const handleEvaluatePostSession = async () => {
-    if (!selectedExecutedSession) return;
+    if (!selectedExecutedSession?.isExecuted) return;
     const unsavedPlayerNotes = selectedSessionPlayers
       .map(player => {
         const draft = playerNoteDrafts[player.id];
@@ -720,12 +756,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const filteredClubMembers = useMemo(() => {
     return clubMembers.filter(mem => {
       // Role filter
-      if (rosterRoleFilter !== 'ALL' && mem.role !== rosterRoleFilter) return false;
+      if (mem.role !== rosterRoleFilter) return false;
       // Status filter
       if (rosterStatusFilter === 'ACTIVE' && mem.invitationStatus !== 'ACTIVE') return false;
       if (rosterStatusFilter === 'PENDING' && mem.invitationStatus !== 'PENDING_ACCEPTANCE') return false;
       // Age group filter
-      if (rosterAgeGroupFilter !== 'ALL' && mem.ageGroup !== rosterAgeGroupFilter) return false;
+      if (rosterAgeGroupFilter !== 'ALL' && mem.role === 'PLAYER' && mem.ageGroup !== rosterAgeGroupFilter) return false;
       // Discipline filter
       if (rosterDisciplineFilter !== 'ALL') {
         const memDisc = (mem.discipline || '').toUpperCase();
@@ -1173,6 +1209,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           <span>Club Drills</span>
         </button>
         <button
+          onClick={() => setClubTab('ASSESSMENTS')}
+          className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            clubTab === 'ASSESSMENTS' ? 'bg-emerald-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <span>Assessments</span>
+        </button>
+        <button
           onClick={() => setClubTab('PROGRESSION')}
           className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer ${
             clubTab === 'PROGRESSION' ? 'bg-sky-600 text-white font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
@@ -1228,13 +1272,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role:</span>
                   <div className="inline-flex rounded-lg bg-slate-800/60 p-0.5 border border-slate-700/60">
                     {[
-                      { key: 'ALL', label: 'All', count: clubMembers.length, color: 'bg-sky-500/20 text-sky-300 border border-sky-500/30' },
-                      { key: 'COACH', label: 'Coaches', count: clubMembers.filter(m => m.role === 'COACH').length, color: 'bg-sky-500/20 text-sky-300 border border-sky-500/30' },
+                      { key: 'COACH', label: 'Staff', count: clubMembers.filter(m => m.role === 'COACH').length, color: 'bg-sky-500/20 text-sky-300 border border-sky-500/30' },
                       { key: 'PLAYER', label: 'Players', count: clubMembers.filter(m => m.role === 'PLAYER').length, color: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' }
                     ].map(tab => (
                       <button
                         key={tab.key}
-                        onClick={() => setRosterRoleFilter(tab.key as any)}
+                        onClick={() => {
+                          setRosterRoleFilter(tab.key as 'COACH' | 'PLAYER');
+                          setRosterAgeGroupFilter('ALL');
+                        }}
                         className={`px-2.5 py-1 rounded-md text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                           rosterRoleFilter === tab.key
                             ? 'bg-sky-600 text-white shadow-sm'
@@ -1315,6 +1361,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </select>
               </div>
 
+              {rosterRoleFilter === 'PLAYER' && (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-300 font-medium">Age Group:</span>
                 <select
@@ -1328,11 +1375,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   ))}
                 </select>
               </div>
+              )}
 
-              {(rosterRoleFilter !== 'ALL' || rosterStatusFilter !== 'ALL' || rosterAgeGroupFilter !== 'ALL' || rosterDisciplineFilter !== 'ALL' || rosterSearchTerm) && (
+              {(rosterRoleFilter !== 'COACH' || rosterStatusFilter !== 'ALL' || rosterAgeGroupFilter !== 'ALL' || rosterDisciplineFilter !== 'ALL' || rosterSearchTerm) && (
                 <button
                   onClick={() => {
-                    setRosterRoleFilter('ALL');
+                    setRosterRoleFilter('COACH');
                     setRosterStatusFilter('ALL');
                     setRosterAgeGroupFilter('ALL');
                     setRosterDisciplineFilter('ALL');
@@ -1346,29 +1394,40 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
           </div>
 
-          <div className="w-full">
-            <table className="w-full text-left text-[11px] xl:text-xs border-collapse table-auto">
-              <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
-                  <th className="py-2.5 px-2">Name / Email</th>
-                  <th className="py-2.5 px-1.5">Role</th>
-                  <th className="py-2.5 px-1.5">Discipline</th>
-                  <th className="py-2.5 px-1.5">Age</th>
-                  <th className="py-2.5 px-2">Assigned Squad</th>
-                  <th className="py-2.5 px-1.5">Level</th>
-                  <th className="py-2.5 px-1.5">Status</th>
-                  <th className="py-2.5 px-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {filteredClubMembers.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-slate-400">
-                      No club members match the selected filters or search terms.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredClubMembers.map(mem => (
+          {[
+                { key: 'STAFF', title: 'Club Members (Coaches & Staff)', isPlayers: false, rows: filteredClubMembers.filter(m => m.role !== 'PLAYER') },
+                { key: 'PLAYERS', title: 'Players', isPlayers: true, rows: filteredClubMembers.filter(m => m.role === 'PLAYER') }
+              ]
+                .filter(section => (rosterRoleFilter === 'PLAYER') === section.isPlayers)
+                .map(section => (
+              <div key={section.key} className="w-full space-y-2">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-semibold text-white">{section.title}</h4>
+                  <span className="text-[10px] font-bold text-slate-400">{section.rows.length}</span>
+                </div>
+                <table className="w-full text-left text-[11px] xl:text-xs border-collapse table-auto">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
+                      <th className="py-2.5 px-2">Name / Email</th>
+                      <th className="py-2.5 px-1.5">Role</th>
+                      <th className="py-2.5 px-1.5">Discipline</th>
+                      {section.isPlayers && <th className="py-2.5 px-1.5">Age</th>}
+                      {section.isPlayers && <th className="py-2.5 px-2">Assigned Squad</th>}
+                      <th className="py-2.5 px-1.5">Level</th>
+                      {section.isPlayers && <th className="py-2.5 px-1.5 whitespace-nowrap">Latest Rating</th>}
+                      <th className="py-2.5 px-1.5">Status</th>
+                      <th className="py-2.5 px-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {section.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={section.isPlayers ? 9 : 6} className="py-6 text-center text-slate-400">
+                          {section.isPlayers ? 'No players match' : 'No club members match'} the selected filters or search terms.
+                        </td>
+                      </tr>
+                    ) : (
+                      section.rows.map(mem => (
                     <tr key={mem.id} className="hover:bg-slate-800/40 transition">
                       <td className="py-2 px-2">
                         <p className="font-semibold text-white leading-tight">{mem.name}</p>
@@ -1401,13 +1460,35 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           })}
                         </div>
                       </td>
-                      <td className="py-2 px-1.5 text-slate-300 text-[10px] whitespace-nowrap">{mem.ageGroup}</td>
-                      <td className="py-2 px-2 text-slate-400 text-[10px] max-w-[130px] truncate" title={mem.squad}>{mem.squad}</td>
+                      {section.isPlayers && <td className="py-2 px-1.5 text-slate-300 text-[10px] whitespace-nowrap">{mem.ageGroup}</td>}
+                      {section.isPlayers && <td className="py-2 px-2 text-slate-400 text-[10px] max-w-[130px] truncate" title={mem.squad}>{mem.squad}</td>}
                       <td className="py-2 px-1.5">
                         <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 text-[9px] font-medium border border-slate-700 whitespace-nowrap">
                           {mem.currentLevel}
                         </span>
                       </td>
+                      {section.isPlayers && <td className="py-2 px-1.5 whitespace-nowrap">
+                        {latestRatings[mem.id] ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenAssessmentId(latestRatings[mem.id].assessmentId);
+                              setClubTab('ASSESSMENTS');
+                            }}
+                            title={`View assessment details (${latestRatings[mem.id].date.slice(0, 10)})`}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border cursor-pointer hover:brightness-125 transition ${
+                              latestRatings[mem.id].average >= 4 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                              latestRatings[mem.id].average >= 3 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                              'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                            }`}
+                          >
+                            <Star className="h-3 w-3" />
+                            {latestRatings[mem.id].average.toFixed(1)}/5
+                          </button>
+                        ) : (
+                          <span className="text-slate-500">Not rated</span>
+                        )}
+                      </td>}
                       <td className="py-2 px-1.5">
                         {mem.invitationStatus === 'ACTIVE' ? (
                           <span className="inline-flex items-center justify-center h-6 px-2 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
@@ -1441,20 +1522,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           {mem.role === 'PLAYER' && (
                             <>
                               <button
-                                onClick={() => {
-                                  const disc = (mem.discipline || 'BATTING').split(',')[0].trim().toUpperCase() as Discipline;
-                                  setModalUploadDiscipline(['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'].includes(disc) ? disc : 'BATTING');
-                                  setModalUploadedFileName(null);
-                                  setModalAnalysisResult(null);
-                                  setUploadModalPlayer(mem);
-                                }}
-                                title="Upload athlete video or sync from Google Drive for AI pose analysis"
-                                className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
-                              >
-                                <Video size={11} />
-                                <span>Upload</span>
-                              </button>
-                              <button
                                 onClick={() => promptPromotePlayer(mem)}
                                 title="Promote player to next competency level and issue certificate"
                                 className="inline-flex items-center justify-center gap-1 h-6 px-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded text-[10px] font-semibold cursor-pointer transition shadow-sm whitespace-nowrap"
@@ -1477,6 +1544,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </tbody>
             </table>
           </div>
+            ))}
         </div>
       )}
 
@@ -1579,6 +1647,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
 
             <div className="space-y-3">
+              {sessions.length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-6 text-center space-y-1">
+                  <p className="text-sm font-semibold text-white">No training sessions scheduled yet</p>
+                  <p className="text-xs text-slate-400">Use “+ Schedule Session” above to create the first one.</p>
+                </div>
+              )}
               {sessions.map(s => (
                 <div key={s.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
@@ -1685,7 +1759,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <select
                   id="executed-session-select"
                   value={selectedExecutedSession?.id || ''}
-                  onChange={event => setSelectedExecutedSessionId(event.target.value)}
+                  onChange={event => {
+                    setSelectedExecutedSessionId(event.target.value);
+                    setFocusedSessionPlayerId(null);
+                  }}
                   disabled={executedSessions.length === 0}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
                 >
@@ -1698,6 +1775,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   ))}
                 </select>
               </div>
+
+              {focusedSessionPlayer && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2">
+                  <p className="text-xs text-sky-300">
+                    Showing <span className="font-bold">{focusedSessionPlayer.name}</span>'s notes and feedback only
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => { setClubTab('ASSESSMENTS'); }} className="text-xs font-semibold text-sky-400 underline hover:text-sky-300">Back to assessment</button>
+                    <button type="button" onClick={() => setFocusedSessionPlayerId(null)} className="text-xs font-semibold text-sky-400 underline hover:text-sky-300">Show all players</button>
+                  </div>
+                </div>
+              )}
 
               {sessionNotesError && (
                 <p role="alert" className="text-xs text-rose-400">{sessionNotesError}</p>
@@ -1783,11 +1872,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleEvaluatePostSession}
-                  disabled={evaluatingSession}
-                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs rounded-lg transition disabled:opacity-50"
+                  disabled={evaluatingSession || !selectedExecutedSession?.isExecuted}
+                  title={selectedExecutedSession?.isExecuted ? undefined : 'The session must be completed first'}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-bold text-xs rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {evaluatingSession ? 'AI Evaluating Notes...' : sessionAiResult ? 'Re-run Post-Session AI Assessment' : 'Run Post-Session AI Assessment'}
                 </button>
+                {!selectedExecutedSession?.isExecuted && (
+                  <span className="text-xs text-slate-500">Available once the coach completes the session.</span>
+                )}
               </div>
 
               {sessionAiResult && (
@@ -1816,7 +1909,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <div>
                       <p className="text-xs font-bold text-slate-400 mb-1">Player Focus:</p>
                       <ul className="text-[11px] text-slate-300 space-y-0.5">
-                        {sessionAiResult.playerFeedback.map((item: any, idx: number) => (
+                        {sessionAiResult.playerFeedback
+                          .filter((item: any) => !focusedSessionPlayer || item.playerName === focusedSessionPlayer.name)
+                          .map((item: any, idx: number) => (
                           <li key={idx}><span className="font-semibold text-white">{item.playerName}:</span> {item.focus}</li>
                         ))}
                       </ul>
@@ -1860,6 +1955,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {clubTab === 'ASSESSMENTS' && (
+        <PlayerAssessments currentUser={currentUser} members={clubMembers} sessions={sessions} initialAssessmentId={openAssessmentId}
+          onViewTrainingSession={(sessionId, playerId) => {
+            setSelectedExecutedSessionId(sessionId);
+            setFocusedSessionPlayerId(playerId);
+            setClubTab('SESSIONS');
+          }}
+        />
       )}
 
       {/* Club Sub-tab 4: Club Custom Drills */}
@@ -3217,7 +3322,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         .filter(m => m.role === 'PLAYER')
                         .filter(m => {
                           if (squadPanelAgeGroupFilter !== 'ALL' && m.ageGroup !== squadPanelAgeGroupFilter) return false;
-                          if (squadPanelDisciplineFilter !== 'ALL' && m.discipline !== squadPanelDisciplineFilter) return false;
+                          if (squadPanelDisciplineFilter !== 'ALL' && !(m.discipline || '').toUpperCase().includes(squadPanelDisciplineFilter)) return false;
                           if (term && !m.name.toLowerCase().includes(term)) return false;
                           return true;
                         });

@@ -213,6 +213,39 @@ export interface SessionExecutionUpdate {
   complete?: boolean;
 }
 
+export type PlayerAssessmentStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface AssessmentMetric {
+  name: string;
+  score: number | null;
+  note: string;
+}
+
+export interface PlayerAssessment {
+  id: string;
+  clubId: string;
+  playerId: string;
+  playerName: string;
+  coachId: string;
+  coachName: string;
+  title: string;
+  discipline: Discipline;
+  scheduledDate: string;
+  scheduledTime: string | null;
+  status: PlayerAssessmentStatus;
+  metrics: AssessmentMetric[];
+  strengths: string;
+  focusAreas: string;
+  coachFeedback: string;
+  playerFeedback: string;
+  trainingSessionId: string | null;
+  videoAnalysisId: string | null;
+  aiInsights: { summary: string; recommendations: string[] } | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
 export interface CoachDashboardData {
   players: ClubMember[];
   sessions: TrainingSession[];

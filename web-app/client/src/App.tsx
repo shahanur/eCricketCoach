@@ -827,7 +827,7 @@ export default function App() {
       )}
 
       {/* Main Content Areas */}
-      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-screen-2xl w-full mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 space-y-6">
         {viewMode === 'HOME' && !currentUser && (
           <HomePage
             onRegisterPlan={handleRegisterFromHomePage}
@@ -891,6 +891,7 @@ export default function App() {
 
         {viewMode === 'CLUB_PORTAL' && (
           <ClubPortal
+            currentUser={currentUser!}
             isClubCoach={currentUser?.roles.includes('COACH') === true && currentUser.coachContext === 'CLUB'}
             clubMembers={clubMembers}
             squads={squads}
