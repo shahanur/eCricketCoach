@@ -5,13 +5,14 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { CoachOperations } from './CoachOperations';
+import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { Upload, Cloud, Play, Check, AlertCircle, RefreshCw, Folder, ExternalLink } from 'lucide-react';
 
 interface CoachingPortalProps {
   currentUser: AuthUser;
   drills: Drill[];
   onAddAiDrill: (drill: Drill) => void;
-  onScheduleSession: (session: TrainingSession) => void;
+  onScheduleSession: (session: TrainingSession) => Promise<void>;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void;
   onDeleteSession: (sessionId: string) => void;
   onDrillCreated?: (drill: Drill) => void;
@@ -273,6 +274,7 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
 
       {currentUser.coachContext !== 'CLUB' && (
         <>
+          <TrainingTemplatePicker />
           <div className="border-t border-slate-800 pt-6">
             <p className="text-xs font-semibold text-sky-400 uppercase">AI coaching lab</p>
             <h2 className="text-xl font-bold text-white">Video analysis and drill design</h2>

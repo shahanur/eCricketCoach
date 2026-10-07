@@ -7,6 +7,7 @@ import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
+import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return 'Unknown size';
@@ -53,7 +54,7 @@ interface ClubPortalProps {
   onDeleteSquad?: (squadId: string) => void;
   onUpdateMemberSquad?: (memberId: string, squadName: string) => void;
   onUpdateMember?: (memberId: string, updates: Partial<ClubMember>) => void;
-  onScheduleSession: (session: TrainingSession) => void;
+  onScheduleSession: (session: TrainingSession) => Promise<void>;
   onUpdateSession?: (sessionId: string, updates: Partial<TrainingSession>) => void;
   onSessionUpdated?: (session: TrainingSession) => void;
   onDeleteSession?: (sessionId: string) => void;
@@ -108,6 +109,29 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [certificateNameFilter, setCertificateNameFilter] = useState('');
   const [certificateStartDateFilter, setCertificateStartDateFilter] = useState('');
   const [certificateEndDateFilter, setCertificateEndDateFilter] = useState('');
+  const [sessionNameFilter, setSessionNameFilter] = useState('');
+  const [sessionStartDateFilter, setSessionStartDateFilter] = useState('');
+  const [sessionEndDateFilter, setSessionEndDateFilter] = useState('');
+  const [sessionStatusFilter, setSessionStatusFilter] = useState('ALL');
+  const isSessionDateRangeInvalid = Boolean(
+    sessionStartDateFilter && sessionEndDateFilter && sessionStartDateFilter > sessionEndDateFilter
+  );
+  const filteredSessions = sessions.filter(session => {
+    const matchesName = session.title.toLowerCase().includes(sessionNameFilter.trim().toLowerCase());
+    const matchesStartDate = !sessionStartDateFilter || session.sessionDate >= sessionStartDateFilter;
+    const matchesEndDate = !sessionEndDateFilter || session.sessionDate <= sessionEndDateFilter;
+    const matchesStatus = sessionStatusFilter === 'ALL'
+      || (sessionStatusFilter === 'DRAFT' && !session.isPublished && !session.isExecuted)
+      || (sessionStatusFilter === 'PUBLISHED' && session.isPublished && !session.isExecuted)
+      || (sessionStatusFilter === 'EXECUTED' && session.isExecuted);
+    return matchesName && matchesStartDate && matchesEndDate && matchesStatus;
+  });
+  const clearSessionFilters = () => {
+    setSessionNameFilter('');
+    setSessionStartDateFilter('');
+    setSessionEndDateFilter('');
+    setSessionStatusFilter('ALL');
+  };
   const filteredCertificates = certificates.filter(certificate => {
     const matchesName = certificate.playerName.toLowerCase().includes(certificateNameFilter.trim().toLowerCase());
     const matchesStartDate = !certificateStartDateFilter || certificate.issuedDate >= certificateStartDateFilter;
@@ -476,6 +500,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
   const [sessionFormDuration, setSessionFormDuration] = useState(90);
   const [sessionFormDrillIds, setSessionFormDrillIds] = useState<string[]>([]);
+  const [isSessionSaving, setIsSessionSaving] = useState(false);
+  const [sessionSaveError, setSessionSaveError] = useState('');
 
   // Drill selection panel shown alongside the session form (create & edit)
   const [sessionDrillFilterDiscipline, setSessionDrillFilterDiscipline] = useState<'ALL' | Discipline>('ALL');
@@ -580,6 +606,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [activeSessionNotes, setActiveSessionNotes] = useState('');
   const [evaluatingSession, setEvaluatingSession] = useState(false);
   const [selectedExecutedSessionId, setSelectedExecutedSessionId] = useState('');
+  const [isSessionReviewOpen, setIsSessionReviewOpen] = useState(false);
+  const sessionReviewRef = useRef<HTMLDivElement>(null);
   const [playerNoteDrafts, setPlayerNoteDrafts] = useState<Record<string, string>>({});
   const [savingPlayerNoteId, setSavingPlayerNoteId] = useState<string | null>(null);
   const [savedPlayerNoteId, setSavedPlayerNoteId] = useState<string | null>(null);
@@ -601,16 +629,53 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
   useEffect(() => {
     if (!executedSessions.some(session => session.id === selectedExecutedSessionId)) {
+      setIsSessionReviewOpen(false);
       setSelectedExecutedSessionId(executedSessions[0]?.id || '');
     }
   }, [executedSessions, selectedExecutedSessionId]);
 
   useEffect(() => {
+    setActiveSessionNotes('');
     setPlayerNoteDrafts({});
     setSavedPlayerNoteId(null);
     setSessionNotesError(null);
     setLegacyPlayerId('');
   }, [selectedExecutedSession?.id]);
+
+  useEffect(() => {
+    if (!isSessionReviewOpen || portalModal?.isOpen) return;
+    const modal = sessionReviewRef.current;
+    if (!modal) return;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    modal.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsSessionReviewOpen(false);
+      } else if (event.key === 'Tab') {
+        const controls = modal.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]'
+        );
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && (document.activeElement === first || document.activeElement === modal)) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modal)) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    modal.addEventListener('keydown', handleKeyDown);
+    return () => {
+      modal.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, [isSessionReviewOpen, portalModal?.isOpen]);
 
   const allSelectedSessionPlayers = useMemo(() => {
     if (!selectedExecutedSession) return [];
@@ -1018,8 +1083,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     });
   };
 
-  const handleSessionSubmit = (e: React.FormEvent) => {
+  const handleSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSessionSaving) return;
+    setSessionSaveError('');
     if (!sessionFormTitle.trim() || !sessionFormDate) return;
     if (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0) return;
 
@@ -1087,7 +1154,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       drillCount: sessionFormDrillIds.length,
       drillIds: sessionFormDrillIds
     };
-    onScheduleSession(newSession);
+    setIsSessionSaving(true);
+    try {
+      await onScheduleSession(newSession);
+    } catch (error) {
+      setSessionSaveError(error instanceof Error ? error.message : 'Unable to schedule training session.');
+      return;
+    } finally {
+      setIsSessionSaving(false);
+    }
     closeSessionModal();
     setPortalModal({
       isOpen: true,
@@ -1125,6 +1200,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
   const closeSessionModal = () => {
     setIsSessionModalOpen(false);
+    setSessionSaveError('');
     setEditingSessionId(null);
     setSessionFormTitle('');
     setSessionFormCoachId('');
@@ -1728,7 +1804,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
       {/* Club Sub-tab 3: Session-Based Training Plans & Post-Session AI Notes */}
       {clubTab === 'SESSIONS' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
           {/* Published / Scheduled Sessions */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -1757,14 +1833,83 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </button>
             </div>
 
-            <div className="space-y-3">
+            {sessionNotesError && !isSessionReviewOpen && (
+              <p role="alert" className="text-xs text-rose-400">{sessionNotesError}</p>
+            )}
+            <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label htmlFor="session-name-filter" className="block text-xs font-semibold text-slate-300 mb-1.5">Session name</label>
+                  <input
+                    id="session-name-filter"
+                    type="search"
+                    value={sessionNameFilter}
+                    onChange={event => setSessionNameFilter(event.target.value)}
+                    placeholder="Search session name..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="session-start-date-filter" className="block text-xs font-semibold text-slate-300 mb-1.5">From date</label>
+                  <input
+                    id="session-start-date-filter"
+                    type="date"
+                    value={sessionStartDateFilter}
+                    onChange={event => setSessionStartDateFilter(event.target.value)}
+                    aria-invalid={isSessionDateRangeInvalid}
+                    aria-describedby={isSessionDateRangeInvalid ? 'session-date-filter-error' : undefined}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="session-end-date-filter" className="block text-xs font-semibold text-slate-300 mb-1.5">To date</label>
+                  <input
+                    id="session-end-date-filter"
+                    type="date"
+                    value={sessionEndDateFilter}
+                    onChange={event => setSessionEndDateFilter(event.target.value)}
+                    aria-invalid={isSessionDateRangeInvalid}
+                    aria-describedby={isSessionDateRangeInvalid ? 'session-date-filter-error' : undefined}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="session-status-filter" className="block text-xs font-semibold text-slate-300 mb-1.5">Status</label>
+                  <select
+                    id="session-status-filter"
+                    value={sessionStatusFilter}
+                    onChange={event => setSessionStatusFilter(event.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  >
+                    <option value="ALL">All statuses</option>
+                    <option value="DRAFT">Draft</option>
+                    <option value="PUBLISHED">Published (not executed)</option>
+                    <option value="EXECUTED">Executed</option>
+                  </select>
+                </div>
+              </div>
+              {isSessionDateRangeInvalid && (
+                <p id="session-date-filter-error" role="alert" className="text-xs text-rose-400">From date must be on or before To date.</p>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <p role="status" className="text-xs text-slate-400">Showing {filteredSessions.length} of {sessions.length} sessions</p>
+                <button type="button" onClick={clearSessionFilters} className="text-xs font-semibold text-sky-400 hover:text-sky-300 underline cursor-pointer">Clear filters</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
               {sessions.length === 0 && (
-                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-6 text-center space-y-1">
+                <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-700 bg-slate-950 p-6 text-center space-y-1">
                   <p className="text-sm font-semibold text-white">No training sessions scheduled yet</p>
                   <p className="text-xs text-slate-400">Use “+ Schedule Session” above to create the first one.</p>
                 </div>
               )}
-              {sessions.map(s => (
+              {sessions.length > 0 && filteredSessions.length === 0 && !isSessionDateRangeInvalid && (
+                <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-700 bg-slate-950 p-6 text-center space-y-1">
+                  <p className="text-sm font-semibold text-white">No training sessions match these filters</p>
+                  <p className="text-xs text-slate-400">Try a different name, date range, or status, or clear the filters.</p>
+                </div>
+              )}
+              {filteredSessions.map(s => (
                 <div key={s.id} className="p-4 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-white text-sm">{s.title}</h4>
@@ -1846,45 +1991,58 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           {executingSessionId === s.id ? 'Saving...' : 'Mark as Executed'}
                         </button>
                       )}
+                      {(s.isExecuted || s.sessionDate < todayDate) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedExecutedSessionId(s.id);
+                            setFocusedSessionPlayerId(null);
+                            setIsSessionReviewOpen(true);
+                          }}
+                          aria-label={`Review ${s.title}`}
+                          className="text-xs px-3 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold rounded border border-sky-500/30 cursor-pointer"
+                        >
+                          Review
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Post-Session Notes & AI Evaluation Loop */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <div>
-              <h3 className="font-semibold text-base text-white">Executed Session Player Notes & AI Review</h3>
+      {isSessionReviewOpen && selectedExecutedSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+          <div
+            ref={sessionReviewRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="session-review-title"
+            tabIndex={-1}
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl p-5 sm:p-6 space-y-4 shadow-2xl relative max-h-[90vh] overflow-y-auto"
+          >
+            <button
+              type="button"
+              onClick={() => setIsSessionReviewOpen(false)}
+              aria-label="Close session review"
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+            <div className="pr-8">
+              <h3 id="session-review-title" className="font-semibold text-base text-white">Executed Session Player Notes & AI Review</h3>
               <p className="text-xs text-slate-400">
-                Select a completed session to review and save notes for each player assigned to its squad. You can also run the session-wide AI review below.
+                Review and save notes for each assigned player. You can also run the session-wide AI review once the session is completed.
               </p>
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label htmlFor="executed-session-select" className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Executed session
-                </label>
-                <select
-                  id="executed-session-select"
-                  value={selectedExecutedSession?.id || ''}
-                  onChange={event => {
-                    setSelectedExecutedSessionId(event.target.value);
-                    setFocusedSessionPlayerId(null);
-                  }}
-                  disabled={executedSessions.length === 0}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 disabled:opacity-50"
-                >
-                  {executedSessions.length === 0 ? (
-                    <option value="">No executed sessions yet</option>
-                  ) : executedSessions.map(session => (
-                    <option key={session.id} value={session.id}>
-                      {session.title} — {session.squadName} ({session.sessionDate})
-                    </option>
-                  ))}
-                </select>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <p className="text-sm font-semibold text-white">{selectedExecutedSession.title}</p>
+                <p className="text-xs text-slate-400">{selectedExecutedSession.squadName} · {selectedExecutedSession.sessionDate}</p>
               </div>
 
               {focusedSessionPlayer && (
@@ -1893,7 +2051,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     Showing <span className="font-bold">{focusedSessionPlayer.name}</span>'s notes and feedback only
                   </p>
                   <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => { setClubTab('ASSESSMENTS'); }} className="text-xs font-semibold text-sky-400 underline hover:text-sky-300">Back to assessment</button>
+                    <button type="button" onClick={() => { setIsSessionReviewOpen(false); setClubTab('ASSESSMENTS'); }} className="text-xs font-semibold text-sky-400 underline hover:text-sky-300">Back to assessment</button>
                     <button type="button" onClick={() => setFocusedSessionPlayerId(null)} className="text-xs font-semibold text-sky-400 underline hover:text-sky-300">Show all players</button>
                   </div>
                 </div>
@@ -2074,6 +2232,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             setSelectedExecutedSessionId(sessionId);
             setFocusedSessionPlayerId(playerId);
             setClubTab('SESSIONS');
+            setIsSessionReviewOpen(true);
           }}
         />
       )}
@@ -3596,6 +3755,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl p-5 sm:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeSessionModal}
+              disabled={isSessionSaving}
               className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg transition"
             >
               <X size={18} />
@@ -3609,6 +3769,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-5 pt-2">
               <form onSubmit={handleSessionSubmit} id="session-form" className="space-y-3 border-t border-slate-800 pt-3">
+                {sessionSaveError && <p role="alert" className="text-xs text-rose-300">{sessionSaveError}</p>}
+                {!editingSessionId && (
+                  <TrainingTemplatePicker onApply={template => {
+                    setSessionFormTitle(template.title);
+                    setSessionFormDuration(template.durationMinutes);
+                    setSessionFormDrillIds([...template.drillIds]);
+                  }} />
+                )}
                 <div>
                   <label className="text-[11px] font-semibold text-slate-400">Session Title *</label>
                   <input
@@ -3816,16 +3984,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <button
                     type="button"
                     onClick={closeSessionModal}
+                    disabled={isSessionSaving}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={!sessionFormCoachId || (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0)}
+                    disabled={isSessionSaving || !sessionFormCoachId || (sessionFormTargetType === 'PLAYERS' && sessionFormPlayerIds.length === 0)}
                     className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {editingSessionId ? 'Save Changes' : 'Schedule Session'}
+                    {isSessionSaving ? 'Scheduling...' : editingSessionId ? 'Save Changes' : 'Schedule Session'}
                   </button>
                 </div>
               </form>

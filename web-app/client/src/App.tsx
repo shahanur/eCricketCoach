@@ -683,12 +683,8 @@ export default function App() {
   };
 
   const handleScheduleSession = async (session: TrainingSession) => {
-    try {
-      const saved = await api.scheduleSession({ ...session, clubId: currentUser?.tenantId });
-      setSessions(prev => [...prev, saved || session]);
-    } catch {
-      setSessions(prev => [...prev, session]);
-    }
+    const saved = await api.scheduleSession({ ...session, clubId: currentUser?.tenantId });
+    setSessions(prev => [...prev, saved]);
   };
 
   const handleUpdateSession = async (sessionId: string, updates: Partial<TrainingSession>) => {

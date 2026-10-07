@@ -1,4 +1,16 @@
 import { prisma } from '../config/prisma.js';
+import { Drill, TrainingSessionTemplate } from '@prisma/client';
+
+interface TrainingTemplateReader {
+  trainingSessionTemplate: {
+    findMany(args: { orderBy: { title: 'asc' } }): Promise<TrainingSessionTemplate[]>;
+  };
+  drill: {
+    findMany(args: {
+      where: { id: { in: string[] }; source: 'SYSTEM_PREDEFINED'; clubId: null };
+    }): Promise<Drill[]>;
+  };
+}
 
 export class DbService {
   // Option to expose prisma directly and raw SQL helpers
@@ -685,6 +697,28 @@ export class DbService {
     } catch {
       return false;
     }
+  }
+
+  static async getTrainingSessionTemplates(reader: TrainingTemplateReader = prisma) {
+    const templates = await reader.trainingSessionTemplate.findMany({
+      orderBy: { title: 'asc' }
+    });
+    const drills = await reader.drill.findMany({
+      where: {
+        id: { in: templates.flatMap(template => template.drillIds) },
+        source: 'SYSTEM_PREDEFINED',
+        clubId: null
+      }
+    });
+    const byId = new Map(drills.map(drill => [drill.id, drill]));
+    return templates.map(template => ({
+      ...template,
+      drills: template.drillIds.map(id => {
+        const drill = byId.get(id);
+        if (!drill) throw new Error(`Shared template "${template.title}" references a missing system drill.`);
+        return drill;
+      })
+    }));
   }
 
   // --- Training Sessions ---

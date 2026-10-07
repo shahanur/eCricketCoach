@@ -6,6 +6,7 @@ import {
   ClubMember,
   Squad,
   TrainingSession,
+  TrainingSessionTemplate,
   Certificate,
   AdminNotification,
   SupportTicket,
@@ -31,6 +32,12 @@ async function responseError(response: Response, fallback: string): Promise<Erro
 }
 
 export const api = {
+  async getTrainingSessionTemplates(): Promise<TrainingSessionTemplate[]> {
+    const res = await fetch(`${API_BASE}/training-templates`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load shared training templates');
+    return res.json();
+  },
+
   // Drills
   async getDrills(filters?: { context?: string; discipline?: string; source?: string; clubId?: string }): Promise<Drill[]> {
     const params = new URLSearchParams();
@@ -438,7 +445,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(session)
     });
-    if (!res.ok) throw new Error('Failed to schedule session');
+    if (!res.ok) throw await responseError(res, 'Failed to schedule session');
     const data = await res.json();
     return data.session;
   },

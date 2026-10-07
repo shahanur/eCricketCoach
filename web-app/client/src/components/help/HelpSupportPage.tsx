@@ -124,6 +124,9 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Use the "Invite Member" button to add Coaches or Players, choosing their age groups and one or more disciplines (Batting, Bowling, Keeping, Fielding).',
         'Filter your roster using the top toolbar to view members by Status, Role, Discipline, or Age Group.',
         'Schedule training sessions and publish them to notify registered squad athletes.',
+        'Find training sessions using the session-name search, inclusive From/To date range, and status filters (Draft, Published but not executed, or Executed). Use "Clear filters" to show all sessions again.',
+        'Choose a shared training template when scheduling a new session to fill its title, duration, and planned drills, then assign your own date, players, and coaches.',
+        'Click "Review" on a completed or past training session to open player notes and AI feedback in a modal. Save individual player notes there; session-wide AI assessment is available after the session is marked as executed.',
         'Upload practice session videos to Google Drive cloud sync to automatically trigger kinematic AI pose analysis.',
         'Upload a PNG or JPEG club logo in Club Settings so new certificates use your club branding.',
         'Review certificates by player name or issue-date range in Club Certificates, download PDFs, or delete certificates that should no longer be issued; players can download their PDF from their dashboard.'
@@ -142,7 +145,9 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Click "Simulate AI Biomechanical Video Analysis" or upload player practice footage.',
         'Review the AI Pose score, head-over-ball metrics, front-foot alignment, and arm release velocity.',
         'Click "Adopt Drill into Catalogue" to automatically publish the AI recommended corrective drill to your roster.',
-        'Evaluate player assessments and promote athletes to higher skill tiers.'
+        'Evaluate player assessments and promote athletes to higher skill tiers.',
+        'In the Club Portal, use "Review" on a completed or past training session to open its player notes and AI review. Assessment links open the same modal focused on the selected player.',
+        'Use the name, From/To date, and status filters above the Club Portal training schedule to find sessions, or "Clear filters" to reset the list.'
       ]
     },
     {

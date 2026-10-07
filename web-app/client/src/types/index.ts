@@ -120,6 +120,19 @@ export interface Squad {
   memberCount: number;
 }
 
+export interface TrainingSessionTemplate {
+  id: string;
+  title: string;
+  activityName: string;
+  disciplines: Discipline[];
+  focus: string;
+  organization: string;
+  safety: string[];
+  durationMinutes: number;
+  drillIds: string[];
+  drills: Drill[];
+}
+
 export interface TrainingSession {
   id: string;
   clubId?: string;

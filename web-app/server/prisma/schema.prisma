@@ -107,6 +107,20 @@ model Squad {
   @@map("squads")
 }
 
+model TrainingSessionTemplate {
+  id              String   @id
+  title           String
+  activityName    String   @map("activity_name")
+  disciplines     String[]
+  focus           String   @db.Text
+  organization    String   @db.Text
+  safety          String[]
+  durationMinutes Int      @map("duration_minutes")
+  drillIds        String[] @map("drill_ids")
+
+  @@map("training_session_templates")
+}
+
 model TrainingSession {
   id              String   @id
   clubId          String?  @map("club_id")

@@ -11,6 +11,7 @@ import { googleDriveRouter } from './routes/googleDrive.js';
 import { coachRouter } from './routes/coach.js';
 import { assessmentRouter } from './routes/assessments.js';
 import { initDb } from './config/initDb.js';
+import { trainingTemplatesRouter } from './routes/trainingTemplates.js';
 
 dotenv.config();
 
@@ -41,6 +42,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/drills', drillsRouter);
+app.use('/api/training-templates', trainingTemplatesRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/club', clubRouter);
 app.use('/api/club/assessments', assessmentRouter);

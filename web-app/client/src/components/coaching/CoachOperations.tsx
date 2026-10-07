@@ -20,13 +20,14 @@ import {
 } from '../../types';
 import { PlayerAssessments } from '../club/PlayerAssessments';
 import { SessionExecution } from './SessionExecution';
+import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 
 type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'ASSESSMENTS' | 'REPORTS';
 
 interface CoachOperationsProps {
   currentUser: AuthUser;
   drills: Drill[];
-  onScheduleSession: (session: TrainingSession) => void | Promise<void>;
+  onScheduleSession: (session: TrainingSession) => Promise<void>;
   onUpdateSession: (sessionId: string, updates: Partial<TrainingSession>) => void | Promise<void>;
   onDeleteSession: (sessionId: string) => void | Promise<void>;
   onDrillCreated?: (drill: Drill) => void;
@@ -61,6 +62,8 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(today);
   const [sessionDuration, setSessionDuration] = useState(90);
+  const [sessionDrillIds, setSessionDrillIds] = useState<string[]>([]);
+  const [isSessionSaving, setIsSessionSaving] = useState(false);
   const squadNames = Array.from(new Set(players.map(player => player.squad).filter(squad => squad !== 'Unassigned')));
   const [sessionSquad, setSessionSquad] = useState(squadNames[0] || 'Unassigned');
 
@@ -85,7 +88,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   }, [currentUser.id, currentUser.tenantId]);
 
   useEffect(() => {
-    if (!sessionSquad && squadNames[0]) setSessionSquad(squadNames[0]);
+    if (squadNames.length > 0 && !squadNames.includes(sessionSquad)) setSessionSquad(squadNames[0]);
   }, [sessionSquad, squadNames]);
 
   const myUpcomingSessions = useMemo(
@@ -139,6 +142,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
   const createSession = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isSessionSaving) return;
     if (!sessionTitle.trim() || !sessionDate || !sessionSquad) return;
     const assignedPlayerIds = players.filter(player => player.squad === sessionSquad).map(player => player.id);
     const session: TrainingSession = {
@@ -151,12 +155,21 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
       sessionDate,
       durationMinutes: sessionDuration,
       isPublished: false,
-      drillCount: 0,
-      drillIds: []
+      drillCount: sessionDrillIds.length,
+      drillIds: sessionDrillIds
     };
-    await onScheduleSession(session);
+    setIsSessionSaving(true);
+    try {
+      await onScheduleSession(session);
+    } catch (error) {
+      setDashboardError(error instanceof Error ? error.message : 'Unable to schedule training session.');
+      return;
+    } finally {
+      setIsSessionSaving(false);
+    }
     await loadDashboard();
     setSessionTitle('');
+    setSessionDrillIds([]);
   };
 
   const cancelSession = async (session: TrainingSession) => {
@@ -352,6 +365,17 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
         <div className="grid lg:grid-cols-[320px_1fr] gap-6">
           <form onSubmit={createSession} className="space-y-3 border-r-0 lg:border-r border-slate-800 lg:pr-6">
             <h2 className="text-sm font-bold text-white">Schedule session</h2>
+            <TrainingTemplatePicker onApply={template => {
+              setSessionTitle(template.title);
+              setSessionDuration(template.durationMinutes);
+              setSessionDrillIds([...template.drillIds]);
+            }} />
+            {sessionDrillIds.length > 0 && (
+              <p className="text-xs text-sky-300">
+                {sessionDrillIds.length} planned drills
+                <button type="button" onClick={() => setSessionDrillIds([])} className="ml-2 underline">Clear drills</button>
+              </p>
+            )}
             <input value={sessionTitle} onChange={event => setSessionTitle(event.target.value)} placeholder="Session title" required className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
             <select value={sessionSquad} onChange={event => setSessionSquad(event.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
               {squadNames.map(squad => <option key={squad}>{squad}</option>)}
@@ -360,7 +384,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
               <input type="date" value={sessionDate} onChange={event => setSessionDate(event.target.value)} required className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
               <input type="number" min={15} step={5} value={sessionDuration} onChange={event => setSessionDuration(Number(event.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
             </div>
-            <button className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><Plus size={14} /> Create draft</button>
+            <button disabled={isSessionSaving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 rounded-lg px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><Plus size={14} /> {isSessionSaving ? 'Scheduling...' : 'Create draft'}</button>
           </form>
           <div className="space-y-2">
             <h2 className="text-sm font-bold text-white">Manage schedule</h2>
