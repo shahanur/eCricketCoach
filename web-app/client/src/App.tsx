@@ -834,7 +834,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200">
-      <Navbar
+      {(currentUser || viewMode !== 'HOME') && <Navbar
         viewMode={viewMode}
         setViewMode={setViewMode}
         currentUser={currentUser}
@@ -844,7 +844,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onSelectTheme={handleSelectTheme}
-      />
+      />}
 
       {/* Login Modal */}
       <LoginModal
@@ -869,12 +869,13 @@ export default function App() {
       )}
 
       {/* Main Content Areas */}
-      <main className="flex-1 max-w-screen-2xl w-full mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 space-y-6">
+      <main className={!currentUser && viewMode === 'HOME' ? 'flex-1 w-full' : 'flex-1 max-w-screen-2xl w-full mx-auto px-3 py-5 sm:px-6 sm:py-8 lg:px-8 space-y-6'}>
         {catalogueError && <p role="alert" className="text-xs text-rose-400">{catalogueError}</p>}
         {viewMode === 'HOME' && !currentUser && (
           <HomePage
             onRegisterPlan={handleRegisterFromHomePage}
             onExploreDemo={() => setIsLoginModalOpen(true)}
+            onOpenHelp={() => setViewMode('HELP_SUPPORT')}
             socialRegistration={socialRegistration}
           />
         )}

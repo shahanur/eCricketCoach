@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CustomerTenant } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
+import { PublicSite } from './PublicSite';
 import {
   Layers,
   Cpu,
@@ -186,10 +187,11 @@ interface HomePageProps {
     cvc: string;
   }) => void;
   onExploreDemo: () => void;
+  onOpenHelp: () => void;
   socialRegistration?: { token: string; name: string; email: string } | null;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDemo, socialRegistration }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDemo, onOpenHelp, socialRegistration }) => {
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<PlanConfig | null>(null);
   const [activeServiceIndex, setActiveServiceIndex] = useState<number>(0);
@@ -278,7 +280,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
   const currentService = CORE_SERVICES[activeServiceIndex];
 
   return (
-    <div className="space-y-20 py-4">
+    <PublicSite onSignIn={onExploreDemo} onOpenHelp={onOpenHelp}>
+    <div className="public-legacy">
       {/* 1. Hero Section: Focused directly on Cricket Coaching & Player Progression */}
       <section className="text-center space-y-6 max-w-5xl mx-auto px-4 pt-6">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold tracking-wide shadow-sm">
@@ -843,7 +846,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               📧
             </div>
             <h4 className="text-sm font-bold text-white">Email Support</h4>
-            <p className="text-xs text-slate-400">admin@ecricketcoach.com</p>
+            <a className="text-xs text-slate-400" href="mailto:admin@ecricketcoach.com">admin@ecricketcoach.com</a>
             <p className="text-[11px] text-slate-500">Response within 4 hours</p>
           </div>
 
@@ -852,7 +855,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               🏢
             </div>
             <h4 className="text-sm font-bold text-white">Academy Sales</h4>
-            <p className="text-xs text-slate-400">sales@ecricketcoach.com</p>
+            <a className="text-xs text-slate-400" href="mailto:sales@ecricketcoach.com">sales@ecricketcoach.com</a>
             <p className="text-[11px] text-slate-500">Custom enterprise quoting</p>
           </div>
 
@@ -1054,5 +1057,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
         />
       )}
     </div>
+    </PublicSite>
   );
 };

@@ -40,6 +40,12 @@ docker compose up --build
 - **Backend API:** http://localhost:5001
 - **PostgreSQL Database:** localhost:5433
 
+## Public Website
+
+The public Home, Features, Pricing, About, Contact, and FAQ views use hash navigation (`#home`, `#features`, `#pricing`, `#about-us`, `#contact-us`, and `#faqs`). The forest-green and lime design is scoped to the public website; signed-in portals retain their existing theme settings.
+
+The public layout and temporary Unsplash photo URLs are in [PublicSite.tsx](web-app/client/src/components/home/PublicSite.tsx), with styles in [public-site.css](web-app/client/src/components/home/public-site.css). Replace these photos and the temporary text-based logo with approved brand assets when available. Subscription prices and registration continue to use the existing [HomePage.tsx](web-app/client/src/components/home/HomePage.tsx) flow.
+
 ## Social Sign-In
 
 Google, Microsoft, and Apple OpenID Connect are integrated for sign-in and registration. Copy `web-app/server/.env.example` to `web-app/.env`, set a strong `JWT_SECRET`, and add the client ID and secret from each provider you enable.

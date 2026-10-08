@@ -29,6 +29,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
+    if (!currentUser) {
+      window.location.hash = id;
+      setViewMode('HOME');
+      return;
+    }
     if (viewMode !== 'HOME') {
       setViewMode('HOME');
       setTimeout(() => {
@@ -42,6 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleNavClick = (mode: ViewMode) => {
+    if (!currentUser && mode === 'HOME') window.location.hash = 'home';
     setViewMode(mode);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
