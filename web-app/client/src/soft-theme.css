@@ -89,29 +89,29 @@ html.light #root :is(.hover\:bg-emerald-400, .hover\:bg-sky-400):hover {
 }
 
 html.light #root .portal-navbar {
-  background-color: #0078d4;
-  border-color: #006cbe;
-  --soft-text: #ffffff;
-  --theme-slate-100: 255 255 255;
-  --theme-slate-200: 242 242 242;
-  --theme-slate-300: 224 224 224;
-  --theme-slate-400: 209 209 209;
-  --theme-slate-500: 173 173 173;
-  --theme-slate-700: 0 90 158;
-  --theme-slate-800: 0 106 184;
-  --theme-slate-900: 0 120 212;
-  --theme-slate-950: 0 69 120;
-  --theme-emerald-300: 125 211 252;
-  --theme-emerald-400: 96 190 255;
+  background-color: #ffffff;
+  border-color: #dadce0;
+  --soft-text: #202124;
+  --theme-slate-100: 32 33 36;
+  --theme-slate-200: 60 64 67;
+  --theme-slate-300: 95 99 104;
+  --theme-slate-400: 95 99 104;
+  --theme-slate-500: 128 134 139;
+  --theme-slate-700: 218 220 224;
+  --theme-slate-800: 232 234 237;
+  --theme-slate-900: 255 255 255;
+  --theme-slate-950: 248 249 250;
+  --theme-emerald-300: 26 115 232;
+  --theme-emerald-400: 26 115 232;
 }
 
 html.light #root .portal-navbar .bg-clip-text {
   background-image: none;
-  color: #ffffff;
+  color: #1a73e8;
 }
 
 html.light #root .portal-navbar .hover\:text-white:hover {
-  color: #ffffff;
+  color: #202124;
 }
 
 html.light #root .portal-navbar :is(input, select, textarea) {
@@ -128,10 +128,42 @@ html.light #root :is(.bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-sky-
 }
 
 html.light #root .portal-navbar svg.lucide {
-  color: #ffffff;
+  color: #5f6368;
   background-color: transparent;
 }
 
 html.light #root .portal-navbar .bg-white svg.lucide {
   color: #0078d4;
+}
+
+html.light #root.logged-in-shell {
+  background: #f8f9fa;
+  color: #202124;
+  font-family: "Google Sans", "Aptos", "Segoe UI", sans-serif;
+}
+
+html.light #root.logged-in-shell main {
+  background: #f8f9fa;
+}
+
+html.light #root.logged-in-shell .portal-navbar {
+  min-height: 64px;
+  box-shadow: 0 1px 2px rgb(60 64 67 / 12%);
+}
+
+html.light #root.logged-in-shell .portal-navbar button,
+html.light #root.logged-in-shell .portal-navbar a {
+  border-radius: 6px;
+}
+
+html.light #root.logged-in-shell :is(.rounded-xl, .rounded-2xl, .rounded-lg) {
+  border-radius: 8px;
+}
+
+html.light #root.logged-in-shell :is(.shadow-xl, .shadow-lg, .shadow-md) {
+  box-shadow: 0 1px 3px rgb(60 64 67 / 12%);
+}
+
+html.light #root.logged-in-shell :is(.border-slate-800, .border-slate-700) {
+  border-color: #dadce0;
 }

@@ -85,7 +85,7 @@ export default function App() {
     const saved = localStorage.getItem('theme');
     if (saved === 'pure-light' || saved === 'soft-blue') return 'light';
     if (saved === 'light' || saved === 'dark') return saved;
-    return 'dark';
+    return 'light';
   });
 
   useEffect(() => {
@@ -841,7 +841,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200">
+    <div className={`min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200 ${currentUser ? 'logged-in-shell' : ''}`}>
       {(currentUser || viewMode !== 'HOME') && <Navbar
         viewMode={viewMode}
         setViewMode={setViewMode}

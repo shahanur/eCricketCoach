@@ -1,27 +1,27 @@
 html:not(.light) {
   color-scheme: dark;
-  --theme-slate-50: 250 252 248;
-  --theme-slate-100: 245 246 243;
-  --theme-slate-200: 220 229 215;
-  --theme-slate-300: 190 205 187;
-  --theme-slate-400: 160 180 194;
-  --theme-slate-500: 139 157 147;
-  --theme-slate-600: 91 116 83;
-  --theme-slate-700: 48 76 41;
-  --theme-slate-800: 38 61 30;
-  --theme-slate-900: 26 46 26;
-  --theme-slate-950: 14 26 14;
-  --theme-emerald-50: 247 254 231;
-  --theme-emerald-100: 236 252 203;
-  --theme-emerald-200: 217 249 157;
-  --theme-emerald-300: 190 242 100;
-  --theme-emerald-400: 154 229 26;
-  --theme-emerald-500: 132 204 10;
-  --theme-emerald-600: 132 204 10;
-  --theme-emerald-700: 101 163 13;
-  --theme-emerald-800: 63 98 18;
-  --theme-emerald-900: 38 61 18;
-  --theme-emerald-950: 20 36 12;
+  --theme-slate-50: 240 246 252;
+  --theme-slate-100: 201 209 217;
+  --theme-slate-200: 177 186 196;
+  --theme-slate-300: 139 148 158;
+  --theme-slate-400: 139 148 158;
+  --theme-slate-500: 110 118 129;
+  --theme-slate-600: 72 79 88;
+  --theme-slate-700: 48 54 61;
+  --theme-slate-800: 33 38 45;
+  --theme-slate-900: 22 27 34;
+  --theme-slate-950: 13 17 23;
+  --theme-emerald-50: 221 244 255;
+  --theme-emerald-100: 186 230 253;
+  --theme-emerald-200: 121 192 255;
+  --theme-emerald-300: 88 166 255;
+  --theme-emerald-400: 88 166 255;
+  --theme-emerald-500: 31 111 235;
+  --theme-emerald-600: 31 111 235;
+  --theme-emerald-700: 21 101 192;
+  --theme-emerald-800: 20 70 120;
+  --theme-emerald-900: 17 44 75;
+  --theme-emerald-950: 13 31 53;
   --theme-sky-50: var(--theme-emerald-50);
   --theme-sky-100: var(--theme-emerald-100);
   --theme-sky-200: var(--theme-emerald-200);
@@ -47,5 +47,43 @@ html:not(.light) {
 }
 
 html:not(.light) :is(.bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-sky-400, .bg-sky-500, .bg-sky-600).text-white {
-  color: #0e1a0e;
+  color: #ffffff;
+}
+
+html:not(.light) #root.logged-in-shell {
+  background: #0d1117;
+  color: #f0f6fc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html:not(.light) #root.logged-in-shell main {
+  background: #0d1117;
+}
+
+html:not(.light) #root.logged-in-shell .portal-navbar {
+  background-color: #010409;
+  border-color: #30363d;
+  box-shadow: none;
+}
+
+html:not(.light) #root.logged-in-shell :is(.rounded-xl, .rounded-2xl, .rounded-lg) {
+  border-radius: 6px;
+}
+
+html:not(.light) #root.logged-in-shell :is(.shadow-xl, .shadow-lg, .shadow-md) {
+  box-shadow: 0 1px 0 rgb(1 4 9 / 50%);
+}
+
+html:not(.light) #root.logged-in-shell :is(.border-slate-800, .border-slate-700) {
+  border-color: #30363d;
+}
+
+html:not(.light) #root.logged-in-shell .bg-gradient-to-r.from-slate-900 {
+  background-image: none;
+  background-color: #161b22;
+}
+
+html:not(.light) #root.logged-in-shell .portal-navbar .bg-slate-800\/90 {
+  background-color: #161b22;
+  border-color: #30363d;
 }

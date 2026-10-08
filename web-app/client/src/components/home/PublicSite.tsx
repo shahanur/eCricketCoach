@@ -61,7 +61,7 @@ export function PublicSite({ children, onSignIn, onOpenHelp, page, onNavigate }:
       </header>
 
       {page === 'home' && <>
-        <section className="public-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(25,15,43,.94), rgba(25,15,43,.45)), url("${photos.hero}")` }}>
+        <section className="public-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(16,16,16,.94), rgba(16,16,16,.45)), url("${photos.hero}")` }}>
           <div className="public-container">
             <span className="public-pill">Built for your cricket journey</span>
             <h1>Elevate<br />Your <em>Game</em></h1>
