@@ -5,10 +5,25 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
+
+function getSessionStatus(session: TrainingSession) {
+  if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
+  if (session.executionLog?.status === 'IN_PROGRESS') return 'IN_PROGRESS';
+  if (session.executionLog?.status === 'PREPARING') return 'PREPARING';
+  return session.isPublished ? 'PUBLISHED' : 'DRAFT';
+}
+
+const SESSION_STATUS_LABELS = {
+  DRAFT: 'Draft',
+  PUBLISHED: 'Published',
+  PREPARING: 'Preparing',
+  IN_PROGRESS: 'In progress',
+  COMPLETED: 'Completed'
+};
 
 function formatBytes(bytes: number | null): string {
   if (!bytes) return 'Unknown size';
@@ -63,8 +78,9 @@ interface ClubPortalProps {
   onAddDrillToSession?: (sessionId: string, drillId?: string) => void;
   onRemoveDrillFromSession?: (sessionId: string, drillId: string) => void;
   onAddClubDrill: (drill: Drill) => void | Promise<void>;
-  onDeleteDrill?: (drillId: string) => void;
+  onDeleteDrill?: (drillId: string) => void | Promise<void>;
   onUpdateDrill?: (drillId: string, updates: Partial<Drill>) => void | Promise<void>;
+  onCloneDrill?: (drillId: string) => Promise<Drill>;
 }
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
@@ -95,6 +111,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onAddClubDrill,
   onDeleteDrill,
   onUpdateDrill,
+  onCloneDrill,
 }) => {
   const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS' | 'SETTINGS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
 
@@ -121,10 +138,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     const matchesName = session.title.toLowerCase().includes(sessionNameFilter.trim().toLowerCase());
     const matchesStartDate = !sessionStartDateFilter || session.sessionDate >= sessionStartDateFilter;
     const matchesEndDate = !sessionEndDateFilter || session.sessionDate <= sessionEndDateFilter;
-    const matchesStatus = sessionStatusFilter === 'ALL'
-      || (sessionStatusFilter === 'DRAFT' && !session.isPublished && !session.isExecuted)
-      || (sessionStatusFilter === 'PUBLISHED' && session.isPublished && !session.isExecuted)
-      || (sessionStatusFilter === 'EXECUTED' && session.isExecuted);
+    const matchesStatus = sessionStatusFilter === 'ALL' || sessionStatusFilter === getSessionStatus(session);
     return matchesName && matchesStartDate && matchesEndDate && matchesStatus;
   });
   const clearSessionFilters = () => {
@@ -584,6 +598,43 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setEditingDrill(null);
   };
 
+  const [drillSearch, setDrillSearch] = useState('');
+  const [drillDisciplineFilter, setDrillDisciplineFilter] = useState<'ALL' | Discipline>('ALL');
+  const [drillContextFilter, setDrillContextFilter] = useState<'ALL' | ContextType>('ALL');
+  const [drillSourceFilter, setDrillSourceFilter] = useState<'ALL' | Drill['source']>('ALL');
+  const [cloningDrillId, setCloningDrillId] = useState<string | null>(null);
+  const [drillCatalogueError, setDrillCatalogueError] = useState('');
+  const filteredDrills = drills.filter(drill => {
+    const query = drillSearch.trim().toLowerCase();
+    const matchesSearch = !query || [drill.title, drill.skillSet, drill.instructions || '']
+      .some(value => value.toLowerCase().includes(query));
+    const matchesDiscipline = drillDisciplineFilter === 'ALL'
+      || drill.discipline.toUpperCase().split('/').map(item => item.trim()).includes(drillDisciplineFilter);
+    const matchesContext = drillContextFilter === 'ALL' || drill.contextType === drillContextFilter;
+    const matchesSource = drillSourceFilter === 'ALL' || drill.source === drillSourceFilter;
+    return matchesSearch && matchesDiscipline && matchesContext && matchesSource;
+  });
+  const clearDrillFilters = () => {
+    setDrillSearch('');
+    setDrillDisciplineFilter('ALL');
+    setDrillContextFilter('ALL');
+    setDrillSourceFilter('ALL');
+  };
+
+  const handleCloneDrill = async (drill: Drill) => {
+    if (!onCloneDrill || cloningDrillId) return;
+    setCloningDrillId(drill.id);
+    setDrillCatalogueError('');
+    try {
+      const cloned = await onCloneDrill(drill.id);
+      openEditDrill(cloned);
+    } catch (error) {
+      setDrillCatalogueError(error instanceof Error ? error.message : 'Unable to clone drill.');
+    } finally {
+      setCloningDrillId(null);
+    }
+  };
+
   const handleUpdateDrillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDrill || !editDrillTitle || !editDrillSkillSet || isDrillSaving) return;
@@ -627,16 +678,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [savingPlayerNoteId, setSavingPlayerNoteId] = useState<string | null>(null);
   const [savedPlayerNoteId, setSavedPlayerNoteId] = useState<string | null>(null);
   const [sessionNotesError, setSessionNotesError] = useState<string | null>(null);
-  const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
   const [legacyPlayerId, setLegacyPlayerId] = useState('');
+  const [adoptingDrillTitle, setAdoptingDrillTitle] = useState<string | null>(null);
   const [focusedSessionPlayerId, setFocusedSessionPlayerId] = useState<string | null>(null);
   const [attachingLegacyPlayer, setAttachingLegacyPlayer] = useState(false);
 
-  const todayLocal = new Date();
-  const todayDate = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
   const executedSessions = useMemo(
-    () => sessions.filter(session => session.isExecuted || session.sessionDate < todayDate),
-    [sessions, todayDate]
+    () => sessions.filter(session => getSessionStatus(session) === 'COMPLETED'),
+    [sessions]
   );
   const selectedExecutedSession = executedSessions.find(session => session.id === selectedExecutedSessionId)
     || executedSessions[0];
@@ -718,20 +767,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     return focusedSessionPlayerId ? all.filter(p => p.id === focusedSessionPlayerId) : all;
   }, [allSelectedSessionPlayers, focusedSessionPlayerId]);
   const focusedSessionPlayer = focusedSessionPlayerId ? clubMembers.find(m => m.id === focusedSessionPlayerId) : undefined;
-
-  const handleMarkSessionExecuted = async (session: TrainingSession) => {
-    setExecutingSessionId(session.id);
-    setSessionNotesError(null);
-    try {
-      const updated = await api.updateSession(session.id, { isExecuted: true });
-      onSessionUpdated?.(updated);
-      setSelectedExecutedSessionId(updated.id);
-    } catch (error) {
-      setSessionNotesError(error instanceof Error ? error.message : 'Failed to mark the session as executed.');
-    } finally {
-      setExecutingSessionId(null);
-    }
-  };
 
   const handleSavePlayerNote = async (playerId: string) => {
     if (!selectedExecutedSession) return;
@@ -857,7 +892,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setEvaluatingSession(false);
     }
   };
-  const handleAdoptEvaluationDrill = (drillItem: any) => {
+  const isEvaluationDrillAdopted = (title: string) => drills.some(drill =>
+    drill.title.trim().toLowerCase() === title.trim().toLowerCase()
+  );
+
+  const handleAdoptEvaluationDrill = async (drillItem: any) => {
+    if (adoptingDrillTitle || isEvaluationDrillAdopted(drillItem.title)) return;
     const newDrill: Drill = {
       id: 'drill-rec-' + Date.now(),
       title: drillItem.title,
@@ -865,18 +905,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       skillSet: 'Post-Session Remediation',
       contextType: drillItem.context,
       duration: drillItem.durationMinutes,
-      source: 'AI_RECOMMENDED',
+      source: 'CLUB_CUSTOM',
+      clubName,
       instructions: drillItem.reason
     };
-    onAddClubDrill(newDrill);
-    setPortalModal({
-      isOpen: true,
-      title: 'Drill Adopted into Academy',
-      message: `Drill "${drillItem.title}" has been successfully adopted into your club training catalogue!`,
-      type: 'success',
-      confirmLabel: 'Done',
-      onConfirm: () => setPortalModal(null)
-    });
+    setAdoptingDrillTitle(drillItem.title);
+    try {
+      await onAddClubDrill(newDrill);
+      setPortalModal({
+        isOpen: true,
+        title: 'Drill Adopted into Academy',
+        message: `Drill "${drillItem.title}" has been successfully adopted into your club training catalogue!`,
+        type: 'success',
+        confirmLabel: 'Done',
+        onConfirm: () => setPortalModal(null)
+      });
+    } catch (error) {
+      setSessionNotesError(error instanceof Error ? error.message : 'Failed to add the recommended drill.');
+    } finally {
+      setAdoptingDrillTitle(null);
+    }
   };
 
   // Form submit handlers for modals
@@ -1339,7 +1387,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       showCancel: true,
       onConfirm: () => {
         setPortalModal(null);
-        onDeleteDrill?.(drill.id);
+        Promise.resolve(onDeleteDrill?.(drill.id)).catch(error => {
+          setDrillCatalogueError(error instanceof Error ? error.message : 'Unable to delete the drill.');
+        });
       }
     });
   };
@@ -1912,8 +1962,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   >
                     <option value="ALL">All statuses</option>
                     <option value="DRAFT">Draft</option>
-                    <option value="PUBLISHED">Published (not executed)</option>
-                    <option value="EXECUTED">Executed</option>
+                    <option value="PUBLISHED">Published</option>
+                    <option value="PREPARING">Preparing</option>
+                    <option value="IN_PROGRESS">In progress</option>
+                    <option value="COMPLETED">Completed</option>
                   </select>
                 </div>
               </div>
@@ -2004,29 +2056,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       >
                         <Trash2 size={13} />
                       </button>
-                      {!s.isPublished ? (
+                      {!s.isPublished && (
                         <button
                           onClick={() => promptPublishSession(s)}
                           className="text-xs px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded cursor-pointer"
                         >
                           Publish & Notify Squad
                         </button>
-                      ) : (
-                        <span className="text-xs text-emerald-400 font-semibold">Active & Notified</span>
                       )}
-                      {s.isExecuted ? (
-                        <span className="text-xs text-sky-300 font-semibold">Executed</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleMarkSessionExecuted(s)}
-                          disabled={executingSessionId === s.id}
-                          className="text-xs px-3 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold rounded border border-sky-500/30 disabled:opacity-50"
-                        >
-                          {executingSessionId === s.id ? 'Saving...' : 'Mark as Executed'}
-                        </button>
-                      )}
-                      {(s.isExecuted || s.sessionDate < todayDate) && (
+                      <span className={`text-xs font-semibold ${getSessionStatus(s) === 'COMPLETED' ? 'text-emerald-300' : getSessionStatus(s) === 'IN_PROGRESS' ? 'text-amber-300' : 'text-sky-300'}`}>
+                        {SESSION_STATUS_LABELS[getSessionStatus(s)]}
+                      </span>
+                      {getSessionStatus(s) === 'COMPLETED' && (
                         <button
                           type="button"
                           onClick={() => {
@@ -2240,12 +2281,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             <p className="text-xs font-medium text-white">{d.title}</p>
                             <p className="text-[11px] text-slate-400 mt-1">{d.durationMinutes} mins • {d.reason}</p>
                           </div>
-                          <button
-                            onClick={() => handleAdoptEvaluationDrill(d)}
-                            className="text-xs px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded"
-                          >
-                            Accept & Add
-                          </button>
+                          {isEvaluationDrillAdopted(d.title) ? (
+                            <span className="shrink-0 text-xs font-semibold text-emerald-300">Added to catalogue</span>
+                          ) : (
+                            <button
+                              onClick={() => handleAdoptEvaluationDrill(d)}
+                              disabled={adoptingDrillTitle !== null}
+                              className="shrink-0 text-xs px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded disabled:opacity-50"
+                            >
+                              {adoptingDrillTitle === d.title ? 'Adding...' : 'Accept & Add'}
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2264,6 +2310,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       {clubTab === 'ASSESSMENTS' && (
         <PlayerAssessments currentUser={currentUser} members={clubMembers} sessions={sessions} initialAssessmentId={openAssessmentId}
           onViewTrainingSession={(sessionId, playerId) => {
+            if (!executedSessions.some(session => session.id === sessionId)) {
+              setClubTab('SESSIONS');
+              setSessionNotesError('Review is available only after the session is completed.');
+              return;
+            }
             setSelectedExecutedSessionId(sessionId);
             setFocusedSessionPlayerId(playerId);
             setClubTab('SESSIONS');
@@ -2393,15 +2444,58 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-base text-white">Available Drill Catalogue</h3>
-                <p className="text-xs text-slate-400">Includes official pre-defined drills & MCA custom drills.</p>
+                <p className="text-xs text-slate-400">Includes official pre-defined drills & {clubName || 'club'} custom drills. Clone a pre-defined drill to adapt it for your club.</p>
               </div>
               <span className="text-xs bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded-full font-semibold">
                 {drills.length} Total Drills
               </span>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+              <div className="relative sm:col-span-2 xl:col-span-1">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  aria-label="Search drills"
+                  value={drillSearch}
+                  onChange={event => setDrillSearch(event.target.value)}
+                  placeholder="Search title, focus, setup..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+              <select aria-label="Filter by discipline" value={drillDisciplineFilter} onChange={event => setDrillDisciplineFilter(event.target.value as 'ALL' | Discipline)} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
+                <option value="ALL">All disciplines</option>
+                <option value="BATTING">Batting</option>
+                <option value="BOWLING">Bowling</option>
+                <option value="FIELDING">Fielding</option>
+                <option value="KEEPING">Wicketkeeping</option>
+              </select>
+              <select aria-label="Filter by context" value={drillContextFilter} onChange={event => setDrillContextFilter(event.target.value as 'ALL' | ContextType)} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
+                <option value="ALL">All contexts</option>
+                <option value="INDIVIDUAL">Individual</option>
+                <option value="GROUP">Group (Squad)</option>
+              </select>
+              <select aria-label="Filter by source" value={drillSourceFilter} onChange={event => setDrillSourceFilter(event.target.value as 'ALL' | Drill['source'])} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
+                <option value="ALL">All sources</option>
+                <option value="SYSTEM_PREDEFINED">Pre-defined (global)</option>
+                <option value="CLUB_CUSTOM">Club custom</option>
+                <option value="AI_RECOMMENDED">AI ingested</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p role="status" className="text-xs text-slate-400">Showing {filteredDrills.length} of {drills.length} drills</p>
+              <button type="button" onClick={clearDrillFilters} className="text-xs font-semibold text-sky-400 hover:text-sky-300 underline cursor-pointer">Clear filters</button>
+            </div>
+            {drillCatalogueError && <p role="alert" className="text-xs text-rose-400">{drillCatalogueError}</p>}
+
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              {drills.map(drill => (
+              {filteredDrills.length === 0 && (
+                <div className="rounded-lg border border-dashed border-slate-700 bg-slate-950 p-6 text-center">
+                  <p className="text-sm font-semibold text-white">No drills match these filters</p>
+                  <p className="text-xs text-slate-400">Try a different search or clear the filters.</p>
+                </div>
+              )}
+              {filteredDrills.map(drill => (
                 <div key={drill.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3">
                   {drill.imageUrl && (
                     <img
@@ -2447,7 +2541,23 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </button>
                       </>
                     )}
-                    {drill.source === 'SYSTEM_PREDEFINED' && <span className="text-[10px] text-slate-400">Managed globally</span>}
+                    {drill.source === 'SYSTEM_PREDEFINED' && (
+                      <>
+                        <span className="text-[10px] text-slate-400">Managed globally</span>
+                        {onCloneDrill && (
+                          <button
+                            type="button"
+                            onClick={() => handleCloneDrill(drill)}
+                            disabled={cloningDrillId !== null}
+                            title="Clone into your club catalogue and edit"
+                            aria-label={`Clone ${drill.title} for your club`}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 font-semibold rounded border border-sky-500/30 disabled:opacity-50 cursor-pointer"
+                          >
+                            <Copy size={11} /> {cloningDrillId === drill.id ? 'Cloning...' : 'Clone'}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

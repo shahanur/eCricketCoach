@@ -74,8 +74,8 @@ export const api = {
   },
 
   async deleteDrill(drillId: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/drills/${drillId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete drill');
+    const res = await fetch(`${API_BASE}/drills/${drillId}`, { method: 'DELETE', headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to delete drill');
     return true;
   },
 
@@ -86,6 +86,16 @@ export const api = {
       body: JSON.stringify(updates)
     });
     if (!res.ok) throw await responseError(res, 'Failed to update drill');
+    const data = await res.json();
+    return data.drill;
+  },
+
+  async cloneDrill(drillId: string): Promise<Drill> {
+    const res = await fetch(`${API_BASE}/drills/${encodeURIComponent(drillId)}/clone`, {
+      method: 'POST',
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to clone drill');
     const data = await res.json();
     return data.drill;
   },

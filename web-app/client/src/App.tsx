@@ -307,14 +307,21 @@ export default function App() {
     setDrills(prev => prev.filter(d => d.id !== drillId));
     try {
       await api.deleteDrill(drillId);
-    } catch {
+    } catch (error) {
       setDrills(prevDrills);
+      throw error;
     }
   };
 
   const handleUpdateDrill = async (drillId: string, updates: Partial<Drill>) => {
     const updated = await api.updateDrill(drillId, updates);
     setDrills(prev => prev.map(d => (d.id === drillId ? updated : d)));
+  };
+
+  const handleCloneDrill = async (drillId: string) => {
+    const cloned = await api.cloneDrill(drillId);
+    setDrills(prev => [cloned, ...prev.filter(d => d.id !== cloned.id)]);
+    return cloned;
   };
 
   // Called from HomePage when a user subscribes and pays
@@ -919,6 +926,7 @@ export default function App() {
             onApproveClub={handleApproveClub}
             onAddSystemDrill={handleAddDrill}
             onUpdateSystemDrill={handleUpdateDrill}
+            onDeleteSystemDrill={handleDeleteDrill}
             onUpdateCustomerStatus={handleUpdateCustomerStatus}
             onUpgradeCustomerPlan={handleUpgradeCustomerPlan}
             onRetryInvoice={handleRetryInvoice}
@@ -955,6 +963,7 @@ export default function App() {
             onAddClubDrill={handleAddDrill}
             onDeleteDrill={handleDeleteDrill}
             onUpdateDrill={handleUpdateDrill}
+            onCloneDrill={handleCloneDrill}
           />
         )}
       </main>

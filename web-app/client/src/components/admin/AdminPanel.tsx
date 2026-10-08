@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification, SupportTicket } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search, Pencil } from 'lucide-react';
+import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search, Pencil, Trash2 } from 'lucide-react';
 import { readDrillImage } from '../../utils/drillImage';
 
 interface AdminPanelProps {
@@ -14,6 +14,7 @@ interface AdminPanelProps {
   onApproveClub: (id: string) => void;
   onAddSystemDrill: (drill: Drill) => Promise<void>;
   onUpdateSystemDrill: (id: string, updates: Partial<Drill>) => Promise<void>;
+  onDeleteSystemDrill: (id: string) => Promise<void>;
   onUpdateCustomerStatus: (id: string, status: CustomerTenant['status']) => void;
   onUpgradeCustomerPlan: (id: string, plan: CustomerTenant['subscriptionPlan']) => void;
   onRetryInvoice: (id: string) => void;
@@ -30,6 +31,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onApproveClub,
   onAddSystemDrill,
   onUpdateSystemDrill,
+  onDeleteSystemDrill,
   onUpdateCustomerStatus,
   onUpgradeCustomerPlan,
   onRetryInvoice,
@@ -70,6 +72,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [drillImage, setDrillImage] = useState<string | null>(null);
   const [drillError, setDrillError] = useState('');
   const [isDrillSaving, setIsDrillSaving] = useState(false);
+  const [deletingDrillId, setDeletingDrillId] = useState<string | null>(null);
+  const [drillListError, setDrillListError] = useState('');
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [libraryDiscipline, setLibraryDiscipline] = useState<'ALL' | Discipline>('ALL');
+  const [libraryContext, setLibraryContext] = useState<'ALL' | ContextType>('ALL');
+  const systemDrills = drills.filter(d => d.source === 'SYSTEM_PREDEFINED');
+  const librarySearchTerm = librarySearch.trim().toLowerCase();
+  const filteredSystemDrills = systemDrills.filter(d =>
+    (!librarySearchTerm || [d.title, d.skillSet, d.instructions || ''].some(v => v.toLowerCase().includes(librarySearchTerm))) &&
+    (libraryDiscipline === 'ALL' || String(d.discipline).split('/').map(v => v.trim()).includes(libraryDiscipline)) &&
+    (libraryContext === 'ALL' || d.contextType === libraryContext)
+  );
+  const libraryFiltersActive = Boolean(librarySearchTerm) || libraryDiscipline !== 'ALL' || libraryContext !== 'ALL';
   const [imageInputKey, setImageInputKey] = useState(0);
 
   const resetDrillForm = () => {
@@ -139,6 +154,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       onConfirm: () => setConfirmModal(null)
     });
     resetDrillForm();
+  };
+
+  const promptDeleteSystemDrill = (drill: Drill) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Global Drill',
+      message: (
+        <div className="space-y-2">
+          <p>Delete <strong className="text-white">"{drill.title}"</strong> from the global catalogue?</p>
+          <p className="text-[11px] text-slate-400">It will be removed for every club, including its setup image. Club copies made with Clone are not affected. This cannot be undone.</p>
+        </div>
+      ),
+      type: 'danger',
+      confirmLabel: 'Delete Drill',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setDeletingDrillId(drill.id);
+        setDrillListError('');
+        try {
+          await onDeleteSystemDrill(drill.id);
+          if (editingDrillId === drill.id) resetDrillForm();
+        } catch (error) {
+          setDrillListError(error instanceof Error ? error.message : 'Unable to delete the global drill.');
+        } finally {
+          setDeletingDrillId(null);
+        }
+      }
+    });
   };
 
   const promptApproveClub = (appr: ClubApproval) => {
@@ -932,8 +977,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 Global Catalogue
               </span>
             </div>
+            {drillListError && (
+              <p role="alert" className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{drillListError}</p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  value={librarySearch}
+                  onChange={e => setLibrarySearch(e.target.value)}
+                  placeholder="Search title, skill set, or instructions"
+                  aria-label="Search global drills"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <select value={libraryDiscipline} onChange={e => setLibraryDiscipline(e.target.value as 'ALL' | Discipline)} aria-label="Filter by discipline" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="ALL">All disciplines</option>
+                <option value="BATTING">Batting</option>
+                <option value="BOWLING">Bowling</option>
+                <option value="KEEPING">Keeping</option>
+                <option value="FIELDING">Fielding</option>
+              </select>
+              <select value={libraryContext} onChange={e => setLibraryContext(e.target.value as 'ALL' | ContextType)} aria-label="Filter by context" className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white">
+                <option value="ALL">All contexts</option>
+                <option value="INDIVIDUAL">Individual</option>
+                <option value="GROUP">Group</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>Showing {filteredSystemDrills.length} of {systemDrills.length} drills</span>
+              {libraryFiltersActive && (
+                <button type="button" onClick={() => { setLibrarySearch(''); setLibraryDiscipline('ALL'); setLibraryContext('ALL'); }} className="text-emerald-300 hover:text-emerald-200">
+                  Clear filters
+                </button>
+              )}
+            </div>
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-              {drills.filter(d => d.source === 'SYSTEM_PREDEFINED').map(drill => (
+              {filteredSystemDrills.length === 0 && (
+                <p className="text-xs text-slate-500 text-center py-6">No global drills match these filters.</p>
+              )}
+              {filteredSystemDrills.map(drill => (
                 <div key={drill.id} className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between">
                   {drill.imageUrl && <img src={drill.imageUrl} alt={`${drill.title} setup`} className="w-14 h-14 object-cover rounded-lg mr-3 shrink-0" />}
                   <div>
@@ -952,8 +1036,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 whitespace-nowrap">
                     Official
                   </span>
-                  <button type="button" disabled={isDrillSaving} onClick={() => editSystemDrill(drill)} aria-label={`Edit ${drill.title}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 disabled:opacity-50">
+                  <button type="button" disabled={isDrillSaving || deletingDrillId === drill.id} onClick={() => editSystemDrill(drill)} aria-label={`Edit ${drill.title}`} className="flex items-center gap-1 text-xs text-emerald-300 hover:text-emerald-200 disabled:opacity-50">
                     <Pencil size={13} /> Edit
+                  </button>
+                  <button type="button" disabled={isDrillSaving || deletingDrillId !== null} onClick={() => promptDeleteSystemDrill(drill)} aria-label={`Delete ${drill.title}`} className="flex items-center gap-1 text-xs text-rose-300 hover:text-rose-200 disabled:opacity-50">
+                    <Trash2 size={13} /> {deletingDrillId === drill.id ? 'Deleting...' : 'Delete'}
                   </button>
                   </div>
                 </div>

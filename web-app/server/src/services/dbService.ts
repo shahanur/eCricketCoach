@@ -187,6 +187,45 @@ export class DbService {
     return prisma.drill.findUnique({ where: { id }, select: { source: true, clubId: true } });
   }
 
+  static async cloneGlobalDrill(sourceId: string, clubId: string) {
+    const source = await prisma.drill.findUnique({ where: { id: sourceId }, include: { image: true } });
+    if (!source || source.source !== 'SYSTEM_PREDEFINED') return null;
+    const club = await prisma.customerTenant.findUnique({ where: { id: clubId }, select: { name: true } });
+    const id = `drill-club-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const created = await prisma.drill.create({
+      data: {
+        id,
+        title: source.title,
+        discipline: source.discipline,
+        skillSet: source.skillSet,
+        contextType: source.contextType,
+        duration: source.duration,
+        source: 'CLUB_CUSTOM',
+        clubId,
+        clubName: club?.name || null,
+        instructions: source.instructions,
+        imageUrl: source.image ? drillImageUrl(id, source.image.data) : source.imageUrl,
+        ...(source.image ? { image: { create: { data: source.image.data, mimeType: source.image.mimeType } } } : {})
+      }
+    });
+    return {
+      id: created.id,
+      title: created.title,
+      discipline: created.discipline,
+      skillSet: created.skillSet,
+      contextType: created.contextType,
+      duration: created.duration,
+      durationMinutes: created.duration,
+      source: created.source,
+      clubId: created.clubId,
+      clubName: created.clubName,
+      squadId: created.squadId,
+      squadName: created.squadName,
+      instructions: created.instructions,
+      imageUrl: created.imageUrl
+    };
+  }
+
   static async deleteDrill(id: string) {
     try {
       await prisma.drill.delete({ where: { id } });

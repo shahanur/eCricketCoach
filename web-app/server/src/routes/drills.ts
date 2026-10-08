@@ -108,10 +108,32 @@ drillsRouter.post('/club', async (req: Request, res: Response) => {
   }
 });
 
-// Removes a drill (e.g. club custom drill no longer needed) from the catalogue.
-drillsRouter.delete('/:id', async (req: Request, res: Response) => {
+// Club admins and club coaches: copy a global drill (including its stored image) into their own club catalogue.
+drillsRouter.post('/:id/clone', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (req.user?.role === 'COACH' && req.user.coachContext !== 'CLUB') {
+      return res.status(403).json({ error: 'Only club staff can clone global drills.' });
+    }
+    if (!req.user?.tenantId) return res.status(403).json({ error: 'A club account is required to clone drills.' });
+    const cloned = await DbService.cloneGlobalDrill(req.params.id, req.user.tenantId);
+    if (!cloned) return res.status(404).json({ error: 'Global drill not found' });
+    return res.status(201).json({ success: true, drill: cloned });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Super admins can delete any drill (including global ones); club staff can only delete their own club's drills.
+drillsRouter.delete('/:id', authenticateToken, requireRole(['SUPER_ADMIN', 'CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const existing = await DbService.getDrillEditScope(id);
+    if (!existing) return res.status(404).json({ error: 'Drill not found' });
+    if (req.user?.role !== 'SUPER_ADMIN' && (
+      existing.source === 'SYSTEM_PREDEFINED' || !existing.clubId || existing.clubId !== req.user?.tenantId
+    )) {
+      return res.status(403).json({ error: 'Only super admins can delete global drills. Club drills can only be deleted by their own club.' });
+    }
     const deleted = await DbService.deleteDrill(id);
     if (!deleted) return res.status(404).json({ error: 'Drill not found' });
     return res.json({ success: true });

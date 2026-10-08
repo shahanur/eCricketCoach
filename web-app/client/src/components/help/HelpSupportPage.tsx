@@ -127,9 +127,10 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Add session safety instructions when scheduling or editing a session (one per line). Shared templates fill these automatically. Coaches can read them while running the session and hover, focus, or tap each drill info icon to see its setup instructions below Coaching guidance. Click the setup image to enlarge it in a modal; close it using the Close button or Escape.',
         'Upload a PNG or JPEG setup image up to 10 MB when creating or editing a club drill. Saved images are stored as binary data in PostgreSQL and displayed through the drill image endpoint.',
         'Global drills are maintained by super admins in the System Pre-Defined Drills Library. Clubs use the same records, including in linked sessions; catalogues refresh when returning to the browser tab and every 30 seconds while visible.',
-        'Find training sessions using the session-name search, inclusive From/To date range, and status filters (Draft, Published but not executed, or Executed). Use "Clear filters" to show all sessions again.',
+        'In Club Drills, filter the catalogue by text search, discipline, context, or source. Use "Clone" on a pre-defined drill to copy it (including its setup image) into your club catalogue; the copy opens for editing and later global updates do not change it.',
+        'Find training sessions using the session-name search, inclusive From/To date range, and status filters (Draft, Published, Preparing, In progress, or Completed). Session cards show the current status recorded by the coach. Use "Clear filters" to show all sessions again.',
         'Choose a shared training template when scheduling a new session to fill its title, duration, and planned drills, then assign your own date, players, and coaches.',
-        'Click "Review" on a completed or past training session to open player notes and AI feedback in a modal. Save individual player notes there; session-wide AI assessment is available after the session is marked as executed.',
+        'Click "Review" on a completed training session to open player notes and AI feedback in a modal. Review appears only after completion, not merely because the scheduled date has passed. Save individual player notes there and run the session-wide AI assessment after the coach completes the session.',
         'Upload practice session videos to Google Drive cloud sync to automatically trigger kinematic AI pose analysis.',
         'Upload a PNG or JPEG club logo in Club Settings so new certificates use your club branding.',
         'Review certificates by player name or issue-date range in Club Certificates, download PDFs, or delete certificates that should no longer be issued; players can download their PDF from their dashboard.'
@@ -149,7 +150,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         'Review the AI Pose score, head-over-ball metrics, front-foot alignment, and arm release velocity.',
         'Click "Adopt Drill into Catalogue" to automatically publish the AI recommended corrective drill to your roster.',
         'Evaluate player assessments and promote athletes to higher skill tiers.',
-        'In the Club Portal, use "Review" on a completed or past training session to open its player notes and AI review. Assessment links open the same modal focused on the selected player.',
+        'In the Club Portal, use "Review" on a completed training session to open its player notes and AI review. Assessment links to completed sessions open the same modal focused on the selected player.',
         'Use the name, From/To date, and status filters above the Club Portal training schedule to find sessions, or "Clear filters" to reset the list.'
       ]
     },
