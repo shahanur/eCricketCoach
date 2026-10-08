@@ -850,7 +850,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               📧
             </div>
             <h4 className="text-sm font-bold text-white">Email Support</h4>
-            <a className="text-xs text-slate-400" href="mailto:admin@ecricketcoach.com">admin@ecricketcoach.com</a>
+            <a className="text-xs text-slate-400" href="mailto:admin@ecricketcoach.co.uk">admin@ecricketcoach.co.uk</a>
             <p className="text-[11px] text-slate-500">Response within 4 hours</p>
           </div>
 
@@ -859,7 +859,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
               🏢
             </div>
             <h4 className="text-sm font-bold text-white">Academy Sales</h4>
-            <a className="text-xs text-slate-400" href="mailto:sales@ecricketcoach.com">sales@ecricketcoach.com</a>
+            <a className="text-xs text-slate-400" href="mailto:sales@ecricketcoach.co.uk">sales@ecricketcoach.co.uk</a>
             <p className="text-[11px] text-slate-500">Custom enterprise quoting</p>
           </div>
 

@@ -105,7 +105,7 @@ export function PublicSite({ children, onSignIn, onOpenHelp, page, onNavigate }:
       <footer className="public-footer"><div className="public-container">
         <div className="public-footer-grid"><div><button onClick={() => navigate('home')}>{brand}</button><p>The complete online cricket coaching platform for players, coaches, and clubs. Elevate every aspect of your game.</p></div>
           <div><h4>Platform</h4><button onClick={() => navigate('features')}>Features</button><button onClick={() => navigate('pricing')}>Pricing</button><button onClick={onSignIn}>Sign In</button><button onClick={() => navigate('pricing')}>Get Started</button></div>
-          <div><h4>Company</h4><button onClick={() => navigate('about-us')}>About</button><button onClick={() => navigate('contact-us')}>Contact</button><button onClick={() => navigate('faqs')}>FAQs</button><button onClick={onOpenHelp}>Help &amp; Support</button><a href="mailto:admin@ecricketcoach.com">Email Support</a></div>
+          <div><h4>Company</h4><button onClick={() => navigate('about-us')}>About</button><button onClick={() => navigate('contact-us')}>Contact</button><button onClick={() => navigate('faqs')}>FAQs</button><button onClick={onOpenHelp}>Help &amp; Support</button><a href="mailto:admin@ecricketcoach.co.uk">Email Support</a></div>
           <div><h4>Audiences</h4><button onClick={() => navigate('pricing')}>For Players</button><button onClick={() => navigate('pricing')}>For Coaches</button><button onClick={() => navigate('pricing')}>For Clubs</button></div>
         </div><div className="public-footer-bottom"><span>&copy; {new Date().getFullYear()} eCricketCoach. All rights reserved.</span><span>Built for the love of cricket</span></div>
       </div></footer>

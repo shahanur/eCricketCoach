@@ -16,7 +16,7 @@ html.light {
   --theme-slate-700: 209 209 209;
   --theme-slate-800: 242 242 242;
   --theme-slate-900: 255 255 255;
-  --theme-slate-950: 255 255 255;
+  --theme-slate-950: 248 249 250;
   --theme-emerald-50: 243 249 253;
   --theme-emerald-100: 222 236 249;
   --theme-emerald-200: 0 69 120;
@@ -53,7 +53,7 @@ html.light {
 }
 
 html.light body {
-  background: #ffffff;
+  background: #f8f9fa;
   color: var(--soft-text);
 }
 
