@@ -42,7 +42,11 @@ docker compose up --build
 
 ## Public Website
 
-The public Home, Features, Pricing, About, Contact, and FAQ views use hash navigation (`#home`, `#features`, `#pricing`, `#about-us`, `#contact-us`, and `#faqs`). The forest-green and lime design is scoped to the public website; signed-in portals retain their existing theme settings.
+The public Home, Features, Pricing, About, Contact, and FAQ views use local React state without changing the host URL. Refreshing returns to Home; old public-page hashes are cleared on load. Sign-in callback parameters are handled separately. Signed-in pages offer Dark (forest-green and lime) and Soft (Azure-inspired white backgrounds, neutral grey panels, blue actions and a blue top bar with white icons). Theme preferences persist across reloads. Saved Pure and Soft Blue preferences migrate to Soft.
+
+The shared palettes are in [dark-theme.css](web-app/client/src/dark-theme.css) and [soft-theme.css](web-app/client/src/soft-theme.css). Soft uses `#0078D4` primary actions with white labels and neutral dark text on white surfaces. Tailwind colours in [index.html](web-app/client/index.html) reference these variables, preserving opacity modifiers and hover/focus states. Warning and error colours retain their meaning, with darker text in Soft mode for readability. Public marketing pages use deep-purple backgrounds and light-purple accents in either mode, independently of logged-in themes.
+
+Logged-in pill tags retain distinct green, blue and teal colours through [tag-colors.css](web-app/client/src/tag-colors.css), rather than inheriting one theme accent. Amber, red and purple categories retain their existing colours. Tag text uses darker variants in light themes.
 
 The public layout and temporary Unsplash photo URLs are in [PublicSite.tsx](web-app/client/src/components/home/PublicSite.tsx), with styles in [public-site.css](web-app/client/src/components/home/public-site.css). Replace these photos and the temporary text-based logo with approved brand assets when available. Subscription prices and registration continue to use the existing [HomePage.tsx](web-app/client/src/components/home/HomePage.tsx) flow.
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CustomerTenant } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
-import { PublicSite } from './PublicSite';
+import { PublicSite, PublicPage } from './PublicSite';
 import {
   Layers,
   Cpu,
@@ -188,10 +188,12 @@ interface HomePageProps {
   }) => void;
   onExploreDemo: () => void;
   onOpenHelp: () => void;
+  publicPage: PublicPage;
+  onNavigatePublic: (page: PublicPage) => void;
   socialRegistration?: { token: string; name: string; email: string } | null;
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDemo, onOpenHelp, socialRegistration }) => {
+export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDemo, onOpenHelp, publicPage, onNavigatePublic, socialRegistration }) => {
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [selectedPlanForPayment, setSelectedPlanForPayment] = useState<PlanConfig | null>(null);
   const [activeServiceIndex, setActiveServiceIndex] = useState<number>(0);
@@ -280,7 +282,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
   const currentService = CORE_SERVICES[activeServiceIndex];
 
   return (
-    <PublicSite onSignIn={onExploreDemo} onOpenHelp={onOpenHelp}>
+    <PublicSite onSignIn={onExploreDemo} onOpenHelp={onOpenHelp} page={publicPage} onNavigate={onNavigatePublic}>
     <div className="public-legacy">
       {/* 1. Hero Section: Focused directly on Cricket Coaching & Player Progression */}
       <section className="text-center space-y-6 max-w-5xl mx-auto px-4 pt-6">
@@ -303,7 +305,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
         <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
           <a
-            href="#pricing"
+            href={window.location.pathname}
+            onClick={event => { event.preventDefault(); onNavigatePublic('pricing'); }}
             className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2 cursor-pointer"
           >
             <span>View Subscription Plans</span>
@@ -647,7 +650,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Cricket Coaching Science & Training Deep Dives</h2>
           </div>
-          <a href="#about-us" className="text-xs text-emerald-400 font-semibold hover:underline flex items-center gap-1">
+          <a href={window.location.pathname} onClick={event => { event.preventDefault(); onNavigatePublic('about-us'); }} className="text-xs text-emerald-400 font-semibold hover:underline flex items-center gap-1">
             <span>Explore academy mission</span>
             <ArrowRight size={14} />
           </a>
@@ -724,7 +727,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <a
-              href="#pricing"
+              href={window.location.pathname}
+              onClick={event => { event.preventDefault(); onNavigatePublic('pricing'); }}
               className="px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-extrabold text-sm shadow-xl shadow-emerald-500/25 transition flex items-center gap-2"
             >
               <span>Choose Your Subscription</span>

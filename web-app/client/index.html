@@ -4,16 +4,46 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eCricketCoach - Cricket Training & AI Analysis</title>
-    <meta name="theme-color" content="#059669" />
+    <meta name="theme-color" content="#0e1a0e" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Brand palette from images/logo.png: emerald (#059669) blending into sky blue (#0284c7).
+      const themedPalette = (name, values) => Object.fromEntries(
+        Object.entries(values).map(([shade, rgb]) => [
+          shade, `rgb(var(--theme-${name}-${shade}, ${rgb}) / <alpha-value>)`
+        ])
+      );
       tailwind.config = {
         theme: {
           extend: {
+            colors: {
+              slate: themedPalette('slate', {
+                50: '248 250 252', 100: '241 245 249', 200: '226 232 240',
+                300: '203 213 225', 400: '148 163 184', 500: '100 116 139',
+                600: '71 85 105', 700: '51 65 85', 800: '30 41 59',
+                900: '15 23 42', 950: '2 6 23'
+              }),
+              emerald: themedPalette('emerald', {
+                50: '236 253 245', 100: '209 250 229', 200: '167 243 208',
+                300: '110 231 183', 400: '52 211 153', 500: '16 185 129',
+                600: '5 150 105', 700: '4 120 87', 800: '6 95 70',
+                900: '6 78 59', 950: '2 44 34'
+              }),
+              sky: themedPalette('sky', {
+                50: '240 249 255', 100: '224 242 254', 200: '186 230 253',
+                300: '125 211 252', 400: '56 189 248', 500: '14 165 233',
+                600: '2 132 199', 700: '3 105 161', 800: '7 89 133',
+                900: '12 74 110', 950: '8 47 73'
+              }),
+              teal: themedPalette('teal', {
+                50: '240 253 250', 100: '204 251 241', 200: '153 246 228',
+                300: '94 234 212', 400: '45 212 191', 500: '20 184 166',
+                600: '13 148 136', 700: '15 118 110', 800: '17 94 89',
+                900: '19 78 74', 950: '4 47 46'
+              })
+            },
             fontFamily: {
               sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
               mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
@@ -22,425 +52,6 @@
         },
       };
     </script>
-    <style id="light-theme-styles">
-      html.light,
-      html.light body {
-        background-color: #f8fafc !important;
-        color: #0f172a !important;
-      }
-      
-      /* Background containers and cards */
-      html.light .bg-slate-950 {
-        background-color: #ffffff !important;
-      }
-      html.light .bg-slate-900 {
-        background-color: #ffffff !important;
-      }
-      html.light .bg-slate-900\/90 {
-        background-color: rgba(255, 255, 255, 0.92) !important;
-      }
-      html.light .bg-slate-900\/80 {
-        background-color: rgba(255, 255, 255, 0.95) !important;
-      }
-      html.light .bg-slate-900\/70 {
-        background-color: #ffffff !important;
-      }
-      html.light .bg-slate-900\/50 {
-        background-color: #f8fafc !important;
-      }
-      html.light .bg-slate-900\/60 {
-        background-color: #ffffff !important;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06) !important;
-      }
-      html.light .bg-slate-800 {
-        background-color: #f1f5f9 !important;
-      }
-      html.light .bg-slate-800\/90 {
-        background-color: rgba(241, 245, 249, 0.9) !important;
-      }
-      html.light .bg-slate-800\/50 {
-        background-color: rgba(241, 245, 249, 0.6) !important;
-      }
-      html.light .bg-slate-800\/60 {
-        background-color: rgba(241, 245, 249, 0.75) !important;
-      }
-      html.light .bg-slate-700 {
-        background-color: #e2e8f0 !important;
-      }
-      html.light .bg-slate-700\/60,
-      html.light .bg-slate-700\/50,
-      html.light .bg-slate-700\/40 {
-        background-color: #f1f5f9 !important;
-      }
-      html.light .bg-slate-950\/40,
-      html.light .bg-slate-950\/50,
-      html.light .bg-slate-950\/60,
-      html.light .bg-slate-950\/70 {
-        background-color: #f8fafc !important;
-        border-color: #e2e8f0 !important;
-      }
-      html.light .bg-slate-950\/80 {
-        background-color: rgba(15, 23, 42, 0.4) !important;
-      }
-
-      /* Gradients in Light mode */
-      html.light .from-slate-900,
-      html.light .via-slate-800,
-      html.light .to-slate-900,
-      html.light .to-slate-950 {
-        --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
-        --tw-gradient-to: #f1f5f9 var(--tw-gradient-to-position) !important;
-        --tw-gradient-stops: var(--tw-gradient-from), #f8fafc var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-      }
-      html.light .from-emerald-950\/30,
-      html.light .from-emerald-950\/80 {
-        --tw-gradient-from: #ecfdf5 var(--tw-gradient-from-position) !important;
-        --tw-gradient-to: #f0fdf4 var(--tw-gradient-to-position) !important;
-      }
-
-      /* Borders */
-      html.light .border-slate-800 {
-        border-color: #e2e8f0 !important;
-      }
-      html.light .border-slate-700 {
-        border-color: #cbd5e1 !important;
-      }
-      html.light .border-slate-700\/80 {
-        border-color: #e2e8f0 !important;
-      }
-
-      /* Typography */
-      html.light .text-slate-100 {
-        color: #0f172a !important;
-      }
-      html.light .text-slate-200 {
-        color: #1e293b !important;
-      }
-      html.light .text-slate-300 {
-        color: #334155 !important;
-      }
-      html.light .text-slate-400 {
-        color: #475569 !important;
-      }
-      html.light .text-slate-500 {
-        color: #64748b !important;
-      }
-      html.light .text-white {
-        color: #0f172a !important;
-      }
-      html.light .hover\:text-white:hover {
-        color: #020617 !important;
-      }
-      html.light input,
-      html.light select,
-      html.light textarea {
-        background-color: #ffffff !important;
-        color: #0f172a !important;
-        border-color: #cbd5e1 !important;
-      }
-      html.light ::placeholder {
-        color: #94a3b8 !important;
-      }
-
-      /* Preserve contrast for accents */
-      html.light .from-emerald-400.to-sky-400 {
-        background-image: linear-gradient(to right, #059669, #0284c7) !important;
-      }
-      html.light .text-emerald-400 {
-        color: #047857 !important;
-      }
-      html.light .text-emerald-300,
-      html.light .text-emerald-300\/80 {
-        color: #065f46 !important;
-      }
-      html.light .text-sky-400,
-      html.light .group:hover .group-hover\:text-sky-400 {
-        color: #0284c7 !important;
-      }
-      html.light .text-sky-300,
-      html.light .hover\:text-sky-300:hover,
-      html.light .text-sky-300\/80 {
-        color: #0369a1 !important;
-      }
-      html.light .text-amber-400 {
-        color: #b45309 !important;
-      }
-      html.light .text-amber-300 {
-        color: #92400e !important;
-      }
-      html.light .text-rose-400 {
-        color: #be123c !important;
-      }
-      html.light .text-rose-300 {
-        color: #9f1239 !important;
-      }
-      html.light .text-rose-200 {
-        color: #9f1239 !important;
-      }
-      html.light .bg-emerald-500 {
-        background-color: #10b981 !important;
-      }
-      html.light .bg-emerald-500.text-slate-950 {
-        color: #ffffff !important;
-      }
-      html.light .bg-emerald-600 {
-        background-color: #059669 !important;
-      }
-      html.light .bg-emerald-600.text-white,
-      html.light .bg-emerald-500.text-white {
-        color: #ffffff !important;
-      }
-      html.light .bg-sky-500.text-slate-950 {
-        color: #ffffff !important;
-      }
-      html.light .bg-emerald-500\/20 {
-        background-color: #d1fae5 !important;
-        border-color: #a7f3d0 !important;
-      }
-      html.light .bg-amber-500\/20 {
-        background-color: #fef3c7 !important;
-        border-color: #fde68a !important;
-      }
-      html.light .bg-sky-500\/20 {
-        background-color: #e0f2fe !important;
-        border-color: #bae6fd !important;
-      }
-      html.light .bg-rose-500\/20 {
-        background-color: #ffe4e6 !important;
-        border-color: #fecdd3 !important;
-      }
-      html.light .text-sky-200 {
-        color: #075985 !important;
-      }
-      html.light .text-emerald-200 {
-        color: #065f46 !important;
-      }
-      html.light .bg-sky-950,
-      html.light .bg-sky-900,
-      html.light .bg-sky-900\/60 {
-        background-color: #e0f2fe !important;
-      }
-      html.light .bg-emerald-950 {
-        background-color: #d1fae5 !important;
-      }
-      html.light .hover\:bg-slate-700:hover {
-        background-color: #e2e8f0 !important;
-      }
-
-      /* Pure-Light ("Cricket Whites" / Daylight Theme) */
-      html.pure-light,
-      html.pure-light body {
-        background-color: #ffffff !important;
-        color: #090d16 !important;
-      }
-      
-      html.pure-light .bg-slate-950 {
-        background-color: #ffffff !important;
-      }
-      html.pure-light .bg-slate-900 {
-        background-color: #ffffff !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-      }
-      html.pure-light .bg-slate-900\/90 {
-        background-color: rgba(255, 255, 255, 0.98) !important;
-      }
-      html.pure-light .bg-slate-900\/80 {
-        background-color: rgba(255, 255, 255, 0.96) !important;
-      }
-      html.pure-light .bg-slate-900\/70 {
-        background-color: #ffffff !important;
-      }
-      html.pure-light .bg-slate-900\/60 {
-        background-color: rgba(255, 255, 255, 0.92) !important;
-      }
-      html.pure-light .bg-slate-900\/50 {
-        background-color: rgba(255, 255, 255, 0.88) !important;
-      }
-      html.pure-light .bg-slate-900\/40 {
-        background-color: rgba(255, 255, 255, 0.85) !important;
-      }
-      html.pure-light .bg-slate-800 {
-        background-color: #f1f5f9 !important;
-      }
-      html.pure-light .bg-slate-800\/90 {
-        background-color: rgba(241, 245, 249, 0.95) !important;
-      }
-      html.pure-light .bg-slate-800\/80 {
-        background-color: rgba(241, 245, 249, 0.85) !important;
-      }
-      html.pure-light .bg-slate-800\/60 {
-        background-color: rgba(241, 245, 249, 0.75) !important;
-      }
-      html.pure-light .bg-slate-800\/50 {
-        background-color: rgba(241, 245, 249, 0.5) !important;
-      }
-      html.pure-light .bg-slate-700 {
-        background-color: #e2e8f0 !important;
-      }
-      html.pure-light .bg-slate-700\/60,
-      html.pure-light .bg-slate-700\/50,
-      html.pure-light .bg-slate-700\/40 {
-        background-color: #f1f5f9 !important;
-      }
-      html.pure-light .bg-slate-950\/40,
-      html.pure-light .bg-slate-950\/50,
-      html.pure-light .bg-slate-950\/60,
-      html.pure-light .bg-slate-950\/70 {
-        background-color: #ffffff !important;
-        border-color: #e2e8f0 !important;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-      }
-      html.pure-light .bg-slate-950\/80 {
-        background-color: rgba(15, 23, 42, 0.35) !important;
-      }
-
-      /* Gradients in Pure-Light mode */
-      html.pure-light .from-slate-900,
-      html.pure-light .via-slate-800,
-      html.pure-light .to-slate-900,
-      html.pure-light .to-slate-950 {
-        --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
-        --tw-gradient-to: #ffffff var(--tw-gradient-to-position) !important;
-        --tw-gradient-stops: var(--tw-gradient-from), #ffffff var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
-      }
-      html.pure-light .from-emerald-950\/30,
-      html.pure-light .from-emerald-950\/80 {
-        --tw-gradient-from: #f0fdf4 var(--tw-gradient-from-position) !important;
-        --tw-gradient-to: #ecfdf5 var(--tw-gradient-to-position) !important;
-      }
-
-      /* Pure-Light Borders */
-      html.pure-light .border-slate-800 {
-        border-color: #e2e8f0 !important;
-      }
-      html.pure-light .border-slate-700 {
-        border-color: #cbd5e1 !important;
-      }
-      html.pure-light .border-slate-700\/80 {
-        border-color: #e2e8f0 !important;
-      }
-
-      /* Pure-Light Typography */
-      html.pure-light .text-slate-100 {
-        color: #090d16 !important;
-      }
-      html.pure-light .text-slate-200 {
-        color: #1e293b !important;
-      }
-      html.pure-light .text-slate-300 {
-        color: #334155 !important;
-      }
-      html.pure-light .text-slate-400 {
-        color: #475569 !important;
-      }
-      html.pure-light .text-slate-500 {
-        color: #64748b !important;
-      }
-      html.pure-light .text-white {
-        color: #090d16 !important;
-      }
-      html.pure-light .hover\:text-white:hover {
-        color: #000000 !important;
-      }
-      html.pure-light input,
-      html.pure-light select,
-      html.pure-light textarea {
-        background-color: #ffffff !important;
-        color: #090d16 !important;
-        border-color: #cbd5e1 !important;
-      }
-      html.pure-light ::placeholder {
-        color: #94a3b8 !important;
-      }
-
-      /* Pure-Light Accents & Badges */
-      html.pure-light .from-emerald-400.to-sky-400 {
-        background-image: linear-gradient(to right, #059669, #0284c7) !important;
-      }
-      html.pure-light .text-emerald-400 {
-        color: #047857 !important;
-      }
-      html.pure-light .text-emerald-300,
-      html.pure-light .text-emerald-300\/80 {
-        color: #065f46 !important;
-      }
-      html.pure-light .text-sky-400,
-      html.pure-light .group:hover .group-hover\:text-sky-400 {
-        color: #0284c7 !important;
-      }
-      html.pure-light .text-sky-300,
-      html.pure-light .hover\:text-sky-300:hover,
-      html.pure-light .text-sky-300\/80 {
-        color: #0369a1 !important;
-      }
-      html.pure-light .text-amber-400 {
-        color: #b45309 !important;
-      }
-      html.pure-light .text-amber-300 {
-        color: #92400e !important;
-      }
-      html.pure-light .text-rose-400 {
-        color: #be123c !important;
-      }
-      html.pure-light .text-rose-300 {
-        color: #9f1239 !important;
-      }
-      html.pure-light .text-rose-200 {
-        color: #9f1239 !important;
-      }
-      html.pure-light .bg-emerald-500 {
-        background-color: #059669 !important;
-      }
-      html.pure-light .bg-emerald-500.text-slate-950 {
-        color: #ffffff !important;
-      }
-      html.pure-light .bg-sky-500.text-slate-950 {
-        color: #ffffff !important;
-      }
-      html.pure-light .bg-emerald-500\/20 {
-        background-color: #ecfdf5 !important;
-        border-color: #a7f3d0 !important;
-      }
-      html.pure-light .bg-amber-500\/20 {
-        background-color: #fffbeb !important;
-        border-color: #fde68a !important;
-      }
-      html.pure-light .bg-sky-500\/20 {
-        background-color: #f0f9ff !important;
-        border-color: #bae6fd !important;
-      }
-      html.pure-light .bg-rose-500\/20 {
-        background-color: #fff1f2 !important;
-        border-color: #fecdd3 !important;
-      }
-      html.pure-light .bg-emerald-600 {
-        background-color: #047857 !important;
-      }
-      html.pure-light .bg-emerald-600.text-white,
-      html.pure-light .bg-emerald-500.text-white {
-        color: #ffffff !important;
-      }
-      html.pure-light .text-sky-200 {
-        color: #0c4a6e !important;
-      }
-      html.pure-light .text-emerald-200 {
-        color: #064e3b !important;
-      }
-      html.pure-light .bg-sky-950,
-      html.pure-light .bg-sky-900,
-      html.pure-light .bg-sky-900\/60 {
-        background-color: #f0f9ff !important;
-      }
-      html.pure-light .bg-emerald-950 {
-        background-color: #ecfdf5 !important;
-      }
-      html.pure-light .hover\:bg-slate-700:hover {
-        background-color: #e2e8f0 !important;
-      }
-      html.pure-light .hover\:bg-slate-800:hover {
-        background-color: #f1f5f9 !important;
-      }
-    </style>
   </head>
   <body class="bg-slate-900 text-slate-100 min-h-screen transition-colors duration-200">
     <div id="root"></div>

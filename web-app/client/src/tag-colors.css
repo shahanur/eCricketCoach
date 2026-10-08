@@ -1,0 +1,32 @@
+#root span[class*="rounded"][class*="px-"]:not(.public-site span) {
+  --theme-emerald-200: 167 243 208;
+  --theme-emerald-300: 110 231 183;
+  --theme-emerald-400: 52 211 153;
+  --theme-emerald-500: 16 185 129;
+  --theme-emerald-950: 2 44 34;
+  --theme-sky-200: 186 230 253;
+  --theme-sky-300: 125 211 252;
+  --theme-sky-400: 56 189 248;
+  --theme-sky-500: 14 165 233;
+  --theme-sky-950: 8 47 73;
+  --theme-teal-200: 153 246 228;
+  --theme-teal-300: 94 234 212;
+  --theme-teal-400: 45 212 191;
+  --theme-teal-500: 20 184 166;
+  --theme-teal-950: 4 47 46;
+}
+
+html.light #root span[class*="rounded"][class*="px-"]:not(.public-site span) {
+  --theme-emerald-200: 6 95 70;
+  --theme-emerald-300: 6 95 70;
+  --theme-emerald-400: 4 120 87;
+  --theme-emerald-950: 209 250 229;
+  --theme-sky-200: 7 89 133;
+  --theme-sky-300: 3 105 161;
+  --theme-sky-400: 2 132 199;
+  --theme-sky-950: 224 242 254;
+  --theme-teal-200: 17 94 89;
+  --theme-teal-300: 15 118 110;
+  --theme-teal-400: 15 118 110;
+  --theme-teal-950: 204 251 241;
+}

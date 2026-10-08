@@ -19,6 +19,7 @@ import { Navbar } from './components/common/Navbar';
 import { LoginModal } from './components/common/LoginModal';
 import { ConfirmationModal, ConfirmationType } from './components/common/ConfirmationModal';
 import { HomePage, PlanConfig } from './components/home/HomePage';
+import { PUBLIC_PAGES, PublicPage } from './components/home/PublicSite';
 import { CoachingPortal } from './components/coaching/CoachingPortal';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { ClubPortal } from './components/club/ClubPortal';
@@ -67,20 +68,31 @@ export default function App() {
     onCancel?: () => void;
   } | null>(null);
 
-  // Theme state with localStorage persistence: 'dark' | 'light' | 'pure-light'
+  const [publicPage, setPublicPage] = useState<PublicPage>('home');
+  const navigatePublic = (page: PublicPage) => {
+    setPublicPage(page);
+    setViewMode('HOME');
+  };
+
+  useEffect(() => {
+    if (PUBLIC_PAGES.some(page => window.location.hash === `#${page}`)) {
+      window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+    }
+  }, []);
+
+  // Theme state with localStorage persistence.
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark' || saved === 'pure-light') return saved as ThemeMode;
+    if (saved === 'pure-light' || saved === 'soft-blue') return 'light';
+    if (saved === 'light' || saved === 'dark') return saved;
     return 'dark';
   });
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove('light', 'pure-light');
+    root.classList.remove('light', 'pure-light', 'soft-blue');
     if (theme === 'light') {
       root.classList.add('light');
-    } else if (theme === 'pure-light') {
-      root.classList.add('pure-light');
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
@@ -132,11 +144,7 @@ export default function App() {
   }, []);
 
   const toggleTheme = () => {
-    setTheme(prev => {
-      if (prev === 'dark') return 'light';
-      if (prev === 'light') return 'pure-light';
-      return 'dark';
-    });
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
   const handleSelectTheme = (newTheme: ThemeMode) => {
@@ -844,6 +852,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onSelectTheme={handleSelectTheme}
+        onNavigatePublic={navigatePublic}
       />}
 
       {/* Login Modal */}
@@ -876,6 +885,8 @@ export default function App() {
             onRegisterPlan={handleRegisterFromHomePage}
             onExploreDemo={() => setIsLoginModalOpen(true)}
             onOpenHelp={() => setViewMode('HELP_SUPPORT')}
+            publicPage={publicPage}
+            onNavigatePublic={navigatePublic}
             socialRegistration={socialRegistration}
           />
         )}

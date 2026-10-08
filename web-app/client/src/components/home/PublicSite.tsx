@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ArrowRight, BarChart3, Check, ClipboardList, CircleDot, Menu, Play, UserRound, Users, Video, X } from 'lucide-react';
 import './public-site.css';
 
-const pages = ['home', 'features', 'pricing', 'about-us', 'contact-us', 'faqs'] as const;
-type PublicPage = typeof pages[number];
+export const PUBLIC_PAGES = ['home', 'features', 'pricing', 'about-us', 'contact-us', 'faqs'] as const;
+export type PublicPage = typeof PUBLIC_PAGES[number];
 
 const photos = {
   hero: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=2000&q=85',
@@ -20,34 +20,24 @@ const features = [
   { title: 'Club Management', icon: Users, photo: photos.club, audience: 'Clubs & Coaches', headline: 'Run your club. Develop your players.', description: 'Give your club a central hub for squads, session scheduling and player development. Assign coaches, publish training plans and bring your academy operations together.', points: ['Multi-team roster and squad management', 'Training schedules and player notifications', 'Assign coaches to squads and players', 'Club drill libraries and shared templates'] }
 ];
 
-function readPublicPage(): PublicPage {
-  const value = window.location.hash.slice(1);
-  return pages.find(page => page === value) || 'home';
-}
-
 interface PublicSiteProps {
   children: React.ReactNode;
   onSignIn: () => void;
   onOpenHelp: () => void;
+  page: PublicPage;
+  onNavigate: (page: PublicPage) => void;
 }
 
-export function PublicSite({ children, onSignIn, onOpenHelp }: PublicSiteProps) {
-  const [page, setPage] = useState<PublicPage>(readPublicPage);
+export function PublicSite({ children, onSignIn, onOpenHelp, page, onNavigate }: PublicSiteProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
-    const update = () => {
-      setPage(readPublicPage());
-      setMenuOpen(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-    window.addEventListener('hashchange', update);
-    return () => window.removeEventListener('hashchange', update);
-  }, []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
 
   const navigate = (next: PublicPage) => {
     setMenuOpen(false);
     if (page === next) window.scrollTo({ top: 0, behavior: 'smooth' });
-    window.location.hash = next;
+    onNavigate(next);
   };
   const cta = (label = 'Get Started') => <button className="public-button" onClick={() => navigate('pricing')}>{label}<ArrowRight size={18} /></button>;
   const brand = <span className="public-brand"><CircleDot aria-hidden="true" /> eCricketCoach</span>;
@@ -58,10 +48,10 @@ export function PublicSite({ children, onSignIn, onOpenHelp }: PublicSiteProps) 
         <button onClick={() => navigate('home')} aria-label="eCricketCoach home">{brand}</button>
         <nav aria-label="Public navigation" className={menuOpen ? 'public-nav public-nav-open' : 'public-nav'}>
           {(['features', 'pricing', 'about-us', 'contact-us'] as const).map(next => (
-            <a key={next} href={`#${next}`} onClick={() => setMenuOpen(false)} aria-current={page === next ? 'page' : undefined}>{next === 'about-us' ? 'About' : next === 'contact-us' ? 'Contact' : next[0].toUpperCase() + next.slice(1)}</a>
+            <button key={next} onClick={() => navigate(next)} aria-current={page === next ? 'page' : undefined}>{next === 'about-us' ? 'About' : next === 'contact-us' ? 'Contact' : next[0].toUpperCase() + next.slice(1)}</button>
           ))}
           <button className="public-mobile-sign-in" onClick={() => { setMenuOpen(false); onSignIn(); }}>Sign In</button>
-          <a className="public-mobile-start" href="#pricing" onClick={() => setMenuOpen(false)}>Get Started</a>
+          <button className="public-mobile-start" onClick={() => navigate('pricing')}>Get Started</button>
         </nav>
         <div className="public-header-actions">
           <button onClick={onSignIn} className="public-sign-in">Sign In</button>
@@ -71,7 +61,7 @@ export function PublicSite({ children, onSignIn, onOpenHelp }: PublicSiteProps) 
       </header>
 
       {page === 'home' && <>
-        <section className="public-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(10,20,11,.94), rgba(10,20,11,.45)), url("${photos.hero}")` }}>
+        <section className="public-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(25,15,43,.94), rgba(25,15,43,.45)), url("${photos.hero}")` }}>
           <div className="public-container">
             <span className="public-pill">Built for your cricket journey</span>
             <h1>Elevate<br />Your <em>Game</em></h1>
@@ -89,7 +79,7 @@ export function PublicSite({ children, onSignIn, onOpenHelp }: PublicSiteProps) 
           </div>
         </section>
         <section className="public-band"><div className="public-container public-section"><p className="public-eyebrow">Everything you need</p><h2>Powerful Tools. Real Results.</h2>
-          <div className="public-feature-grid">{features.map(({ title, icon: Icon, photo, description }, index) => <a href="#features" className={`public-photo-card ${index === 0 ? 'public-photo-card-large' : ''}`} key={title}><img src={photo} alt={`${title} for cricket`} loading="lazy" /><div><span className="public-pill"><Icon size={13} />{title}</span><h3>{title}</h3><p>{description}</p></div></a>)}</div>
+          <div className="public-feature-grid">{features.map(({ title, icon: Icon, photo, description }, index) => <button onClick={() => navigate('features')} className={`public-photo-card ${index === 0 ? 'public-photo-card-large' : ''}`} key={title}><img src={photo} alt={`${title} for cricket`} loading="lazy" /><div><span className="public-pill"><Icon size={13} />{title}</span><h3>{title}</h3><p>{description}</p></div></button>)}</div>
         </div></section>
       </>}
 
@@ -114,9 +104,9 @@ export function PublicSite({ children, onSignIn, onOpenHelp }: PublicSiteProps) 
       </section>
       <footer className="public-footer"><div className="public-container">
         <div className="public-footer-grid"><div><button onClick={() => navigate('home')}>{brand}</button><p>The complete online cricket coaching platform for players, coaches, and clubs. Elevate every aspect of your game.</p></div>
-          <div><h4>Platform</h4><a href="#features">Features</a><a href="#pricing">Pricing</a><button onClick={onSignIn}>Sign In</button><a href="#pricing">Get Started</a></div>
-          <div><h4>Company</h4><a href="#about-us">About</a><a href="#contact-us">Contact</a><a href="#faqs">FAQs</a><button onClick={onOpenHelp}>Help &amp; Support</button><a href="mailto:admin@ecricketcoach.com">Email Support</a></div>
-          <div><h4>Audiences</h4><a href="#pricing">For Players</a><a href="#pricing">For Coaches</a><a href="#pricing">For Clubs</a></div>
+          <div><h4>Platform</h4><button onClick={() => navigate('features')}>Features</button><button onClick={() => navigate('pricing')}>Pricing</button><button onClick={onSignIn}>Sign In</button><button onClick={() => navigate('pricing')}>Get Started</button></div>
+          <div><h4>Company</h4><button onClick={() => navigate('about-us')}>About</button><button onClick={() => navigate('contact-us')}>Contact</button><button onClick={() => navigate('faqs')}>FAQs</button><button onClick={onOpenHelp}>Help &amp; Support</button><a href="mailto:admin@ecricketcoach.com">Email Support</a></div>
+          <div><h4>Audiences</h4><button onClick={() => navigate('pricing')}>For Players</button><button onClick={() => navigate('pricing')}>For Coaches</button><button onClick={() => navigate('pricing')}>For Clubs</button></div>
         </div><div className="public-footer-bottom"><span>&copy; {new Date().getFullYear()} eCricketCoach. All rights reserved.</span><span>Built for the love of cricket</span></div>
       </div></footer>
     </div>

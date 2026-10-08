@@ -1,0 +1,51 @@
+html:not(.light) {
+  color-scheme: dark;
+  --theme-slate-50: 250 252 248;
+  --theme-slate-100: 245 246 243;
+  --theme-slate-200: 220 229 215;
+  --theme-slate-300: 190 205 187;
+  --theme-slate-400: 160 180 194;
+  --theme-slate-500: 139 157 147;
+  --theme-slate-600: 91 116 83;
+  --theme-slate-700: 48 76 41;
+  --theme-slate-800: 38 61 30;
+  --theme-slate-900: 26 46 26;
+  --theme-slate-950: 14 26 14;
+  --theme-emerald-50: 247 254 231;
+  --theme-emerald-100: 236 252 203;
+  --theme-emerald-200: 217 249 157;
+  --theme-emerald-300: 190 242 100;
+  --theme-emerald-400: 154 229 26;
+  --theme-emerald-500: 132 204 10;
+  --theme-emerald-600: 132 204 10;
+  --theme-emerald-700: 101 163 13;
+  --theme-emerald-800: 63 98 18;
+  --theme-emerald-900: 38 61 18;
+  --theme-emerald-950: 20 36 12;
+  --theme-sky-50: var(--theme-emerald-50);
+  --theme-sky-100: var(--theme-emerald-100);
+  --theme-sky-200: var(--theme-emerald-200);
+  --theme-sky-300: var(--theme-emerald-300);
+  --theme-sky-400: var(--theme-emerald-400);
+  --theme-sky-500: var(--theme-emerald-500);
+  --theme-sky-600: var(--theme-emerald-600);
+  --theme-sky-700: var(--theme-emerald-700);
+  --theme-sky-800: var(--theme-emerald-800);
+  --theme-sky-900: var(--theme-emerald-900);
+  --theme-sky-950: var(--theme-emerald-950);
+  --theme-teal-50: var(--theme-emerald-50);
+  --theme-teal-100: var(--theme-emerald-100);
+  --theme-teal-200: var(--theme-emerald-200);
+  --theme-teal-300: var(--theme-emerald-300);
+  --theme-teal-400: var(--theme-emerald-400);
+  --theme-teal-500: var(--theme-emerald-500);
+  --theme-teal-600: var(--theme-emerald-600);
+  --theme-teal-700: var(--theme-emerald-700);
+  --theme-teal-800: var(--theme-emerald-800);
+  --theme-teal-900: var(--theme-emerald-900);
+  --theme-teal-950: var(--theme-emerald-950);
+}
+
+html:not(.light) :is(.bg-emerald-400, .bg-emerald-500, .bg-emerald-600, .bg-sky-400, .bg-sky-500, .bg-sky-600).text-white {
+  color: #0e1a0e;
+}

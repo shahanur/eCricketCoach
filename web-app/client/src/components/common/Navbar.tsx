@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ViewMode, AuthUser, ThemeMode } from '../../types';
+import { PUBLIC_PAGES, PublicPage } from '../home/PublicSite';
 import { Menu, X, Home, HelpCircle, Shield, LogOut, Video, Building2 } from 'lucide-react';
 
 interface NavbarProps {
@@ -12,6 +13,7 @@ interface NavbarProps {
   theme: ThemeMode;
   onToggleTheme: () => void;
   onSelectTheme?: (mode: ThemeMode) => void;
+  onNavigatePublic: (page: PublicPage) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -23,15 +25,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   pendingApprovalsCount = 0,
   theme,
   onToggleTheme,
-  onSelectTheme
+  onSelectTheme,
+  onNavigatePublic
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const scrollToSection = (id: string) => {
     setMobileMenuOpen(false);
     if (!currentUser) {
-      window.location.hash = id;
-      setViewMode('HOME');
+      const page = PUBLIC_PAGES.find(page => page === id);
+      if (page) onNavigatePublic(page);
       return;
     }
     if (viewMode !== 'HOME') {
@@ -47,7 +50,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleNavClick = (mode: ViewMode) => {
-    if (!currentUser && mode === 'HOME') window.location.hash = 'home';
+    if (!currentUser && mode === 'HOME') onNavigatePublic('home');
     setViewMode(mode);
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -61,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasClubPortal = hasClubAdmin || isClubCoach;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/90 px-3 py-2.5 shadow-lg shadow-slate-950/20 backdrop-blur sm:px-4">
+    <header className="portal-navbar sticky top-0 z-30 border-b border-slate-800 bg-slate-900/90 px-3 py-2.5 shadow-lg shadow-slate-950/20 backdrop-blur sm:px-4">
       <div className="flex items-center justify-between">
         {/* Left: Brand Logo & Desktop Navigation */}
         <div className="flex items-center space-x-3 sm:space-x-6">
@@ -250,14 +253,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </div>
 
-                  {/* Desktop Log Out Button */}
+                  {/* Desktop Sign Out Button */}
                   <button
                     onClick={onLogout}
-                    title="Log out"
+                    title="Sign out"
                     className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-gradient-to-r from-rose-500/20 to-red-500/20 hover:from-rose-500/30 hover:to-red-500/30 border border-rose-500/40 text-rose-200 hover:text-white font-semibold text-xs shadow-sm transition cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
-                    <span>Log Out</span>
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>
@@ -298,7 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => (onSelectTheme ? onSelectTheme('light') : onToggleTheme())}
-              title="Soft Slate Light Theme"
+              title="Soft Azure-style Light Theme"
               className={`h-full px-2 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
                 theme === 'light'
                   ? 'bg-white text-slate-900 font-bold shadow-sm'
@@ -307,18 +310,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <span>⛅</span>
               <span className="hidden sm:inline text-[10px]">Soft</span>
-            </button>
-            <button
-              onClick={() => (onSelectTheme ? onSelectTheme('pure-light') : onToggleTheme())}
-              title="Pure White Theme"
-              className={`h-full px-2 rounded-md text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
-                theme === 'pure-light'
-                  ? 'bg-white text-emerald-600 font-bold shadow-sm border border-emerald-400/40'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>☀️</span>
-              <span className="hidden sm:inline text-[10px]">Pure</span>
             </button>
           </div>
 
@@ -520,15 +511,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span>⛅</span>
                 <span className="text-[10px]">Soft</span>
-              </button>
-              <button
-                onClick={() => (onSelectTheme ? onSelectTheme('pure-light') : onToggleTheme())}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
-                  theme === 'pure-light' ? 'bg-white text-emerald-600 font-bold' : 'text-slate-400'
-                }`}
-              >
-                <span>☀️</span>
-                <span className="text-[10px]">Pure</span>
               </button>
             </div>
           </div>
