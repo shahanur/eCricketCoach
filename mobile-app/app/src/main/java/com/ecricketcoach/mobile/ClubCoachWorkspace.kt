@@ -40,6 +40,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
@@ -607,7 +620,53 @@ internal fun ClubCoachWorkspace(
                 if (isClubAdmin) add("Settings")
             }
         }
-        Row(Modifier.fillMaxSize()) {
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val sectionTab = workspaceSectionFor(tab)
+        val bottomTabs = listOf("Overview", "Squads", "Sessions", "Assessments")
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = !isTablet && drawerState.isOpen,
+            drawerContent = {
+                if (!isTablet) {
+                    ModalDrawerSheet(Modifier.widthIn(max = 300.dp)) {
+                        Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
+                            Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Image(
+                                    painterResource(R.drawable.ic_launcher),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text("eCricketCoach", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = MaterialTheme.colorScheme.primary)
+                                    Text(
+                                        user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                            workspaceTabs.forEach { item ->
+                                NavigationDrawerItem(
+                                    label = { Text(item, fontWeight = FontWeight.SemiBold) },
+                                    icon = { Icon(workspaceTabIcon(item), contentDescription = null) },
+                                    selected = sectionTab == item,
+                                    onClick = {
+                                        tab = item
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        ) {
+        Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().weight(1f)) {
             if (isTablet) {
                 NavigationRail(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -615,7 +674,7 @@ internal fun ClubCoachWorkspace(
                 ) {
                     workspaceTabs.forEach { item ->
                         NavigationRailItem(
-                            selected = tab == item,
+                            selected = sectionTab == item,
                             onClick = { tab = item },
                             icon = { Icon(workspaceTabIcon(item), contentDescription = item) },
                             label = { Text(item, fontSize = 10.sp, maxLines = 1) },
@@ -642,6 +701,11 @@ internal fun ClubCoachWorkspace(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (!isTablet) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.padding(end = 4.dp)) {
+                            Icon(Icons.Outlined.Menu, contentDescription = "Open menu", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     Column(Modifier.weight(1f)) {
                         Text(
                             "Welcome, ${user.name}",
@@ -672,16 +736,28 @@ internal fun ClubCoachWorkspace(
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                if (!isTablet) {
+                if (!isTablet && sectionTab != tab) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        workspaceTabs.forEach { item ->
-                            WorkspaceTab(item, tab == item) { tab = item }
-                        }
+                        Text(
+                            sectionTab,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { tab = sectionTab }.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                        Icon(
+                            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(tab, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), modifier = Modifier.padding(horizontal = 4.dp))
                     }
                 }
+                Spacer(Modifier.height(if (isTablet) 0.dp else 6.dp))
                 if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
         }
@@ -1311,6 +1387,31 @@ internal fun ClubCoachWorkspace(
         }
             }
         }
+        if (!isTablet) {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                tonalElevation = 0.dp
+            ) {
+                bottomTabs.forEach { item ->
+                    NavigationBarItem(
+                        selected = sectionTab == item,
+                        onClick = { tab = item },
+                        icon = { Icon(workspaceTabIcon(item), contentDescription = null) },
+                        label = { Text(item, fontSize = 11.sp, maxLines = 1) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+                            indicatorColor = MaterialTheme.colorScheme.onPrimary,
+                            unselectedIconColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                            unselectedTextColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                        )
+                    )
+                }
+            }
+        }
+        }
+        }
     }
 
     if (showInvite) {
@@ -1542,6 +1643,14 @@ internal fun ClubCoachWorkspace(
             dismissButton = { TextButton(onClick = { discardMutation = null }) { Text("Keep edit") } }
         )
     }
+}
+
+private fun workspaceSectionFor(tab: String): String = when (tab) {
+    "Delivered sessions", "Participants" -> "Overview"
+    "Edit squad" -> "Squads"
+    "Edit session", "Schedule session" -> "Sessions"
+    "Edit assessment", "Assessment" -> "Assessments"
+    else -> tab
 }
 
 private fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when (label) {
