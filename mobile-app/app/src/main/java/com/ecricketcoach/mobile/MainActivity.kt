@@ -59,9 +59,12 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
+private val Indigo = Color(0xFFB6A3FF)
 private val Green = Color(0xFF58C288)
-private val Night = Color(0xFF101713)
-private val Panel = Color(0xFF1A241E)
+private val Night = Color(0xFF090D16)
+private val Panel = Color(0xFF151B27)
+private val Orchid = Color(0xFF7C5CFA)
+private val Blossom = Color(0xFFF3F0FC)
 
 class MainActivity : ComponentActivity() {
     private lateinit var store: AuthStore
@@ -161,15 +164,23 @@ private fun CoachApp(
     val scope = rememberCoroutineScope()
     val coachAccess = user?.role in setOf("SUPER_ADMIN", "CLUB_ADMIN", "COACH")
     val colors = if (isDark) darkColorScheme(
-        primary = Green,
-        onPrimary = Color(0xFF092014),
+        primary = Indigo,
+        onPrimary = Color(0xFF101126),
+        secondary = Color(0xFFFF93C0),
+        tertiary = Color(0xFF57E6B0),
         background = Night,
-        surface = Panel
+        surface = Panel,
+        surfaceVariant = Color(0xFF20283A),
+        outline = Color(0xFF3A465D)
     ) else lightColorScheme(
-        primary = Color(0xFF14834D),
+        primary = Orchid,
         onPrimary = Color.White,
-        background = Color(0xFFF5F7F5),
-        surface = Color.White
+        secondary = Color(0xFFFF6FA8),
+        tertiary = Color(0xFF1FB683),
+        background = Blossom,
+        surface = Color.White,
+        surfaceVariant = Color(0xFFEDE8FB),
+        outline = Color(0xFFD9D2F0)
     )
 
     suspend fun synchronize() {

@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,10 +27,34 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Publish
+import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.WorkspacePremium
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +68,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +88,53 @@ private val AssessmentMetricNames = mapOf(
     "KEEPING" to listOf("Stance & readiness", "Footwork", "Glove technique", "Catching & gathering", "Communication"),
     "FIELDING" to listOf("Ready position", "Movement & agility", "Ground fielding", "Throwing accuracy", "Communication")
 )
+
+@Composable
+private fun WorkspaceAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    primary: Boolean = false
+) {
+    if (primary) {
+        Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp)) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.padding(horizontal = 3.dp))
+            Text(label)
+        }
+    } else {
+        TextButton(onClick = onClick, enabled = enabled) {
+            Icon(icon, contentDescription = null)
+            Spacer(Modifier.padding(horizontal = 2.dp))
+            Text(label)
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    enabled: Boolean = true
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier,
+        singleLine = singleLine,
+        enabled = enabled,
+        shape = RoundedCornerShape(14.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+        )
+    )
+}
 
 private data class ClubWorkspaceSnapshot(
     val members: List<ClubMember>,
@@ -296,32 +370,88 @@ internal fun ClubCoachWorkspace(
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Text("Welcome, ${user.name}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
-            }
-            TextButton(onClick = onToggleTheme) { Text(if (isDark) "Light" else "Dark") }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val isTablet = maxWidth >= 600.dp
+        val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
                 if (isClubAdmin) add("Roster")
                 addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Club drills", "Templates", "Progression", "Video analysis"))
                 if (isClubAdmin) add("Settings")
-            }.forEach { item ->
-                WorkspaceTab(item, tab == item) { tab = item }
             }
         }
-        if (error.isNotBlank()) {
+        Row(Modifier.fillMaxSize()) {
+            if (isTablet) {
+                NavigationRail(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    workspaceTabs.forEach { item ->
+                        NavigationRailItem(
+                            selected = tab == item,
+                            onClick = { tab = item },
+                            icon = { Icon(workspaceTabIcon(item), contentDescription = item) },
+                            label = { Text(item, fontSize = 10.sp, maxLines = 1) },
+                            colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                indicatorColor = MaterialTheme.colorScheme.onPrimary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                unselectedTextColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                            )
+                        )
+                    }
+                }
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 3.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Welcome, ${user.name}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                        TextButton(onClick = onToggleTheme, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
+                            Text(if (isDark) "Light" else "Dark", fontSize = 12.sp)
+                        }
+                    }
+                }
+                if (!isTablet) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        workspaceTabs.forEach { item ->
+                            WorkspaceTab(item, tab == item) { tab = item }
+                        }
+                    }
+                }
+                if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
         }
         if (notice.isNotBlank()) {
@@ -670,6 +800,8 @@ internal fun ClubCoachWorkspace(
             }
             TextButton(onClick = onSignOut) { Text("Sign out") }
         }
+            }
+        }
     }
 
     if (showInvite) {
@@ -940,20 +1072,50 @@ internal fun ClubCoachWorkspace(
     }
 }
 
+private fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when (label) {
+    "Overview" -> Icons.Outlined.Dashboard
+    "Roster" -> Icons.Outlined.Group
+    "Squads" -> Icons.Outlined.Groups
+    "Sessions" -> Icons.Outlined.CalendarMonth
+    "Assessments" -> Icons.Outlined.Assignment
+    "Reports" -> Icons.Outlined.BarChart
+    "Certificates" -> Icons.Outlined.WorkspacePremium
+    "Drills" -> Icons.Outlined.FitnessCenter
+    "Club drills" -> Icons.Outlined.LibraryBooks
+    "Templates" -> Icons.Outlined.Description
+    "Progression" -> Icons.Outlined.TrendingUp
+    "Video analysis" -> Icons.Outlined.Videocam
+    "Settings" -> Icons.Outlined.Settings
+    else -> Icons.Outlined.Dashboard
+}
+
 @Composable
 private fun WorkspaceTab(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(12.dp)
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(18.dp),
+        tonalElevation = if (selected) 6.dp else 0.dp,
+        shadowElevation = if (selected) 4.dp else 0.dp
     ) {
-        Text(
-            label,
+        Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp
-        )
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                workspaceTabIcon(label),
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                modifier = Modifier.height(16.dp)
+            )
+            Text(
+                label,
+                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+        }
     }
 }
 
@@ -979,29 +1141,63 @@ private fun OverviewPanel(
         .filter { it.status != "COMPLETED" && it.scheduledDate >= today }
         .sortedBy { it.scheduledDate }
     val deliveredSessions = sessions.count { it.isExecuted }
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(clubName.uppercase() + " CLUB COACH WORKSPACE", color = Color(0xFF8B88FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text("$coachName's club coaching dashboard", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text("Plan sessions, monitor club events, and measure development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
         }
-        item { SummaryCard("Upcoming sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", onClick = { onOpen("Sessions") }) }
-        item { SummaryCard("Upcoming assessments", upcomingAssessments.size.toString(), "Due or in progress", onClick = { onOpen("Assessments") }) }
-        item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season") }
-        item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club") }
-        item { OverviewList("Next sessions and events", upcomingSessions.take(7)) { session ->
-            Text(session.title, fontWeight = FontWeight.SemiBold)
-            Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
-        } }
-        item { OverviewList("My upcoming sessions", myUpcomingSessions.take(7)) { session ->
-            Text(session.title, fontWeight = FontWeight.SemiBold)
-            Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
-                TextButton(onClick = { onOpen("Sessions") }) { Text("▶ Run") }
+        if (isTablet) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SummaryCard("Upcoming sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", Modifier.weight(1f), onClick = { onOpen("Sessions") })
+                    SummaryCard("Upcoming assessments", upcomingAssessments.size.toString(), "Due or in progress", Modifier.weight(1f), onClick = { onOpen("Assessments") })
+                }
             }
-        } }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Modifier.weight(1f))
+                    SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OverviewList("Next sessions and events", upcomingSessions.take(7), Modifier.weight(1f)) { session ->
+                        Text(session.title, fontWeight = FontWeight.SemiBold)
+                        Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+                    }
+                    OverviewList("My upcoming sessions", myUpcomingSessions.take(7), Modifier.weight(1f)) { session ->
+                        Text(session.title, fontWeight = FontWeight.SemiBold)
+                        Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { onOpen("Sessions") }) { Text("▶ Run") }
+                        }
+                    }
+                }
+            }
+        } else {
+            item { SummaryCard("Upcoming sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", onClick = { onOpen("Sessions") }) }
+            item { SummaryCard("Upcoming assessments", upcomingAssessments.size.toString(), "Due or in progress", onClick = { onOpen("Assessments") }) }
+            item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season") }
+            item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club") }
+            item { OverviewList("Next sessions and events", upcomingSessions.take(7)) { session ->
+                Text(session.title, fontWeight = FontWeight.SemiBold)
+                Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+            } }
+            item { OverviewList("My upcoming sessions", myUpcomingSessions.take(7)) { session ->
+                Text(session.title, fontWeight = FontWeight.SemiBold)
+                Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { onOpen("Sessions") }) { Text("▶ Run") }
+                }
+            } }
+        }
         item { OverviewList("Upcoming assessments", upcomingAssessments.take(6)) { assessment ->
             Text(assessment.playerName, fontWeight = FontWeight.SemiBold)
             Text("${assessment.title} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
@@ -1022,16 +1218,24 @@ private fun OverviewPanel(
         }
     }
 }
+}
 
 @Composable
-private fun <T> OverviewList(title: String, rows: List<T>, content: @Composable (T) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        Text(title, fontWeight = FontWeight.Bold)
+private fun <T> OverviewList(title: String, rows: List<T>, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         if (rows.isEmpty()) {
             Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
         } else {
             rows.forEach { row ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) { content(row) }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+                }
             }
         }
     }
@@ -1041,21 +1245,24 @@ private fun <T> OverviewList(title: String, rows: List<T>, content: @Composable 
 private fun LibraryLink(label: String) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(14.dp),
+        tonalElevation = 3.dp
     ) {
         Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = 12.sp, modifier = Modifier.padding(12.dp))
     }
 }
 
 @Composable
-private fun SummaryCard(title: String, value: String, detail: String, onClick: (() -> Unit)? = null) {
+private fun SummaryCard(title: String, value: String, detail: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Card(
+        modifier = modifier,
         onClick = { onClick?.invoke() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(18.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1063,7 +1270,7 @@ private fun SummaryCard(title: String, value: String, detail: String, onClick: (
                 Text(title, fontWeight = FontWeight.SemiBold)
                 Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 12.sp)
             }
-            Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1081,7 +1288,7 @@ private fun RosterPanel(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Club roster", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                if (canInvite) Button(onClick = onInvite) { Text("Invite") }
+                if (canInvite) WorkspaceAction("Invite", Icons.Outlined.Send, onInvite, primary = true)
             }
         }
         if (members.isEmpty()) item { EmptyMessage("No members found for this club.") }
@@ -1094,7 +1301,7 @@ private fun RosterPanel(
                     Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Squad: ${member.squad}", fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { menuOpen = true }) { Text("Assign") }
+                        WorkspaceAction("Assign", Icons.Outlined.Group, { menuOpen = true })
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             (listOf("Unassigned") + squads.map(ClubSquad::name)).distinct().forEach { squad ->
                                 DropdownMenuItem(
@@ -1119,7 +1326,7 @@ private fun SquadPanel(squads: List<ClubSquad>, onCreate: () -> Unit, modifier: 
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Squads", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Button(onClick = onCreate) { Text("New squad") }
+                WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true)
             }
         }
         if (squads.isEmpty()) item { EmptyMessage("Create a squad to organize your players.") }
@@ -1165,68 +1372,126 @@ private fun SessionsPanel(
             (throughDate.isBlank() || session.sessionDate <= throughDate) &&
             (status == "ALL" || status == sessionStatus)
     }
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Training sessions", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                if (canSchedule) Button(onClick = onSchedule) { Text("Schedule") }
-            }
-            OutlinedTextField(search, { search = it }, label = { Text("Filter session title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(fromDate, { fromDate = it }, label = { Text("From date") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(throughDate, { throughDate = it }, label = { Text("Through date") }, modifier = Modifier.weight(1f), singleLine = true)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Status: ")
-                TextButton(onClick = { statusMenuOpen = true }) { Text(status) }
-                DropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
-                    listOf("ALL", "DRAFT", "PUBLISHED", "DELIVERED").forEach { value ->
-                        DropdownMenuItem(text = { Text(value) }, onClick = { status = value; statusMenuOpen = false })
-                    }
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        val sortedSessions = filteredSessions.sortedByDescending(ClubTrainingSession::sessionDate)
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Training sessions", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    if (canSchedule) WorkspaceAction("Schedule", Icons.Outlined.CalendarMonth, onSchedule, primary = true)
                 }
-            }
-            if (!validRange) Text("Enter valid dates and make sure the start date is not after the end date.", color = MaterialTheme.colorScheme.error)
-        }
-        if (filteredSessions.isEmpty()) item { EmptyMessage(if (sessions.isEmpty()) "No training sessions scheduled yet." else "No sessions match these filters.") }
-        items(filteredSessions.sortedByDescending(ClubTrainingSession::sessionDate), key = ClubTrainingSession::id) { session ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text(session.title, fontWeight = FontWeight.SemiBold)
-                    Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp)
-                    Text(
-                        "${if (session.isExecuted) "Delivered" else if (session.isPublished) "Published" else "Draft"} · ${session.drillCount} drills",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 3.dp)
-                    )
-                    val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        if (!session.isExecuted && canManage) {
-                            TextButton(onClick = { onEdit(session) }) { Text("Edit") }
-                            TextButton(onClick = { deleteTarget = session }) { Text("Delete") }
+                WorkspaceField(search, { search = it }, "Filter session title", Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    WorkspaceField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                    WorkspaceField(throughDate, { throughDate = it }, "Through date", Modifier.weight(1f))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Status: ")
+                    TextButton(onClick = { statusMenuOpen = true }) { Text(status) }
+                    DropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
+                        listOf("ALL", "DRAFT", "PUBLISHED", "DELIVERED").forEach { value ->
+                            DropdownMenuItem(text = { Text(value) }, onClick = { status = value; statusMenuOpen = false })
                         }
-                        if (canManage && !session.isPublished && !session.isExecuted) TextButton(onClick = { onPublish(session) }) { Text("Publish") }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        if (canCoachSessions && session.isAssignedTo(userId) && !session.isExecuted) TextButton(onClick = { onExecute(session) }) { Text("Run") }
-                        if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) TextButton(onClick = { onReview(session) }) { Text("Review") }
-                        if (session.isExecuted) TextButton(onClick = { onAssess(session) }) { Text("AI review") }
                     }
                 }
-                deleteTarget?.let { session ->
-                    AlertDialog(
-                        onDismissRequest = { deleteTarget = null },
-                        title = { Text("Delete scheduled session?") },
-                        text = { Text("Permanently delete '${session.title}'? This cannot be undone.") },
-                        confirmButton = {
-                            Button(onClick = {
-                                deleteTarget = null
-                                onDelete(session)
-                            }) { Text("Delete session") }
-                        },
-                        dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep session") } }
+                if (!validRange) Text("Enter valid dates and make sure the start date is not after the end date.", color = MaterialTheme.colorScheme.error)
+            }
+            if (sortedSessions.isEmpty()) {
+                item { EmptyMessage(if (sessions.isEmpty()) "No training sessions scheduled yet." else "No sessions match these filters.") }
+            } else if (isTablet) {
+                items(sortedSessions.chunked(2)) { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { session ->
+                            SessionCard(
+                                session = session,
+                                userId = userId,
+                                canDeleteAny = canDeleteAny,
+                                canCoachSessions = canCoachSessions,
+                                onEdit = onEdit,
+                                onDelete = { deleteTarget = session },
+                                onPublish = onPublish,
+                                onExecute = onExecute,
+                                onReview = onReview,
+                                onAssess = onAssess,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            } else {
+                items(sortedSessions, key = ClubTrainingSession::id) { session ->
+                    SessionCard(
+                        session = session,
+                        userId = userId,
+                        canDeleteAny = canDeleteAny,
+                        canCoachSessions = canCoachSessions,
+                        onEdit = onEdit,
+                        onDelete = { deleteTarget = session },
+                        onPublish = onPublish,
+                        onExecute = onExecute,
+                        onReview = onReview,
+                        onAssess = onAssess,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+        }
+    }
+    deleteTarget?.let { session ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete scheduled session?") },
+            text = { Text("Permanently delete '${session.title}'? This cannot be undone.") },
+            confirmButton = {
+                Button(onClick = {
+                    deleteTarget = null
+                    onDelete(session)
+                }) { Text("Delete session") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep session") } }
+        )
+    }
+}
+
+@Composable
+private fun SessionCard(
+    session: ClubTrainingSession,
+    userId: String,
+    canDeleteAny: Boolean,
+    canCoachSessions: Boolean,
+    onEdit: (ClubTrainingSession) -> Unit,
+    onDelete: () -> Unit,
+    onPublish: (ClubTrainingSession) -> Unit,
+    onExecute: (ClubTrainingSession) -> Unit,
+    onReview: (ClubTrainingSession) -> Unit,
+    onAssess: (ClubTrainingSession) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(session.title, fontWeight = FontWeight.SemiBold)
+            Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp)
+            Text(
+                "${if (session.isExecuted) "Delivered" else if (session.isPublished) "Published" else "Draft"} · ${session.drillCount} drills",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 3.dp, bottom = 6.dp)
+            )
+            val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (!session.isExecuted && canManage) {
+                    WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(session) })
+                    WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+                }
+                if (canManage && !session.isPublished && !session.isExecuted) WorkspaceAction("Publish", Icons.Outlined.Publish, { onPublish(session) })
+                if (canCoachSessions && session.isAssignedTo(userId) && !session.isExecuted) WorkspaceAction("Run", Icons.Outlined.PlayArrow, { onExecute(session) })
+                if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) WorkspaceAction("Review", Icons.Outlined.Visibility, { onReview(session) })
+                if (session.isExecuted) WorkspaceAction("AI review", Icons.Outlined.Assignment, { onAssess(session) })
             }
         }
     }
@@ -1327,14 +1592,14 @@ private fun InviteMemberDialog(
         title = { Text("Invite club member") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
-                OutlinedTextField(email, { email = it }, label = { Text("Email") }, singleLine = true)
+                WorkspaceField(name, { name = it }, "Name")
+                WorkspaceField(email, { email = it }, "Email")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Role: $role", modifier = Modifier.weight(1f))
                     TextButton(onClick = { role = if (role == "PLAYER") "COACH" else "PLAYER" }) { Text("Change") }
                 }
                 if (role == "PLAYER") {
-                    OutlinedTextField(ageGroup, { ageGroup = it }, label = { Text("Age group") }, singleLine = true)
+                    WorkspaceField(ageGroup, { ageGroup = it }, "Age group")
                     DisciplinePicker(discipline) { discipline = it }
                 }
             }
@@ -1358,8 +1623,8 @@ private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, Li
         title = { Text("Create squad") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Squad name") }, singleLine = true)
-                OutlinedTextField(ageGroup, { ageGroup = it }, label = { Text("Age group") }, singleLine = true)
+                WorkspaceField(name, { name = it }, "Squad name")
+                WorkspaceField(ageGroup, { ageGroup = it }, "Age group")
                 Text("Disciplines")
                 ClubDisciplines.forEach { discipline ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1402,9 +1667,9 @@ private fun ScheduleSessionDialog(
         title = { Text(if (session == null) "Schedule training" else "Edit Training Session") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("Session title") }, singleLine = true, enabled = !isSaving)
-                OutlinedTextField(date, { date = it }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true, enabled = !isSaving)
-                OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, label = { Text("Duration in minutes") }, singleLine = true, enabled = !isSaving)
+                WorkspaceField(title, { title = it }, "Session title", enabled = !isSaving)
+                WorkspaceField(date, { date = it }, "Date (YYYY-MM-DD)", enabled = !isSaving)
+                WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration in minutes", enabled = !isSaving)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         selectedSquad?.name ?: session?.takeIf { it.squadId == null }?.squadName ?: "All players",
@@ -1418,7 +1683,7 @@ private fun ScheduleSessionDialog(
                         }
                     }
                 }
-                OutlinedTextField(safety, { safety = it }, label = { Text("Safety instructions (one per line)") }, enabled = !isSaving)
+                WorkspaceField(safety, { safety = it }, "Safety instructions (one per line)", singleLine = false, enabled = !isSaving)
                 if (session != null && selectedSquad?.id != session.squadId) {
                     Text("Changing the squad replaces individual player targeting with the selected squad (or all players).", fontSize = 12.sp)
                 }
@@ -1461,8 +1726,8 @@ private fun ScheduleAssessmentDialog(
                         }
                     }
                 }
-                OutlinedTextField(title, { title = it }, label = { Text("Assessment title") }, singleLine = true)
-                OutlinedTextField(date, { date = it }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true)
+                WorkspaceField(title, { title = it }, "Assessment title")
+                WorkspaceField(date, { date = it }, "Date (YYYY-MM-DD)")
                 DisciplinePicker(discipline) { discipline = it }
             }
         },
@@ -1525,7 +1790,7 @@ private fun CompleteAssessmentDialog(
                         }
                     }
                 }
-                OutlinedTextField(feedback, { feedback = it }, label = { Text("Feedback for player") }, minLines = 2)
+                WorkspaceField(feedback, { feedback = it }, "Feedback for player", singleLine = false)
             }
         },
         confirmButton = {
