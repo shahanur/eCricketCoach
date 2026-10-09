@@ -7,10 +7,10 @@ plugins {
 }
 
 val apiBaseUrl = providers.gradleProperty("apiBaseUrl")
-    .orElse("http://10.0.2.2:5001")
+    .orElse("https://unglazed-perm-flap.ngrok-free.dev")
     .get()
 val oauthOrigin = providers.gradleProperty("oauthOrigin")
-    .orElse("http://10.0.2.2:3000")
+    .orElse("https://unglazed-perm-flap.ngrok-free.dev")
     .get()
 
 android {
@@ -77,4 +77,5 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

@@ -472,10 +472,10 @@ export const api = {
   async updateSession(sessionId: string, updates: Partial<TrainingSession>): Promise<TrainingSession> {
     const res = await fetch(`${API_BASE}/club/sessions/${sessionId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authenticatedHeaders(),
       body: JSON.stringify(updates)
     });
-    if (!res.ok) throw new Error('Failed to update session');
+    if (!res.ok) throw await responseError(res, 'Failed to update session');
     const data = await res.json();
     return data.session;
   },
@@ -506,8 +506,11 @@ export const api = {
   },
 
   async deleteSession(sessionId: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/club/sessions/${sessionId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Failed to delete session');
+    const res = await fetch(`${API_BASE}/club/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to delete session');
     return true;
   },
 

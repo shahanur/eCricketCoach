@@ -6,6 +6,16 @@ import { SessionExecutionLog } from '../types/index.js';
 
 export const coachRouter = Router();
 
+export const coachRouteQueries = {
+  findActiveCoach: (userId: string, clubId: string) => prisma.clubMember.findFirst({
+    where: { id: userId, clubId, role: 'COACH', invitationStatus: 'ACTIVE' }
+  }),
+  findAssignedSession: (sessionId: string, userId: string, clubId: string) =>
+    prisma.trainingSession.findFirst({
+      where: assignedExecutionSessionWhere(sessionId, userId, clubId)
+    })
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.slice(0, max) : '';
@@ -67,19 +77,16 @@ coachRouter.use(authenticateToken, async (req: AuthenticatedRequest, res: Respon
     res.status(403).json({ error: 'Club coach access required.' });
     return;
   }
-  const member = await prisma.clubMember.findFirst({
-    where: {
-      id: req.user.userId,
-      clubId: req.user.tenantId,
-      role: 'COACH',
-      invitationStatus: 'ACTIVE'
+  try {
+    const member = await coachRouteQueries.findActiveCoach(req.user.userId, req.user.tenantId);
+    if (!member) {
+      res.status(403).json({ error: 'Active club coach membership required.' });
+      return;
     }
-  });
-  if (!member) {
-    res.status(403).json({ error: 'Active club coach membership required.' });
-    return;
+    next();
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to verify club coach membership.' });
   }
-  next();
 });
 
 coachRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
@@ -97,16 +104,38 @@ coachRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) =
 });
 
 // Finds a session in the coach's club where they are lead, coordinator, or assistant coach.
-const findAssignedSession = (req: AuthenticatedRequest) => {
-  const coachId = req.user!.userId;
-  return prisma.trainingSession.findFirst({
-    where: {
-      id: req.params.id,
-      clubId: req.user!.tenantId,
-      OR: [{ coachId }, { coordinatorCoachId: coachId }, { assistantCoachId: coachId }]
+export const assignedExecutionSessionWhere = (sessionId: string, coachId: string, clubId: string) => ({
+  id: sessionId,
+  clubId,
+  OR: [{ coachId }, { coordinatorCoachId: coachId }, { assistantCoachId: coachId }]
+});
+
+const findAssignedSession = (req: AuthenticatedRequest) =>
+  coachRouteQueries.findAssignedSession(req.params.id, req.user!.userId, req.user!.tenantId);
+
+export function isSessionExecutionDateAllowed(
+  sessionDate: string,
+  status: SessionExecutionLog['status'],
+  complete: boolean,
+  now = Date.now()
+): boolean {
+  if (status === 'PREPARING' && !complete) return true;
+  const latestLocalDate = new Date(now + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return sessionDate <= latestLocalDate;
+}
+
+coachRouter.get('/sessions/:id/execution', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const session = await findAssignedSession(req);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
     }
-  });
-};
+    res.json({ session });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load session execution.' });
+  }
+});
 
 const DISCIPLINES = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'];
 
@@ -214,9 +243,7 @@ coachRouter.patch('/sessions/:id/execution', async (req: AuthenticatedRequest, r
       res.status(400).json({ error: 'A valid execution log is required.' });
       return;
     }
-    // Allow for coaches in timezones up to UTC+14 starting on their local session day.
-    const latestLocalDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    if ((parsedLog.status !== 'PREPARING' || complete) && session.sessionDate > latestLocalDate) {
+    if (!isSessionExecutionDateAllowed(session.sessionDate, parsedLog.status, complete === true)) {
       res.status(400).json({ error: 'Sessions can only be started on or after their scheduled date.' });
       return;
     }

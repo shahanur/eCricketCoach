@@ -1,17 +1,134 @@
 package com.ecricketcoach.mobile
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
 class ApiException(val statusCode: Int, message: String) : Exception(message)
 
+internal fun apiErrorMessage(status: Int, body: String, path: String): String {
+    val serverError = runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty()
+    if (serverError.isNotBlank()) return serverError
+    if (status == 404 && path.startsWith("/api/coach/sessions/") && path.endsWith("/execution")) {
+        return "The API does not provide the session execution route. Deploy the matching API build, then sync and try Run again."
+    }
+    return "The server returned HTTP $status."
+}
+
 data class GoogleSignInChallenge(val clientId: String, val nonce: String, val challenge: String)
 data class CoachSession(val token: String, val user: CoachUser)
+
+data class ClubMember(
+    val id: String,
+    val name: String,
+    val email: String,
+    val role: String,
+    val ageGroup: String,
+    val discipline: String,
+    val invitationStatus: String,
+    val currentLevel: String,
+    val squad: String
+)
+
+data class ClubSquad(
+    val id: String,
+    val name: String,
+    val ageGroup: String,
+    val disciplines: List<String>,
+    val memberCount: Int
+)
+
+data class ClubTrainingSession(
+    val id: String,
+    val title: String,
+    val squadId: String?,
+    val squadName: String,
+    val sessionDate: String,
+    val durationMinutes: Int,
+    val isPublished: Boolean,
+    val isExecuted: Boolean,
+    val drillCount: Int,
+    val postNotes: String,
+    val coachId: String?,
+    val assignedPlayerIds: List<String>,
+    val safety: List<String>,
+    val drillIds: List<String>,
+    val playerNotes: JSONObject,
+    val executionLog: JSONObject?,
+    val coordinatorCoachId: String? = null,
+    val assistantCoachId: String? = null
+) {
+    fun isAssignedTo(userId: String): Boolean =
+        userId.isNotBlank() && userId in listOf(coachId, coordinatorCoachId, assistantCoachId)
+}
+
+data class PlayerAssessment(
+    val id: String,
+    val playerId: String,
+    val playerName: String,
+    val title: String,
+    val discipline: String,
+    val scheduledDate: String,
+    val status: String,
+    val metrics: List<AssessmentMetric>,
+    val aiSummary: String?,
+    val aiRecommendations: List<String>
+)
+
+internal fun sessionPlanUpdates(
+    session: ClubTrainingSession,
+    title: String,
+    date: String,
+    duration: Int,
+    squad: ClubSquad?,
+    safety: List<String>
+): JSONObject {
+    val updates = JSONObject()
+        .put("title", title)
+        .put("sessionDate", date)
+        .put("durationMinutes", duration)
+        .put("safety", JSONArray(safety))
+    if (squad?.id != session.squadId) {
+        updates.put("squadId", squad?.id ?: JSONObject.NULL)
+            .put("squadName", squad?.name ?: "All players")
+            .put("assignedPlayerIds", JSONArray())
+    }
+    return updates
+}
+
+data class AssessmentMetric(val name: String, val score: Int?, val note: String)
+data class DriveVideoFile(val id: String, val name: String, val mimeType: String, val modifiedTime: String)
+
+data class ClubCertificate(
+    val id: String,
+    val number: String,
+    val playerName: String,
+    val discipline: String,
+    val level: String,
+    val issuedDate: String,
+    val coachName: String,
+    val coachNotes: String,
+    val clubName: String,
+    val clubLogo: String?,
+    val aiCommendation: String
+)
+
+data class VideoAnalysisEntry(
+    val id: String,
+    val playerName: String?,
+    val discipline: String,
+    val score: Int,
+    val detectedIssues: List<String>,
+    val createdAt: String
+)
 
 class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     suspend fun getGoogleSignInChallenge(): GoogleSignInChallenge = withContext(Dispatchers.IO) {
@@ -73,6 +190,15 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         return "/api/drills?clubId=$clubId"
     }
 
+    internal fun sessionExecutionPath(sessionId: String): String =
+        "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/execution"
+
+    internal fun clubSessionPath(sessionId: String): String =
+        "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}"
+
+    internal fun assessmentInsightsPath(assessmentId: String): String =
+        "/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}/insights"
+
     suspend fun getTemplates(token: String): List<TrainingTemplate> = withContext(Dispatchers.IO) {
         val rows = JSONArray(request("/api/training-templates", token))
         (0 until rows.length()).map { index ->
@@ -88,13 +214,417 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
     }
 
-    private fun request(path: String, token: String? = null, body: JSONObject? = null): String {
+    suspend fun getClubMembers(token: String, clubId: String): List<ClubMember> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(request("/api/club/members?clubId=${URLEncoder.encode(clubId, UTF_8)}", token))
+        (0 until rows.length()).map { index -> rows.getJSONObject(index).toClubMember() }
+    }
+
+    suspend fun inviteClubMember(token: String, member: JSONObject): ClubMember = withContext(Dispatchers.IO) {
+        val json = JSONObject(request("/api/club/members/invite", token, member))
+        json.getJSONObject("member").toClubMember()
+    }
+
+    suspend fun updateClubMember(
+        token: String,
+        memberId: String,
+        updates: JSONObject,
+        operationId: String? = null
+    ): ClubMember =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(request(
+                "/api/club/members/${URLEncoder.encode(memberId, UTF_8)}",
+                token,
+                updates,
+                method = "PATCH",
+                idempotencyKey = operationId
+            ))
+            json.getJSONObject("member").toClubMember()
+        }
+
+    suspend fun getSquads(token: String, clubId: String): List<ClubSquad> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(request("/api/club/squads?clubId=${URLEncoder.encode(clubId, UTF_8)}", token))
+        (0 until rows.length()).map { index -> rows.getJSONObject(index).toClubSquad() }
+    }
+
+    suspend fun createSquad(token: String, squad: JSONObject): ClubSquad = withContext(Dispatchers.IO) {
+        val json = JSONObject(request("/api/club/squads", token, squad))
+        json.getJSONObject("squad").toClubSquad()
+    }
+
+    suspend fun getClubSessions(token: String, clubId: String): List<ClubTrainingSession> =
+        withContext(Dispatchers.IO) {
+            val rows = JSONArray(request("/api/club/sessions?clubId=${URLEncoder.encode(clubId, UTF_8)}", token))
+            (0 until rows.length()).map { index -> rows.getJSONObject(index).toClubTrainingSession() }
+        }
+
+    suspend fun getClubSessionReportData(token: String): Pair<List<ClubMember>, List<ClubTrainingSession>> =
+        withContext(Dispatchers.IO) {
+            val response = JSONObject(request("/api/club/reports/session-activity", token))
+            val memberRows = response.optJSONArray("members") ?: JSONArray()
+            val sessionRows = response.optJSONArray("sessions") ?: JSONArray()
+            val members = (0 until memberRows.length()).map { index -> memberRows.getJSONObject(index).toClubMember() }
+            val sessions = (0 until sessionRows.length()).map { index -> sessionRows.getJSONObject(index).toClubTrainingSession() }
+            members to sessions
+        }
+
+    suspend fun scheduleClubSession(token: String, session: JSONObject): ClubTrainingSession =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(request("/api/club/sessions", token, session))
+            json.getJSONObject("session").toClubTrainingSession()
+        }
+
+    suspend fun publishClubSession(token: String, sessionId: String): ClubTrainingSession =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(request(
+                "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}/publish",
+                token,
+                method = "POST"
+            ))
+            json.getJSONObject("session").toClubTrainingSession()
+        }
+
+    suspend fun updateClubSession(
+        token: String,
+        sessionId: String,
+        updates: JSONObject
+    ): ClubTrainingSession = withContext(Dispatchers.IO) {
+        val json = JSONObject(request(clubSessionPath(sessionId), token, updates, method = "PATCH"))
+        json.getJSONObject("session").toClubTrainingSession()
+    }
+
+    suspend fun deleteClubSession(token: String, sessionId: String) = withContext(Dispatchers.IO) {
+        request(
+            clubSessionPath(sessionId),
+            token,
+            method = "DELETE"
+        )
+    }
+
+    suspend fun getPlayerAssessments(token: String): List<PlayerAssessment> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(request("/api/club/assessments", token))
+        (0 until rows.length()).map { index -> rows.getJSONObject(index).toPlayerAssessment() }
+    }
+
+    suspend fun schedulePlayerAssessment(token: String, assessment: JSONObject): PlayerAssessment =
+        withContext(Dispatchers.IO) {
+            JSONObject(request("/api/club/assessments", token, assessment)).toPlayerAssessment()
+        }
+
+    suspend fun updatePlayerAssessment(
+        token: String,
+        assessmentId: String,
+        updates: JSONObject
+    ): PlayerAssessment = withContext(Dispatchers.IO) {
+        JSONObject(request(
+            "/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}",
+            token,
+            updates,
+            method = "PATCH"
+        )).toPlayerAssessment()
+    }
+
+    suspend fun saveSessionExecution(
+        token: String,
+        sessionId: String,
+        update: JSONObject,
+        operationId: String? = null
+    ): ClubTrainingSession = withContext(Dispatchers.IO) {
+        val json = JSONObject(request(
+            sessionExecutionPath(sessionId),
+            token,
+            update,
+            method = "PATCH",
+            idempotencyKey = operationId
+        ))
+        json.getJSONObject("session").toClubTrainingSession()
+    }
+
+    suspend fun getCoachSessionExecution(token: String, sessionId: String): ClubTrainingSession =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(request(
+                sessionExecutionPath(sessionId),
+                token
+            ))
+            json.getJSONObject("session").toClubTrainingSession()
+        }
+
+    suspend fun generateAssessmentInsights(token: String, assessmentId: String): PlayerAssessment =
+        withContext(Dispatchers.IO) {
+            JSONObject(request(
+                assessmentInsightsPath(assessmentId),
+                token,
+                JSONObject(),
+                method = "POST",
+                readTimeoutMs = 180_000
+            )).toPlayerAssessment()
+        }
+
+    suspend fun assessCompletedSession(
+        token: String,
+        sessionId: String,
+        notes: String
+    ): ClubTrainingSession = withContext(Dispatchers.IO) {
+        val json = JSONObject(request(
+            "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}/post-notes-ai-assess",
+            token,
+            JSONObject().put("notes", notes),
+            method = "POST"
+        ))
+        json.getJSONObject("session").toClubTrainingSession()
+    }
+
+    suspend fun getCertificates(token: String): List<ClubCertificate> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(request("/api/club/certificates", token))
+        (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            ClubCertificate(
+                id = row.optString("id"),
+                number = row.optString("certificateNumber"),
+                playerName = row.optString("playerName"),
+                discipline = row.optString("discipline"),
+                level = row.optString("achievedLevel"),
+                issuedDate = row.optString("issuedDate"),
+                coachName = row.optString("coachName"),
+                coachNotes = row.optString("coachNotes"),
+                clubName = row.optString("clubName").takeIf { it.isNotBlank() && it != "null" } ?: "eCricketCoach",
+                clubLogo = row.optString("clubLogo").takeIf { it.startsWith("data:image/") },
+                aiCommendation = row.optString("aiCommendation")
+            )
+        }
+    }
+
+    suspend fun deleteCertificate(token: String, certificateId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/certificates/${URLEncoder.encode(certificateId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
+    suspend fun promotePlayer(
+        token: String,
+        playerId: String,
+        newLevel: String,
+        coachName: String,
+        coachNotes: String
+    ) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/players/${URLEncoder.encode(playerId, UTF_8)}/assess-progress",
+            token,
+            JSONObject()
+                .put("action", "PROMOTE")
+                .put("newLevel", newLevel)
+                .put("coachName", coachName)
+                .put("coachNotes", coachNotes)
+        )
+    }
+
+    suspend fun getClubBranding(token: String): String? = withContext(Dispatchers.IO) {
+        JSONObject(request("/api/club/settings/branding", token))
+            .optString("logoUrl")
+            .takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    suspend fun updateClubBranding(token: String, logoUrl: String?) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/settings/branding",
+            token,
+            JSONObject().put("logoUrl", logoUrl ?: JSONObject.NULL),
+            method = "PATCH"
+        )
+    }
+
+    suspend fun addClubDrill(token: String, drill: JSONObject): Drill = withContext(Dispatchers.IO) {
+        JSONObject(request("/api/drills/club", token, drill)).getJSONObject("drill").let { row ->
+            Drill(
+                id = row.optString("id"),
+                title = row.optString("title"),
+                discipline = row.optString("discipline"),
+                skillSet = row.optString("skillSet"),
+                durationMinutes = row.optInt("duration", row.optInt("durationMinutes")),
+                instructions = row.optString("instructions")
+            )
+        }
+    }
+
+    suspend fun getClubDrills(token: String, clubId: String): List<Drill> = withContext(Dispatchers.IO) {
+        getDrills(token, clubId).filter { it.id.startsWith("drill-club-") }
+    }
+
+    suspend fun deleteDrill(token: String, drillId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/drills/${URLEncoder.encode(drillId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
+    suspend fun getVideoAnalysisHistory(token: String): List<VideoAnalysisEntry> = withContext(Dispatchers.IO) {
+        val response = JSONObject(request("/api/videos/analyze/history", token))
+        val rows = response.optJSONArray("history") ?: JSONArray()
+        (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            val analysis = row.optJSONObject("analysis") ?: JSONObject()
+            val issues = analysis.optJSONArray("detectedIssues") ?: JSONArray()
+            VideoAnalysisEntry(
+                id = row.optString("id"),
+                playerName = row.optString("playerName").takeIf { it.isNotBlank() && it != "null" },
+                discipline = row.optString("discipline"),
+                score = row.optInt("overallScore", analysis.optInt("overallScore")),
+                detectedIssues = (0 until issues.length()).map(issues::getString),
+                createdAt = row.optString("createdAt")
+            )
+        }
+    }
+
+    suspend fun analyzeVideo(
+        context: Context,
+        token: String,
+        uri: Uri,
+        discipline: String,
+        player: ClubMember?
+    ): VideoAnalysisEntry = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val fileName = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+            ?.replace(Regex("[\\r\\n\"]"), "_")
+            ?.takeIf(String::isNotBlank)
+            ?: "training-video"
+        val mimeType = resolver.getType(uri)
+            ?.takeIf { it.matches(Regex("video/[A-Za-z0-9.+-]+")) }
+            ?: "video/mp4"
+        val fileSize = resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else null
+            }
+        require(fileSize == null || fileSize <= MAX_VIDEO_BYTES) {
+            "Choose a video smaller than 500 MB."
+        }
+
+        val boundary = "eCricketCoach-${System.currentTimeMillis()}"
+        val connection = URL(baseUrl.trimEnd('/') + "/api/videos/analyze").openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 180_000
+        connection.doOutput = true
+        connection.setChunkedStreamingMode(64 * 1024)
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+
+        try {
+            DataOutputStream(connection.outputStream).use { output ->
+                writeMultipartField(output, boundary, "discipline", discipline)
+                writeMultipartField(output, boundary, "context", if (player == null) "GROUP" else "INDIVIDUAL")
+                if (player != null) {
+                    writeMultipartField(output, boundary, "playerId", player.id)
+                    writeMultipartField(output, boundary, "playerName", player.name)
+                }
+                output.writeBytes("--$boundary\r\n")
+                output.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n")
+                output.writeBytes("Content-Type: $mimeType\r\n\r\n")
+                resolver.openInputStream(uri)?.use { input ->
+                    input.copyTo(output, 64 * 1024)
+                } ?: error("Unable to open the selected video.")
+                output.writeBytes("\r\n--$boundary--\r\n")
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) {
+                val message = runCatching { JSONObject(responseBody).optString("error") }
+                    .getOrNull()
+                    .orEmpty()
+                    .ifBlank { "The server returned HTTP $status." }
+                throw ApiException(status, message)
+            }
+            responseToVideoEntry(JSONObject(responseBody), discipline, player?.name)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    suspend fun getGoogleDriveStatus(token: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        val response = JSONObject(request("/api/google-drive/status", token))
+        response.optBoolean("connected") to response.optString("email").takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    internal fun googleDriveConnectUrl(token: String): String =
+        "${baseUrl.trimEnd('/')}/api/google-drive/connect?token=${URLEncoder.encode(token, UTF_8)}"
+
+    suspend fun listGoogleDriveVideos(token: String): List<DriveVideoFile> = withContext(Dispatchers.IO) {
+        val files = JSONObject(request("/api/google-drive/videos", token)).optJSONArray("files") ?: JSONArray()
+        (0 until files.length()).map { index ->
+            val row = files.getJSONObject(index)
+            DriveVideoFile(
+                id = row.optString("id"),
+                name = row.optString("name", "Drive video"),
+                mimeType = row.optString("mimeType"),
+                modifiedTime = row.optString("modifiedTime")
+            )
+        }
+    }
+
+    suspend fun disconnectGoogleDrive(token: String) = withContext(Dispatchers.IO) {
+        request("/api/google-drive/disconnect", token, JSONObject(), method = "POST")
+    }
+
+    suspend fun analyzeDriveVideo(
+        token: String,
+        driveFileId: String,
+        discipline: String,
+        player: ClubMember?
+    ): VideoAnalysisEntry = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put("discipline", discipline)
+            .put("context", if (player == null) "GROUP" else "INDIVIDUAL")
+            .put("driveFileId", driveFileId)
+        if (player != null) body.put("playerId", player.id).put("playerName", player.name)
+        val response = JSONObject(request("/api/videos/analyze", token, body))
+        responseToVideoEntry(response, discipline, player?.name)
+    }
+
+    private fun responseToVideoEntry(
+        response: JSONObject,
+        discipline: String,
+        playerName: String?
+    ): VideoAnalysisEntry {
+        val analysis = response.getJSONObject("analysis")
+        val issues = analysis.optJSONArray("detectedIssues") ?: JSONArray()
+        return VideoAnalysisEntry(
+            id = response.optString("analysisId"),
+            playerName = playerName,
+            discipline = response.optString("discipline", discipline),
+            score = analysis.optInt("overallScore"),
+            detectedIssues = (0 until issues.length()).map(issues::getString),
+            createdAt = ""
+        )
+    }
+
+    private fun writeMultipartField(output: DataOutputStream, boundary: String, name: String, value: String) {
+        output.writeBytes("--$boundary\r\n")
+        output.writeBytes("Content-Disposition: form-data; name=\"$name\"\r\n\r\n")
+        output.write(value.toByteArray(Charsets.UTF_8))
+        output.writeBytes("\r\n")
+    }
+
+    private fun request(
+        path: String,
+        token: String? = null,
+        body: JSONObject? = null,
+        method: String? = null,
+        readTimeoutMs: Int = 15_000,
+        idempotencyKey: String? = null
+    ): String {
         val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
-        connection.requestMethod = if (body == null) "GET" else "POST"
+        connection.requestMethod = method ?: if (body == null) "GET" else "POST"
         connection.connectTimeout = 10_000
-        connection.readTimeout = 15_000
+        connection.readTimeout = readTimeoutMs
         connection.setRequestProperty("Accept", "application/json")
         if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
+        if (idempotencyKey != null) connection.setRequestProperty("Idempotency-Key", idempotencyKey)
 
         try {
             if (body != null) {
@@ -106,10 +636,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (status !in 200..299) {
-                val message = runCatching { JSONObject(body).optString("error") }
-                    .getOrNull()
-                    .orEmpty()
-                    .ifBlank { "The server returned HTTP $status." }
+                val message = apiErrorMessage(status, body, path)
                 throw ApiException(status, message)
             }
             return body
@@ -118,9 +645,91 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
     }
 
+    private fun JSONObject.toClubMember() = ClubMember(
+        id = optString("id"),
+        name = optString("name", "Club member"),
+        email = optString("email"),
+        role = optString("role", "PLAYER"),
+        ageGroup = optString("ageGroup"),
+        discipline = optString("discipline", "BATTING"),
+        invitationStatus = optString("invitationStatus", "ACTIVE"),
+        currentLevel = optString("currentLevel", "FOUNDATION"),
+        squad = optString("squad", "Unassigned")
+    )
+
+    private fun JSONObject.toClubSquad(): ClubSquad {
+        val rawDisciplines = opt("discipline")
+        val disciplines = when (rawDisciplines) {
+            is JSONArray -> (0 until rawDisciplines.length()).map(rawDisciplines::getString)
+            is String -> rawDisciplines.split(',').map(String::trim).filter(String::isNotBlank)
+            else -> emptyList()
+        }
+        return ClubSquad(
+            id = optString("id"),
+            name = optString("name", "Squad"),
+            ageGroup = optString("ageGroup"),
+            disciplines = disciplines,
+            memberCount = optInt("memberCount")
+        )
+    }
+
+    private fun JSONObject.toClubTrainingSession() = ClubTrainingSession(
+        id = optString("id"),
+        title = optString("title", "Training session"),
+        squadId = optString("squadId").takeIf { it.isNotBlank() && it != "null" },
+        squadName = optString("squadName", "Squad"),
+        sessionDate = optString("sessionDate"),
+        durationMinutes = optInt("durationMinutes", 90),
+        isPublished = optBoolean("isPublished"),
+        isExecuted = optBoolean("isExecuted"),
+        drillCount = optInt("drillCount"),
+        postNotes = optString("postNotes").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
+        coachId = optString("coachId").takeIf { it.isNotBlank() && it != "null" },
+        assignedPlayerIds = optJSONArray("assignedPlayerIds")?.let { rows ->
+            (0 until rows.length()).map(rows::getString)
+        } ?: emptyList(),
+        safety = optJSONArray("safety")?.let { rows ->
+            (0 until rows.length()).map(rows::getString)
+        } ?: emptyList(),
+        drillIds = optJSONArray("drillIds")?.let { rows ->
+            (0 until rows.length()).map(rows::getString)
+        } ?: emptyList(),
+        playerNotes = optJSONObject("playerNotes") ?: JSONObject(),
+        executionLog = optJSONObject("executionLog"),
+        coordinatorCoachId = optString("coordinatorCoachId").takeIf { it.isNotBlank() && it != "null" },
+        assistantCoachId = optString("assistantCoachId").takeIf { it.isNotBlank() && it != "null" }
+    )
+
+    private fun JSONObject.toPlayerAssessment(): PlayerAssessment {
+        val rows = optJSONArray("metrics") ?: JSONArray()
+        return PlayerAssessment(
+            id = optString("id"),
+            playerId = optString("playerId"),
+            playerName = optString("playerName", "Player"),
+            title = optString("title", "Player assessment"),
+            discipline = optString("discipline", "BATTING"),
+            scheduledDate = optString("scheduledDate"),
+            status = optString("status", "SCHEDULED"),
+            metrics = (0 until rows.length()).map { index ->
+                val row = rows.getJSONObject(index)
+                AssessmentMetric(
+                    name = row.optString("name"),
+                    score = if (row.isNull("score")) null else row.optInt("score"),
+                    note = row.optString("note")
+                )
+            },
+            aiSummary = optJSONObject("aiInsights")?.optString("summary")
+                ?.takeIf { it.isNotBlank() && it != "null" },
+            aiRecommendations = optJSONObject("aiInsights")?.optJSONArray("recommendations")?.let { insights ->
+                (0 until insights.length()).map(insights::getString)
+            } ?: emptyList()
+        )
+    }
+
     companion object {
         const val MOBILE_CALLBACK = "ecricketcoach://auth/callback"
         private const val UTF_8 = "UTF-8"
+        private const val MAX_VIDEO_BYTES = 500L * 1024 * 1024
         private val PROVIDERS = setOf("google", "microsoft", "apple")
     }
 }

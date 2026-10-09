@@ -132,8 +132,40 @@ class AuthStore(context: Context) {
         )
     }
 
+    @Synchronized
+    internal fun queuedMutations(userId: String, tenantId: String): List<OfflineMutation> =
+        OfflineMutationJournal.scoped(allQueuedMutations(), userId, tenantId)
+
+    @Synchronized
+    internal fun enqueueMutation(mutation: OfflineMutation) {
+        writeQueue(OfflineMutationJournal.enqueue(allQueuedMutations(), mutation))
+    }
+
+    @Synchronized
+    internal fun updateQueuedMutation(mutation: OfflineMutation) {
+        val current = allQueuedMutations()
+        writeQueue(OfflineMutationJournal.update(current, mutation))
+    }
+
+    @Synchronized
+    internal fun removeQueuedMutation(mutationId: String) {
+        writeQueue(OfflineMutationJournal.remove(allQueuedMutations(), mutationId))
+    }
+
     fun clearSession() {
         preferences.edit().remove(KEY_TOKEN).remove(KEY_USER).apply()
+    }
+
+    private fun allQueuedMutations(): List<OfflineMutation> {
+        val raw = preferences.getString(KEY_OFFLINE_MUTATIONS, null) ?: return emptyList()
+        val rows = JSONArray(raw)
+        return (0 until rows.length()).map { index -> OfflineMutation.fromJson(rows.getJSONObject(index)) }
+    }
+
+    private fun writeQueue(rows: List<OfflineMutation>) {
+        preferences.edit()
+            .putString(KEY_OFFLINE_MUTATIONS, JSONArray(rows.map(OfflineMutation::toJson)).toString())
+            .apply()
     }
 
     private inline fun <T> readList(key: String, parse: (JSONObject) -> T): List<T> {
@@ -156,5 +188,6 @@ class AuthStore(context: Context) {
         const val KEY_DRILLS = "cached_drills"
         const val KEY_TEMPLATES = "cached_templates"
         const val KEY_CACHE_OWNER = "cached_training_owner"
+        const val KEY_OFFLINE_MUTATIONS = "offline_mutations"
     }
 }

@@ -239,7 +239,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     <section className="space-y-4">
       <div className="border-b border-slate-800 pb-4 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold text-emerald-400 uppercase">{currentUser.clubName} club coach workspace</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-400">{currentUser.clubName} club coach workspace</p>
           <h1 className="text-2xl font-bold text-white">{currentUser.name}'s club coaching dashboard</h1>
           <p className="text-xs text-slate-400 mt-1">Plan sessions, monitor club events, and measure development.</p>
         </div>
@@ -250,7 +250,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
               role="tab"
               aria-selected={tab === value}
               onClick={() => setTab(value)}
-              className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap ${tab === value ? 'border-emerald-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}
+              className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap ${tab === value ? 'border-indigo-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}
             >
               {value.charAt(0) + value.slice(1).toLowerCase()}
             </button>
@@ -262,7 +262,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
 
       {tab === 'OVERVIEW' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
             {([
               { label: 'Upcoming sessions', value: myUpcomingSessions.length, icon: Calendar, detailTab: 'SESSIONS' as CoachTab },
               { label: 'Upcoming assessments', value: upcomingAssessments.length, icon: ClipboardCheck, detailTab: 'ASSESSMENTS' as CoachTab },
@@ -272,28 +272,28 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
               const content = (
                 <>
                   <div className="flex items-start justify-between">
-                    <Icon className="w-4 h-4 text-emerald-400 mb-3" />
-                    {detailTab && <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-emerald-400 transition" />}
+                    <Icon className="w-4 h-4 text-indigo-400 mb-3" />
+                    {detailTab && <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition" />}
                   </div>
                   <p className="text-2xl font-bold text-white">{value}</p>
                   <p className="text-xs text-slate-400">{label}</p>
                   {detail && <p className="text-[10px] text-slate-500 mt-1">{detail}</p>}
                 </>
               );
-              const className = `group border border-slate-800 bg-slate-900 p-4 rounded-lg text-left transition ${detailTab ? 'hover:bg-slate-800 hover:border-emerald-500/50 cursor-pointer' : ''}`;
+              const className = `group border border-slate-800 bg-slate-900 p-4 rounded-md text-left transition ${detailTab ? 'hover:bg-slate-800 hover:border-indigo-500/50 cursor-pointer' : ''}`;
               return detailTab
                 ? <button key={label} type="button" onClick={() => setTab(detailTab)} aria-label={`View ${label.toLowerCase()}`} className={className}>{content}</button>
                 : <div key={label} className={className}>{content}</div>;
             })}
           </div>
-          <div className="grid lg:grid-cols-3 gap-5">
+          <div className="grid lg:grid-cols-3 gap-4">
             <div>
               <h2 className="text-sm font-bold text-white mb-3">Next sessions and events</h2>
               <div className="divide-y divide-slate-800 border-y border-slate-800">
                 {upcomingClubSessions.map(session => (
                   <div key={session.id} className="py-3 flex items-center justify-between gap-3">
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min · Led by {session.coachName || 'Coach not assigned'}</p></div>
-                    <time className="shrink-0 text-xs font-semibold text-sky-300">{session.sessionDate}</time>
+                    <time className="shrink-0 text-xs font-semibold text-indigo-400">{session.sessionDate}</time>
                   </div>
                 ))}
                 {upcomingClubSessions.length === 0 && <p className="py-4 text-xs text-slate-500">No upcoming club sessions.</p>}
@@ -306,8 +306,8 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                   <div key={session.id} className="py-3 flex items-center justify-between gap-3">
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min</p></div>
                     <div className="shrink-0 flex items-center gap-2">
-                      <time className="text-xs font-semibold text-sky-300">{session.sessionDate}</time>
-                      <button onClick={() => openExecution(session)} className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-emerald-500/40 text-emerald-300 rounded">
+                      <time className="text-xs font-semibold text-indigo-400">{session.sessionDate}</time>
+                      <button onClick={() => openExecution(session)} className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-indigo-500/40 text-indigo-300 rounded">
                         <Play size={12} fill="currentColor" />
                         {session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}
                       </button>
@@ -333,7 +333,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                         setFocusedAssessmentId(assessment.id);
                         setTab('ASSESSMENTS');
                       }}
-                      className="shrink-0 rounded border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/10"
+                      className="shrink-0 rounded border border-indigo-500/40 px-2 py-1 text-[11px] text-indigo-300 hover:bg-indigo-500/10"
                     >
                       View
                     </button>
@@ -345,9 +345,9 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           </div>
           <div className="border-t border-slate-800 pt-4">
             <h2 className="text-sm font-bold text-white">Coaching practice library</h2>
-            <div className="grid sm:grid-cols-3 gap-3 mt-3 text-xs">
-              <a href="https://www.ecb.co.uk/play/coaching" target="_blank" rel="noreferrer" className="border border-slate-800 p-3 rounded-lg text-slate-300 hover:border-emerald-500">ECB coaching resources</a>
-              <a href="https://www.icc-cricket.com/about/development/coaching" target="_blank" rel="noreferrer" className="border border-slate-800 p-3 rounded-lg text-slate-300 hover:border-emerald-500">ICC development guidance</a>
+            <div className="grid sm:grid-cols-2 gap-2 mt-3 text-xs">
+              <a href="https://www.ecb.co.uk/play/coaching" target="_blank" rel="noreferrer" className="border border-slate-800 p-3 rounded-md text-slate-400 hover:border-indigo-500 hover:text-slate-200">ECB coaching resources</a>
+              <a href="https://www.icc-cricket.com/about/development/coaching" target="_blank" rel="noreferrer" className="border border-slate-800 p-3 rounded-md text-slate-400 hover:border-indigo-500 hover:text-slate-200">ICC development guidance</a>
             </div>
           </div>
         </div>

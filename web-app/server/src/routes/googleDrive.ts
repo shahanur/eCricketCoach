@@ -39,10 +39,20 @@ function callbackHtml(message: Record<string, string>): string {
 <html>
   <head><title>Google Drive Connection</title></head>
   <body style="font-family: sans-serif; background:#0f172a; color:#e2e8f0; display:flex; align-items:center; justify-content:center; height:100vh; margin:0;">
-    <p>Finishing Google Drive connection… you can close this window.</p>
+    <main style="max-width:36rem;padding:2rem;text-align:center">
+      <h1 id="status">Finishing Google Drive connection…</h1>
+      <p id="detail">Return to eCricketCoach and refresh the Drive connection status.</p>
+    </main>
     <script>
       (function () {
         var payload = ${JSON.stringify(message)};
+        var connected = payload.type === 'GOOGLE_DRIVE_CONNECTED';
+        document.getElementById('status').textContent = connected
+          ? 'Google Drive connected.'
+          : 'Google Drive connection failed.';
+        document.getElementById('detail').textContent = connected
+          ? 'Return to eCricketCoach and refresh the Drive connection status.'
+          : (payload.error || 'Google Drive access was not granted.');
         if (window.opener) {
           window.opener.postMessage(payload, '*');
         }

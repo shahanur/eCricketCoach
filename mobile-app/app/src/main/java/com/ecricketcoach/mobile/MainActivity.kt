@@ -255,6 +255,39 @@ private fun CoachApp(
                     }
                 )
             } else {
+                if (user?.role == "CLUB_ADMIN" || (user?.role == "COACH" && user?.coachContext == "CLUB")) {
+                    user?.let { activeUser ->
+                        ClubCoachWorkspace(
+                            api = api,
+                            store = store,
+                            token = token.orEmpty(),
+                            user = activeUser,
+                            drills = drills,
+                            templates = templates,
+                            isDark = isDark,
+                            onToggleTheme = { isDark = !isDark },
+                            onSignOut = {
+                                scope.launch {
+                                    store.clearSession()
+                                    token = null
+                                    user = null
+                                    error = ""
+                                    try {
+                                        clearCredentialState()
+                                    } catch (failure: CancellationException) {
+                                        throw failure
+                                    } catch (failure: Exception) {
+                                        Log.w(
+                                            "eCricketCoach",
+                                            "Unable to clear credential state (${failure.javaClass.simpleName})."
+                                        )
+                                        error = "Signed out locally, but Google account selection could not be reset. Please try again."
+                                    }
+                                }
+                            }
+                        )
+                    }
+                } else {
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -337,6 +370,7 @@ private fun CoachApp(
             }
         }
     }
+}
 }
 
 @androidx.compose.runtime.Composable

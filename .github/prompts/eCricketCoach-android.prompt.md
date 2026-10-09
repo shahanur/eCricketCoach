@@ -1,11 +1,11 @@
 ---
-name: eCricketCoach-mobile
-description: implement mobile app
+name: eCricketCoach-android
+description: implement android app
 ---
 
 <!-- Tip: Use /create-prompt in chat to generate content with agent assistance -->
 
-- implement mobile app for eCricketCoach using React Native for both iOS and Android platforms
+- implement android app for eCricketCoach using native technologies inside mobile-app folder for android.
 - ensure the app has a responsive and user-friendly interface
 - integrate necessary features such as user authentication, notifications, and data synchronization with the backend
 - follow best practices for performance optimization and security

@@ -7,6 +7,96 @@ import { authenticateToken, AuthenticatedRequest, requireRole } from '../middlew
 
 export const clubRouter = Router();
 
+export const clubRouteQueries = {
+  findTenantById: (clubId: string) => prisma.customerTenant.findUnique({
+    where: { id: clubId },
+    select: { type: true }
+  }),
+  findActiveCoach: (userId: string, clubId: string) => prisma.clubMember.findFirst({
+    where: { id: userId, clubId, role: 'COACH', invitationStatus: 'ACTIVE' },
+    select: { id: true }
+  }),
+  findSessionForDeletion: (id: string, clubId: string) => prisma.trainingSession.findFirst({
+    where: { id, clubId },
+    select: {
+      id: true,
+      isExecuted: true,
+      coachId: true,
+      coordinatorCoachId: true,
+      assistantCoachId: true
+    }
+  }),
+  findSessionForEditing: (id: string, clubId: string) => prisma.trainingSession.findFirst({
+    where: { id, clubId }
+  }),
+  findClubSquad: (id: string, clubId: string) => prisma.squad.findFirst({
+    where: { id, clubId }
+  })
+};
+
+clubRouter.get(
+  '/reports/session-activity',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const clubId = req.user!.tenantId;
+      if (!clubId || (req.user!.role === 'COACH' && req.user!.coachContext !== 'CLUB')) {
+        res.status(403).json({ error: 'Club workspace access required.' });
+        return;
+      }
+      const tenant = await clubRouteQueries.findTenantById(clubId);
+      if (!tenant || tenant.type !== 'CLUB') {
+        res.status(404).json({ error: 'Club not found.' });
+        return;
+      }
+      if (req.user!.role === 'COACH') {
+        const activeCoach = await clubRouteQueries.findActiveCoach(req.user!.userId, clubId);
+        if (!activeCoach) {
+          res.status(403).json({ error: 'Active club coach membership required.' });
+          return;
+        }
+      }
+      const [members, sessions] = await Promise.all([
+        DbService.getClubMembers(clubId),
+        DbService.getTrainingSessions(clubId)
+      ]);
+      const reportMembers = members.map(member => ({
+        id: member.id,
+        name: member.name,
+        role: member.role,
+        ageGroup: member.ageGroup,
+        discipline: member.discipline,
+        invitationStatus: member.invitationStatus,
+        currentLevel: member.currentLevel,
+        squad: member.squad
+      }));
+      const reportSessions = sessions.map(session => {
+        const notes = session.playerNotes && typeof session.playerNotes === 'object'
+          ? Object.keys(session.playerNotes)
+          : [];
+        return {
+          id: session.id,
+          title: session.title,
+          squadName: session.squadName,
+          sessionDate: session.sessionDate,
+          durationMinutes: session.durationMinutes,
+          isExecuted: session.isExecuted,
+          drillCount: session.drillCount,
+          assignedPlayerIds: session.assignedPlayerIds,
+          executionLog: session.executionLog,
+          playerNotes: Object.fromEntries(notes.map(playerId => [playerId, true]))
+        };
+      });
+      res.json({ members: reportMembers, sessions: reportSessions });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unable to load club session activity.'
+      });
+    }
+  }
+);
+
 // 1. Club Admin: Members & Invitations (Coaches & Players)
 clubRouter.get('/members', async (req: Request, res: Response) => {
   try {
@@ -250,15 +340,48 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
   }
 });
 
-// Edit a scheduled (not-yet-published) training session's core details.
-clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
+// Edit a scheduled session's plan; delivered sessions retain their saved plan.
+clubRouter.patch('/sessions/:id', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const id = String(req.params.id);
+    const clubId = req.user!.tenantId;
+    if (!clubId || (req.user!.role === 'COACH' && req.user!.coachContext !== 'CLUB')) {
+      return res.status(403).json({ error: 'Club workspace access required.' });
+    }
+    const currentSession = await clubRouteQueries.findSessionForEditing(id, clubId);
+    if (!currentSession) return res.status(404).json({ error: 'Session not found in your club.' });
+    if (req.user!.role === 'COACH') {
+      const activeCoach = await clubRouteQueries.findActiveCoach(req.user!.userId, clubId);
+      if (!activeCoach) return res.status(403).json({ error: 'Active club coach membership required.' });
+      if (![currentSession.coachId, currentSession.coordinatorCoachId, currentSession.assistantCoachId].includes(req.user!.userId)) {
+        return res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      }
+    }
+    const planFields = [
+      'title', 'squadId', 'squadName', 'coachId', 'coachName', 'coordinatorCoachId',
+      'coordinatorCoachName', 'assistantCoachId', 'assistantCoachName', 'assignedPlayerIds',
+      'sessionDate', 'durationMinutes', 'safety'
+    ];
+    if (currentSession.isExecuted && planFields.some(field => req.body[field] !== undefined)) {
+      return res.status(409).json({ error: 'Delivered session plans cannot be edited.' });
+    }
     const safety = req.body.safety;
     if (safety !== undefined && (!Array.isArray(safety) || safety.some(item => typeof item !== 'string'))) {
       return res.status(400).json({ error: 'safety must be an array of instructions' });
     }
-    const { id } = req.params;
     const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
+    if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+      return res.status(400).json({ error: 'Session title is required.' });
+    }
+    if (sessionDate !== undefined && (
+      typeof sessionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) ||
+      !Number.isFinite(Date.parse(sessionDate)) || new Date(sessionDate).toISOString().slice(0, 10) !== sessionDate
+    )) {
+      return res.status(400).json({ error: 'A valid session date (YYYY-MM-DD) is required.' });
+    }
+    if (durationMinutes !== undefined && (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 600)) {
+      return res.status(400).json({ error: 'Session duration must be between 15 and 600 minutes.' });
+    }
     if (isExecuted !== undefined && typeof isExecuted !== 'boolean') {
       return res.status(400).json({ error: 'isExecuted must be a boolean' });
     }
@@ -277,9 +400,7 @@ clubRouter.patch('/sessions/:id', async (req: Request, res: Response) => {
       if (typeof squadId !== 'string') {
         return res.status(400).json({ error: 'squadId must be a string or null.' });
       }
-      const currentSession = await prisma.trainingSession.findUnique({ where: { id } });
-      if (!currentSession) return res.status(404).json({ error: 'Session not found' });
-      const squad = await prisma.squad.findFirst({ where: { id: squadId, clubId: currentSession.clubId } });
+      const squad = await clubRouteQueries.findClubSquad(squadId, clubId);
       if (!squad) return res.status(400).json({ error: 'The selected squad does not belong to this club.' });
       resolvedSquadName = squad.name;
     }
@@ -324,16 +445,37 @@ clubRouter.post('/sessions/:id/publish', async (req: Request, res: Response) => 
 });
 
 // Permanently removes a scheduled training session (e.g. a draft that was created in error).
-clubRouter.delete('/sessions/:id', async (req: Request, res: Response) => {
+clubRouter.delete(
+  '/sessions/:id',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
+    const clubId = req.user!.tenantId;
+    if (!clubId || (req.user!.role === 'COACH' && req.user!.coachContext !== 'CLUB')) {
+      return res.status(403).json({ error: 'Club workspace access required.' });
+    }
+    const session = await clubRouteQueries.findSessionForDeletion(id, clubId);
+    if (!session) return res.status(404).json({ error: 'Session not found in your club.' });
+    if (req.user!.role === 'COACH') {
+      const activeCoach = await clubRouteQueries.findActiveCoach(req.user!.userId, clubId);
+      if (!activeCoach) return res.status(403).json({ error: 'Active club coach membership required.' });
+      if (![session.coachId, session.coordinatorCoachId, session.assistantCoachId].includes(req.user!.userId)) {
+        return res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      }
+    }
+    if (session.isExecuted) {
+      return res.status(409).json({ error: 'Delivered sessions cannot be deleted.' });
+    }
     const deleted = await DbService.deleteTrainingSession(id);
     if (!deleted) return res.status(404).json({ error: 'Session not found' });
     return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
-});
+  }
+);
 
 // Incorporates a drill into an upcoming training session by appending it to the session's
 // drill list (bumping its drill count), so coaches can manually add one or more drills to a
