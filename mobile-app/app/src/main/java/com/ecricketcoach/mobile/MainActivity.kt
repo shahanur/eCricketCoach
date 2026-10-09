@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -422,7 +423,7 @@ private fun SignInScreen(
     val scheme = MaterialTheme.colorScheme
     val muted = scheme.onBackground.copy(alpha = 0.68f)
     val enabledProviders = listOf(
-        SignInProvider("google", "Continue with Google", "G", Color(0xFF4285F4)),
+        SignInProvider("google", "Continue with Google", "G", Color(0xFF4285F4), R.drawable.ic_google_logo),
         SignInProvider("microsoft", "Continue with Microsoft", "M", Color(0xFF00A4EF)),
         SignInProvider("apple", "Continue with Apple", "A", if (isDark) Color.White else Color.Black)
     ).filter { providers[it.id] == true }
@@ -458,7 +459,12 @@ private fun SignInScreen(
                 modifier = Modifier.size(84.dp).clip(RoundedCornerShape(24.dp))
             )
             Spacer(Modifier.height(18.dp))
-            Text("eCricketCoach", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = scheme.onBackground)
+            Text(
+                "eCricketCoach",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                style = TextStyle(brush = Brush.linearGradient(listOf(scheme.onBackground, scheme.primary, Orchid)))
+            )
             Spacer(Modifier.height(6.dp))
             Text(
                 "Train with purpose. Your coaching workspace, wherever you play.",
@@ -532,7 +538,7 @@ private fun SignInScreen(
     }
 }
 
-private data class SignInProvider(val id: String, val label: String, val mark: String, val markColor: Color)
+private data class SignInProvider(val id: String, val label: String, val mark: String, val markColor: Color, val logoRes: Int? = null)
 
 @androidx.compose.runtime.Composable
 private fun ProviderButton(provider: SignInProvider, enabled: Boolean, onClick: () -> Unit) {
@@ -545,11 +551,20 @@ private fun ProviderButton(provider: SignInProvider, enabled: Boolean, onClick: 
         border = BorderStroke(1.dp, scheme.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = scheme.background, contentColor = scheme.onSurface)
     ) {
-        Box(
-            Modifier.size(28.dp).clip(CircleShape).background(provider.markColor.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(provider.mark, color = provider.markColor, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+        if (provider.logoRes != null) {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(painterResource(provider.logoRes), contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        } else {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).background(provider.markColor.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(provider.mark, color = provider.markColor, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+            }
         }
         Spacer(Modifier.width(12.dp))
         Text(provider.label, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))

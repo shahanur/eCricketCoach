@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowRight, BarChart3, Check, ClipboardList, CircleDot, Menu, Play, UserRound, Users, Video, X } from 'lucide-react';
+import { ArrowRight, BarChart3, Check, ClipboardList, Menu, Play, UserRound, Users, Video, X } from 'lucide-react';
 import './public-site.css';
 
 export const PUBLIC_PAGES = ['home', 'features', 'pricing', 'about-us', 'contact-us', 'faqs'] as const;
@@ -40,7 +40,16 @@ export function PublicSite({ children, onSignIn, onOpenHelp, page, onNavigate }:
     onNavigate(next);
   };
   const cta = (label = 'Get Started') => <button className="public-button" onClick={() => navigate('pricing')}>{label}<ArrowRight size={18} /></button>;
-  const brand = <span className="public-brand"><CircleDot aria-hidden="true" /> eCricketCoach</span>;
+  const brand = (
+    <span className="public-brand">
+      <svg className="public-brand-logo" viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="11" fill="#101713" />
+        <circle cx="35" cy="10" r="4" fill="#58C288" />
+        <path fill="#F3F5F3" d="M15,18h3v18h-3zM22.5,15h3v21h-3zM30,19h3v17h-3zM13,38h22v2h-22z" />
+      </svg>
+      <span className="public-brand-text">eCricketCoach</span>
+    </span>
+  );
 
   return (
     <div className="public-site" data-public-page={page}>
