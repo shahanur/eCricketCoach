@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cleans the whole eCricketCoach database and re-seeds default data.
-# Connects from the host to the Postgres container's published port (5433).
+# Drops and recreates the database schema from Prisma, then seeds drills and
+# training session templates.
 # Usage: ./reset-db.sh [--force]
 set -euo pipefail
 
@@ -25,6 +25,35 @@ DB_NAME=$(get_env POSTGRES_DB ecricketcoach)
 
 export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@localhost:5433/${DB_NAME}"
 
-(cd server && npm run db:reset)
+docker compose up -d postgres
 
-echo 'Done. Restart the API if it caches data: docker compose restart server'
+printf 'Waiting for PostgreSQL to become ready'
+for attempt in {1..30}; do
+  if docker compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+    printf '\n'
+    break
+  fi
+  printf '.'
+  sleep 1
+done
+
+if ! docker compose exec -T postgres pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+  printf '\nPostgreSQL did not become ready in time.\n' >&2
+  exit 1
+fi
+
+(cd server && npx prisma db push --force-reset --accept-data-loss)
+
+docker compose exec -T postgres psql \
+  -U "$DB_USER" \
+  -d "$DB_NAME" \
+  -v ON_ERROR_STOP=1 \
+  -f - < server/src/scripts/drillseeder.sql
+
+docker compose exec -T postgres psql \
+  -U "$DB_USER" \
+  -d "$DB_NAME" \
+  -v ON_ERROR_STOP=1 \
+  -f - < server/src/scripts/trainingtemplateseeder.sql
+
+echo 'Done. Prisma schema applied, drills seeded, and training templates seeded.'

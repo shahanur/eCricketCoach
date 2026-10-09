@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Download,
+  Play,
   Plus,
   Trash2,
   Users
@@ -306,7 +307,10 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                     <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.squadName} · {session.durationMinutes} min</p></div>
                     <div className="shrink-0 flex items-center gap-2">
                       <time className="text-xs font-semibold text-sky-300">{session.sessionDate}</time>
-                      <button onClick={() => openExecution(session)} className="px-2 py-1 text-[11px] border border-emerald-500/40 text-emerald-300 rounded">{session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}</button>
+                      <button onClick={() => openExecution(session)} className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-emerald-500/40 text-emerald-300 rounded">
+                        <Play size={12} fill="currentColor" />
+                        {session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -399,8 +403,9 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
                 <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min{session.isExecuted ? ' · Delivered' : session.executionLog?.status === 'IN_PROGRESS' ? ' · In progress' : ''}</p></div>
                 <div className="flex gap-2">
                   {!session.isExecuted && <input type="date" aria-label={`Reschedule ${session.title}`} value={session.sessionDate} onChange={async event => { await onUpdateSession(session.id, { sessionDate: event.target.value }); await loadDashboard(); }} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white" />}
-                  <button onClick={() => openExecution(session)} className="px-2.5 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded">
-                    {session.isExecuted ? 'Review' : session.executionLog?.status === 'IN_PROGRESS' ? 'Continue session' : 'Run session'}
+                  <button onClick={() => openExecution(session)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded">
+                    {!session.isExecuted && <Play size={12} fill="currentColor" />}
+                    {session.isExecuted ? 'Review' : session.executionLog?.status === 'IN_PROGRESS' ? 'Continue' : 'Run'}
                   </button>
                   {!session.isExecuted && <button onClick={() => cancelSession(session)} title="Cancel session" aria-label={`Cancel ${session.title}`} className="p-1.5 text-rose-300 border border-rose-500/30 rounded"><Trash2 size={14} /></button>}
                 </div>

@@ -202,7 +202,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
     },
     {
       q: 'What should I do if my payment failed or an invoice is pending?',
-      a: 'If a transaction fails or requires credit note adjustment, please submit a "Billing & Payments" ticket via this Help page or email admin@ecricketcoach.com. Our accounts team will review and regenerate the invoice.'
+      a: 'If a transaction fails or requires credit note adjustment, please submit a "Billing & Payments" ticket via this Help page or email admin@ecricketcoach.co.uk. Our accounts team will review and regenerate the invoice.'
     }
   ];
 
@@ -398,8 +398,8 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
                     Technical & AI Support
                   </span>
-                  <a href="mailto:support@ecricketcoach.com" className="font-semibold text-white hover:text-emerald-300 block">
-                    support@ecricketcoach.com
+                  <a href="mailto:support@ecricketcoach.co.uk" className="font-semibold text-white hover:text-emerald-300 block">
+                    support@ecricketcoach.co.uk
                   </a>
                   <span className="text-[11px] text-slate-400">For video ingestion, AI pose diagnostics & bug reports</span>
                 </div>
@@ -408,8 +408,8 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                   <span className="text-[10px] text-sky-400 font-bold uppercase tracking-wider block">
                     Club Licensing & Billing
                   </span>
-                  <a href="mailto:billing@ecricketcoach.com" className="font-semibold text-white hover:text-sky-300 block">
-                    billing@ecricketcoach.com
+                  <a href="mailto:billing@ecricketcoach.co.uk" className="font-semibold text-white hover:text-sky-300 block">
+                    billing@ecricketcoach.co.uk
                   </a>
                   <span className="text-[11px] text-slate-400">Invoices, enterprise tier upgrades & card updates</span>
                 </div>
@@ -418,8 +418,8 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
                   <span className="text-[10px] text-sky-400 font-bold uppercase tracking-wider block">
                     Head Coaching Consultations
                   </span>
-                  <a href="mailto:coaching@ecricketcoach.com" className="font-semibold text-white hover:text-sky-300 block">
-                    coaching@ecricketcoach.com
+                  <a href="mailto:coaching@ecricketcoach.co.uk" className="font-semibold text-white hover:text-sky-300 block">
+                    coaching@ecricketcoach.co.uk
                   </a>
                   <span className="text-[11px] text-slate-400">Custom drill authoring & squad syllabus setup</span>
                 </div>

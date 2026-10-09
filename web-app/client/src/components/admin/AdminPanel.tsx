@@ -824,7 +824,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </p>
             </div>
             <span className="text-xs text-sky-300 font-mono bg-sky-950/80 px-2.5 py-1 rounded border border-sky-700/50">
-              admin@ecricketcoach.com
+              admin@ecricketcoach.co.uk
             </span>
           </div>
 
