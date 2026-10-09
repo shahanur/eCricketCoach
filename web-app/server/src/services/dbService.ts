@@ -713,12 +713,20 @@ export class DbService {
       orderBy: { id: 'asc' }
     });
 
+    // Membership lives on club_members.squad, so derive counts from it rather than the stored column, which drifts.
+    const memberGroups = await prisma.clubMember.groupBy({
+      by: ['clubId', 'squad'],
+      where: clubId ? { clubId } : undefined,
+      _count: { _all: true }
+    });
+    const counts = new Map(memberGroups.map(group => [`${group.clubId}|${group.squad}`, group._count._all]));
+
     return squads.map(s => ({
       id: s.id,
       name: s.name,
       ageGroup: s.ageGroup,
       discipline: s.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
-      memberCount: s.memberCount
+      memberCount: counts.get(`${s.clubId}|${s.name}`) ?? 0
     }));
   }
 

@@ -5,7 +5,9 @@ import android.net.ConnectivityManager
 import android.net.Network
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +40,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,7 +50,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -93,6 +102,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
@@ -157,19 +167,28 @@ internal fun WorkspaceAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    primary: Boolean = false
+    primary: Boolean = false,
+    trailingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     if (primary) {
         Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp)) {
             Icon(icon, contentDescription = null)
             Spacer(Modifier.padding(horizontal = 3.dp))
             Text(label)
+            trailingIcon?.let {
+                Spacer(Modifier.padding(horizontal = 3.dp))
+                Icon(it, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     } else {
         TextButton(onClick = onClick, enabled = enabled) {
             Icon(icon, contentDescription = null)
             Spacer(Modifier.padding(horizontal = 2.dp))
             Text(label)
+            trailingIcon?.let {
+                Spacer(Modifier.padding(horizontal = 2.dp))
+                Icon(it, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -196,6 +215,98 @@ private fun WorkspaceField(
             unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
         )
     )
+}
+
+/** Read-only field that opens the native Android date picker, matching the "YYYY-MM-DD" format used across the workspace. */
+@Composable
+internal fun DateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val context = LocalContext.current
+    fun openPicker() {
+        val initial = runCatching { LocalDate.parse(value) }.getOrDefault(LocalDate.now())
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, day -> onValueChange(LocalDate.of(year, month + 1, day).toString()) },
+            initial.year, initial.monthValue - 1, initial.dayOfMonth
+        ).show()
+    }
+    Box(modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+            )
+        )
+        if (enabled) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { openPicker() }
+            )
+        }
+    }
+}
+
+/** Read-only field that opens the native Android time picker, storing the value as "HH:mm". */
+@Composable
+internal fun TimeField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val context = LocalContext.current
+    fun openPicker() {
+        val parts = value.split(":").mapNotNull(String::toIntOrNull)
+        val initialHour = parts.getOrNull(0) ?: 9
+        val initialMinute = parts.getOrNull(1) ?: 0
+        android.app.TimePickerDialog(
+            context,
+            { _, hour, minute -> onValueChange("%02d:%02d".format(hour, minute)) },
+            initialHour, initialMinute, true
+        ).show()
+    }
+    Box(modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Outlined.AccessTime, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+            )
+        )
+        if (enabled) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { openPicker() }
+            )
+        }
+    }
 }
 
 private data class ClubWorkspaceSnapshot(
@@ -258,7 +369,10 @@ internal fun ClubCoachWorkspace(
     var assessmentEditSaving by remember { mutableStateOf(false) }
     var assessmentEditError by remember { mutableStateOf("") }
     var executingSession by remember { mutableStateOf<ClubTrainingSession?>(null) }
-    var completingAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
+    var activeAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
+    var assessmentRunSaving by remember { mutableStateOf(false) }
+    var assessmentInsightsBusy by remember { mutableStateOf(false) }
+    var assessmentRunError by remember { mutableStateOf("") }
     var selectedPromotionPlayer by remember { mutableStateOf<ClubMember?>(null) }
     var executionSaving by remember { mutableStateOf(false) }
     var executionError by remember { mutableStateOf("") }
@@ -644,6 +758,7 @@ internal fun ClubCoachWorkspace(
             )
             "Squads" -> SquadPanel(
                 squads,
+                members = members,
                 onCreate = { showCreateSquad = true },
                 onEdit = { squad ->
                     squadEditError = ""
@@ -888,31 +1003,26 @@ internal fun ClubCoachWorkspace(
                 assessments,
                 members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 onSchedule = { showScheduleAssessment = true },
-                onGenerateInsights = { assessment ->
+                onStart = { assessment ->
                     scope.launch {
                         error = ""
                         notice = ""
                         try {
-                            val updated = api.generateAssessmentInsights(token, assessment.id)
-                            assessments = assessments.map { if (it.id == updated.id) updated else it }
-                            notice = "Assessment insights generated."
-                        } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to generate assessment insights."
-                        }
-                    }
-                },
-                onStart = { assessment ->
-                    scope.launch {
-                        error = ""
-                        try {
-                            api.updatePlayerAssessment(token, assessment.id, JSONObject().put("status", "IN_PROGRESS"))
-                            refresh()
+                            val started = api.updatePlayerAssessment(token, assessment.id, JSONObject().put("status", "IN_PROGRESS"))
+                            assessments = assessments.map { if (it.id == started.id) started else it }
+                            assessmentRunError = ""
+                            activeAssessment = started
+                            tab = "Assessment"
                         } catch (failure: Exception) {
                             error = failure.message ?: "Unable to start this assessment."
                         }
                     }
                 },
-                onComplete = { completingAssessment = it },
+                onOpen = { assessment ->
+                    assessmentRunError = ""
+                    activeAssessment = assessment
+                    tab = "Assessment"
+                },
                 onEdit = { assessment ->
                     assessmentEditError = ""
                     editingAssessment = assessment
@@ -938,15 +1048,17 @@ internal fun ClubCoachWorkspace(
                     assessment = assessment,
                     isSaving = assessmentEditSaving,
                     saveError = assessmentEditError,
-                    onSave = { title, date ->
+                    onSave = { title, date, time ->
                         scope.launch {
                             assessmentEditSaving = true
                             assessmentEditError = ""
                             try {
+                                val body = JSONObject().put("title", title).put("scheduledDate", date)
+                                body.put("scheduledTime", time)
                                 val updated = api.updatePlayerAssessment(
                                     token,
                                     assessment.id,
-                                    JSONObject().put("title", title).put("scheduledDate", date)
+                                    body
                                 )
                                 assessments = assessments.map { if (it.id == updated.id) updated else it }
                                 editingAssessment = null
@@ -977,6 +1089,74 @@ internal fun ClubCoachWorkspace(
                         }
                     },
                     onBack = { editingAssessment = null; tab = "Assessments" },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            "Assessment" -> activeAssessment?.let { assessment ->
+                AssessmentRunPanel(
+                    assessment = assessment,
+                    isSaving = assessmentRunSaving,
+                    isGeneratingInsights = assessmentInsightsBusy,
+                    error = assessmentRunError,
+                    onSave = { metrics, strengths, focusAreas, coachFeedback, playerFeedback, complete ->
+                        scope.launch {
+                            assessmentRunSaving = true
+                            assessmentRunError = ""
+                            try {
+                                val metricRows = JSONArray()
+                                metrics.forEach { metric ->
+                                    metricRows.put(
+                                        JSONObject()
+                                            .put("name", metric.name)
+                                            .put("score", metric.score ?: JSONObject.NULL)
+                                            .put("note", metric.note)
+                                    )
+                                }
+                                val body = JSONObject()
+                                    .put("metrics", metricRows)
+                                    .put("strengths", strengths)
+                                    .put("focusAreas", focusAreas)
+                                    .put("coachFeedback", coachFeedback)
+                                    .put("playerFeedback", playerFeedback)
+                                if (complete) body.put("status", "COMPLETED")
+                                val updated = api.updatePlayerAssessment(token, assessment.id, body)
+                                assessments = assessments.map { if (it.id == updated.id) updated else it }
+                                activeAssessment = updated
+                                notice = if (complete) "Assessment completed for ${updated.playerName}." else "Assessment progress saved."
+                            } catch (failure: Exception) {
+                                assessmentRunError = failure.message ?: "Unable to save this assessment."
+                            } finally {
+                                assessmentRunSaving = false
+                            }
+                        }
+                    },
+                    onGenerateInsights = {
+                        scope.launch {
+                            assessmentInsightsBusy = true
+                            assessmentRunError = ""
+                            try {
+                                val updated = api.generateAssessmentInsights(token, assessment.id)
+                                assessments = assessments.map { if (it.id == updated.id) updated else it }
+                                activeAssessment = updated
+                                notice = "Assessment insights generated."
+                            } catch (failure: Exception) {
+                                assessmentRunError = failure.message ?: "Unable to generate assessment insights."
+                            } finally {
+                                assessmentInsightsBusy = false
+                            }
+                        }
+                    },
+                    onDownloadReport = {
+                        assessmentRunError = runCatching {
+                            openClubExport(context, exportAssessmentReportPdf(context, assessment), "application/pdf", "Open assessment report")
+                        }.exceptionOrNull()?.message.orEmpty()
+                    },
+                    onShareReport = {
+                        assessmentRunError = runCatching {
+                            shareClubExport(context, exportAssessmentReportPdf(context, assessment), "application/pdf", "Share assessment report")
+                        }.exceptionOrNull()?.message.orEmpty()
+                    },
+                    onBack = { activeAssessment = null; tab = "Assessments" },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1191,17 +1371,19 @@ internal fun ClubCoachWorkspace(
         ScheduleAssessmentDialog(
             players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
             onDismiss = { showScheduleAssessment = false },
-            onSave = { player, title, date, discipline ->
+            onSave = { player, title, date, time, discipline ->
                 scope.launch {
                     error = ""
                     try {
+                        val body = JSONObject()
+                            .put("title", title)
+                            .put("playerId", player.id)
+                            .put("discipline", discipline)
+                            .put("scheduledDate", date)
+                        if (time.isNotBlank()) body.put("scheduledTime", time)
                         api.schedulePlayerAssessment(
                             token,
-                            JSONObject()
-                                .put("title", title)
-                                .put("playerId", player.id)
-                                .put("discipline", discipline)
-                                .put("scheduledDate", date)
+                            body
                         )
                         showScheduleAssessment = false
                         refresh()
@@ -1321,36 +1503,6 @@ internal fun ClubCoachWorkspace(
                         executionError = failure.message ?: "Unable to save session execution."
                     } finally {
                         executionSaving = false
-                    }
-                }
-            }
-        )
-    }
-    completingAssessment?.let { assessment ->
-        CompleteAssessmentDialog(
-            assessment = assessment,
-            onDismiss = { completingAssessment = null },
-            onSave = { metrics, feedback ->
-                scope.launch {
-                    error = ""
-                    try {
-                        val metricRows = JSONArray()
-                        metrics.forEach { (name, score) ->
-                            metricRows.put(JSONObject().put("name", name).put("score", score).put("note", ""))
-                        }
-                        api.updatePlayerAssessment(
-                            token,
-                            assessment.id,
-                            JSONObject()
-                                .put("status", "COMPLETED")
-                                .put("metrics", metricRows)
-                                .put("coachFeedback", feedback)
-                        )
-                        completingAssessment = null
-                        refresh()
-                        notice = "Assessment saved."
-                    } catch (failure: Exception) {
-                        error = failure.message ?: "Unable to save this assessment."
                     }
                 }
             }
@@ -1705,6 +1857,7 @@ private fun RosterPanel(
 @Composable
 private fun SquadPanel(
     squads: List<ClubSquad>,
+    members: List<ClubMember>,
     onCreate: () -> Unit,
     onEdit: (ClubSquad) -> Unit,
     onDelete: (ClubSquad) -> Unit,
@@ -1717,7 +1870,7 @@ private fun SquadPanel(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Squads", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true)
+                    WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true, trailingIcon = Icons.Outlined.Groups)
                 }
             }
             if (squads.isEmpty()) {
@@ -1726,14 +1879,14 @@ private fun SquadPanel(
                 items(squads.chunked(2)) { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         pair.forEach { squad ->
-                            SquadCard(squad, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                            SquadCard(squad, members.count { it.squad == squad.name }, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             } else {
                 items(squads, key = ClubSquad::id) { squad ->
-                    SquadCard(squad, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                    SquadCard(squad, members.count { it.squad == squad.name }, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
                 }
             }
         }
@@ -1755,11 +1908,11 @@ private fun SquadPanel(
 }
 
 @Composable
-private fun SquadCard(squad: ClubSquad, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Text(squad.name, fontWeight = FontWeight.SemiBold)
-            Text("${squad.ageGroup} · ${squad.memberCount} members", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+            Text("${squad.ageGroup} · $memberCount ${if (memberCount == 1) "member" else "members"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
             if (squad.disciplines.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 6.dp),
@@ -2022,12 +2175,12 @@ private fun SessionsPanel(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Training sessions", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    if (canSchedule) WorkspaceAction("Schedule", Icons.Outlined.CalendarMonth, onSchedule, primary = true)
+                    if (canSchedule) WorkspaceAction("Schedule", Icons.Outlined.Add, onSchedule, primary = true, trailingIcon = Icons.Outlined.CalendarMonth)
                 }
                 WorkspaceField(search, { search = it }, "Filter session title", Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    WorkspaceField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                    WorkspaceField(throughDate, { throughDate = it }, "Through date", Modifier.weight(1f))
+                    DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                    DateField(throughDate, { throughDate = it }, "Through date", Modifier.weight(1f))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Status: ")
@@ -2209,9 +2362,8 @@ private fun AssessmentsPanel(
     assessments: List<PlayerAssessment>,
     players: List<ClubMember>,
     onSchedule: () -> Unit,
-    onGenerateInsights: (PlayerAssessment) -> Unit,
     onStart: (PlayerAssessment) -> Unit,
-    onComplete: (PlayerAssessment) -> Unit,
+    onOpen: (PlayerAssessment) -> Unit,
     onEdit: (PlayerAssessment) -> Unit,
     onDelete: (PlayerAssessment) -> Unit,
     modifier: Modifier = Modifier
@@ -2233,7 +2385,7 @@ private fun AssessmentsPanel(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Player assessments", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Button(onClick = onSchedule, enabled = players.isNotEmpty()) { Text("Schedule") }
+                    WorkspaceAction("Schedule", Icons.Outlined.Add, onSchedule, enabled = players.isNotEmpty(), primary = true, trailingIcon = Icons.Outlined.CalendarMonth)
                 }
                 WorkspaceField(search, { search = it }, "Filter by player or title", Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2262,9 +2414,8 @@ private fun AssessmentsPanel(
                         pair.forEach { assessment ->
                             AssessmentCard(
                                 assessment = assessment,
-                                onGenerateInsights = onGenerateInsights,
                                 onStart = onStart,
-                                onComplete = onComplete,
+                                onOpen = onOpen,
                                 onEdit = onEdit,
                                 onDelete = { deleteTarget = assessment },
                                 modifier = Modifier.weight(1f)
@@ -2277,9 +2428,8 @@ private fun AssessmentsPanel(
                 items(filteredAssessments, key = PlayerAssessment::id) { assessment ->
                     AssessmentCard(
                         assessment = assessment,
-                        onGenerateInsights = onGenerateInsights,
                         onStart = onStart,
-                        onComplete = onComplete,
+                        onOpen = onOpen,
                         onEdit = onEdit,
                         onDelete = { deleteTarget = assessment },
                         modifier = Modifier.fillMaxWidth()
@@ -2307,17 +2457,25 @@ private fun AssessmentsPanel(
 @Composable
 private fun AssessmentCard(
     assessment: PlayerAssessment,
-    onGenerateInsights: (PlayerAssessment) -> Unit,
     onStart: (PlayerAssessment) -> Unit,
-    onComplete: (PlayerAssessment) -> Unit,
+    onOpen: (PlayerAssessment) -> Unit,
     onEdit: (PlayerAssessment) -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    Card(
+        modifier = modifier.clickable(enabled = assessment.status != "SCHEDULED") { onOpen(assessment) },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Text(assessment.title, fontWeight = FontWeight.SemiBold)
-            Text("${assessment.playerName} · ${assessment.discipline} · ${assessment.scheduledDate}", fontSize = 12.sp)
+            Text(assessment.playerName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(assessment.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
+            Text(
+                "${assessment.discipline} · ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 1.dp)
+            )
             Text(
                 assessment.status.replace('_', ' '),
                 color = MaterialTheme.colorScheme.primary,
@@ -2329,19 +2487,14 @@ private fun AssessmentCard(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
             ) {
-                if (assessment.status == "SCHEDULED") {
-                    WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(assessment) })
-                    WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
-                    WorkspaceAction("Start", Icons.Outlined.PlayArrow, { onStart(assessment) })
-                }
-                if (assessment.status == "IN_PROGRESS") WorkspaceAction("Complete", Icons.Outlined.CheckCircle, { onComplete(assessment) })
-                if (assessment.status == "COMPLETED") WorkspaceAction("Generate insights", Icons.Outlined.Assignment, { onGenerateInsights(assessment) })
-            }
-            if (assessment.aiSummary != null) {
-                Text("Development insights", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
-                Text(assessment.aiSummary, fontSize = 12.sp)
-                assessment.aiRecommendations.forEachIndexed { index, recommendation ->
-                    Text("${index + 1}. $recommendation", fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(assessment) })
+                when (assessment.status) {
+                    "SCHEDULED" -> {
+                        WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+                        WorkspaceAction("Start", Icons.Outlined.PlayArrow, { onStart(assessment) }, primary = true)
+                    }
+                    "IN_PROGRESS" -> WorkspaceAction("Continue", Icons.Outlined.PlayArrow, { onOpen(assessment) }, primary = true)
+                    "COMPLETED" -> WorkspaceAction("View", Icons.Outlined.Visibility, { onOpen(assessment) }, primary = true)
                 }
             }
         }
@@ -2353,13 +2506,14 @@ private fun EditAssessmentPanel(
     assessment: PlayerAssessment,
     isSaving: Boolean,
     saveError: String,
-    onSave: (String, String) -> Unit,
+    onSave: (String, String, String) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var title by remember(assessment.id) { mutableStateOf(assessment.title) }
     var scheduledDate by remember(assessment.id) { mutableStateOf(assessment.scheduledDate) }
+    var scheduledTime by remember(assessment.id) { mutableStateOf(assessment.scheduledTime.orEmpty()) }
     var deleteConfirm by remember { mutableStateOf(false) }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -2373,15 +2527,20 @@ private fun EditAssessmentPanel(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${assessment.playerName} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                     WorkspaceField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
-                    WorkspaceField(scheduledDate, { scheduledDate = it }, "Scheduled date (YYYY-MM-DD)", Modifier.fillMaxWidth(), enabled = !isSaving)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DateField(scheduledDate, { scheduledDate = it }, "Scheduled date", Modifier.weight(1f), enabled = !isSaving)
+                        TimeField(scheduledTime, { scheduledTime = it }, "Time (optional)", Modifier.weight(1f), enabled = !isSaving)
+                    }
                     if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
-                        WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
+                        if (assessment.status == "SCHEDULED") {
+                            WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
+                        }
                         WorkspaceAction(
                             "Save",
                             Icons.Outlined.CheckCircle,
-                            { onSave(title.trim(), scheduledDate.trim()) },
+                            { onSave(title.trim(), scheduledDate.trim(), scheduledTime.trim()) },
                             enabled = !isSaving && title.isNotBlank() && isIsoDate(scheduledDate),
                             primary = true
                         )
@@ -2624,7 +2783,7 @@ private fun SessionDetailsCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                WorkspaceField(date, onDateChange, "Date (YYYY-MM-DD)", Modifier.weight(1f), enabled = !isSaving)
+                DateField(date, onDateChange, "Date", Modifier.weight(1f), enabled = !isSaving)
                 WorkspaceField(duration, onDurationChange, "Duration in minutes", Modifier.weight(1f), enabled = !isSaving)
             }
             WorkspaceField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
@@ -2930,7 +3089,7 @@ private fun ScheduleSessionPanel(
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                WorkspaceField(date, { date = it }, "Date (YYYY-MM-DD)", Modifier.weight(1f), enabled = !isSaving)
+                                DateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
                                 WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (minutes)", Modifier.weight(1f), enabled = !isSaving)
                             }
                             WorkspaceField(safety, { safety = it }, "Session safety (one instruction per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
@@ -3074,11 +3233,12 @@ private fun SharedTemplatePickerCard(templates: List<TrainingTemplate>, onApply:
 private fun ScheduleAssessmentDialog(
     players: List<ClubMember>,
     onDismiss: () -> Unit,
-    onSave: (ClubMember, String, String, String) -> Unit
+    onSave: (ClubMember, String, String, String, String) -> Unit
 ) {
     var selectedPlayer by remember { mutableStateOf(players.firstOrNull()) }
     var title by remember { mutableStateOf("Skills assessment") }
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
+    var time by remember { mutableStateOf("") }
     var discipline by remember { mutableStateOf(selectedPlayer?.discipline?.uppercase()?.takeIf(ClubDisciplines::contains) ?: "BATTING") }
     var menuOpen by remember { mutableStateOf(false) }
     AlertDialog(
@@ -3096,13 +3256,16 @@ private fun ScheduleAssessmentDialog(
                     }
                 }
                 WorkspaceField(title, { title = it }, "Assessment title")
-                WorkspaceField(date, { date = it }, "Date (YYYY-MM-DD)")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DateField(date, { date = it }, "Date", Modifier.weight(1f))
+                    TimeField(time, { time = it }, "Time (optional)", Modifier.weight(1f))
+                }
                 DisciplinePicker(discipline) { discipline = it }
             }
         },
         confirmButton = {
             Button(
-                onClick = { selectedPlayer?.let { onSave(it, title.trim(), date, discipline) } },
+                onClick = { selectedPlayer?.let { onSave(it, title.trim(), date, time, discipline) } },
                 enabled = selectedPlayer != null && title.isNotBlank() && isIsoDate(date)
             ) { Text("Schedule") }
         },
@@ -3125,50 +3288,264 @@ private fun DisciplinePicker(value: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun CompleteAssessmentDialog(
+private fun AssessmentRunPanel(
     assessment: PlayerAssessment,
-    onDismiss: () -> Unit,
-    onSave: (Map<String, Int>, String) -> Unit
+    isSaving: Boolean,
+    isGeneratingInsights: Boolean,
+    error: String,
+    onSave: (metrics: List<AssessmentMetric>, strengths: String, focusAreas: String, coachFeedback: String, playerFeedback: String, complete: Boolean) -> Unit,
+    onGenerateInsights: () -> Unit,
+    onDownloadReport: () -> Unit,
+    onShareReport: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val metrics = remember(assessment.id) {
+    val names = AssessmentMetricNames[assessment.discipline].orEmpty()
+    val scores = remember(assessment.id) {
         mutableStateMapOf<String, Int>().also { state ->
             assessment.metrics.forEach { metric -> metric.score?.let { state[metric.name] = it } }
-            AssessmentMetricNames[assessment.discipline].orEmpty().forEach { name ->
-                if (name !in state) state[name] = 0
-            }
         }
     }
-    var feedback by remember { mutableStateOf("") }
-    val names = AssessmentMetricNames[assessment.discipline].orEmpty()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Assess ${assessment.playerName}") },
-        text = {
-            Column {
-                LazyColumn(Modifier.height(300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(names, key = { it }) { name ->
-                        Column {
-                            Text(name, fontSize = 13.sp)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                (1..5).forEach { score ->
-                                    TextButton(onClick = { metrics[name] = score }) {
-                                        Text(if (metrics[name] == score) "[$score]" else score.toString())
-                                    }
-                                }
+    val notes = remember(assessment.id) {
+        mutableStateMapOf<String, String>().also { state -> assessment.metrics.forEach { state[it.name] = it.note } }
+    }
+    var strengths by remember(assessment.id) { mutableStateOf(assessment.strengths) }
+    var focusAreas by remember(assessment.id) { mutableStateOf(assessment.focusAreas) }
+    var coachFeedback by remember(assessment.id) { mutableStateOf(assessment.coachFeedback) }
+    var playerFeedback by remember(assessment.id) { mutableStateOf(assessment.playerFeedback) }
+    val completed = assessment.status == "COMPLETED"
+    val editable = !completed && !isSaving
+    fun currentMetrics() = names.map { AssessmentMetric(it, scores[it], notes[it].orEmpty().trim()) }
+    val canComplete = names.all { scores[it] in 1..5 } && coachFeedback.isNotBlank()
+
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.Top) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    Column(Modifier.weight(1f).padding(top = 4.dp)) {
+                        Text(
+                            "${assessment.playerName} · ${assessment.discipline}".uppercase(),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(assessment.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                        Text(
+                            assessment.scheduledDate +
+                                (assessment.scheduledTime?.let { " at $it" } ?: "") +
+                                (assessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    Text(
+                        assessment.status.replace('_', ' '),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), modifier = Modifier.padding(top = 8.dp))
+            }
+            item {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("Performance ratings", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        "  (1 = needs work, 5 = strong)",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            items(names, key = { "metric-$it" }) { name ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                ) {
+                    val ratingRow: @Composable () -> Unit = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (1..5).forEach { score ->
+                                RatingCircle(score, selected = scores[name] == score, enabled = editable) { scores[name] = score }
+                            }
+                        }
+                    }
+                    val noteField: @Composable (Modifier) -> Unit = { fieldModifier ->
+                        OutlinedTextField(
+                            value = notes[name].orEmpty(),
+                            onValueChange = { notes[name] = it.take(1000) },
+                            placeholder = { Text("Observation (optional)", fontSize = 13.sp) },
+                            readOnly = !editable,
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            modifier = fieldModifier
+                        )
+                    }
+                    if (isTablet) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.3f))
+                            ratingRow()
+                            Spacer(Modifier.width(10.dp))
+                            noteField(Modifier.weight(0.45f))
+                        }
+                    } else {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            ratingRow()
+                            noteField(Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+            item {
+                if (isTablet) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AssessmentTextArea(strengths, { strengths = it }, "Strengths", "Strength shown: ...\nEvidence from this assessment: ...", editable, Modifier.weight(1f))
+                        AssessmentTextArea(focusAreas, { focusAreas = it }, "Focus areas", "Skill to develop: ...\nSuggested next step: ...", editable, Modifier.weight(1f))
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        AssessmentTextArea(strengths, { strengths = it }, "Strengths", "Strength shown: ...\nEvidence from this assessment: ...", editable, Modifier.fillMaxWidth())
+                        AssessmentTextArea(focusAreas, { focusAreas = it }, "Focus areas", "Skill to develop: ...\nSuggested next step: ...", editable, Modifier.fillMaxWidth())
+                    }
+                }
+            }
+            item {
+                AssessmentTextArea(
+                    coachFeedback, { coachFeedback = it }, "Feedback for player",
+                    "What you did well: ...\nWhat to focus on next: ...\nTry this in training: ...",
+                    editable, Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                AssessmentTextArea(
+                    playerFeedback, { playerFeedback = it }, "Player's thoughts or feedback",
+                    "What felt good during this assessment?\nWhat would you like to improve or ask about?",
+                    editable, Modifier.fillMaxWidth()
+                )
+            }
+            if (completed && assessment.aiSummary != null) {
+                item {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Text("  Development insights", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Text(assessment.aiSummary, fontSize = 13.sp)
+                            assessment.aiRecommendations.forEachIndexed { index, recommendation ->
+                                Text("${index + 1}. $recommendation", fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                     }
                 }
-                WorkspaceField(feedback, { feedback = it }, "Feedback for player", singleLine = false)
             }
-        },
-        confirmButton = {
-            Button(onClick = { onSave(metrics.toMap(), feedback.trim()) }, enabled = metrics.values.all { it in 1..5 } && feedback.isNotBlank()) {
-                Text("Complete")
+            item {
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (!completed && !canComplete) {
+                    Text(
+                        "Rate every metric and add feedback for the player to complete the assessment.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(vertical = 6.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSaving || isGeneratingInsights) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    if (completed) {
+                        OutlinedButton(onClick = onGenerateInsights, enabled = !isGeneratingInsights, shape = RoundedCornerShape(14.dp)) {
+                            Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text(if (assessment.aiSummary == null) "  Generate insights" else "  Regenerate insights")
+                        }
+                        OutlinedButton(onClick = onShareReport, shape = RoundedCornerShape(14.dp)) {
+                            Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("  Share")
+                        }
+                        Button(onClick = onDownloadReport, shape = RoundedCornerShape(14.dp)) {
+                            Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("  Download report")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { onSave(currentMetrics(), strengths.trim(), focusAreas.trim(), coachFeedback.trim(), playerFeedback.trim(), false) },
+                            enabled = !isSaving,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("  Save progress")
+                        }
+                        Button(
+                            onClick = { onSave(currentMetrics(), strengths.trim(), focusAreas.trim(), coachFeedback.trim(), playerFeedback.trim(), true) },
+                            enabled = !isSaving && canComplete,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("  Complete assessment")
+                        }
+                    }
+                }
             }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+        }
+    }
+}
+
+@Composable
+private fun RatingCircle(score: Int, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (selected) primary else Color.Transparent)
+            .border(1.dp, if (selected) primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            score.toString(),
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun AssessmentTextArea(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+    editable: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onValueChange(it.take(4000)) },
+            placeholder = { Text(placeholder, fontSize = 13.sp) },
+            readOnly = !editable,
+            minLines = 3,
+            shape = RoundedCornerShape(12.dp),
+            textStyle = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 private fun isIsoDate(value: String): Boolean =

@@ -7,7 +7,33 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -393,42 +419,172 @@ private fun SignInScreen(
     onToggleTheme: () -> Unit,
     onSignIn: (String) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center
+    val scheme = MaterialTheme.colorScheme
+    val muted = scheme.onBackground.copy(alpha = 0.68f)
+    val enabledProviders = listOf(
+        SignInProvider("google", "Continue with Google", "G", Color(0xFF4285F4)),
+        SignInProvider("microsoft", "Continue with Microsoft", "M", Color(0xFF00A4EF)),
+        SignInProvider("apple", "Continue with Apple", "A", if (isDark) Color.White else Color.Black)
+    ).filter { providers[it.id] == true }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(scheme.primary.copy(alpha = if (isDark) 0.22f else 0.16f), scheme.background, scheme.background)
+                )
+            )
     ) {
-        Text("eCricketCoach", color = Green, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        Text("Train with purpose.", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Text("Your coaching workspace, wherever you play.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-        Spacer(Modifier.height(30.dp))
-        listOf("google" to "Continue with Google", "microsoft" to "Continue with Microsoft", "apple" to "Continue with Apple")
-            .filter { providers[it.first] == true }
-            .forEach { (provider, label) ->
-                Button(
-                    onClick = { onSignIn(provider) },
-                    enabled = !signingIn,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
-                ) { Text(label) }
-            }
-        if (signingIn) {
-            CircularProgressIndicator(modifier = Modifier.padding(vertical = 12.dp))
-        }
-        if (providers.isNotEmpty() && providers.values.none { it }) {
-            Text(
-                "No sign-in provider is configured. Configure an identity provider on the eCricketCoach API, then retry.",
-                color = MaterialTheme.colorScheme.error,
-                fontSize = 13.sp
+        IconButton(onClick = onToggleTheme, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+            Icon(
+                if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme",
+                tint = scheme.onBackground.copy(alpha = 0.8f)
             )
         }
-        if (error.isNotBlank()) {
-            Spacer(Modifier.height(12.dp))
-            Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .widthIn(max = 460.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 48.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher),
+                contentDescription = "eCricketCoach",
+                modifier = Modifier.size(84.dp).clip(RoundedCornerShape(24.dp))
+            )
+            Spacer(Modifier.height(18.dp))
+            Text("eCricketCoach", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = scheme.onBackground)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Train with purpose. Your coaching workspace, wherever you play.",
+                color = muted,
+                fontSize = 15.sp,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(28.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = scheme.surface),
+                border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.6f))
+            ) {
+                Column(Modifier.padding(22.dp)) {
+                    Text("Sign in", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+                    Text("Use the account linked to your club.", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.65f))
+                    Spacer(Modifier.height(18.dp))
+                    when {
+                        providers.isEmpty() && error.isBlank() -> Row(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Connecting…", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.65f))
+                        }
+                        providers.isNotEmpty() && enabledProviders.isEmpty() -> SignInNotice(
+                            "No sign-in provider is configured. Configure an identity provider on the eCricketCoach API, then retry.",
+                            isError = true
+                        )
+                        else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            enabledProviders.forEach { provider ->
+                                ProviderButton(provider, enabled = !signingIn) { onSignIn(provider.id) }
+                            }
+                        }
+                    }
+                    if (signingIn) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 14.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Signing you in…", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.7f))
+                        }
+                    }
+                    if (error.isNotBlank()) {
+                        Spacer(Modifier.height(14.dp))
+                        SignInNotice(error, isError = true)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(26.dp))
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SignInFeature(Icons.Outlined.CalendarMonth, "Plan and run sessions", "Schedule drills, track attendance and review delivery.")
+                SignInFeature(Icons.Outlined.Assessment, "Assess every player", "Rate skills, capture feedback and share PDF reports.")
+                SignInFeature(Icons.Outlined.AutoAwesome, "AI-powered insights", "Turn video and assessments into clear next steps.")
+            }
+            Spacer(Modifier.height(28.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Lock, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Secure sign-in · v${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = muted)
+            }
         }
-        Spacer(Modifier.height(16.dp))
-        TextButton(onClick = onToggleTheme, modifier = Modifier.align(Alignment.End)) {
-            Text(if (isDark) "Switch to light theme" else "Switch to dark theme")
+    }
+}
+
+private data class SignInProvider(val id: String, val label: String, val mark: String, val markColor: Color)
+
+@androidx.compose.runtime.Composable
+private fun ProviderButton(provider: SignInProvider, enabled: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().height(54.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, scheme.outline),
+        colors = ButtonDefaults.outlinedButtonColors(containerColor = scheme.background, contentColor = scheme.onSurface)
+    ) {
+        Box(
+            Modifier.size(28.dp).clip(CircleShape).background(provider.markColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(provider.mark, color = provider.markColor, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
         }
+        Spacer(Modifier.width(12.dp))
+        Text(provider.label, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp), tint = scheme.primary)
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun SignInFeature(icon: ImageVector, title: String, detail: String) {
+    val scheme = MaterialTheme.colorScheme
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(scheme.primary.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = scheme.onBackground)
+            Text(detail, fontSize = 12.sp, color = scheme.onBackground.copy(alpha = 0.65f))
+        }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun SignInNotice(message: String, isError: Boolean) {
+    val tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.1f)).padding(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(message, color = tint, fontSize = 13.sp)
     }
 }
 

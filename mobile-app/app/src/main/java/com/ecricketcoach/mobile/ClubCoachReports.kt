@@ -188,7 +188,9 @@ data class SessionReportSection(
     val lines: List<String> = emptyList(),
     val tableHeaders: List<String>? = null,
     val tableRows: List<List<String>>? = null,
-    val columnWeights: List<Float>? = null
+    val columnWeights: List<Float>? = null,
+    /** Renders the heading as a small grey label without a rule (used by the assessment report). */
+    val compactHeading: Boolean = false
 )
 
 private fun wrapLine(paint: Paint, text: String, maxWidth: Float): List<String> {
@@ -225,18 +227,62 @@ fun exportSessionReportPdf(
     title: String,
     subtitle: String,
     facts: List<Pair<String, String>>,
-    sections: List<SessionReportSection>
+    sections: List<SessionReportSection>,
+    headline: String? = null,
+    fileName: String? = null
 ): File {
-    val pageCount = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = null).let { (document, pages) ->
+    val pageCount = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = null, headline = headline).let { (document, pages) ->
         document.close()
         pages
     }
-    val (document, _) = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = pageCount)
-    val safeName = title.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifBlank { "session-report" }
+    val (document, _) = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = pageCount, headline = headline)
+    val safeName = (fileName ?: title).replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifBlank { "session-report" }
     val file = File(exportDirectory(context), "$safeName-${LocalDate.now()}.pdf")
     FileOutputStream(file).use(document::writeTo)
     document.close()
     return file
+}
+
+/** Builds a single player assessment report PDF matching the web app's layout. */
+fun exportAssessmentReportPdf(context: Context, assessment: PlayerAssessment): File {
+    val scored = assessment.metrics.mapNotNull { it.score }
+    val average = if (scored.isEmpty()) "Not rated" else "%.1f / 5".format(scored.average())
+    val facts = listOf(
+        "Discipline" to assessment.discipline,
+        "Date" to assessment.scheduledDate + (assessment.scheduledTime?.let { " at $it" } ?: ""),
+        "Coach" to assessment.coachName.ifBlank { "-" },
+        "Status" to assessment.status.replace('_', ' '),
+        "Average rating" to average
+    )
+    val sections = mutableListOf(
+        SessionReportSection(
+            "",
+            tableHeaders = listOf("Metric", "Rating (1-5)", "Note"),
+            tableRows = assessment.metrics.map { listOf(it.name, it.score?.toString() ?: "-", it.note) },
+            columnWeights = listOf(0.56f, 0.24f, 0.2f),
+            compactHeading = true
+        ),
+        SessionReportSection("Strengths", listOf(assessment.strengths.ifBlank { "-" }), compactHeading = true),
+        SessionReportSection("Focus areas", listOf(assessment.focusAreas.ifBlank { "-" }), compactHeading = true),
+        SessionReportSection("Coach feedback", listOf(assessment.coachFeedback.ifBlank { "-" }), compactHeading = true),
+        SessionReportSection("Player's own thoughts", listOf(assessment.playerFeedback.ifBlank { "-" }), compactHeading = true)
+    )
+    if (assessment.aiSummary != null) {
+        sections += SessionReportSection(
+            "Development insights",
+            listOf(assessment.aiSummary) + assessment.aiRecommendations.map { "-  $it" },
+            compactHeading = true
+        )
+    }
+    return exportSessionReportPdf(
+        context,
+        "Player Assessment Report",
+        "${assessment.playerName} - ${assessment.title}",
+        facts,
+        sections,
+        headline = "${assessment.playerName} - ${assessment.title}".uppercase(),
+        fileName = "assessment-${assessment.playerName}-${assessment.title}"
+    )
 }
 
 /** Lays out the session report once; pass [totalPages] on the second pass to print "Page X of Y" footers. */
@@ -245,7 +291,8 @@ private fun renderSessionReportPdf(
     subtitle: String,
     facts: List<Pair<String, String>>,
     sections: List<SessionReportSection>,
-    totalPages: Int?
+    totalPages: Int?,
+    headline: String? = null
 ): Pair<PdfDocument, Int> {
     val document = PdfDocument()
     val pageWidth = 595
@@ -329,6 +376,15 @@ private fun renderSessionReportPdf(
     }
 
     val factLabelWidth = 150f
+    if (headline != null) {
+        wrapLine(sectionHeadingPaint, headline, contentWidth).forEach { line ->
+            canvas.drawText(line, marginX, y, sectionHeadingPaint)
+            y += 16f
+        }
+        y -= 10f
+        canvas.drawLine(marginX, y, marginX + contentWidth, y, sectionRulePaint)
+        y += 18f
+    }
     facts.forEach { (label, value) ->
         ensureSpace(17f)
         canvas.drawText(label, marginX, y, labelPaint)
@@ -345,6 +401,23 @@ private fun renderSessionReportPdf(
         y += 6f
         canvas.drawLine(marginX, y, marginX + contentWidth, y, sectionRulePaint)
         y += 16f
+    }
+
+    val compactHeadingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ReportTextGray
+        textSize = 11.5f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+    fun drawCompactHeading(text: String) {
+        if (text.isBlank()) {
+            y += 8f
+            return
+        }
+        ensureSpace(30f)
+        y += 10f
+        canvas.drawText(text, marginX, y, compactHeadingPaint)
+        y += 15f
     }
 
     fun drawTable(headers: List<String>, rows: List<List<String>>, weights: List<Float>?) {
@@ -384,7 +457,7 @@ private fun renderSessionReportPdf(
     }
 
     sections.forEach { section ->
-        drawSectionHeading(section.heading)
+        if (section.compactHeading) drawCompactHeading(section.heading) else drawSectionHeading(section.heading)
         if (section.tableHeaders != null) {
             drawTable(section.tableHeaders, section.tableRows.orEmpty(), section.columnWeights)
         } else if (section.lines.isEmpty()) {
@@ -557,8 +630,8 @@ internal fun ClubReportsPanel(
             Text("Session delivery, assigned participants, attendance and recorded individual coaching notes.")
             if (loadError.isNotBlank()) Text(loadError, color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(fromDate, { fromDate = it }, label = { Text("From (YYYY-MM-DD)") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(throughDate, { throughDate = it }, label = { Text("Through") }, modifier = Modifier.weight(1f), singleLine = true)
+                DateField(fromDate, { fromDate = it }, "From", Modifier.weight(1f))
+                DateField(throughDate, { throughDate = it }, "Through", Modifier.weight(1f))
             }
             OutlinedTextField(squad, { squad = it }, label = { Text("Filter squad") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             if (!validRange) Text("Enter valid dates and make sure the start date is not after the end date.", color = MaterialTheme.colorScheme.error)
@@ -703,8 +776,8 @@ internal fun CertificatesPanel(
             OutlinedTextField(query, { query = it }, label = { Text("Filter player, level or number") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(discipline, { discipline = it }, label = { Text("Filter discipline") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(issuedFrom, { issuedFrom = it }, label = { Text("Issued from") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(issuedThrough, { issuedThrough = it }, label = { Text("Issued through") }, modifier = Modifier.weight(1f), singleLine = true)
+                DateField(issuedFrom, { issuedFrom = it }, "Issued from", Modifier.weight(1f))
+                DateField(issuedThrough, { issuedThrough = it }, "Issued through", Modifier.weight(1f))
             }
             Text("PDFs use the saved certificate fields and club branding.", style = MaterialTheme.typography.bodySmall)
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)

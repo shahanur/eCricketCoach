@@ -79,10 +79,16 @@ data class PlayerAssessment(
     val title: String,
     val discipline: String,
     val scheduledDate: String,
+    val scheduledTime: String? = null,
     val status: String,
     val metrics: List<AssessmentMetric>,
     val aiSummary: String?,
-    val aiRecommendations: List<String>
+    val aiRecommendations: List<String>,
+    val coachName: String = "",
+    val strengths: String = "",
+    val focusAreas: String = "",
+    val coachFeedback: String = "",
+    val playerFeedback: String = ""
 )
 
 internal fun sessionPlanUpdates(
@@ -806,6 +812,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             title = optString("title", "Player assessment"),
             discipline = optString("discipline", "BATTING"),
             scheduledDate = optString("scheduledDate"),
+            scheduledTime = optString("scheduledTime").takeIf(String::isNotBlank),
             status = optString("status", "SCHEDULED"),
             metrics = (0 until rows.length()).map { index ->
                 val row = rows.getJSONObject(index)
@@ -819,7 +826,12 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                 ?.takeIf { it.isNotBlank() && it != "null" },
             aiRecommendations = optJSONObject("aiInsights")?.optJSONArray("recommendations")?.let { insights ->
                 (0 until insights.length()).map(insights::getString)
-            } ?: emptyList()
+            } ?: emptyList(),
+            coachName = optString("coachName").takeUnless { it == "null" }.orEmpty(),
+            strengths = optString("strengths").takeUnless { it == "null" }.orEmpty(),
+            focusAreas = optString("focusAreas").takeUnless { it == "null" }.orEmpty(),
+            coachFeedback = optString("coachFeedback").takeUnless { it == "null" }.orEmpty(),
+            playerFeedback = optString("playerFeedback").takeUnless { it == "null" }.orEmpty()
         )
     }
 

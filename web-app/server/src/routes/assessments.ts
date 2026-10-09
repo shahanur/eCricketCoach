@@ -226,7 +226,8 @@ assessmentRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) 
     } else if (body?.status !== undefined) {
       res.status(400).json({ error: 'Assessment status must be IN_PROGRESS or COMPLETED.' });
       return;
-    } else if (assessment.status === 'SCHEDULED') {
+    } else {
+      // Title and schedule details can be edited regardless of the assessment status.
       if (body?.title !== undefined) {
         const title = boundedText(body.title, 120);
         if (!title) {
@@ -254,24 +255,26 @@ assessmentRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) 
         }
         updates.scheduledTime = scheduledTime;
       }
+      if (body?.metrics !== undefined) {
+        if (assessment.status !== 'IN_PROGRESS') {
+          res.status(409).json({ error: 'Scores can only be saved while the assessment is in progress.' });
+          return;
+        }
+        const metrics = parseMetrics(body.metrics, assessment.discipline);
+        if (!metrics) {
+          res.status(400).json({ error: 'Assessment metrics are invalid.' });
+          return;
+        }
+        updates.metrics = metrics as Prisma.InputJsonValue;
+        updates.strengths = boundedText(body.strengths, 4000);
+        updates.focusAreas = boundedText(body.focusAreas, 4000);
+        updates.coachFeedback = boundedText(body.coachFeedback, 4000);
+        updates.playerFeedback = boundedText(body.playerFeedback, 4000);
+      }
       if (Object.keys(updates).length === 0) {
         res.status(400).json({ error: 'No valid fields were provided to update.' });
         return;
       }
-    } else if (assessment.status === 'IN_PROGRESS') {
-      const metrics = parseMetrics(body?.metrics, assessment.discipline);
-      if (!metrics) {
-        res.status(400).json({ error: 'Assessment metrics are invalid.' });
-        return;
-      }
-      updates.metrics = metrics as Prisma.InputJsonValue;
-      updates.strengths = boundedText(body?.strengths, 4000);
-      updates.focusAreas = boundedText(body?.focusAreas, 4000);
-      updates.coachFeedback = boundedText(body?.coachFeedback, 4000);
-      updates.playerFeedback = boundedText(body?.playerFeedback, 4000);
-    } else {
-      res.status(409).json({ error: 'Only in-progress assessments can be edited.' });
-      return;
     }
 
     const updated = await prisma.playerAssessment.update({ where: { id: assessment.id }, data: updates });
