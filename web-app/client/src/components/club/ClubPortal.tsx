@@ -1713,10 +1713,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                               trimmed === 'BATTING' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
                               trimmed === 'BOWLING' ? 'bg-sky-500/20 text-sky-300 border-sky-500/30' :
                               trimmed === 'KEEPING' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                              trimmed === 'FIELDING' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
                               'bg-sky-500/20 text-sky-300 border-sky-500/30';
                             return (
                               <span
                                 key={i}
+                                data-discipline={trimmed}
                                 className={`px-1 py-0.5 rounded text-[9px] font-medium border leading-none ${discColor}`}
                               >
                                 {trimmed}

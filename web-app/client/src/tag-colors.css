@@ -30,3 +30,9 @@ html.light #root span[class*="rounded"][class*="px-"]:not(.public-site span) {
   --theme-teal-400: 15 118 110;
   --theme-teal-950: 204 251 241;
 }
+
+html.light #root span[data-discipline="FIELDING"] {
+  background-color: #f3e8ff;
+  color: #7e22ce;
+  border-color: #d8b4fe;
+}
