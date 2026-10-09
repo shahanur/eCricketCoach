@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify, JWTPayload } from 'jose';
 import { prisma } from '../config/prisma.js';
 import { fetchWithRetry } from '../utils/retry.js';
 import { isAllowedAppOrigin, resolveAppOrigin } from '../utils/appOrigin.js';
+import { verifyGoogleIdentityToken } from '../utils/googleIdentity.js';
 
 type Provider = 'google' | 'microsoft' | 'apple';
 
@@ -67,11 +69,16 @@ function getProvider(value: string): Provider | undefined {
 }
 
 function safeReturnTo(value: unknown): string {
+  if (value === 'ecricketcoach://auth/callback') return value;
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/';
 }
 
 async function verifyIdentityToken(provider: Provider, idToken: string): Promise<JWTPayload> {
   const config = providerConfig[provider];
+  if (provider === 'google') {
+    if (!config.clientId) throw new Error('Google sign-in is not configured.');
+    return verifyGoogleIdentityToken(idToken, config.clientId);
+  }
   const jwks = createRemoteJWKSet(new URL(config.jwksUrl));
   const result = await jwtVerify(idToken, jwks, {
     audience: config.clientId,
@@ -85,12 +92,112 @@ async function verifyIdentityToken(provider: Provider, idToken: string): Promise
   return result.payload;
 }
 
+export async function createSocialSession(provider: Provider, identity: JWTPayload) {
+  const email = typeof identity.email === 'string' ? identity.email.toLowerCase() : '';
+  const name = (typeof identity.name === 'string' && identity.name.trim())
+    ? identity.name.trim()
+    : (typeof identity.given_name === 'string'
+        ? `${identity.given_name} ${typeof identity.family_name === 'string' ? identity.family_name : ''}`.trim()
+        : (email === 'shahanurreza@gmail.com' ? 'Shahanur Reza' : email.split('@')[0]));
+
+  if (!identity.sub || !email || (provider === 'google' && identity.email_verified !== true)) {
+    return { kind: 'invalid' as const };
+  }
+
+  const adminEmails = (process.env.ADMIN_EMAILS || 'shahanurreza@gmail.com')
+    .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+  if (adminEmails.includes(email)) {
+    const user = {
+      userId: `oauth-${provider}-${identity.sub}`, tenantId: 'system-admin',
+      role: 'SUPER_ADMIN', email, name: name && name !== email ? name : 'Shahanur Reza'
+    };
+    return {
+      kind: 'session' as const,
+      authToken: jwt.sign(user, jwtSecret, { expiresIn: '8h' }),
+      user,
+      redirectFields: { name: user.name, email, role: user.role }
+    };
+  }
+
+  const resolvedIdentity = await resolveRosterIdentity(email);
+  if (!resolvedIdentity) {
+    return {
+      kind: 'registration' as const,
+      registrationToken: jwt.sign({ type: 'registration', email, name, provider }, jwtSecret, { expiresIn: '30m' }),
+      name, email
+    };
+  }
+  const { tenant, member, role } = resolvedIdentity;
+  const userId = member?.id || `oauth-${provider}-${identity.sub}`;
+  const coachContext = role === 'COACH' ? (member ? 'CLUB' : 'STANDALONE') : undefined;
+  const user = { userId, tenantId: tenant.id, role, coachContext, email, name, clubName: tenant.name };
+  return {
+    kind: 'session' as const,
+    authToken: jwt.sign({ userId, tenantId: tenant.id, role, coachContext, email }, jwtSecret, { expiresIn: '8h' }),
+    user,
+    redirectFields: {
+      userId, name, email, role, ...(coachContext ? { coachContext } : {}),
+      tenantId: tenant.id, clubName: tenant.name
+    }
+  };
+}
+
 export const authRouter = Router();
 
 authRouter.get('/providers', (_req: Request, res: Response) => {
-  res.json(Object.fromEntries(
+  res.json({ ...Object.fromEntries(
     (Object.keys(providerConfig) as Provider[]).map(provider => [provider, Boolean(providerConfig[provider].clientId && providerConfig[provider].clientSecret)])
-  ));
+  ), googleNative: Boolean(providerConfig.google.clientId) });
+});
+
+authRouter.get('/google/native', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const clientId = providerConfig.google.clientId;
+  if (!clientId) {
+    res.status(503).json({ error: 'Google sign-in is not configured.' });
+    return;
+  }
+  const nonce = randomUUID();
+  const challenge = jwt.sign({ type: 'google-native', nonce }, jwtSecret, { expiresIn: '5m' });
+  res.json({ clientId, nonce, challenge });
+});
+
+authRouter.post('/google/native', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!providerConfig.google.clientId) {
+    res.status(503).json({ error: 'Google sign-in is not configured.' });
+    return;
+  }
+  const { idToken, challenge } = req.body || {};
+  if (typeof idToken !== 'string' || !idToken || idToken.length > 16384 ||
+      typeof challenge !== 'string' || !challenge || challenge.length > 2048) {
+    res.status(400).json({ error: 'A Google ID token and sign-in challenge are required.' });
+    return;
+  }
+  let identity: JWTPayload;
+  try {
+    const state = jwt.verify(challenge, jwtSecret, { algorithms: ['HS256'] });
+    if (typeof state === 'string' || state.type !== 'google-native' || typeof state.nonce !== 'string') {
+      throw new Error('Invalid native sign-in challenge.');
+    }
+    identity = await verifyGoogleIdentityToken(idToken, providerConfig.google.clientId, state.nonce);
+  } catch {
+    res.status(401).json({ error: 'Google sign-in is invalid or expired. Please try again.' });
+    return;
+  }
+  try {
+    const result = await createSocialSession('google', identity);
+    if (result.kind === 'invalid') {
+      res.status(401).json({ error: 'Google did not supply a verified email address.' });
+    } else if (result.kind === 'registration') {
+      res.status(403).json({ error: 'Finish registration in the web app with this Google account, then sign in here.', code: 'REGISTRATION_REQUIRED' });
+    } else {
+      res.json({ authToken: result.authToken, user: result.user });
+    }
+  } catch {
+    console.error('Unable to resolve the native Google sign-in account.');
+    res.status(500).json({ error: 'Google sign-in could not be completed.' });
+  }
 });
 
 authRouter.get('/:provider', (req: Request, res: Response) => {
@@ -175,68 +282,25 @@ async function handleCallback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const email = typeof identity.email === 'string' ? identity.email.toLowerCase() : '';
-  const name = (typeof identity.name === 'string' && identity.name.trim())
-    ? identity.name.trim()
-    : (typeof identity.given_name === 'string'
-        ? `${identity.given_name} ${typeof identity.family_name === 'string' ? identity.family_name : ''}`.trim()
-        : (email === 'shahanurreza@gmail.com' ? 'Shahanur Reza' : email.split('@')[0]));
-
-  if (!email || (provider === 'google' && identity.email_verified !== true)) {
+  const result = await createSocialSession(provider, identity);
+  if (result.kind === 'invalid') {
     res.status(401).json({ error: 'The identity provider did not supply a verified email address.' });
     return;
   }
 
   const redirectUrl = new URL(safeReturnTo(statePayload.returnTo), appOrigin);
 
-  // Check if user is a designated system super admin
-  const adminEmails = (process.env.ADMIN_EMAILS || 'shahanurreza@gmail.com')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (adminEmails.includes(email)) {
-    const role = 'SUPER_ADMIN';
-    const adminDisplayName = name && name !== email ? name : 'Shahanur Reza';
-    const authToken = jwt.sign(
-      { userId: `oauth-${provider}-${identity.sub}`, tenantId: 'system-admin', role, email, name: adminDisplayName },
-      jwtSecret,
-      { expiresIn: '8h' }
-    );
-    redirectUrl.hash = new URLSearchParams({
-      auth_token: authToken,
-      name: adminDisplayName,
-      email,
-      role
-    }).toString();
+  if (result.kind === 'registration') {
+    redirectUrl.searchParams.set('registration_token', result.registrationToken);
+    redirectUrl.searchParams.set('registration_name', result.name);
+    redirectUrl.searchParams.set('registration_email', result.email);
     res.redirect(redirectUrl.toString());
     return;
   }
 
-  const resolvedIdentity = await resolveRosterIdentity(email);
-
-  if (!resolvedIdentity) {
-    const registrationToken = jwt.sign({ type: 'registration', email, name, provider }, jwtSecret, { expiresIn: '30m' });
-    redirectUrl.searchParams.set('registration_token', registrationToken);
-    redirectUrl.searchParams.set('registration_name', name);
-    redirectUrl.searchParams.set('registration_email', email);
-    res.redirect(redirectUrl.toString());
-    return;
-  }
-
-  const { tenant, member, role } = resolvedIdentity;
-  const userId = member?.id || `oauth-${provider}-${identity.sub}`;
-  const coachContext = role === 'COACH' ? (member ? 'CLUB' : 'STANDALONE') : undefined;
-  const authToken = jwt.sign({ userId, tenantId: tenant.id, role, coachContext, email }, jwtSecret, { expiresIn: '8h' });
   redirectUrl.hash = new URLSearchParams({
-    auth_token: authToken,
-    userId,
-    name,
-    email,
-    role,
-    ...(coachContext ? { coachContext } : {}),
-    tenantId: tenant.id,
-    clubName: tenant.name
+    auth_token: result.authToken,
+    ...result.redirectFields
   }).toString();
   res.redirect(redirectUrl.toString());
 }

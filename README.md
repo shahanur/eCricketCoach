@@ -9,7 +9,9 @@ eCricketCoach/
 ├── docs/
 │   └── requirements.md            # Detailed Software Requirements Specification (SRS)
 ├── mobile-app/
-│   └── README.md                  # Placeholder for future native mobile applications
+│   ├── app/                       # Kotlin + Jetpack Compose Android application
+│   ├── gradlew.bat                # Reproducible Android build entry point
+│   └── README.md                  # Android setup, OAuth, and feature scope
 └── web-app/
     ├── docker-compose.yml         # Container orchestration (PostgreSQL, Redis, Node API, React SPA)
     ├── client/                    # React SPA Frontend (Vite + Tailwind CSS)
