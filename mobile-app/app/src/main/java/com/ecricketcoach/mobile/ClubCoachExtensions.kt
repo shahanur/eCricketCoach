@@ -55,7 +55,7 @@ internal fun ClubDrillsPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Club custom drills", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Club custom drills", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 if (canCreate) Button(onClick = { showCreate = true }) { Text("Add drill") }
             }
         }
@@ -126,7 +126,7 @@ internal fun ProgressionPanel(
 ) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Text("Player progression", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Player progression", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("Promotions issue a certificate and update the player's current level.", fontSize = 12.sp)
         }
         item { Text("Roster", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
@@ -225,7 +225,7 @@ internal fun VideoAnalysisPanel(
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedUri = it }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Text("AI video analysis", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("AI video analysis", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("Select a training clip to analyze with the club's video-analysis workflow.", fontSize = 12.sp)
         }
         item {
@@ -368,7 +368,7 @@ internal fun ClubSettingsPanel(
         }
     }
     Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Club branding", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("Club branding", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("The logo is added to certificates issued from this point forward.", fontSize = 12.sp)
         Text(if (logoUrl == null) "No club logo saved." else "A club logo is currently saved.", color = MaterialTheme.colorScheme.primary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

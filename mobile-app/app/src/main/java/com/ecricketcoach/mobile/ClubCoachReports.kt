@@ -294,7 +294,7 @@ internal fun ClubReportsPanel(
     }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Text("Session reports", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Session reports", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("Session delivery, assigned participants, attendance and recorded individual coaching notes.")
             if (loadError.isNotBlank()) Text(loadError, color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -358,7 +358,7 @@ internal fun CertificatesPanel(
     }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Text("Certificates", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Certificates", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             OutlinedTextField(query, { query = it }, label = { Text("Filter player, level or number") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             OutlinedTextField(discipline, { discipline = it }, label = { Text("Filter discipline") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

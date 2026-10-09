@@ -1145,8 +1145,8 @@ private fun OverviewPanel(
         val isTablet = maxWidth >= 600.dp
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text(clubName.uppercase() + " CLUB COACH WORKSPACE", color = Color(0xFF8B88FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("$coachName's club coaching dashboard", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(clubName.uppercase() + " CLUB COACH WORKSPACE", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("$coachName's club coaching dashboard", color = MaterialTheme.colorScheme.primary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text("Plan sessions, monitor club events, and measure development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
         }
         if (isTablet) {
@@ -1207,7 +1207,7 @@ private fun OverviewPanel(
             }
         } }
         item {
-            Text("Coaching practice library", fontWeight = FontWeight.Bold)
+            Text("Coaching practice library", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LibraryLink("ECB coaching resources")
                 LibraryLink("ICC development guidance")
@@ -1223,7 +1223,7 @@ private fun OverviewPanel(
 @Composable
 private fun <T> OverviewList(title: String, rows: List<T>, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(title, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         if (rows.isEmpty()) {
             Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
         } else {
@@ -1287,7 +1287,7 @@ private fun RosterPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Club roster", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Club roster", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 if (canInvite) WorkspaceAction("Invite", Icons.Outlined.Send, onInvite, primary = true)
             }
         }
@@ -1325,7 +1325,7 @@ private fun SquadPanel(squads: List<ClubSquad>, onCreate: () -> Unit, modifier: 
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Squads", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Squads", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true)
             }
         }
@@ -1378,7 +1378,7 @@ private fun SessionsPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Training sessions", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Training sessions", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     if (canSchedule) WorkspaceAction("Schedule", Icons.Outlined.CalendarMonth, onSchedule, primary = true)
                 }
                 WorkspaceField(search, { search = it }, "Filter session title", Modifier.fillMaxWidth())
@@ -1510,7 +1510,7 @@ private fun AssessmentsPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Player assessments", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Player assessments", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Button(onClick = onSchedule, enabled = players.isNotEmpty()) { Text("Schedule") }
             }
         }
@@ -1542,7 +1542,7 @@ private fun AssessmentsPanel(
 @Composable
 private fun ReadOnlyDrills(drills: List<Drill>, modifier: Modifier = Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("Drill catalogue", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Drill catalogue", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
         if (drills.isEmpty()) item { EmptyMessage("No drills are available. Sync while online to load the catalogue.") }
         items(drills, key = Drill::id) { drill ->
             InfoCard(drill.title, "${drill.discipline} · ${drill.durationMinutes} min", listOf(drill.skillSet, drill.instructions).filter(String::isNotBlank).joinToString("\n"))
@@ -1553,7 +1553,7 @@ private fun ReadOnlyDrills(drills: List<Drill>, modifier: Modifier = Modifier) {
 @Composable
 private fun ReadOnlyTemplates(templates: List<TrainingTemplate>, modifier: Modifier = Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("Training templates", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Training templates", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
         if (templates.isEmpty()) item { EmptyMessage("No shared training templates are available.") }
         items(templates, key = TrainingTemplate::id) { template ->
             InfoCard(template.title, "${template.durationMinutes} min · ${template.disciplines.joinToString()}", template.focus)
