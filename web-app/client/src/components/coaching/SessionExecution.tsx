@@ -237,6 +237,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const [now, setNow] = useState(Date.now());
+  const [confirmEarlyStart, setConfirmEarlyStart] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
   const [followUp, setFollowUp] = useState<FollowUpDraft | null>(null);
@@ -250,7 +251,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   }, [aiGeneratedAt]);
 
   const isCompleted = Boolean(session.isExecuted) || log.status === 'COMPLETED';
-  const canStart = session.sessionDate <= localToday();
+  const onScheduleDate = session.sessionDate <= localToday();
   const isLive = log.status === 'IN_PROGRESS';
 
   useEffect(() => {
@@ -288,6 +289,8 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
   const plannedMinutes = log.drillLog.reduce((sum, entry) => sum + entry.plannedMinutes, 0);
   const actualMinutes = log.drillLog.reduce((sum, entry) => sum + entry.actualMinutes, 0);
   const checklistDone = CHECKLIST.filter(item => log.checklist[item.id]).length;
+  const checklistComplete = checklistDone === CHECKLIST.length;
+  const canStart = onScheduleDate || checklistComplete;
   const elapsedMs = log.startedAt ? (log.completedAt ? Date.parse(log.completedAt) : now) - Date.parse(log.startedAt) : 0;
   const elapsedMinutes = Math.floor(elapsedMs / 60000);
   const attendanceRate = sessionPlayers.length ? Math.round((attendingPlayers.length / sessionPlayers.length) * 100) : 0;
@@ -331,8 +334,9 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
     }
   };
 
-  const startSession = async () => {
-    const nextLog: SessionExecutionLog = { ...log, status: 'IN_PROGRESS', startedAt: new Date().toISOString() };
+  const startSession = async (early: boolean) => {
+    const nextLog: SessionExecutionLog = { ...log, status: 'IN_PROGRESS', startedAt: new Date().toISOString(), startedEarly: early };
+    setConfirmEarlyStart(false);
     if (await persist(nextLog)) setStep('ATTENDANCE');
   };
 
@@ -471,6 +475,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             ['Planned duration', `${session.durationMinutes} min`],
             ['Actual drill time', `${actualMinutes} min`],
             ['Started', when(log.startedAt)],
+            ['Started early', log.startedEarly ? 'Yes' : 'No'],
             ['Completed', when(log.completedAt)]
           ]
         },
@@ -520,6 +525,11 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
           {log.startedAt && (
             <span className={`flex items-center gap-1 text-xs font-mono px-2 py-1 rounded border ${elapsedMinutes > session.durationMinutes ? 'border-rose-500/50 text-rose-300' : 'border-slate-700 text-slate-200'}`}>
               <Clock size={14} /> {formatElapsed(elapsedMs)} / {session.durationMinutes}:00
+            </span>
+          )}
+          {log.startedEarly && (
+            <span className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded border border-amber-500/50 text-amber-300">
+              <AlertTriangle size={14} /> Started early
             </span>
           )}
           <button onClick={() => persist(log)} disabled={saving} className="px-3 py-1.5 text-xs border border-slate-600 text-slate-200 rounded flex items-center gap-1 disabled:opacity-50"><Save size={14} /> Save</button>
@@ -574,8 +584,25 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             {!isLive && !isCompleted && (
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => persist(log)} disabled={saving} className="px-3 py-2 text-xs border border-slate-600 text-slate-200 rounded-lg disabled:opacity-50">Save preparation</button>
-                <button onClick={startSession} disabled={!canStart || saving} className="px-3 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><Play size={14} /> Start session</button>
-                {!canStart && <p className="w-full text-xs text-slate-500">The session can be started on {session.sessionDate}.</p>}
+                <button
+                  onClick={() => (onScheduleDate ? startSession(false) : setConfirmEarlyStart(true))}
+                  disabled={!canStart || saving}
+                  className="px-3 py-2 text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                ><Play size={14} /> Start session</button>
+                {!canStart && <p className="w-full text-xs text-slate-500">Complete the preparation checklist to start before {session.sessionDate}, or wait until then.</p>}
+                {canStart && !onScheduleDate && !confirmEarlyStart && (
+                  <p className="w-full flex items-center gap-1 text-xs text-amber-300"><AlertTriangle size={12} /> Checklist complete — starting now will be recorded as earlier than the scheduled date ({session.sessionDate}).</p>
+                )}
+                {confirmEarlyStart && (
+                  <div className="w-full flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    <span>This session is scheduled for {session.sessionDate}. Starting now will be recorded as started early.</span>
+                    <div className="ml-auto flex gap-2">
+                      <button onClick={() => startSession(true)} disabled={saving} className="px-2 py-1 rounded bg-amber-500 text-slate-950 font-semibold disabled:opacity-50">Start early</button>
+                      <button onClick={() => setConfirmEarlyStart(false)} className="px-2 py-1 rounded border border-amber-400/50 text-amber-200">Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -5,19 +5,25 @@ import android.net.ConnectivityManager
 import android.net.Network
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,6 +32,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -34,22 +42,37 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.DirectionsRun
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Publish
+import androidx.compose.material.icons.outlined.Remove
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Sports
+import androidx.compose.material.icons.outlined.SportsBaseball
+import androidx.compose.material.icons.outlined.SportsCricket
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.Visibility
@@ -60,6 +83,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +106,42 @@ import java.time.LocalDate
 import java.io.IOException
 
 private val ClubDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
+private fun disciplineIcon(discipline: String) = when (discipline.uppercase()) {
+    "BATTING" -> Icons.Outlined.SportsCricket
+    "BOWLING" -> Icons.Outlined.SportsBaseball
+    "KEEPING" -> Icons.Outlined.Security
+    "FIELDING" -> Icons.Outlined.DirectionsRun
+    else -> Icons.Outlined.Sports
+}
+private fun disciplineColor(discipline: String) = when (discipline.uppercase()) {
+    "BATTING" -> Color(0xFF2E7D32)
+    "BOWLING" -> Color(0xFFC62828)
+    "KEEPING" -> Color(0xFF1565C0)
+    "FIELDING" -> Color(0xFFEF6C00)
+    else -> Color(0xFF616161)
+}
+
+@Composable
+private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
+    val color = disciplineColor(discipline)
+    Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = 0.12f), modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Icon(disciplineIcon(discipline), contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(discipline, fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+private fun sessionStatusLabel(session: ClubTrainingSession) = when {
+    session.isExecuted -> "Delivered"
+    session.isPublished -> "Published"
+    else -> "Draft"
+}
+private fun sessionStatusColor(session: ClubTrainingSession) = when {
+    session.isExecuted -> Color(0xFF2E7D32)
+    session.isPublished -> Color(0xFF1565C0)
+    else -> Color(0xFF757575)
+}
 private val AssessmentMetricNames = mapOf(
     "BATTING" to listOf("Stance & balance", "Footwork", "Shot selection", "Timing & contact", "Running between wickets"),
     "BOWLING" to listOf("Run-up & rhythm", "Action & alignment", "Release point", "Accuracy", "Follow-through"),
@@ -90,7 +150,7 @@ private val AssessmentMetricNames = mapOf(
 )
 
 @Composable
-private fun WorkspaceAction(
+internal fun WorkspaceAction(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit,
@@ -161,7 +221,7 @@ internal fun ClubCoachWorkspace(
     val clubId = user.tenantId.orEmpty()
     val isClubAdmin = user.role == "CLUB_ADMIN"
     val isClubCoach = user.role == "COACH" && user.coachContext == "CLUB"
-    var tab by remember { mutableStateOf(if (user.role == "COACH") "Squads" else "Roster") }
+    var tab by remember { mutableStateOf("Overview") }
     var members by remember { mutableStateOf<List<ClubMember>>(emptyList()) }
     var squads by remember { mutableStateOf<List<ClubSquad>>(emptyList()) }
     var sessions by remember { mutableStateOf<List<ClubTrainingSession>>(emptyList()) }
@@ -182,11 +242,18 @@ internal fun ClubCoachWorkspace(
     var notice by remember { mutableStateOf("") }
     var showInvite by remember { mutableStateOf(false) }
     var showCreateSquad by remember { mutableStateOf(false) }
+    var editingSquad by remember { mutableStateOf<ClubSquad?>(null) }
+    var squadEditSaving by remember { mutableStateOf(false) }
+    var squadEditError by remember { mutableStateOf("") }
     var showScheduleSession by remember { mutableStateOf(false) }
     var editingSession by remember { mutableStateOf<ClubTrainingSession?>(null) }
     var sessionEditSaving by remember { mutableStateOf(false) }
     var sessionEditError by remember { mutableStateOf("") }
+    var sessionDrillBusy by remember { mutableStateOf(false) }
     var showScheduleAssessment by remember { mutableStateOf(false) }
+    var editingAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
+    var assessmentEditSaving by remember { mutableStateOf(false) }
+    var assessmentEditError by remember { mutableStateOf("") }
     var executingSession by remember { mutableStateOf<ClubTrainingSession?>(null) }
     var completingAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
     var selectedPromotionPlayer by remember { mutableStateOf<ClubMember?>(null) }
@@ -338,6 +405,44 @@ internal fun ClubCoachWorkspace(
         }
     }
 
+    fun assignMemberToSquad(member: ClubMember, squad: String) {
+        scope.launch {
+            error = ""
+            notice = ""
+            if (queuedMutations.any {
+                    it.kind == OfflineMutation.UPDATE_MEMBER_SQUAD &&
+                        it.resourceId == member.id && it.state == "PENDING"
+                }) {
+                error = "This member already has a pending offline assignment. Sync it before making another change."
+                return@launch
+            }
+            try {
+                api.updateClubMember(token, member.id, JSONObject().put("squad", squad))
+                refresh()
+                notice = "${member.name} assigned to $squad."
+            } catch (failure: IOException) {
+                try {
+                    store.enqueueMutation(
+                        OfflineMutation(
+                            userId = user.id,
+                            tenantId = clubId,
+                            kind = OfflineMutation.UPDATE_MEMBER_SQUAD,
+                            resourceId = member.id,
+                            payload = JSONObject().put("squad", squad).toString(),
+                            baseValue = member.squad
+                        )
+                    )
+                    reloadQueue()
+                    notice = "Squad assignment saved on this device and queued for synchronization. It is not yet saved on the server."
+                } catch (storageFailure: Exception) {
+                    error = "The network is unavailable and this edit could not be safely queued: ${storageFailure.message ?: "encrypted storage error"}"
+                }
+            } catch (failure: Exception) {
+                error = failure.message ?: "Unable to update member assignment."
+            }
+        }
+    }
+
     LaunchedEffect(token, clubId) {
         reloadQueue()
         synchronizeQueuedMutations()
@@ -410,37 +515,41 @@ internal fun ClubCoachWorkspace(
                     .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 3.dp
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Welcome, ${user.name}",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                            Text(
-                                user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                        TextButton(onClick = onToggleTheme, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)) {
-                            Text(if (isDark) "Light" else "Dark", fontSize = 12.sp)
-                        }
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Welcome, ${user.name}",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Text(
+                            user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                    IconButton(onClick = onToggleTheme) {
+                        Icon(
+                            if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                            contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onSignOut) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.Logout,
+                            contentDescription = "Sign out",
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 if (!isTablet) {
                     Row(
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 10.dp),
@@ -471,6 +580,26 @@ internal fun ClubCoachWorkspace(
                 }
             }
         }
+        val onExecuteSession: (ClubTrainingSession) -> Unit = { session ->
+            scope.launch {
+                executionError = ""
+                if (queuedMutations.any {
+                        it.kind == OfflineMutation.SAVE_SESSION_EXECUTION &&
+                            it.resourceId == session.id && it.state == "PENDING"
+                    }) {
+                    error = "This session already has unsynchronized progress. Sync it before making another execution edit."
+                    return@launch
+                }
+                try {
+                    executingSession = api.getCoachSessionExecution(token, session.id)
+                } catch (failure: IOException) {
+                    executingSession = session
+                    notice = "Offline session workspace opened from the last synchronized copy. Saves will remain pending until the assigned coach can sync."
+                } catch (failure: Exception) {
+                    error = failure.message ?: "Unable to load the assigned session execution."
+                }
+            }
+        }
         when (tab) {
             "Overview" -> OverviewPanel(
                 coachName = user.name,
@@ -482,6 +611,19 @@ internal fun ClubCoachWorkspace(
                 assessments = assessments,
                 loading = loading,
                 onOpen = { tab = it },
+                onExecute = onExecuteSession,
+                modifier = Modifier.weight(1f)
+            )
+            "Delivered sessions" -> DeliveredSessionsPanel(
+                clubName = user.clubName ?: "Club",
+                members = members,
+                sessions = sessions,
+                onBack = { tab = "Overview" },
+                modifier = Modifier.weight(1f)
+            )
+            "Participants" -> ParticipantsPanel(
+                members = members,
+                onBack = { tab = "Overview" },
                 modifier = Modifier.weight(1f)
             )
             "Roster" -> RosterPanel(
@@ -489,56 +631,92 @@ internal fun ClubCoachWorkspace(
                 squads = squads,
                 canInvite = isClubAdmin,
                 onInvite = { showInvite = true },
-                onAssignSquad = { member, squad ->
-                    scope.launch {
-                        error = ""
-                        notice = ""
-                        if (queuedMutations.any {
-                                it.kind == OfflineMutation.UPDATE_MEMBER_SQUAD &&
-                                    it.resourceId == member.id && it.state == "PENDING"
-                            }) {
-                            error = "This member already has a pending offline assignment. Sync it before making another change."
-                            return@launch
-                        }
-                        try {
-                            api.updateClubMember(token, member.id, JSONObject().put("squad", squad))
-                            refresh()
-                            notice = "${member.name} assigned to $squad."
-                        } catch (failure: IOException) {
-                            try {
-                                store.enqueueMutation(
-                                    OfflineMutation(
-                                        userId = user.id,
-                                        tenantId = clubId,
-                                        kind = OfflineMutation.UPDATE_MEMBER_SQUAD,
-                                        resourceId = member.id,
-                                        payload = JSONObject().put("squad", squad).toString(),
-                                        baseValue = member.squad
-                                    )
-                                )
-                                reloadQueue()
-                                notice = "Squad assignment saved on this device and queued for synchronization. It is not yet saved on the server."
-                            } catch (storageFailure: Exception) {
-                                error = "The network is unavailable and this edit could not be safely queued: ${storageFailure.message ?: "encrypted storage error"}"
-                            }
-                        } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to update member assignment."
-                        }
-                    }
-                },
+                onAssignSquad = { member, squad -> assignMemberToSquad(member, squad) },
                 modifier = Modifier.weight(1f)
             )
             "Squads" -> SquadPanel(
                 squads,
                 onCreate = { showCreateSquad = true },
+                onEdit = { squad ->
+                    squadEditError = ""
+                    editingSquad = squad
+                    tab = "Edit squad"
+                },
+                onDelete = { squad ->
+                    scope.launch {
+                        error = ""
+                        notice = ""
+                        try {
+                            api.deleteSquad(token, squad.id)
+                            refresh()
+                            notice = "Squad deleted."
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Unable to delete this squad."
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f)
             )
+            "Edit squad" -> editingSquad?.let { originalSquad ->
+                val squad = squads.find { it.id == originalSquad.id } ?: originalSquad
+                EditSquadPanel(
+                    squad = squad,
+                    isSaving = squadEditSaving,
+                    saveError = squadEditError,
+                    onSave = { name, ageGroup, disciplines ->
+                        scope.launch {
+                            squadEditSaving = true
+                            squadEditError = ""
+                            try {
+                                api.updateSquad(
+                                    token,
+                                    squad.id,
+                                    JSONObject()
+                                        .put("name", name)
+                                        .put("ageGroup", ageGroup)
+                                        .put("discipline", JSONArray(disciplines))
+                                )
+                                editingSquad = null
+                                tab = "Squads"
+                                refresh()
+                                notice = "Squad changes saved."
+                            } catch (failure: Exception) {
+                                squadEditError = failure.message ?: "Unable to save squad changes."
+                            } finally {
+                                squadEditSaving = false
+                            }
+                        }
+                    },
+                    onDelete = {
+                        scope.launch {
+                            squadEditSaving = true
+                            squadEditError = ""
+                            try {
+                                api.deleteSquad(token, squad.id)
+                                editingSquad = null
+                                tab = "Squads"
+                                refresh()
+                                notice = "Squad deleted."
+                            } catch (failure: Exception) {
+                                squadEditError = failure.message ?: "Unable to delete this squad."
+                            } finally {
+                                squadEditSaving = false
+                            }
+                        }
+                    },
+                    onBack = { editingSquad = null; tab = "Squads" },
+                    members = members,
+                    onToggleMember = { member, inSquad -> assignMemberToSquad(member, if (inSquad) squad.name else "Unassigned") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Sessions" -> SessionsPanel(
                 sessions = sessions,
                 userId = user.id,
                 canDeleteAny = isClubAdmin,
                 canSchedule = isClubAdmin || isClubCoach,
                 canCoachSessions = isClubCoach,
+                allDrills = drills + clubDrills,
                 onSchedule = { showScheduleSession = true },
                 onEdit = { session ->
                     sessionEditError = ""
@@ -549,6 +727,7 @@ internal fun ClubCoachWorkspace(
                         error = "Sync this session's pending execution before editing its plan."
                     } else {
                         editingSession = session
+                        tab = "Edit session"
                     }
                 },
                 onDelete = { session ->
@@ -577,26 +756,8 @@ internal fun ClubCoachWorkspace(
                         }
                     }
                 },
-                onExecute = { session ->
-                    scope.launch {
-                        executionError = ""
-                        if (queuedMutations.any {
-                                it.kind == OfflineMutation.SAVE_SESSION_EXECUTION &&
-                                    it.resourceId == session.id && it.state == "PENDING"
-                            }) {
-                            error = "This session already has unsynchronized progress. Sync it before making another execution edit."
-                            return@launch
-                        }
-                        try {
-                            executingSession = api.getCoachSessionExecution(token, session.id)
-                        } catch (failure: IOException) {
-                            executingSession = session
-                            notice = "Offline session workspace opened from the last synchronized copy. Saves will remain pending until the assigned coach can sync."
-                        } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to load the assigned session execution."
-                        }
-                    }
-                },
+                onExecute = onExecuteSession,
+
                 onReview = { session ->
                     scope.launch {
                         executionError = ""
@@ -622,6 +783,85 @@ internal fun ClubCoachWorkspace(
                 },
                 modifier = Modifier.weight(1f)
             )
+            "Edit session" -> editingSession?.let { originalSession ->
+                val session = sessions.find { it.id == originalSession.id } ?: originalSession
+                EditSessionPanel(
+                    session = session,
+                    squads = squads,
+                    coaches = members.filter { it.role == "COACH" && it.invitationStatus == "ACTIVE" },
+                    allDrills = drills + clubDrills,
+                    isSaving = sessionEditSaving,
+                    saveError = sessionEditError,
+                    drillBusy = sessionDrillBusy,
+                    onSave = { title, date, duration, squad, coach, safety ->
+                        scope.launch {
+                            sessionEditSaving = true
+                            sessionEditError = ""
+                            try {
+                                val updates = sessionPlanUpdates(session, title, date, duration, squad, safety, coach)
+                                val updated = api.updateClubSession(token, session.id, updates)
+                                sessions = sessions.map { if (it.id == updated.id) updated else it }
+                                editingSession = null
+                                tab = "Sessions"
+                                refresh()
+                                notice = "Session changes saved."
+                            } catch (failure: Exception) {
+                                sessionEditError = failure.message ?: "Unable to save session changes."
+                            } finally {
+                                sessionEditSaving = false
+                            }
+                        }
+                    },
+                    onDelete = {
+                        scope.launch {
+                            sessionEditSaving = true
+                            sessionEditError = ""
+                            try {
+                                api.deleteClubSession(token, session.id)
+                                sessions = sessions.filterNot { it.id == session.id }
+                                editingSession = null
+                                tab = "Sessions"
+                                refresh()
+                                notice = "Scheduled session deleted."
+                            } catch (failure: Exception) {
+                                sessionEditError = failure.message ?: "Unable to delete this session."
+                            } finally {
+                                sessionEditSaving = false
+                            }
+                        }
+                    },
+                    onAddDrill = { drill ->
+                        scope.launch {
+                            sessionDrillBusy = true
+                            sessionEditError = ""
+                            try {
+                                val updated = api.addDrillToSession(token, session.id, drill.id)
+                                sessions = sessions.map { if (it.id == updated.id) updated else it }
+                            } catch (failure: Exception) {
+                                sessionEditError = failure.message ?: "Unable to add this drill."
+                            } finally {
+                                sessionDrillBusy = false
+                            }
+                        }
+                    },
+                    onRemoveDrill = { drillId ->
+                        scope.launch {
+                            sessionDrillBusy = true
+                            sessionEditError = ""
+                            try {
+                                val updated = api.removeDrillFromSession(token, session.id, drillId)
+                                sessions = sessions.map { if (it.id == updated.id) updated else it }
+                            } catch (failure: Exception) {
+                                sessionEditError = failure.message ?: "Unable to remove this drill."
+                            } finally {
+                                sessionDrillBusy = false
+                            }
+                        }
+                    },
+                    onBack = { editingSession = null; tab = "Sessions" },
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Assessments" -> AssessmentsPanel(
                 assessments,
                 members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
@@ -651,8 +891,73 @@ internal fun ClubCoachWorkspace(
                     }
                 },
                 onComplete = { completingAssessment = it },
+                onEdit = { assessment ->
+                    assessmentEditError = ""
+                    editingAssessment = assessment
+                    tab = "Edit assessment"
+                },
+                onDelete = { assessment ->
+                    scope.launch {
+                        error = ""
+                        notice = ""
+                        try {
+                            api.deleteAssessment(token, assessment.id)
+                            assessments = assessments.filterNot { it.id == assessment.id }
+                            notice = "Assessment deleted."
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Unable to delete this assessment."
+                        }
+                    }
+                },
                 modifier = Modifier.weight(1f)
             )
+            "Edit assessment" -> editingAssessment?.let { assessment ->
+                EditAssessmentPanel(
+                    assessment = assessment,
+                    isSaving = assessmentEditSaving,
+                    saveError = assessmentEditError,
+                    onSave = { title, date ->
+                        scope.launch {
+                            assessmentEditSaving = true
+                            assessmentEditError = ""
+                            try {
+                                val updated = api.updatePlayerAssessment(
+                                    token,
+                                    assessment.id,
+                                    JSONObject().put("title", title).put("scheduledDate", date)
+                                )
+                                assessments = assessments.map { if (it.id == updated.id) updated else it }
+                                editingAssessment = null
+                                tab = "Assessments"
+                                notice = "Assessment changes saved."
+                            } catch (failure: Exception) {
+                                assessmentEditError = failure.message ?: "Unable to save assessment changes."
+                            } finally {
+                                assessmentEditSaving = false
+                            }
+                        }
+                    },
+                    onDelete = {
+                        scope.launch {
+                            assessmentEditSaving = true
+                            assessmentEditError = ""
+                            try {
+                                api.deleteAssessment(token, assessment.id)
+                                assessments = assessments.filterNot { it.id == assessment.id }
+                                editingAssessment = null
+                                tab = "Assessments"
+                                notice = "Assessment deleted."
+                            } catch (failure: Exception) {
+                                assessmentEditError = failure.message ?: "Unable to delete this assessment."
+                            } finally {
+                                assessmentEditSaving = false
+                            }
+                        }
+                    },
+                    onBack = { editingAssessment = null; tab = "Assessments" },
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Reports" -> ClubReportsPanel(
                 clubName = user.clubName ?: "Club",
                 members = reportMembers,
@@ -789,16 +1094,18 @@ internal fun ClubCoachWorkspace(
             "Drills" -> ReadOnlyDrills(drills, Modifier.weight(1f))
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = {
-                scope.launch {
-                    synchronizeQueuedMutations()
-                    refresh()
-                }
-            }, enabled = !loading) {
-                Text(if (loading) "Syncing…" else "Sync now")
-            }
-            TextButton(onClick = onSignOut) { Text("Sign out") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            WorkspaceAction(
+                label = if (loading) "Syncing…" else "Sync",
+                icon = Icons.Outlined.Sync,
+                onClick = {
+                    scope.launch {
+                        synchronizeQueuedMutations()
+                        refresh()
+                    }
+                },
+                enabled = !loading
+            )
         }
             }
         }
@@ -916,35 +1223,8 @@ internal fun ClubCoachWorkspace(
             }
         )
     }
-    editingSession?.let { session ->
-        ScheduleSessionDialog(
-            squads = squads,
-            session = session,
-            isSaving = sessionEditSaving,
-            saveError = sessionEditError,
-            onDismiss = { if (!sessionEditSaving) editingSession = null },
-            onSave = { title, date, duration, squad, safety ->
-                scope.launch {
-                    sessionEditSaving = true
-                    sessionEditError = ""
-                    try {
-                        val updates = sessionPlanUpdates(session, title, date, duration, squad, safety)
-                        val updated = api.updateClubSession(token, session.id, updates)
-                        sessions = sessions.map { if (it.id == updated.id) updated else it }
-                        editingSession = null
-                        refresh()
-                        notice = "Session changes saved."
-                    } catch (failure: Exception) {
-                        sessionEditError = failure.message ?: "Unable to save session changes."
-                    } finally {
-                        sessionEditSaving = false
-                    }
-                }
-            }
-        )
-    }
     executingSession?.let { session ->
-        SessionExecutionDialog(
+        SessionExecutionScreen(
             session = session,
             players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
             drills = drills + clubDrills,
@@ -1130,6 +1410,7 @@ private fun OverviewPanel(
     assessments: List<PlayerAssessment>,
     loading: Boolean,
     onOpen: (String) -> Unit,
+    onExecute: (ClubTrainingSession) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = LocalDate.now().toString()
@@ -1145,21 +1426,20 @@ private fun OverviewPanel(
         val isTablet = maxWidth >= 600.dp
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text(clubName.uppercase() + " CLUB COACH WORKSPACE", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("$coachName's club coaching dashboard", color = MaterialTheme.colorScheme.primary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("COACH WORKSPACE", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             Text("Plan sessions, monitor club events, and measure development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
         }
         if (isTablet) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SummaryCard("Upcoming sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", Modifier.weight(1f), onClick = { onOpen("Sessions") })
-                    SummaryCard("Upcoming assessments", upcomingAssessments.size.toString(), "Due or in progress", Modifier.weight(1f), onClick = { onOpen("Assessments") })
+                    SummaryCard("Sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Modifier.weight(1f), onClick = { onOpen("Sessions") })
+                    SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, Modifier.weight(1f), onClick = { onOpen("Assessments") })
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Modifier.weight(1f))
-                    SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Modifier.weight(1f))
+                    SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, Modifier.weight(1f), onClick = { onOpen("Delivered sessions") })
+                    SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, Modifier.weight(1f), onClick = { onOpen("Participants") })
                 }
             }
             item {
@@ -1169,43 +1449,44 @@ private fun OverviewPanel(
                         Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                         Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
                     }
-                    OverviewList("My upcoming sessions", myUpcomingSessions.take(7), Modifier.weight(1f)) { session ->
+                    OverviewList("My upcoming sessions", myUpcomingSessions.take(7), Modifier.weight(1f), onRowClick = onExecute) { session ->
                         Text(session.title, fontWeight = FontWeight.SemiBold)
                         Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
-                            TextButton(onClick = { onOpen("Sessions") }) { Text("▶ Run") }
-                        }
+                        Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         } else {
-            item { SummaryCard("Upcoming sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", onClick = { onOpen("Sessions") }) }
-            item { SummaryCard("Upcoming assessments", upcomingAssessments.size.toString(), "Due or in progress", onClick = { onOpen("Assessments") }) }
-            item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season") }
-            item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club") }
+            item { SummaryCard("Sessions", upcomingSessions.size.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, onClick = { onOpen("Sessions") }) }
+            item { SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, onClick = { onOpen("Assessments") }) }
+            item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, onClick = { onOpen("Delivered sessions") }) }
+            item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, onClick = { onOpen("Participants") }) }
             item { OverviewList("Next sessions and events", upcomingSessions.take(7)) { session ->
                 Text(session.title, fontWeight = FontWeight.SemiBold)
                 Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
             } }
-            item { OverviewList("My upcoming sessions", myUpcomingSessions.take(7)) { session ->
+            item { OverviewList("My upcoming sessions", myUpcomingSessions.take(7), onRowClick = onExecute) { session ->
                 Text(session.title, fontWeight = FontWeight.SemiBold)
                 Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
-                    TextButton(onClick = { onOpen("Sessions") }) { Text("▶ Run") }
-                }
+                Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
             } }
         }
-        item { OverviewList("Upcoming assessments", upcomingAssessments.take(6)) { assessment ->
-            Text(assessment.playerName, fontWeight = FontWeight.SemiBold)
-            Text("${assessment.title} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(assessment.scheduledDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
-                TextButton(onClick = { onOpen("Assessments") }) { Text("View") }
+        item { Text("Assessments", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+        if (upcomingAssessments.isEmpty()) {
+            item { Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp)) }
+        } else if (isTablet) {
+            items(upcomingAssessments.take(6).chunked(2)) { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEach { assessment -> AssessmentOverviewCard(assessment, Modifier.weight(1f)) { onOpen("Assessments") } }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
-        } }
+        } else {
+            items(upcomingAssessments.take(6)) { assessment ->
+                AssessmentOverviewCard(assessment, Modifier.fillMaxWidth()) { onOpen("Assessments") }
+            }
+        }
         item {
             Text("Coaching practice library", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1221,20 +1502,54 @@ private fun OverviewPanel(
 }
 
 @Composable
-private fun <T> OverviewList(title: String, rows: List<T>, modifier: Modifier = Modifier, content: @Composable (T) -> Unit) {
+private fun AssessmentOverviewCard(assessment: PlayerAssessment, modifier: Modifier = Modifier, onView: () -> Unit) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) {
+            Text(assessment.playerName, fontWeight = FontWeight.SemiBold)
+            Text("${assessment.title} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(assessment.scheduledDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
+                WorkspaceAction("View", Icons.Outlined.Visibility, onView)
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> OverviewList(title: String, rows: List<T>, modifier: Modifier = Modifier, onRowClick: ((T) -> Unit)? = null, content: @Composable (T) -> Unit) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         if (rows.isEmpty()) {
             Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
         } else {
             rows.forEach { row ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+                val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                val cardShape = RoundedCornerShape(16.dp)
+                val cardElevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                if (onRowClick != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { onRowClick(row) },
+                        colors = cardColors,
+                        shape = cardShape,
+                        elevation = cardElevation
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+                    }
+                } else {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = cardColors,
+                        shape = cardShape,
+                        elevation = cardElevation
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+                    }
                 }
             }
         }
@@ -1253,24 +1568,49 @@ private fun LibraryLink(label: String) {
 }
 
 @Composable
-private fun SummaryCard(title: String, value: String, detail: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+private fun SummaryCard(
+    title: String,
+    value: String,
+    detail: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
     Card(
         modifier = modifier,
         onClick = { onClick?.invoke() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 5.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(title, fontWeight = FontWeight.SemiBold)
-                Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 12.sp)
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(title, fontWeight = FontWeight.SemiBold)
+                }
+                Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp))
             }
-            Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(50.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        value,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        fontSize = if (value.length > 2) 15.sp else 19.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }
@@ -1321,17 +1661,278 @@ private fun RosterPanel(
 }
 
 @Composable
-private fun SquadPanel(squads: List<ClubSquad>, onCreate: () -> Unit, modifier: Modifier = Modifier) {
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Squads", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true)
+private fun SquadPanel(
+    squads: List<ClubSquad>,
+    onCreate: () -> Unit,
+    onEdit: (ClubSquad) -> Unit,
+    onDelete: (ClubSquad) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var deleteTarget by remember { mutableStateOf<ClubSquad?>(null) }
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Squads", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true)
+                }
+            }
+            if (squads.isEmpty()) {
+                item { EmptyMessage("Create a squad to organize your players.") }
+            } else if (isTablet) {
+                items(squads.chunked(2)) { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { squad ->
+                            SquadCard(squad, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            } else {
+                items(squads, key = ClubSquad::id) { squad ->
+                    SquadCard(squad, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                }
             }
         }
-        if (squads.isEmpty()) item { EmptyMessage("Create a squad to organize your players.") }
-        items(squads, key = ClubSquad::id) { squad ->
-            InfoCard(squad.name, "${squad.ageGroup} · ${squad.memberCount} members", squad.disciplines.joinToString(" · "))
+    }
+    deleteTarget?.let { squad ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete squad?") },
+            text = { Text("Permanently delete '${squad.name}'? Members will become unassigned. This cannot be undone.") },
+            confirmButton = {
+                Button(onClick = {
+                    deleteTarget = null
+                    onDelete(squad)
+                }) { Text("Delete squad") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep squad") } }
+        )
+    }
+}
+
+@Composable
+private fun SquadCard(squad: ClubSquad, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(squad.name, fontWeight = FontWeight.SemiBold)
+            Text("${squad.ageGroup} · ${squad.memberCount} members", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+            if (squad.disciplines.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    squad.disciplines.forEach { discipline -> DisciplineChip(discipline) }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                WorkspaceAction("Edit", Icons.Outlined.Edit, onEdit)
+                WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditSquadPanel(
+    squad: ClubSquad,
+    members: List<ClubMember>,
+    isSaving: Boolean,
+    saveError: String,
+    onSave: (String, String, List<String>) -> Unit,
+    onDelete: () -> Unit,
+    onToggleMember: (ClubMember, Boolean) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var name by remember(squad.id) { mutableStateOf(squad.name) }
+    var ageGroup by remember(squad.id) { mutableStateOf(squad.ageGroup) }
+    val selected = remember(squad.id) {
+        mutableStateMapOf<String, Boolean>().apply { ClubDisciplines.forEach { put(it, it in squad.disciplines) } }
+    }
+    var deleteConfirm by remember { mutableStateOf(false) }
+    var playerSearch by remember { mutableStateOf("") }
+    var showPlayerPicker by remember { mutableStateOf(false) }
+    val playerCount = members.count { it.role == "PLAYER" && it.squad == squad.name }
+
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                Text("Edit squad", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+            if (isTablet) {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SquadDetailsCard(
+                        name = name,
+                        onNameChange = { name = it },
+                        ageGroup = ageGroup,
+                        onAgeGroupChange = { ageGroup = it },
+                        selected = selected,
+                        isSaving = isSaving,
+                        saveError = saveError,
+                        onSave = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
+                        onDeleteRequest = { deleteConfirm = true },
+                        modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+                    )
+                    SquadPlayersPanel(
+                        squad = squad,
+                        members = members,
+                        search = playerSearch,
+                        onSearchChange = { playerSearch = it },
+                        onToggle = onToggleMember,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SquadDetailsCard(
+                        name = name,
+                        onNameChange = { name = it },
+                        ageGroup = ageGroup,
+                        onAgeGroupChange = { ageGroup = it },
+                        selected = selected,
+                        isSaving = isSaving,
+                        saveError = saveError,
+                        onSave = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
+                        onDeleteRequest = { deleteConfirm = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    WorkspaceAction("Manage players ($playerCount)", Icons.Outlined.Group, { showPlayerPicker = true })
+                }
+            }
+        }
+    }
+    if (showPlayerPicker) {
+        AlertDialog(
+            onDismissRequest = { showPlayerPicker = false },
+            title = { Text("Manage players") },
+            text = {
+                SquadPlayersPanel(
+                    squad = squad,
+                    members = members,
+                    search = playerSearch,
+                    onSearchChange = { playerSearch = it },
+                    onToggle = onToggleMember,
+                    modifier = Modifier.height(380.dp)
+                )
+            },
+            confirmButton = { TextButton(onClick = { showPlayerPicker = false }) { Text("Done") } }
+        )
+    }
+    if (deleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { deleteConfirm = false },
+            title = { Text("Delete squad?") },
+            text = { Text("Permanently delete '${squad.name}'? Members will become unassigned. This cannot be undone.") },
+            confirmButton = {
+                Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete squad") }
+            },
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep squad") } }
+        )
+    }
+}
+
+@Composable
+private fun SquadDetailsCard(
+    name: String,
+    onNameChange: (String) -> Unit,
+    ageGroup: String,
+    onAgeGroupChange: (String) -> Unit,
+    selected: SnapshotStateMap<String, Boolean>,
+    isSaving: Boolean,
+    saveError: String,
+    onSave: () -> Unit,
+    onDeleteRequest: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            WorkspaceField(name, onNameChange, "Squad name", Modifier.fillMaxWidth(), enabled = !isSaving)
+            WorkspaceField(ageGroup, onAgeGroupChange, "Age group", Modifier.fillMaxWidth(), enabled = !isSaving)
+            Text("Disciplines", fontWeight = FontWeight.SemiBold)
+            ClubDisciplines.forEach { discipline ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = selected[discipline] == true, onCheckedChange = { selected[discipline] = it }, enabled = !isSaving)
+                    Icon(disciplineIcon(discipline), contentDescription = null, tint = disciplineColor(discipline), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(discipline)
+                }
+            }
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
+                WorkspaceAction(
+                    "Save",
+                    Icons.Outlined.CheckCircle,
+                    onSave,
+                    enabled = !isSaving && name.isNotBlank() && selected.values.any { it },
+                    primary = true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SquadPlayersPanel(
+    squad: ClubSquad,
+    members: List<ClubMember>,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    onToggle: (ClubMember, Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val players = members
+        .filter { it.role == "PLAYER" }
+        .filter { it.name.contains(search.trim(), ignoreCase = true) }
+        .sortedByDescending { it.squad == squad.name }
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Players", fontWeight = FontWeight.SemiBold)
+            WorkspaceField(search, onSearchChange, "Filter players", Modifier.fillMaxWidth())
+            if (players.isEmpty()) {
+                EmptyMessage("No players match this filter.")
+            } else {
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    players.forEach { member ->
+                        val inSquad = member.squad == squad.name
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(member.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (inSquad) "In this squad" else member.squad.ifBlank { "Unassigned" },
+                                    fontSize = 11.sp,
+                                    color = if (inSquad) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Surface(
+                                shape = CircleShape,
+                                color = if (inSquad) MaterialTheme.colorScheme.error.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                IconButton(onClick = { onToggle(member, !inSquad) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(
+                                        if (inSquad) Icons.Outlined.Remove else Icons.Outlined.Add,
+                                        contentDescription = if (inSquad) "Remove from squad" else "Add to squad",
+                                        tint = if (inSquad) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1343,6 +1944,7 @@ private fun SessionsPanel(
     canDeleteAny: Boolean,
     canSchedule: Boolean,
     canCoachSessions: Boolean,
+    allDrills: List<Drill> = emptyList(),
     onSchedule: () -> Unit,
     onEdit: (ClubTrainingSession) -> Unit,
     onDelete: (ClubTrainingSession) -> Unit,
@@ -1408,6 +2010,7 @@ private fun SessionsPanel(
                                 userId = userId,
                                 canDeleteAny = canDeleteAny,
                                 canCoachSessions = canCoachSessions,
+                                allDrills = allDrills,
                                 onEdit = onEdit,
                                 onDelete = { deleteTarget = session },
                                 onPublish = onPublish,
@@ -1427,6 +2030,7 @@ private fun SessionsPanel(
                         userId = userId,
                         canDeleteAny = canDeleteAny,
                         canCoachSessions = canCoachSessions,
+                        allDrills = allDrills,
                         onEdit = onEdit,
                         onDelete = { deleteTarget = session },
                         onPublish = onPublish,
@@ -1456,11 +2060,27 @@ private fun SessionsPanel(
 }
 
 @Composable
+private fun SessionIconAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    danger: Boolean = false
+) {
+    val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.12f)) {
+        IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+            Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
 private fun SessionCard(
     session: ClubTrainingSession,
     userId: String,
     canDeleteAny: Boolean,
     canCoachSessions: Boolean,
+    allDrills: List<Drill> = emptyList(),
     onEdit: (ClubTrainingSession) -> Unit,
     onDelete: () -> Unit,
     onPublish: (ClubTrainingSession) -> Unit,
@@ -1469,29 +2089,79 @@ private fun SessionCard(
     onAssess: (ClubTrainingSession) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var safetyExpanded by remember(session.id) { mutableStateOf(false) }
+    val statusColor = sessionStatusColor(session)
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Text(session.title, fontWeight = FontWeight.SemiBold)
-            Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Text(session.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(end = 6.dp))
+                Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.15f)) {
+                    Text(
+                        sessionStatusLabel(session),
+                        color = statusColor,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            Text("Squad: ${session.squadName}", fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            if (!session.coachName.isNullOrBlank()) Text("Head Coach: ${session.coachName}", fontSize = 12.sp)
             Text(
-                "${if (session.isExecuted) "Delivered" else if (session.isPublished) "Published" else "Draft"} · ${session.drillCount} drills",
+                "Date: ${session.sessionDate} · Duration: ${session.durationMinutes} min",
                 color = MaterialTheme.colorScheme.primary,
                 fontSize = 12.sp,
-                modifier = Modifier.padding(top = 3.dp, bottom = 6.dp)
+                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
             )
-            val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                if (!session.isExecuted && canManage) {
-                    WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(session) })
-                    WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+            if (session.safety.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { safetyExpanded = !safetyExpanded }.padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (safetyExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text("Session safety", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
-                if (canManage && !session.isPublished && !session.isExecuted) WorkspaceAction("Publish", Icons.Outlined.Publish, { onPublish(session) })
-                if (canCoachSessions && session.isAssignedTo(userId) && !session.isExecuted) WorkspaceAction("Run", Icons.Outlined.PlayArrow, { onExecute(session) })
-                if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) WorkspaceAction("Review", Icons.Outlined.Visibility, { onReview(session) })
-                if (session.isExecuted) WorkspaceAction("AI review", Icons.Outlined.Assignment, { onAssess(session) })
+                if (safetyExpanded) {
+                    Column(Modifier.padding(start = 18.dp, top = 2.dp, bottom = 4.dp)) {
+                        session.safety.forEach { item -> Text("• $item", fontSize = 12.sp) }
+                    }
+                }
+            }
+            if (session.drillIds.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    session.drillIds.distinct().forEach { drillId ->
+                        val name = allDrills.find { it.id == drillId }?.title ?: "Unknown Drill"
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
+                            Text(name, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                        }
+                    }
+                }
+            }
+            val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("${session.drillIds.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+                ) {
+                    if (!session.isExecuted && canManage) {
+                        SessionIconAction(Icons.Outlined.Edit, "Edit", { onEdit(session) })
+                        SessionIconAction(Icons.Outlined.Delete, "Delete", onDelete, danger = true)
+                    }
+                    if (canManage && !session.isPublished && !session.isExecuted) SessionIconAction(Icons.Outlined.Publish, "Publish", { onPublish(session) })
+                    if (canCoachSessions && session.isAssignedTo(userId) && !session.isExecuted) SessionIconAction(Icons.Outlined.PlayArrow, "Run", { onExecute(session) })
+                    if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) SessionIconAction(Icons.Outlined.Visibility, "Review", { onReview(session) })
+                    if (session.isExecuted) SessionIconAction(Icons.Outlined.Assignment, "AI review", { onAssess(session) })
+                }
             }
         }
     }
@@ -1505,37 +2175,194 @@ private fun AssessmentsPanel(
     onGenerateInsights: (PlayerAssessment) -> Unit,
     onStart: (PlayerAssessment) -> Unit,
     onComplete: (PlayerAssessment) -> Unit,
+    onEdit: (PlayerAssessment) -> Unit,
+    onDelete: (PlayerAssessment) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Player assessments", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Button(onClick = onSchedule, enabled = players.isNotEmpty()) { Text("Schedule") }
-            }
-        }
-        if (assessments.isEmpty()) item { EmptyMessage("No assessments scheduled yet.") }
-        items(assessments, key = PlayerAssessment::id) { assessment ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text(assessment.title, fontWeight = FontWeight.SemiBold)
-                    Text("${assessment.playerName} · ${assessment.discipline} · ${assessment.scheduledDate}", fontSize = 12.sp)
-                    Text(assessment.status.replace('_', ' '), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                    when (assessment.status) {
-                        "SCHEDULED" -> TextButton(onClick = { onStart(assessment) }) { Text("Start assessment") }
-                        "IN_PROGRESS" -> TextButton(onClick = { onComplete(assessment) }) { Text("Complete assessment") }
-                        "COMPLETED" -> TextButton(onClick = { onGenerateInsights(assessment) }) { Text("Generate insights") }
+    var search by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("ALL") }
+    var statusMenuOpen by remember { mutableStateOf(false) }
+    var discipline by remember { mutableStateOf("ALL") }
+    var disciplineMenuOpen by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<PlayerAssessment?>(null) }
+    val filteredAssessments = assessments.filter { assessment ->
+        (assessment.title.contains(search.trim(), ignoreCase = true) || assessment.playerName.contains(search.trim(), ignoreCase = true)) &&
+            (status == "ALL" || status == assessment.status) &&
+            (discipline == "ALL" || discipline == assessment.discipline)
+    }
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Player assessments", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Button(onClick = onSchedule, enabled = players.isNotEmpty()) { Text("Schedule") }
+                }
+                WorkspaceField(search, { search = it }, "Filter by player or title", Modifier.fillMaxWidth())
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Status: ")
+                    TextButton(onClick = { statusMenuOpen = true }) { Text(status) }
+                    DropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
+                        listOf("ALL", "SCHEDULED", "IN_PROGRESS", "COMPLETED").forEach { value ->
+                            DropdownMenuItem(text = { Text(value) }, onClick = { status = value; statusMenuOpen = false })
+                        }
                     }
-                    if (assessment.aiSummary != null) {
-                        Text("Development insights", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
-                        Text(assessment.aiSummary, fontSize = 12.sp)
-                        assessment.aiRecommendations.forEachIndexed { index, recommendation ->
-                            Text("${index + 1}. $recommendation", fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text("Discipline: ")
+                    TextButton(onClick = { disciplineMenuOpen = true }) { Text(discipline) }
+                    DropdownMenu(expanded = disciplineMenuOpen, onDismissRequest = { disciplineMenuOpen = false }) {
+                        (listOf("ALL") + ClubDisciplines).forEach { value ->
+                            DropdownMenuItem(text = { Text(value) }, onClick = { discipline = value; disciplineMenuOpen = false })
                         }
                     }
                 }
             }
+            if (filteredAssessments.isEmpty()) {
+                item { EmptyMessage(if (assessments.isEmpty()) "No assessments scheduled yet." else "No assessments match these filters.") }
+            } else if (isTablet) {
+                items(filteredAssessments.chunked(2)) { pair ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { assessment ->
+                            AssessmentCard(
+                                assessment = assessment,
+                                onGenerateInsights = onGenerateInsights,
+                                onStart = onStart,
+                                onComplete = onComplete,
+                                onEdit = onEdit,
+                                onDelete = { deleteTarget = assessment },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+            } else {
+                items(filteredAssessments, key = PlayerAssessment::id) { assessment ->
+                    AssessmentCard(
+                        assessment = assessment,
+                        onGenerateInsights = onGenerateInsights,
+                        onStart = onStart,
+                        onComplete = onComplete,
+                        onEdit = onEdit,
+                        onDelete = { deleteTarget = assessment },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
+    }
+    deleteTarget?.let { assessment ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete assessment?") },
+            text = { Text("Permanently delete '${assessment.title}' for ${assessment.playerName}? This cannot be undone.") },
+            confirmButton = {
+                Button(onClick = {
+                    deleteTarget = null
+                    onDelete(assessment)
+                }) { Text("Delete assessment") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep assessment") } }
+        )
+    }
+}
+
+@Composable
+private fun AssessmentCard(
+    assessment: PlayerAssessment,
+    onGenerateInsights: (PlayerAssessment) -> Unit,
+    onStart: (PlayerAssessment) -> Unit,
+    onComplete: (PlayerAssessment) -> Unit,
+    onEdit: (PlayerAssessment) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(assessment.title, fontWeight = FontWeight.SemiBold)
+            Text("${assessment.playerName} · ${assessment.discipline} · ${assessment.scheduledDate}", fontSize = 12.sp)
+            Text(
+                assessment.status.replace('_', ' '),
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 3.dp, bottom = 6.dp)
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(bottom = 4.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
+            ) {
+                if (assessment.status == "SCHEDULED") {
+                    WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(assessment) })
+                    WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+                    WorkspaceAction("Start", Icons.Outlined.PlayArrow, { onStart(assessment) })
+                }
+                if (assessment.status == "IN_PROGRESS") WorkspaceAction("Complete", Icons.Outlined.CheckCircle, { onComplete(assessment) })
+                if (assessment.status == "COMPLETED") WorkspaceAction("Generate insights", Icons.Outlined.Assignment, { onGenerateInsights(assessment) })
+            }
+            if (assessment.aiSummary != null) {
+                Text("Development insights", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+                Text(assessment.aiSummary, fontSize = 12.sp)
+                assessment.aiRecommendations.forEachIndexed { index, recommendation ->
+                    Text("${index + 1}. $recommendation", fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditAssessmentPanel(
+    assessment: PlayerAssessment,
+    isSaving: Boolean,
+    saveError: String,
+    onSave: (String, String) -> Unit,
+    onDelete: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var title by remember(assessment.id) { mutableStateOf(assessment.title) }
+    var scheduledDate by remember(assessment.id) { mutableStateOf(assessment.scheduledDate) }
+    var deleteConfirm by remember { mutableStateOf(false) }
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                Text("Edit assessment", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${assessment.playerName} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    WorkspaceField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
+                    WorkspaceField(scheduledDate, { scheduledDate = it }, "Scheduled date (YYYY-MM-DD)", Modifier.fillMaxWidth(), enabled = !isSaving)
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                        WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
+                        WorkspaceAction(
+                            "Save",
+                            Icons.Outlined.CheckCircle,
+                            { onSave(title.trim(), scheduledDate.trim()) },
+                            enabled = !isSaving && title.isNotBlank() && isIsoDate(scheduledDate),
+                            primary = true
+                        )
+                    }
+                }
+            }
+        }
+    }
+    if (deleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { deleteConfirm = false },
+            title = { Text("Delete assessment?") },
+            text = { Text("Permanently delete '${assessment.title}' for ${assessment.playerName}? This cannot be undone.") },
+            confirmButton = {
+                Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete assessment") }
+            },
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep assessment") } }
+        )
     }
 }
 
@@ -1645,36 +2472,301 @@ private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, Li
 }
 
 @Composable
+private fun PlannedDrillChip(name: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
+            Text(name, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+            IconButton(onClick = onRemove, modifier = Modifier.size(22.dp).padding(start = 2.dp)) {
+                Icon(Icons.Outlined.Close, contentDescription = "Remove drill", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvailableDrillsPanel(
+    allDrills: List<Drill>,
+    isBusy: Boolean,
+    onAdd: (Drill) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var filter by remember { mutableStateOf("ALL") }
+    var filterMenuOpen by remember { mutableStateOf(false) }
+    val filtered = allDrills.filter { filter == "ALL" || it.discipline.equals(filter, ignoreCase = true) }
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Available Drills", fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Discipline: ")
+                TextButton(onClick = { filterMenuOpen = true }) { Text(filter) }
+                DropdownMenu(expanded = filterMenuOpen, onDismissRequest = { filterMenuOpen = false }) {
+                    (listOf("ALL") + ClubDisciplines).forEach { value ->
+                        DropdownMenuItem(text = { Text(value) }, onClick = { filter = value; filterMenuOpen = false })
+                    }
+                }
+            }
+            if (filtered.isEmpty()) {
+                EmptyMessage("No drills available for this filter.")
+            } else {
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    filtered.forEach { drill ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f).padding(end = 6.dp)) {
+                                Text(drill.title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "${drill.discipline} · ${drill.durationMinutes} min",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            TextButton(onClick = { onAdd(drill) }, enabled = !isBusy) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("Add")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionDetailsCard(
+    session: ClubTrainingSession,
+    title: String,
+    onTitleChange: (String) -> Unit,
+    date: String,
+    onDateChange: (String) -> Unit,
+    duration: String,
+    onDurationChange: (String) -> Unit,
+    safety: String,
+    onSafetyChange: (String) -> Unit,
+    squads: List<ClubSquad>,
+    selectedSquad: ClubSquad?,
+    onSquadChange: (ClubSquad?) -> Unit,
+    coaches: List<ClubMember>,
+    selectedCoach: ClubMember?,
+    onCoachChange: (ClubMember?) -> Unit,
+    allDrills: List<Drill>,
+    isSaving: Boolean,
+    saveError: String,
+    onSave: () -> Unit,
+    onDeleteRequest: () -> Unit,
+    onRemoveDrill: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var squadMenuOpen by remember { mutableStateOf(false) }
+    var coachMenuOpen by remember { mutableStateOf(false) }
+    val minutes = duration.toIntOrNull() ?: 0
+    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            WorkspaceField(title, onTitleChange, "Session title", Modifier.fillMaxWidth(), enabled = !isSaving)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Squad: ${selectedSquad?.name ?: "All players"}", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { squadMenuOpen = true }, enabled = !isSaving) { Text("Change") }
+                DropdownMenu(expanded = squadMenuOpen, onDismissRequest = { squadMenuOpen = false }) {
+                    DropdownMenuItem(text = { Text("All players") }, onClick = { onSquadChange(null); squadMenuOpen = false })
+                    squads.forEach { squad ->
+                        DropdownMenuItem(text = { Text(squad.name) }, onClick = { onSquadChange(squad); squadMenuOpen = false })
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Head Coach: ${selectedCoach?.name ?: "Unassigned"}", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { coachMenuOpen = true }, enabled = !isSaving && coaches.isNotEmpty()) { Text("Change") }
+                DropdownMenu(expanded = coachMenuOpen, onDismissRequest = { coachMenuOpen = false }) {
+                    coaches.forEach { coach ->
+                        DropdownMenuItem(text = { Text(coach.name) }, onClick = { onCoachChange(coach); coachMenuOpen = false })
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                WorkspaceField(date, onDateChange, "Date (YYYY-MM-DD)", Modifier.weight(1f), enabled = !isSaving)
+                WorkspaceField(duration, onDurationChange, "Duration in minutes", Modifier.weight(1f), enabled = !isSaving)
+            }
+            WorkspaceField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
+            Text("Planned Drills (${session.drillIds.size})", fontWeight = FontWeight.SemiBold)
+            if (session.drillIds.isEmpty()) {
+                Text("No drills added yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            } else {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    session.drillIds.forEach { drillId ->
+                        val drillName = allDrills.find { it.id == drillId }?.title ?: "Unknown Drill"
+                        PlannedDrillChip(drillName, onRemove = { onRemoveDrill(drillId) })
+                    }
+                }
+            }
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
+                WorkspaceAction(
+                    "Save",
+                    Icons.Outlined.CheckCircle,
+                    onSave,
+                    enabled = !isSaving && title.isNotBlank() && isIsoDate(date) && minutes in 15..600,
+                    primary = true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditSessionPanel(
+    session: ClubTrainingSession,
+    squads: List<ClubSquad>,
+    coaches: List<ClubMember>,
+    allDrills: List<Drill>,
+    isSaving: Boolean,
+    saveError: String,
+    drillBusy: Boolean,
+    onSave: (String, String, Int, ClubSquad?, ClubMember?, List<String>) -> Unit,
+    onDelete: () -> Unit,
+    onAddDrill: (Drill) -> Unit,
+    onRemoveDrill: (String) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var title by remember(session.id) { mutableStateOf(session.title) }
+    var date by remember(session.id) { mutableStateOf(session.sessionDate) }
+    var duration by remember(session.id) { mutableStateOf(session.durationMinutes.toString()) }
+    var safety by remember(session.id) { mutableStateOf(session.safety.joinToString("\n")) }
+    var selectedSquad by remember(session.id) { mutableStateOf(squads.find { it.id == session.squadId }) }
+    var selectedCoach by remember(session.id) { mutableStateOf(coaches.find { it.id == session.coachId }) }
+    var deleteConfirm by remember { mutableStateOf(false) }
+    var showDrillPicker by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier) {
+        val isTablet = maxWidth >= 600.dp
+        Column(Modifier.fillMaxSize()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                Text("Edit session", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(10.dp))
+            if (isTablet) {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SessionDetailsCard(
+                        session = session,
+                        title = title, onTitleChange = { title = it },
+                        date = date, onDateChange = { date = it },
+                        duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
+                        safety = safety, onSafetyChange = { safety = it },
+                        squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
+                        coaches = coaches, selectedCoach = selectedCoach, onCoachChange = { selectedCoach = it },
+                        allDrills = allDrills,
+                        isSaving = isSaving,
+                        saveError = saveError,
+                        onSave = {
+                            onSave(
+                                title.trim(),
+                                date,
+                                duration.toIntOrNull() ?: 0,
+                                selectedSquad,
+                                selectedCoach,
+                                safety.lines().map(String::trim).filter(String::isNotBlank)
+                            )
+                        },
+                        onDeleteRequest = { deleteConfirm = true },
+                        onRemoveDrill = onRemoveDrill,
+                        modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+                    )
+                    AvailableDrillsPanel(
+                        allDrills = allDrills,
+                        isBusy = drillBusy,
+                        onAdd = onAddDrill,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SessionDetailsCard(
+                        session = session,
+                        title = title, onTitleChange = { title = it },
+                        date = date, onDateChange = { date = it },
+                        duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
+                        safety = safety, onSafetyChange = { safety = it },
+                        squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
+                        coaches = coaches, selectedCoach = selectedCoach, onCoachChange = { selectedCoach = it },
+                        allDrills = allDrills,
+                        isSaving = isSaving,
+                        saveError = saveError,
+                        onSave = {
+                            onSave(
+                                title.trim(),
+                                date,
+                                duration.toIntOrNull() ?: 0,
+                                selectedSquad,
+                                selectedCoach,
+                                safety.lines().map(String::trim).filter(String::isNotBlank)
+                            )
+                        },
+                        onDeleteRequest = { deleteConfirm = true },
+                        onRemoveDrill = onRemoveDrill,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    WorkspaceAction("Manage drills (${session.drillIds.size})", Icons.Outlined.FitnessCenter, { showDrillPicker = true })
+                }
+            }
+        }
+    }
+    if (showDrillPicker) {
+        AlertDialog(
+            onDismissRequest = { showDrillPicker = false },
+            title = { Text("Available drills") },
+            text = {
+                AvailableDrillsPanel(
+                    allDrills = allDrills,
+                    isBusy = drillBusy,
+                    onAdd = onAddDrill,
+                    modifier = Modifier.height(380.dp)
+                )
+            },
+            confirmButton = { TextButton(onClick = { showDrillPicker = false }) { Text("Done") } }
+        )
+    }
+    if (deleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { deleteConfirm = false },
+            title = { Text("Delete scheduled session?") },
+            text = { Text("Permanently delete '${session.title}'? This cannot be undone.") },
+            confirmButton = { Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete session") } },
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep session") } }
+        )
+    }
+}
+
+@Composable
 private fun ScheduleSessionDialog(
     squads: List<ClubSquad>,
-    session: ClubTrainingSession? = null,
     isSaving: Boolean = false,
     saveError: String = "",
     onDismiss: () -> Unit,
     onSave: (String, String, Int, ClubSquad?, List<String>) -> Unit
 ) {
-    var title by remember(session?.id) { mutableStateOf(session?.title.orEmpty()) }
-    var date by remember(session?.id) { mutableStateOf(session?.sessionDate ?: LocalDate.now().toString()) }
-    var duration by remember(session?.id) { mutableStateOf((session?.durationMinutes ?: 90).toString()) }
-    var safety by remember(session?.id) { mutableStateOf(session?.safety?.joinToString("\n").orEmpty()) }
-    var selectedSquad by remember(session?.id) {
-        mutableStateOf<ClubSquad?>(if (session == null) squads.firstOrNull() else squads.find { it.id == session.squadId })
-    }
-    val unresolvedSquad = session?.squadId != null && squads.none { it.id == session.squadId }
+    var title by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now().toString()) }
+    var duration by remember { mutableStateOf("90") }
+    var safety by remember { mutableStateOf("") }
+    var selectedSquad by remember { mutableStateOf(squads.firstOrNull()) }
     var menuOpen by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text(if (session == null) "Schedule training" else "Edit Training Session") },
+        title = { Text("Schedule training") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 WorkspaceField(title, { title = it }, "Session title", enabled = !isSaving)
                 WorkspaceField(date, { date = it }, "Date (YYYY-MM-DD)", enabled = !isSaving)
                 WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration in minutes", enabled = !isSaving)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        selectedSquad?.name ?: session?.takeIf { it.squadId == null }?.squadName ?: "All players",
-                        modifier = Modifier.weight(1f)
-                    )
+                    Text(selectedSquad?.name ?: "All players", modifier = Modifier.weight(1f))
                     TextButton(onClick = { menuOpen = true }, enabled = !isSaving) { Text("Squad") }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(text = { Text("All players") }, onClick = { selectedSquad = null; menuOpen = false })
@@ -1684,17 +2776,13 @@ private fun ScheduleSessionDialog(
                     }
                 }
                 WorkspaceField(safety, { safety = it }, "Safety instructions (one per line)", singleLine = false, enabled = !isSaving)
-                if (session != null && selectedSquad?.id != session.squadId) {
-                    Text("Changing the squad replaces individual player targeting with the selected squad (or all players).", fontSize = 12.sp)
-                }
-                if (unresolvedSquad) Text("The saved squad is not available. Sync the club before editing.", color = MaterialTheme.colorScheme.error)
                 if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = {
             val minutes = duration.toIntOrNull() ?: 0
-            Button(onClick = { onSave(title.trim(), date, minutes, selectedSquad, safety.lines().map(String::trim).filter(String::isNotBlank)) }, enabled = !isSaving && !unresolvedSquad && title.isNotBlank() && isIsoDate(date) && minutes in 15..600) {
-                Text(if (isSaving) "Saving..." else if (session == null) "Schedule" else "Save Changes")
+            Button(onClick = { onSave(title.trim(), date, minutes, selectedSquad, safety.lines().map(String::trim).filter(String::isNotBlank)) }, enabled = !isSaving && title.isNotBlank() && isIsoDate(date) && minutes in 15..600) {
+                Text(if (isSaving) "Saving..." else "Schedule")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancel") } }

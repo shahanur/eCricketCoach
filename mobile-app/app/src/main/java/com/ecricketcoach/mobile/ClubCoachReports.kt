@@ -16,10 +16,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -29,10 +35,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
@@ -273,6 +281,15 @@ fun shareClubExport(context: Context, file: File, mimeType: String, title: Strin
     context.startActivity(Intent.createChooser(send, title))
 }
 
+fun openClubExport(context: Context, file: File, mimeType: String, title: String) {
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+    val view = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, mimeType)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(Intent.createChooser(view, title))
+}
+
 @Composable
 internal fun ClubReportsPanel(
     clubName: String,
@@ -329,6 +346,88 @@ internal fun ClubReportsPanel(
                         Text("${row.playerName} · ${row.playerLevel} · ${row.attendance}")
                         Text(if (row.hasPlayerNote) "Individual coach note recorded" else "No individual note recorded")
                     } else Text(row.attendance)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeliveredSessionsPanel(
+    clubName: String,
+    members: List<ClubMember>,
+    sessions: List<ClubTrainingSession>,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var error by remember { mutableStateOf("") }
+    val delivered = remember(sessions) {
+        sessions.filter(ClubTrainingSession::isExecuted).sortedByDescending(ClubTrainingSession::sessionDate)
+    }
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to overview")
+                }
+                Text("Delivered sessions", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+            Text("Download or share the session summary as a PDF.", style = MaterialTheme.typography.bodySmall)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+        }
+        if (delivered.isEmpty()) item { Text("No sessions have been delivered yet.") }
+        items(delivered, key = ClubTrainingSession::id) { session ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text(session.title, fontWeight = FontWeight.SemiBold)
+                    Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        WorkspaceAction("Download PDF", Icons.Outlined.Download, {
+                            error = runCatching {
+                                val rows = clubReportRows(members, listOf(session), "", "", "")
+                                openClubExport(context, exportClubReportPdf(context, clubName, rows), "application/pdf", "Open PDF report")
+                            }.exceptionOrNull()?.message.orEmpty()
+                        })
+                        WorkspaceAction("Share PDF", Icons.Outlined.Share, {
+                            error = runCatching {
+                                val rows = clubReportRows(members, listOf(session), "", "", "")
+                                shareClubExport(context, exportClubReportPdf(context, clubName, rows), "application/pdf", "Share PDF report")
+                            }.exceptionOrNull()?.message.orEmpty()
+                        })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ParticipantsPanel(
+    members: List<ClubMember>,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val players = remember(members) {
+        members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.sortedBy(ClubMember::name)
+    }
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to overview")
+                }
+                Text("Active participants", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
+        }
+        if (players.isEmpty()) item { Text("No active players found for this club.") }
+        items(players, key = ClubMember::id) { player ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text(player.name, fontWeight = FontWeight.SemiBold)
+                    Text(player.email, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
+                    Text("${player.ageGroup.ifBlank { "No age group" }} · ${player.discipline} · ${player.currentLevel}", fontSize = 12.sp)
+                    Text("Squad: ${player.squad}", fontSize = 12.sp)
                 }
             }
         }

@@ -226,6 +226,38 @@ assessmentRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) 
     } else if (body?.status !== undefined) {
       res.status(400).json({ error: 'Assessment status must be IN_PROGRESS or COMPLETED.' });
       return;
+    } else if (assessment.status === 'SCHEDULED') {
+      if (body?.title !== undefined) {
+        const title = boundedText(body.title, 120);
+        if (!title) {
+          res.status(400).json({ error: 'Assessment title cannot be empty.' });
+          return;
+        }
+        updates.title = title;
+      }
+      if (body?.scheduledDate !== undefined) {
+        if (!isDate(body.scheduledDate)) {
+          res.status(400).json({ error: 'Scheduled date must be a valid date.' });
+          return;
+        }
+        updates.scheduledDate = body.scheduledDate;
+      }
+      if (body?.scheduledTime !== undefined) {
+        const scheduledTime = body.scheduledTime === ''
+          ? null
+          : typeof body.scheduledTime === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(body.scheduledTime)
+            ? body.scheduledTime
+            : undefined;
+        if (scheduledTime === undefined) {
+          res.status(400).json({ error: 'Scheduled time must use 24-hour HH:MM format.' });
+          return;
+        }
+        updates.scheduledTime = scheduledTime;
+      }
+      if (Object.keys(updates).length === 0) {
+        res.status(400).json({ error: 'No valid fields were provided to update.' });
+        return;
+      }
     } else if (assessment.status === 'IN_PROGRESS') {
       const metrics = parseMetrics(body?.metrics, assessment.discipline);
       if (!metrics) {
@@ -246,6 +278,28 @@ assessmentRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response) 
     res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to update assessment.' });
+  }
+});
+
+// Permanently removes a scheduled assessment (e.g. one created in error). Assessments that
+// have already started or completed carry player history and cannot be deleted.
+assessmentRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const assessment = await prisma.playerAssessment.findFirst({
+      where: { id: req.params.id, clubId: req.user!.tenantId }
+    });
+    if (!assessment || !canAccessAssessment(req, assessment)) {
+      res.status(404).json({ error: 'Assessment not found.' });
+      return;
+    }
+    if (assessment.status !== 'SCHEDULED') {
+      res.status(409).json({ error: 'Only scheduled assessments can be deleted.' });
+      return;
+    }
+    await prisma.playerAssessment.delete({ where: { id: assessment.id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to delete assessment.' });
   }
 });
 

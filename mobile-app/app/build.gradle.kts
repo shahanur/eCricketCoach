@@ -70,6 +70,7 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")

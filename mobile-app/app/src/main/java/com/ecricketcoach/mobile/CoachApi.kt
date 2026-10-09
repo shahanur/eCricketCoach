@@ -58,6 +58,7 @@ data class ClubTrainingSession(
     val drillCount: Int,
     val postNotes: String,
     val coachId: String?,
+    val coachName: String? = null,
     val assignedPlayerIds: List<String>,
     val safety: List<String>,
     val drillIds: List<String>,
@@ -89,7 +90,8 @@ internal fun sessionPlanUpdates(
     date: String,
     duration: Int,
     squad: ClubSquad?,
-    safety: List<String>
+    safety: List<String>,
+    coach: ClubMember? = null
 ): JSONObject {
     val updates = JSONObject()
         .put("title", title)
@@ -100,6 +102,10 @@ internal fun sessionPlanUpdates(
         updates.put("squadId", squad?.id ?: JSONObject.NULL)
             .put("squadName", squad?.name ?: "All players")
             .put("assignedPlayerIds", JSONArray())
+    }
+    if (coach != null && coach.id != session.coachId) {
+        updates.put("coachId", coach.id)
+            .put("coachName", coach.name)
     }
     return updates
 }
@@ -180,7 +186,8 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                 discipline = row.optString("discipline", "GENERAL"),
                 skillSet = row.optString("skillSet", ""),
                 durationMinutes = row.optInt("durationMinutes", row.optInt("duration", 0)),
-                instructions = row.optString("instructions", "")
+                instructions = row.optString("instructions", ""),
+                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank)
             )
         }
     }
@@ -251,6 +258,25 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         json.getJSONObject("squad").toClubSquad()
     }
 
+    suspend fun updateSquad(token: String, squadId: String, updates: JSONObject): ClubSquad =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(request(
+                "/api/club/squads/${URLEncoder.encode(squadId, UTF_8)}",
+                token,
+                updates,
+                method = "PATCH"
+            ))
+            json.getJSONObject("squad").toClubSquad()
+        }
+
+    suspend fun deleteSquad(token: String, squadId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/squads/${URLEncoder.encode(squadId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
     suspend fun getClubSessions(token: String, clubId: String): List<ClubTrainingSession> =
         withContext(Dispatchers.IO) {
             val rows = JSONArray(request("/api/club/sessions?clubId=${URLEncoder.encode(clubId, UTF_8)}", token))
@@ -292,6 +318,32 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         json.getJSONObject("session").toClubTrainingSession()
     }
 
+    suspend fun addDrillToSession(token: String, sessionId: String, drillId: String): ClubTrainingSession =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(
+                request(
+                    "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}/add-drill",
+                    token,
+                    JSONObject().put("drillId", drillId),
+                    method = "PATCH"
+                )
+            )
+            json.getJSONObject("session").toClubTrainingSession()
+        }
+
+    suspend fun removeDrillFromSession(token: String, sessionId: String, drillId: String): ClubTrainingSession =
+        withContext(Dispatchers.IO) {
+            val json = JSONObject(
+                request(
+                    "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}/remove-drill",
+                    token,
+                    JSONObject().put("drillId", drillId),
+                    method = "PATCH"
+                )
+            )
+            json.getJSONObject("session").toClubTrainingSession()
+        }
+
     suspend fun deleteClubSession(token: String, sessionId: String) = withContext(Dispatchers.IO) {
         request(
             clubSessionPath(sessionId),
@@ -321,6 +373,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             updates,
             method = "PATCH"
         )).toPlayerAssessment()
+    }
+
+    suspend fun deleteAssessment(token: String, assessmentId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
     }
 
     suspend fun saveSessionExecution(
@@ -442,7 +502,8 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                 discipline = row.optString("discipline"),
                 skillSet = row.optString("skillSet"),
                 durationMinutes = row.optInt("duration", row.optInt("durationMinutes")),
-                instructions = row.optString("instructions")
+                instructions = row.optString("instructions"),
+                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank)
             )
         }
     }
@@ -685,6 +746,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         drillCount = optInt("drillCount"),
         postNotes = optString("postNotes").takeIf { it.isNotBlank() && it != "null" }.orEmpty(),
         coachId = optString("coachId").takeIf { it.isNotBlank() && it != "null" },
+        coachName = optString("coachName").takeIf { it.isNotBlank() && it != "null" },
         assignedPlayerIds = optJSONArray("assignedPlayerIds")?.let { rows ->
             (0 until rows.length()).map(rows::getString)
         } ?: emptyList(),

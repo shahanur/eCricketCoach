@@ -212,6 +212,7 @@ export interface SessionEvaluation {
 export interface SessionExecutionLog {
   status: 'PREPARING' | 'IN_PROGRESS' | 'COMPLETED';
   startedAt?: string | null;
+  startedEarly?: boolean;
   completedAt?: string | null;
   checklist: Record<string, boolean>;
   attendance: Record<string, AttendanceStatus>;

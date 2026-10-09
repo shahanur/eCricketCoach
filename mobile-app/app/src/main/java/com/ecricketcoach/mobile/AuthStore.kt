@@ -23,7 +23,8 @@ data class Drill(
     val discipline: String,
     val skillSet: String,
     val durationMinutes: Int,
-    val instructions: String
+    val instructions: String,
+    val imageUrl: String? = null
 )
 
 data class TrainingTemplate(
