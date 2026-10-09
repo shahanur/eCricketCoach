@@ -178,6 +178,248 @@ fun exportClubReportPdf(context: Context, clubName: String, rows: List<ClubRepor
     return file
 }
 
+/**
+ * A single labelled section of a session report. When [tableHeaders] is set, [tableRows] is
+ * rendered as a striped table (matching the web app's session report design); otherwise [lines]
+ * is rendered as wrapped paragraphs.
+ */
+data class SessionReportSection(
+    val heading: String,
+    val lines: List<String> = emptyList(),
+    val tableHeaders: List<String>? = null,
+    val tableRows: List<List<String>>? = null,
+    val columnWeights: List<Float>? = null
+)
+
+private fun wrapLine(paint: Paint, text: String, maxWidth: Float): List<String> {
+    if (text.isBlank()) return listOf("")
+    val words = text.split(Regex("\\s+"))
+    val lines = mutableListOf<String>()
+    var current = StringBuilder()
+    words.forEach { word ->
+        val candidate = if (current.isEmpty()) word else "$current $word"
+        if (paint.measureText(candidate) > maxWidth && current.isNotEmpty()) {
+            lines += current.toString()
+            current = StringBuilder(word)
+        } else {
+            current = StringBuilder(candidate)
+        }
+    }
+    if (current.isNotEmpty()) lines += current.toString()
+    return lines
+}
+
+private val ReportGreen = android.graphics.Color.rgb(4, 120, 87)
+private val ReportRowAlt = android.graphics.Color.rgb(243, 244, 246)
+private val ReportTextDark = android.graphics.Color.rgb(31, 41, 55)
+private val ReportTextLabel = android.graphics.Color.rgb(55, 65, 81)
+private val ReportTextGray = android.graphics.Color.rgb(107, 114, 128)
+
+private fun reportTimestamp(): String =
+    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy, HH:mm:ss")
+        .format(java.time.LocalDateTime.now())
+
+/** Builds a full session summary PDF (facts, drills, incidents, notes, evaluation and AI analysis). */
+fun exportSessionReportPdf(
+    context: Context,
+    title: String,
+    subtitle: String,
+    facts: List<Pair<String, String>>,
+    sections: List<SessionReportSection>
+): File {
+    val pageCount = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = null).let { (document, pages) ->
+        document.close()
+        pages
+    }
+    val (document, _) = renderSessionReportPdf(title, subtitle, facts, sections, totalPages = pageCount)
+    val safeName = title.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifBlank { "session-report" }
+    val file = File(exportDirectory(context), "$safeName-${LocalDate.now()}.pdf")
+    FileOutputStream(file).use(document::writeTo)
+    document.close()
+    return file
+}
+
+/** Lays out the session report once; pass [totalPages] on the second pass to print "Page X of Y" footers. */
+private fun renderSessionReportPdf(
+    title: String,
+    subtitle: String,
+    facts: List<Pair<String, String>>,
+    sections: List<SessionReportSection>,
+    totalPages: Int?
+): Pair<PdfDocument, Int> {
+    val document = PdfDocument()
+    val pageWidth = 595
+    val pageHeight = 842
+    val marginX = 40f
+    val contentWidth = pageWidth - marginX * 2
+    val bannerHeight = 72f
+    val bottomLimit = pageHeight - 46f
+    val generatedAt = reportTimestamp()
+
+    val bannerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportGreen; style = Paint.Style.FILL }
+    val bannerTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        textSize = 20f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val bannerSubtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.argb(235, 255, 255, 255)
+        textSize = 12f
+    }
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ReportTextLabel
+        textSize = 11f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; textSize = 11f }
+    val sectionHeadingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ReportGreen
+        textSize = 13f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val sectionRulePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportGreen; strokeWidth = 1.2f }
+    val tableHeaderBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportGreen; style = Paint.Style.FILL }
+    val tableHeaderTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        textSize = 10f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+    val tableRowAltPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportRowAlt; style = Paint.Style.FILL }
+    val tableCellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; textSize = 10f }
+    val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; textSize = 11f }
+    val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextGray; textSize = 9f }
+
+    var pageNumber = 1
+    var page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+    var canvas = page.canvas
+    var y: Float
+
+    fun drawBanner() {
+        canvas.drawRect(0f, 0f, pageWidth.toFloat(), bannerHeight, bannerPaint)
+        canvas.drawText(title, marginX, 32f, bannerTitlePaint)
+        canvas.drawText(subtitle, marginX, 54f, bannerSubtitlePaint)
+    }
+
+    fun drawFooter() {
+        val footerY = pageHeight - 22f
+        canvas.drawText("Generated $generatedAt - eCricketCoach", marginX, footerY, footerPaint)
+        val pageLabel = if (totalPages != null) "Page $pageNumber of $totalPages" else "Page $pageNumber"
+        val w = footerPaint.measureText(pageLabel)
+        canvas.drawText(pageLabel, pageWidth - marginX - w, footerY, footerPaint)
+    }
+
+    drawBanner()
+    y = bannerHeight + 28f
+
+    fun newPage() {
+        drawFooter()
+        document.finishPage(page)
+        pageNumber += 1
+        page = document.startPage(PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create())
+        canvas = page.canvas
+        y = 50f
+    }
+
+    fun ensureSpace(nextHeight: Float): Boolean {
+        if (y + nextHeight > bottomLimit) {
+            newPage()
+            return true
+        }
+        return false
+    }
+
+    val factLabelWidth = 150f
+    facts.forEach { (label, value) ->
+        ensureSpace(17f)
+        canvas.drawText(label, marginX, y, labelPaint)
+        wrapLine(valuePaint, value, contentWidth - factLabelWidth).let { wrapped ->
+            canvas.drawText(wrapped.firstOrNull().orEmpty(), marginX + factLabelWidth, y, valuePaint)
+        }
+        y += 17f
+    }
+
+    fun drawSectionHeading(text: String) {
+        ensureSpace(32f)
+        y += 12f
+        canvas.drawText(text, marginX, y, sectionHeadingPaint)
+        y += 6f
+        canvas.drawLine(marginX, y, marginX + contentWidth, y, sectionRulePaint)
+        y += 16f
+    }
+
+    fun drawTable(headers: List<String>, rows: List<List<String>>, weights: List<Float>?) {
+        val resolvedWeights = weights ?: List(headers.size) { 1f / headers.size }
+        val colWidths = resolvedWeights.map { it * contentWidth }
+        val colX = mutableListOf(marginX)
+        for (i in 1 until colWidths.size) colX += colX[i - 1] + colWidths[i - 1]
+        val headerRowHeight = 20f
+
+        fun drawHeaderRow() {
+            canvas.drawRect(marginX, y, marginX + contentWidth, y + headerRowHeight, tableHeaderBgPaint)
+            headers.forEachIndexed { i, h -> canvas.drawText(h, colX[i] + 6f, y + 14f, tableHeaderTextPaint) }
+            y += headerRowHeight
+        }
+
+        ensureSpace(headerRowHeight)
+        drawHeaderRow()
+        if (rows.isEmpty()) {
+            ensureSpace(16f)
+            canvas.drawText("—", colX[0] + 6f, y + 11f, tableCellPaint)
+            y += 16f
+            return
+        }
+        rows.forEachIndexed { rowIndex, row ->
+            val wrappedCells = row.mapIndexed { i, cell -> wrapLine(tableCellPaint, cell, (colWidths.getOrElse(i) { contentWidth }) - 12f) }
+            val lineCount = (wrappedCells.maxOfOrNull { it.size } ?: 1).coerceAtLeast(1)
+            val rowHeight = lineCount * 13f + 8f
+            val broke = ensureSpace(rowHeight)
+            if (broke) drawHeaderRow()
+            if (rowIndex % 2 == 1) canvas.drawRect(marginX, y, marginX + contentWidth, y + rowHeight, tableRowAltPaint)
+            wrappedCells.forEachIndexed { i, lines ->
+                lines.forEachIndexed { li, line -> canvas.drawText(line, colX[i] + 6f, y + 12f + li * 13f, tableCellPaint) }
+            }
+            y += rowHeight
+        }
+        y += 10f
+    }
+
+    sections.forEach { section ->
+        drawSectionHeading(section.heading)
+        if (section.tableHeaders != null) {
+            drawTable(section.tableHeaders, section.tableRows.orEmpty(), section.columnWeights)
+        } else if (section.lines.isEmpty()) {
+            ensureSpace(15f)
+            canvas.drawText("-  None", marginX, y, bodyPaint)
+            y += 15f
+        } else {
+            section.lines.forEach { line ->
+                val separatorIndex = line.indexOf(": ")
+                if (separatorIndex > 0 && separatorIndex < 40) {
+                    val name = line.substring(0, separatorIndex)
+                    val rest = line.substring(separatorIndex + 2)
+                    ensureSpace(15f)
+                    canvas.drawText(name, marginX, y, labelPaint)
+                    y += 14f
+                    wrapLine(bodyPaint, rest, contentWidth).forEach { wrapped ->
+                        ensureSpace(15f)
+                        canvas.drawText(wrapped, marginX, y, bodyPaint)
+                        y += 15f
+                    }
+                } else {
+                    wrapLine(bodyPaint, line, contentWidth).forEach { wrapped ->
+                        ensureSpace(15f)
+                        canvas.drawText(wrapped, marginX, y, bodyPaint)
+                        y += 15f
+                    }
+                }
+            }
+        }
+    }
+    drawFooter()
+    document.finishPage(page)
+    return document to pageNumber
+}
+
 fun exportCertificatePdf(context: Context, certificate: ClubCertificate): File {
     val document = PdfDocument()
     val page = document.startPage(PdfDocument.PageInfo.Builder(842, 595, 1).create())

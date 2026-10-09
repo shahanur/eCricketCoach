@@ -32,7 +32,9 @@ data class TrainingTemplate(
     val title: String,
     val focus: String,
     val durationMinutes: Int,
-    val disciplines: List<String>
+    val disciplines: List<String>,
+    val safety: List<String> = emptyList(),
+    val drillIds: List<String> = emptyList()
 )
 
 class AuthStore(context: Context) {
@@ -108,12 +110,16 @@ class AuthStore(context: Context) {
         if (preferences.getString(KEY_CACHE_OWNER, null) != ownerId) return emptyList()
         return readList(KEY_TEMPLATES) { row ->
             val disciplines = row.optJSONArray("disciplines") ?: JSONArray()
+            val safety = row.optJSONArray("safety") ?: JSONArray()
+            val drillIds = row.optJSONArray("drillIds") ?: JSONArray()
             TrainingTemplate(
                 id = row.getString("id"),
                 title = row.optString("title", "Training template"),
                 focus = row.optString("focus", ""),
                 durationMinutes = row.optInt("durationMinutes"),
-                disciplines = (0 until disciplines.length()).map(disciplines::getString)
+                disciplines = (0 until disciplines.length()).map(disciplines::getString),
+                safety = (0 until safety.length()).map(safety::getString),
+                drillIds = (0 until drillIds.length()).map(drillIds::getString)
             )
         }
     }
@@ -129,6 +135,8 @@ class AuthStore(context: Context) {
                     .put("focus", template.focus)
                     .put("durationMinutes", template.durationMinutes)
                     .put("disciplines", JSONArray(template.disciplines))
+                    .put("safety", JSONArray(template.safety))
+                    .put("drillIds", JSONArray(template.drillIds))
             }
         )
     }

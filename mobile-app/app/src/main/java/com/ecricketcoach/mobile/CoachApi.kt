@@ -64,6 +64,7 @@ data class ClubTrainingSession(
     val drillIds: List<String>,
     val playerNotes: JSONObject,
     val executionLog: JSONObject?,
+    val aiEvaluation: JSONObject? = null,
     val coordinatorCoachId: String? = null,
     val assistantCoachId: String? = null
 ) {
@@ -211,12 +212,16 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val disciplines = row.optJSONArray("disciplines") ?: JSONArray()
+            val safety = row.optJSONArray("safety") ?: JSONArray()
+            val drillIds = row.optJSONArray("drillIds") ?: JSONArray()
             TrainingTemplate(
                 id = row.optString("id"),
                 title = row.optString("title", "Training template"),
                 focus = row.optString("focus", ""),
                 durationMinutes = row.optInt("durationMinutes"),
-                disciplines = (0 until disciplines.length()).map(disciplines::getString)
+                disciplines = (0 until disciplines.length()).map(disciplines::getString),
+                safety = (0 until safety.length()).map(safety::getString),
+                drillIds = (0 until drillIds.length()).map(drillIds::getString)
             )
         }
     }
@@ -428,9 +433,38 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}/post-notes-ai-assess",
             token,
             JSONObject().put("notes", notes),
-            method = "POST"
+            method = "POST",
+            readTimeoutMs = 180_000
         ))
         json.getJSONObject("session").toClubTrainingSession()
+    }
+
+    suspend fun createFollowUpSession(
+        token: String,
+        sessionId: String,
+        payload: JSONObject
+    ): Pair<ClubTrainingSession, List<Drill>> = withContext(Dispatchers.IO) {
+        val json = JSONObject(request(
+            "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/follow-up",
+            token,
+            payload,
+            method = "POST"
+        ))
+        val session = json.getJSONObject("session").toClubTrainingSession()
+        val drillRows = json.optJSONArray("drills") ?: JSONArray()
+        val createdDrills = (0 until drillRows.length()).map { index ->
+            val row = drillRows.getJSONObject(index)
+            Drill(
+                id = row.optString("id"),
+                title = row.optString("title", "Untitled drill"),
+                discipline = row.optString("discipline", "GENERAL"),
+                skillSet = row.optString("skillSet", ""),
+                durationMinutes = row.optInt("durationMinutes", row.optInt("duration", 0)),
+                instructions = row.optString("instructions", ""),
+                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank)
+            )
+        }
+        session to createdDrills
     }
 
     suspend fun getCertificates(token: String): List<ClubCertificate> = withContext(Dispatchers.IO) {
@@ -758,6 +792,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         } ?: emptyList(),
         playerNotes = optJSONObject("playerNotes") ?: JSONObject(),
         executionLog = optJSONObject("executionLog"),
+        aiEvaluation = optJSONObject("aiEvaluation")?.takeIf { it.optString("squadSummary").isNotBlank() },
         coordinatorCoachId = optString("coordinatorCoachId").takeIf { it.isNotBlank() && it != "null" },
         assistantCoachId = optString("assistantCoachId").takeIf { it.isNotBlank() && it != "null" }
     )
