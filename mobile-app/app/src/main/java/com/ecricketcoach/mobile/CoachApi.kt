@@ -209,7 +209,9 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                 skillSet = row.optString("skillSet", ""),
                 durationMinutes = row.optInt("durationMinutes", row.optInt("duration", 0)),
                 instructions = row.optString("instructions", ""),
-                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank)
+                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank),
+                contextType = row.optString("contextType", "GROUP"),
+                source = row.optString("source", "SYSTEM_PREDEFINED")
             )
         }
     }
@@ -574,6 +576,37 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             method = "DELETE"
         )
     }
+
+    suspend fun cloneDrill(token: String, drillId: String): Drill = withContext(Dispatchers.IO) {
+        val row = JSONObject(request(
+            "/api/drills/${URLEncoder.encode(drillId, UTF_8)}/clone",
+            token,
+            method = "POST"
+        )).getJSONObject("drill")
+        drillFromJson(row)
+    }
+
+    suspend fun updateDrill(token: String, drillId: String, updates: JSONObject): Drill = withContext(Dispatchers.IO) {
+        val row = JSONObject(request(
+            "/api/drills/${URLEncoder.encode(drillId, UTF_8)}",
+            token,
+            updates,
+            method = "PATCH"
+        )).getJSONObject("drill")
+        drillFromJson(row)
+    }
+
+    private fun drillFromJson(row: JSONObject) = Drill(
+        id = row.optString("id"),
+        title = row.optString("title", "Untitled drill"),
+        discipline = row.optString("discipline", "GENERAL"),
+        skillSet = row.optString("skillSet", ""),
+        durationMinutes = row.optInt("durationMinutes", row.optInt("duration", 0)),
+        instructions = row.optString("instructions", ""),
+        imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank),
+        contextType = row.optString("contextType", "GROUP"),
+        source = row.optString("source", "CLUB_CUSTOM")
+    )
 
     suspend fun getVideoAnalysisHistory(token: String): List<VideoAnalysisEntry> = withContext(Dispatchers.IO) {
         val response = JSONObject(request("/api/videos/analyze/history", token))
