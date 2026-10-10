@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -118,6 +120,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -132,29 +135,85 @@ import java.time.LocalDate
 import java.io.IOException
 
 private val ClubDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
+// Material has no wicket-keeping gloves, so draw an outlined mirrored pair in the same 24dp style.
+private fun androidx.compose.ui.graphics.vector.PathBuilder.keepingGlove(originX: Float, originY: Float, scale: Float, mirrored: Boolean) {
+    // Source glove spans x 5.3..17, y 4.5..21.2; mirrored copies flip horizontally around originX.
+    fun x(v: Float) = if (mirrored) originX - (v - 5.3f) * scale else originX + (v - 5.3f) * scale
+    fun y(v: Float) = originY + (v - 4.5f) * scale
+    val r = scale
+    val sweep = !mirrored
+    moveTo(x(10.5f), y(18.5f))
+    lineTo(x(6.6f), y(14.2f))
+    lineTo(x(5.3f), y(11.6f))
+    arcTo(1.15f * r, 1.15f * r, 0f, false, sweep, x(7.3f), y(10.5f))
+    lineTo(x(9f), y(12.4f))
+    lineTo(x(9f), y(6f))
+    arcTo(r, r, 0f, false, sweep, x(11f), y(6f))
+    lineTo(x(11f), y(4.5f))
+    arcTo(r, r, 0f, false, sweep, x(13f), y(4.5f))
+    lineTo(x(13f), y(5f))
+    arcTo(r, r, 0f, false, sweep, x(15f), y(5f))
+    lineTo(x(15f), y(6.6f))
+    arcTo(r, r, 0f, false, sweep, x(17f), y(6.6f))
+    lineTo(x(17f), y(14.5f))
+    quadTo(x(17f), y(18.5f), x(14f), y(18.5f))
+    close()
+    // Finger seams.
+    moveTo(x(11f), y(6f)); lineTo(x(11f), y(10.5f))
+    moveTo(x(13f), y(5f)); lineTo(x(13f), y(10.5f))
+    moveTo(x(15f), y(6.6f)); lineTo(x(15f), y(10.5f))
+    // Cuff.
+    moveTo(x(10.3f), y(18.5f))
+    lineTo(x(10.3f), y(21.2f))
+    lineTo(x(15.7f), y(21.2f))
+    lineTo(x(15.7f), y(18.2f))
+}
+
+private val KeepingGloveIcon: androidx.compose.ui.graphics.vector.ImageVector by lazy {
+    androidx.compose.ui.graphics.vector.ImageVector.Builder(
+        name = "KeepingGloves",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(
+        fill = null,
+        stroke = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black),
+        strokeLineWidth = 1.4f,
+        strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
+        strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+    ) {
+        // Left glove has its thumb on the outer left; the right glove mirrors it.
+        keepingGlove(originX = 1.3f, originY = 5.2f, scale = 0.8f, mirrored = false)
+        keepingGlove(originX = 22.7f, originY = 5.2f, scale = 0.8f, mirrored = true)
+    }.build()
+}
 private fun disciplineIcon(discipline: String) = when (discipline.uppercase()) {
     "BATTING" -> Icons.Outlined.SportsCricket
     "BOWLING" -> Icons.Outlined.SportsBaseball
-    "KEEPING" -> Icons.Outlined.Security
+    "KEEPING" -> KeepingGloveIcon
     "FIELDING" -> Icons.Outlined.DirectionsRun
     else -> Icons.Outlined.Sports
 }
-private fun disciplineColor(discipline: String) = when (discipline.uppercase()) {
-    "BATTING" -> Color(0xFF2E7D32)
-    "BOWLING" -> Color(0xFFC62828)
-    "KEEPING" -> Color(0xFF1565C0)
-    "FIELDING" -> Color(0xFFEF6C00)
-    else -> Color(0xFF616161)
-}
-
+// Disciplines are distinguished by icon; colour stays on-brand so cards read as one family.
 @Composable
 private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
-    val color = disciplineColor(discipline)
-    Surface(shape = RoundedCornerShape(50), color = color.copy(alpha = 0.12f), modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Icon(disciplineIcon(discipline), contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(discipline, fontSize = 11.sp, color = color, fontWeight = FontWeight.Medium)
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = scheme.primary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.22f)),
+        modifier = modifier
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)) {
+            Icon(disciplineIcon(discipline), contentDescription = null, tint = scheme.primary, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(
+                discipline.lowercase().replaceFirstChar { it.uppercase() },
+                fontSize = 11.sp,
+                color = scheme.onSurface.copy(alpha = 0.85f),
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -817,6 +876,7 @@ internal fun ClubCoachWorkspace(
                 coachName = user.name,
                 clubName = user.clubName ?: "Club",
                 userId = user.id,
+                isClubAdmin = isClubAdmin,
                 members = members,
                 squads = squads,
                 sessions = sessions,
@@ -1719,6 +1779,7 @@ private fun OverviewPanel(
     coachName: String,
     clubName: String,
     userId: String,
+    isClubAdmin: Boolean,
     members: List<ClubMember>,
     squads: List<ClubSquad>,
     sessions: List<ClubTrainingSession>,
@@ -1735,6 +1796,8 @@ private fun OverviewPanel(
         .filter { !it.isExecuted }
         .sortedBy { it.sessionDate }
     val myUpcomingSessions = upcomingSessions.filter { it.isAssignedTo(userId) }
+    // Club admins oversee every session rather than being assigned to them, so they see the club total.
+    val sessionCount = if (isClubAdmin) upcomingSessions.size else myUpcomingSessions.size
     val upcomingAssessments = assessments
         .filter { it.status != "COMPLETED" && it.scheduledDate >= today }
         .sortedBy { it.scheduledDate }
@@ -1749,7 +1812,7 @@ private fun OverviewPanel(
         if (isTablet) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SummaryCard("Sessions", myUpcomingSessions.size.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Modifier.weight(1f), onClick = { onOpen("Sessions") })
+                    SummaryCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Modifier.weight(1f), onClick = { onOpen("Sessions") })
                     SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, Modifier.weight(1f), onClick = { onOpen("Assessments") })
                 }
             }
@@ -1774,7 +1837,7 @@ private fun OverviewPanel(
                 }
             }
         } else {
-            item { SummaryCard("Sessions", myUpcomingSessions.size.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, onClick = { onOpen("Sessions") }) }
+            item { SummaryCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, onClick = { onOpen("Sessions") }) }
             item { SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, onClick = { onOpen("Assessments") }) }
             item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, onClick = { onOpen("Delivered sessions") }) }
             item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, onClick = { onOpen("Participants") }) }
@@ -2039,19 +2102,38 @@ private fun SquadPanel(
 
 @Composable
 private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    val scheme = MaterialTheme.colorScheme
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = scheme.surface),
+        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.12f))
+    ) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Text(squad.name, fontWeight = FontWeight.SemiBold)
-            Text("${squad.ageGroup} · $memberCount ${if (memberCount == 1) "member" else "members"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(12.dp), color = scheme.primary.copy(alpha = 0.12f), modifier = Modifier.size(40.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp))
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(squad.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "${squad.ageGroup.ifBlank { "All ages" }} · $memberCount ${if (memberCount == 1) "member" else "members"}",
+                        fontSize = 12.sp,
+                        color = scheme.onSurface.copy(alpha = 0.65f)
+                    )
+                }
+            }
             if (squad.disciplines.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 5.dp, bottom = 6.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 10.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     squad.disciplines.forEach { discipline -> DisciplineChip(discipline) }
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+            HorizontalDivider(color = scheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
                 WorkspaceAction("Edit", Icons.Outlined.Edit, onEdit)
                 WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
@@ -2183,7 +2265,7 @@ private fun SquadDetailsCard(
             ClubDisciplines.forEach { discipline ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = selected[discipline] == true, onCheckedChange = { selected[discipline] = it }, enabled = !isSaving)
-                    Icon(disciplineIcon(discipline), contentDescription = null, tint = disciplineColor(discipline), modifier = Modifier.size(16.dp))
+                    Icon(disciplineIcon(discipline), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(discipline)
                 }
