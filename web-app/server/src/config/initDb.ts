@@ -249,7 +249,14 @@ export async function initDb() {
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS execution_log JSONB`,
-    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS safety TEXT[] NOT NULL DEFAULT '{}'`
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS safety TEXT[] NOT NULL DEFAULT '{}'`,
+    `ALTER TABLE club_members ADD COLUMN IF NOT EXISTS squads TEXT[] NOT NULL DEFAULT '{}'`,
+    // Backfill multi-squad membership from the legacy single-squad column.
+    `UPDATE club_members
+      SET squads = ARRAY[squad]
+      WHERE cardinality(squads) = 0
+        AND squad IS NOT NULL
+        AND squad NOT IN ('', 'Unassigned')`
   ];
   for (const statement of alterStatements) {
     await prisma.$executeRawUnsafe(statement);
@@ -315,7 +322,7 @@ export async function initDb() {
         { id: 'mem-5', clubId: 'ten-003', name: 'Sam Billings', email: 'sam.b@crick.com', role: 'PLAYER', ageGroup: 'U15', discipline: 'KEEPING', invitationStatus: 'ACTIVE', currentLevel: 'INTERMEDIATE', squad: 'U15 Pace & Power Squad' },
         { id: 'mem-6', clubId: 'ten-003', name: 'Leo Finch', email: 'leo.f@crick.com', role: 'PLAYER', ageGroup: 'U15', discipline: 'BATTING', invitationStatus: 'ACTIVE', currentLevel: 'INTERMEDIATE', squad: 'U15 Pace & Power Squad' },
         { id: 'mem-7', clubId: 'ten-003', name: 'Rohan Sharma', email: 'rohan.s@crick.com', role: 'PLAYER', ageGroup: 'U13', discipline: 'BATTING', invitationStatus: 'PENDING_ACCEPTANCE', currentLevel: 'FOUNDATION', squad: 'Unassigned' }
-      ]
+      ].map(member => ({ ...member, squads: member.squad === 'Unassigned' ? [] : [member.squad] }))
     });
 
     await prisma.squad.createMany({

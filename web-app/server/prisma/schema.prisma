@@ -102,6 +102,7 @@ model ClubMember {
   invitationStatus String  @map("invitation_status")
   currentLevel     String  @map("current_level")
   squad            String  @default("Unassigned")
+  squads           String[] @default([])
 
   @@map("club_members")
 }

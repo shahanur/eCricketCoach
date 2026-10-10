@@ -35,8 +35,12 @@ data class ClubMember(
     val discipline: String,
     val invitationStatus: String,
     val currentLevel: String,
-    val squad: String
-)
+    val squad: String,
+    // A player can belong to several squads; `squad` is the server's display label.
+    val squads: List<String> = if (squad.isBlank() || squad == "Unassigned") emptyList() else listOf(squad)
+) {
+    fun isInSquad(name: String) = name in squads
+}
 
 data class ClubSquad(
     val id: String,
@@ -755,7 +759,12 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         discipline = optString("discipline", "BATTING"),
         invitationStatus = optString("invitationStatus", "ACTIVE"),
         currentLevel = optString("currentLevel", "FOUNDATION"),
-        squad = optString("squad", "Unassigned")
+        squad = optString("squad", "Unassigned"),
+        squads = optJSONArray("squads")?.let { array ->
+            (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() }
+        } ?: optString("squad", "Unassigned").let { squad ->
+            if (squad.isBlank() || squad == "Unassigned") emptyList() else listOf(squad)
+        }
     )
 
     private fun JSONObject.toClubSquad(): ClubSquad {

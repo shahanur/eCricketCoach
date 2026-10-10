@@ -69,7 +69,8 @@ clubRouter.get(
         discipline: member.discipline,
         invitationStatus: member.invitationStatus,
         currentLevel: member.currentLevel,
-        squad: member.squad
+        squad: member.squad,
+        squads: member.squads
       }));
       const reportSessions = sessions.map(session => {
         const notes = session.playerNotes && typeof session.playerNotes === 'object'
@@ -165,7 +166,15 @@ clubRouter.post('/members/:id/accept-invitation', authenticateToken, requireRole
 clubRouter.patch('/members/:id', authenticateToken, requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { squad, currentLevel, invitationStatus, name, email, role, ageGroup, discipline } = req.body;
+    const { squad, squads, addSquad, removeSquad, currentLevel, invitationStatus, name, email, role, ageGroup, discipline } = req.body;
+    if (squads !== undefined && (!Array.isArray(squads) || squads.some((value: unknown) => typeof value !== 'string'))) {
+      return res.status(400).json({ error: 'squads must be an array of squad names.' });
+    }
+    for (const value of [squad, addSquad, removeSquad]) {
+      if (value !== undefined && typeof value !== 'string') {
+        return res.status(400).json({ error: 'Squad names must be strings.' });
+      }
+    }
     if (req.user!.role === 'COACH') {
       if (req.user!.coachContext !== 'CLUB') {
         return res.status(403).json({ error: 'Club coach access required.' });
@@ -190,7 +199,7 @@ clubRouter.patch('/members/:id', authenticateToken, requireRole(['CLUB_ADMIN', '
       where: { id, clubId: req.user!.tenantId }
     });
     if (!member) return res.status(404).json({ error: 'Member not found' });
-    const updated = await DbService.updateClubMember(id, { squad, currentLevel, invitationStatus, name, email, role, ageGroup, discipline });
+    const updated = await DbService.updateClubMember(id, { squad, squads, addSquad, removeSquad, currentLevel, invitationStatus, name, email, role, ageGroup, discipline });
     if (!updated) return res.status(404).json({ error: 'Member not found' });
     return res.json({ success: true, member: updated });
   } catch (err: any) {

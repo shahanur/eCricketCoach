@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { downloadPdfReport } from '../../utils/pdfReport';
+import { isInSquad, memberSquads } from '../../utils/squads';
 import {
   AuthUser,
   ClubMember,
@@ -66,7 +67,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [sessionSafety, setSessionSafety] = useState('');
   const [sessionDrillIds, setSessionDrillIds] = useState<string[]>([]);
   const [isSessionSaving, setIsSessionSaving] = useState(false);
-  const squadNames = Array.from(new Set(players.map(player => player.squad).filter(squad => squad !== 'Unassigned')));
+  const squadNames = Array.from(new Set(players.flatMap(player => memberSquads(player))));
   const [sessionSquad, setSessionSquad] = useState(squadNames[0] || 'Unassigned');
 
   const loadDashboard = async () => {
@@ -146,7 +147,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     event.preventDefault();
     if (isSessionSaving) return;
     if (!sessionTitle.trim() || !sessionDate || !sessionSquad) return;
-    const assignedPlayerIds = players.filter(player => player.squad === sessionSquad).map(player => player.id);
+    const assignedPlayerIds = players.filter(player => isInSquad(player, sessionSquad)).map(player => player.id);
     const session: TrainingSession = {
       id: `sess-${Date.now()}`,
       title: sessionTitle.trim(),

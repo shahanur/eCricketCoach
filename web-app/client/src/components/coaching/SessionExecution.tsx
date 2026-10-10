@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, Download, Info, Play, Plus, RefreshCw, Save, Sparkles, Trash2, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { downloadPdfReport } from '../../utils/pdfReport';
+import { isInSquad } from '../../utils/squads';
 import {
   AttendanceStatus,
   ClubMember,
@@ -281,7 +282,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
     const assigned = new Set(session.assignedPlayerIds || []);
     return assigned.size
       ? players.filter(player => assigned.has(player.id))
-      : players.filter(player => player.squad === session.squadName);
+      : players.filter(player => isInSquad(player, session.squadName));
   }, [players, session.assignedPlayerIds, session.squadName]);
 
   const attendingPlayers = sessionPlayers.filter(player => log.attendance[player.id] === 'PRESENT' || log.attendance[player.id] === 'LATE');

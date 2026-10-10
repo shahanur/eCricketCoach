@@ -109,6 +109,7 @@ export interface ClubMember {
   invitationStatus: 'PENDING_ACCEPTANCE' | 'ACTIVE';
   currentLevel: 'SUPPORT_COACH' | 'FOUNDATION_COACH' | 'CORE_COACH' | 'ADVANCED_COACH' | 'SPECIALIST_COACH' | 'FOUNDATION' | 'DEVELOPING' | 'INTERMEDIATE' | 'ADVANCED' | 'ELITE';
   squad: string;
+  squads?: string[];
 }
 
 export interface Squad {

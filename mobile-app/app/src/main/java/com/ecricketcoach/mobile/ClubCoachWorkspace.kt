@@ -3,6 +3,7 @@ package com.ecricketcoach.mobile
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -415,7 +416,16 @@ internal fun ClubCoachWorkspace(
                 val membersAtServer = api.getClubMembers(token, clubId)
                 val member = membersAtServer.firstOrNull { it.id == mutation.resourceId }
                     ?: throw OfflineMutationConflict("The member no longer belongs to this club. This change was not replayed.")
-                val targetSquad = JSONObject(mutation.payload).getString("squad")
+                val payload = JSONObject(mutation.payload)
+                if (payload.has("addSquad") || payload.has("removeSquad")) {
+                    // Add/remove edits only touch one squad, so they replay safely alongside other server changes.
+                    val adding = payload.has("addSquad")
+                    val squadName = if (adding) payload.getString("addSquad") else payload.getString("removeSquad")
+                    if (member.isInSquad(squadName) == adding) return
+                    api.updateClubMember(token, mutation.resourceId, payload, operationId = mutation.id)
+                    return
+                }
+                val targetSquad = payload.getString("squad")
                 when (member.squad) {
                     targetSquad -> return
                     mutation.baseValue -> api.updateClubMember(
@@ -540,7 +550,7 @@ internal fun ClubCoachWorkspace(
         }
     }
 
-    fun assignMemberToSquad(member: ClubMember, squad: String) {
+    fun assignMemberToSquad(member: ClubMember, squad: String, inSquad: Boolean) {
         scope.launch {
             error = ""
             notice = ""
@@ -551,10 +561,11 @@ internal fun ClubCoachWorkspace(
                 error = "This member already has a pending offline assignment. Sync it before making another change."
                 return@launch
             }
+            val payload = if (inSquad) JSONObject().put("addSquad", squad) else JSONObject().put("removeSquad", squad)
             try {
-                api.updateClubMember(token, member.id, JSONObject().put("squad", squad))
+                api.updateClubMember(token, member.id, payload)
                 refresh()
-                notice = "${member.name} assigned to $squad."
+                notice = if (inSquad) "${member.name} added to $squad." else "${member.name} removed from $squad."
             } catch (failure: IOException) {
                 try {
                     store.enqueueMutation(
@@ -563,7 +574,7 @@ internal fun ClubCoachWorkspace(
                             tenantId = clubId,
                             kind = OfflineMutation.UPDATE_MEMBER_SQUAD,
                             resourceId = member.id,
-                            payload = JSONObject().put("squad", squad).toString(),
+                            payload = payload.toString(),
                             baseValue = member.squad
                         )
                     )
@@ -761,8 +772,11 @@ internal fun ClubCoachWorkspace(
                 if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
         }
-        if (notice.isNotBlank()) {
-            Text(notice, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+        LaunchedEffect(notice) {
+            if (notice.isNotBlank()) {
+                Toast.makeText(context, notice, if (notice.length > 60) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
+                notice = ""
+            }
         }
         val pendingCount = queuedMutations.count { it.state == "PENDING" }
         val failedMutations = queuedMutations.filter { it.state == "FAILED" }
@@ -829,7 +843,7 @@ internal fun ClubCoachWorkspace(
                 squads = squads,
                 canInvite = isClubAdmin,
                 onInvite = { showInvite = true },
-                onAssignSquad = { member, squad -> assignMemberToSquad(member, squad) },
+                onAssignSquad = { member, squad, inSquad -> assignMemberToSquad(member, squad, inSquad) },
                 modifier = Modifier.weight(1f)
             )
             "Squads" -> SquadPanel(
@@ -905,7 +919,7 @@ internal fun ClubCoachWorkspace(
                     },
                     onBack = { editingSquad = null; tab = "Squads" },
                     members = members,
-                    onToggleMember = { member, inSquad -> assignMemberToSquad(member, if (inSquad) squad.name else "Unassigned") },
+                    onToggleMember = { member, inSquad -> assignMemberToSquad(member, squad.name, inSquad) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1924,7 +1938,7 @@ private fun RosterPanel(
     squads: List<ClubSquad>,
     canInvite: Boolean,
     onInvite: () -> Unit,
-    onAssignSquad: (ClubMember, String) -> Unit,
+    onAssignSquad: (ClubMember, String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1943,15 +1957,22 @@ private fun RosterPanel(
                     Text("${member.role} · ${member.email}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
                     Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Squad: ${member.squad}", fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = 12.sp, modifier = Modifier.weight(1f))
                         WorkspaceAction("Assign", Icons.Outlined.Group, { menuOpen = true })
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            (listOf("Unassigned") + squads.map(ClubSquad::name)).distinct().forEach { squad ->
+                            if (squads.isEmpty()) {
+                                DropdownMenuItem(text = { Text("No squads yet") }, onClick = { menuOpen = false }, enabled = false)
+                            }
+                            squads.map(ClubSquad::name).distinct().forEach { squad ->
+                                val inSquad = member.isInSquad(squad)
                                 DropdownMenuItem(
                                     text = { Text(squad) },
+                                    leadingIcon = {
+                                        Checkbox(checked = inSquad, onCheckedChange = null)
+                                    },
                                     onClick = {
                                         menuOpen = false
-                                        onAssignSquad(member, squad)
+                                        onAssignSquad(member, squad, !inSquad)
                                     }
                                 )
                             }
@@ -1988,14 +2009,14 @@ private fun SquadPanel(
                 items(squads.chunked(2)) { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         pair.forEach { squad ->
-                            SquadCard(squad, members.count { it.squad == squad.name }, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                            SquadCard(squad, members.count { it.isInSquad(squad.name) }, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
                         }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             } else {
                 items(squads, key = ClubSquad::id) { squad ->
-                    SquadCard(squad, members.count { it.squad == squad.name }, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
+                    SquadCard(squad, members.count { it.isInSquad(squad.name) }, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
                 }
             }
         }
@@ -2059,7 +2080,7 @@ private fun EditSquadPanel(
     var deleteConfirm by remember { mutableStateOf(false) }
     var playerSearch by remember { mutableStateOf("") }
     var showPlayerPicker by remember { mutableStateOf(false) }
-    val playerCount = members.count { it.role == "PLAYER" && it.squad == squad.name }
+    val playerCount = members.count { it.role == "PLAYER" && it.isInSquad(squad.name) }
 
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
@@ -2195,7 +2216,7 @@ private fun SquadPlayersPanel(
     val players = members
         .filter { it.role == "PLAYER" }
         .filter { it.name.contains(search.trim(), ignoreCase = true) }
-        .sortedByDescending { it.squad == squad.name }
+        .sortedByDescending { it.isInSquad(squad.name) }
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Players", fontWeight = FontWeight.SemiBold)
@@ -2205,7 +2226,7 @@ private fun SquadPlayersPanel(
             } else {
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     players.forEach { member ->
-                        val inSquad = member.squad == squad.name
+                        val inSquad = member.isInSquad(squad.name)
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2214,7 +2235,7 @@ private fun SquadPlayersPanel(
                             Column(Modifier.weight(1f)) {
                                 Text(member.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                 Text(
-                                    if (inSquad) "In this squad" else member.squad.ifBlank { "Unassigned" },
+                                    if (inSquad) "In this squad" else member.squads.joinToString(", ").ifBlank { "Unassigned" },
                                     fontSize = 11.sp,
                                     color = if (inSquad) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
@@ -2793,7 +2814,9 @@ private fun AvailableDrillsPanel(
     allDrills: List<Drill>,
     isBusy: Boolean,
     onAdd: (Drill) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedIds: List<String> = emptyList(),
+    onRemove: ((String) -> Unit)? = null
 ) {
     var filter by remember { mutableStateOf("ALL") }
     var filterMenuOpen by remember { mutableStateOf(false) }
@@ -2828,10 +2851,25 @@ private fun AvailableDrillsPanel(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
-                            TextButton(onClick = { onAdd(drill) }, enabled = !isBusy) {
-                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(2.dp))
-                                Text("Add")
+                            val added = drill.id in selectedIds
+                            val canToggle = !isBusy && (!added || onRemove != null)
+                            val accent = if (added) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                            Surface(
+                                onClick = { if (added) onRemove?.invoke(drill.id) else onAdd(drill) },
+                                enabled = canToggle,
+                                shape = CircleShape,
+                                color = accent.copy(alpha = if (added) 0.12f else 0.14f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = if (canToggle) 0.7f else 0.3f)),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        if (added) Icons.Outlined.Remove else Icons.Outlined.Add,
+                                        contentDescription = if (added) "Remove ${drill.title}" else "Add ${drill.title}",
+                                        tint = accent.copy(alpha = if (canToggle) 1f else 0.4f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -2987,7 +3025,9 @@ private fun EditSessionPanel(
                         allDrills = allDrills,
                         isBusy = drillBusy,
                         onAdd = onAddDrill,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        selectedIds = session.drillIds,
+                        onRemove = onRemoveDrill
                     )
                 }
             } else {
@@ -3031,7 +3071,9 @@ private fun EditSessionPanel(
                     allDrills = allDrills,
                     isBusy = drillBusy,
                     onAdd = onAddDrill,
-                    modifier = Modifier.height(380.dp)
+                    modifier = Modifier.height(380.dp),
+                    selectedIds = session.drillIds,
+                    onRemove = onRemoveDrill
                 )
             },
             confirmButton = { TextButton(onClick = { showDrillPicker = false }) { Text("Done") } }
@@ -3218,8 +3260,10 @@ private fun ScheduleSessionPanel(
                                 AvailableDrillsPanel(
                                     allDrills = allDrills,
                                     isBusy = false,
-                                    onAdd = { drill -> drillIds.add(drill.id) },
-                                    modifier = Modifier.fillMaxWidth().height(260.dp)
+                                    onAdd = { drill -> if (drill.id !in drillIds) drillIds.add(drill.id) },
+                                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                                    selectedIds = drillIds,
+                                    onRemove = { drillIds.remove(it) }
                                 )
                             }
                             if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -3270,8 +3314,10 @@ private fun ScheduleSessionPanel(
                     AvailableDrillsPanel(
                         allDrills = allDrills,
                         isBusy = false,
-                        onAdd = { drill -> drillIds.add(drill.id) },
-                        modifier = Modifier.weight(1f).fillMaxHeight()
+                        onAdd = { drill -> if (drill.id !in drillIds) drillIds.add(drill.id) },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        selectedIds = drillIds,
+                        onRemove = { drillIds.remove(it) }
                     )
                 }
             } else {

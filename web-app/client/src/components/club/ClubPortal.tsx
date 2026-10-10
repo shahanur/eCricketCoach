@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile } from '../../types';
+import { isInSquad, memberSquads } from '../../utils/squads';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
@@ -68,7 +69,7 @@ interface ClubPortalProps {
   onAddSquad: (squad: Squad) => void;
   onUpdateSquad?: (squadId: string, updates: Partial<Squad>) => void;
   onDeleteSquad?: (squadId: string) => void;
-  onUpdateMemberSquad?: (memberId: string, squadName: string) => void;
+  onUpdateMemberSquad?: (memberId: string, squadName: string, inSquad: boolean) => void;
   onUpdateMember?: (memberId: string, updates: Partial<ClubMember>) => void;
   onScheduleSession: (session: TrainingSession) => Promise<void>;
   onUpdateSession?: (sessionId: string, updates: Partial<TrainingSession>) => void;
@@ -537,7 +538,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       return;
     }
     const targetMemberIds = sessionFormTargetType === 'SQUAD'
-      ? clubMembers.filter(m => m.squad === sessionFormSquad).map(m => m.id)
+      ? clubMembers.filter(m => isInSquad(m, sessionFormSquad)).map(m => m.id)
       : sessionFormPlayerIds;
 
     const titles = new Set<string>();
@@ -758,7 +759,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       member.role === 'PLAYER' &&
       (individualNames
         ? individualNames.includes(member.name)
-        : member.squad === selectedExecutedSession.squadName)
+        : isInSquad(member, selectedExecutedSession.squadName))
     );
   }, [clubMembers, selectedExecutedSession]);
 
@@ -1024,6 +1025,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     return Array.from(set).sort();
   }, [clubMembers]);
 
+  // Derived from live membership so squad cards update as soon as players are added or removed.
+  const squadMemberCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    clubMembers.forEach(m => memberSquads(m).forEach(name => counts.set(name, (counts.get(name) ?? 0) + 1)));
+    return counts;
+  }, [clubMembers]);
+  const squadMemberCount = (squad: Squad) => squadMemberCounts.get(squad.name) ?? 0;
+
   // Adopts an AI-recommended drill from a video analysis result into the club's drill catalogue,
   // AND automatically incorporates it into the player's actual squad training plan: it's tagged
   // with the player's current squad, and (if that squad has an upcoming/unpublished session)
@@ -1033,7 +1042,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     aiDrill: { title: string; discipline: string; durationMinutes: number; context: string }
   ) => {
     const player = playerId ? clubMembers.find(m => m.id === playerId) : undefined;
-    const squad = player ? squads.find(sq => sq.name === player.squad) : undefined;
+    const squad = player ? squads.find(sq => isInSquad(player, sq.name)) : undefined;
     const targetSession = squad
       ? sessions
           .filter(s => s.squadName === squad.name && !s.isPublished)
@@ -1092,7 +1101,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <div className="space-y-2">
           <p>Delete squad <strong className="text-white">"{squad.name}"</strong> ({squad.ageGroup} • {formatDisciplines(squad.discipline)})?</p>
           <p className="text-xs text-slate-400">
-            This action cannot be undone. {squad.memberCount > 0 ? `${squad.memberCount} assigned player(s) will become unassigned.` : ''}
+            This action cannot be undone. {squadMemberCount(squad) > 0 ? `${squadMemberCount(squad)} assigned player(s) will become unassigned.` : ''}
           </p>
         </div>
       ),
@@ -1103,8 +1112,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       onConfirm: () => {
         setPortalModal(null);
         clubMembers
-          .filter(m => m.squad === squad.name)
-          .forEach(m => onUpdateMemberSquad?.(m.id, 'Unassigned'));
+          .filter(m => isInSquad(m, squad.name))
+          .forEach(m => onUpdateMemberSquad?.(m.id, squad.name, false));
         onDeleteSquad?.(squad.id);
         if (editingSquadId === squad.id) {
           closeSquadModal();
@@ -1170,7 +1179,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           .join(', ')}`;
     const assignedPlayerIds = sessionFormTargetType === 'SQUAD'
       ? clubMembers
-          .filter(member => member.role === 'PLAYER' && member.squad === sessionFormSquad)
+          .filter(member => member.role === 'PLAYER' && isInSquad(member, sessionFormSquad))
           .map(member => member.id)
       : sessionFormPlayerIds;
     const headCoach = activeClubCoaches.find(coach => coach.id === sessionFormCoachId);
@@ -1854,7 +1863,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </div>
                 <p className="text-xs text-slate-400">Disciplines: <span className="text-emerald-400">{formatDisciplines(sq.discipline)}</span></p>
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                  <span className="text-xs text-slate-500">{sq.memberCount} Squad Members</span>
+                  <span className="text-xs text-slate-500">{squadMemberCount(sq)} Squad Members</span>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => openEditSquad(sq)}
@@ -3746,7 +3755,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <label className="text-[11px] font-semibold text-slate-400">Current Squad Members</label>
                     {(() => {
                       const currentSquadName = squads.find(s => s.id === editingSquadId)?.name;
-                      const members = clubMembers.filter(m => m.role === 'PLAYER' && m.squad === currentSquadName);
+                      const members = clubMembers.filter(m => m.role === 'PLAYER' && isInSquad(m, currentSquadName));
                       return members.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {members.map(m => (
@@ -3757,7 +3766,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                               {m.name}
                               <button
                                 type="button"
-                                onClick={() => onUpdateMemberSquad?.(m.id, 'Unassigned')}
+                                onClick={() => onUpdateMemberSquad?.(m.id, currentSquadName || '', false)}
                                 title="Remove from this squad"
                                 aria-label={`Remove ${m.name} from this squad`}
                                 className="hover:bg-rose-500 hover:text-white rounded-full p-0.5 transition cursor-pointer"
@@ -3868,14 +3877,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       return (
                         <div className="max-h-[360px] overflow-y-auto space-y-1.5 pr-1">
                           {filteredPlayers.map(player => {
-                            const isInSquad = player.squad === currentSquadName;
+                            const playerInSquad = isInSquad(player, currentSquadName);
                             return (
                               <button
                                 type="button"
                                 key={player.id}
-                                onClick={() => onUpdateMemberSquad?.(player.id, isInSquad ? 'Unassigned' : (currentSquadName || ''))}
+                                onClick={() => onUpdateMemberSquad?.(player.id, currentSquadName || '', !playerInSquad)}
                                 className={`w-full text-left p-2 rounded-lg border transition cursor-pointer ${
-                                  isInSquad
+                                  playerInSquad
                                     ? 'bg-sky-500/10 border-sky-500/40'
                                     : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                                 }`}
@@ -3883,9 +3892,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                                 <div className="flex items-start justify-between gap-1.5">
                                   <span className="text-[11px] font-semibold text-white truncate">{player.name}</span>
                                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                    isInSquad ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
+                                    playerInSquad ? 'bg-sky-500 text-slate-950' : 'bg-slate-800 text-slate-400'
                                   }`}>
-                                    {isInSquad ? 'In Squad' : '+ Add'}
+                                    {playerInSquad ? 'In Squad' : '+ Add'}
                                   </span>
                                 </div>
                                 <p className="text-[10px] text-slate-500 mt-0.5">

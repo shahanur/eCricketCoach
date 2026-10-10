@@ -217,7 +217,7 @@ internal fun SessionExecutionScreen(
     val assignedPlayers = remember(session.id, players) {
         val assignedIds = session.assignedPlayerIds.toSet()
         if (assignedIds.isNotEmpty()) players.filter { it.id in assignedIds }
-        else players.filter { it.squad == session.squadName }
+        else players.filter { it.isInSquad(session.squadName) }
     }
     val attendance = remember(session.id) {
         mutableStateMapOf<String, String>().apply {

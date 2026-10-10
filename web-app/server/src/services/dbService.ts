@@ -616,16 +616,10 @@ export class DbService {
   }
 
   // --- Club Members ---
-  static async getClubMembers(clubId?: string) {
-    const where: any = {};
-    if (clubId) where.clubId = clubId;
-
-    const members = await prisma.clubMember.findMany({
-      where,
-      orderBy: { id: 'asc' }
-    });
-
-    return members.map(m => ({
+  // A player can belong to several squads; `squads` is the source of truth and `squad` is a display label.
+  private static toClubMemberDto(m: { id: string; clubId: string | null; name: string; email: string; role: string; ageGroup: string; discipline: string; invitationStatus: string; currentLevel: string; squad: string; squads: string[] }) {
+    const squads = DbService.normalizeSquadNames(m.squads);
+    return {
       id: m.id,
       clubId: m.clubId,
       name: m.name,
@@ -635,11 +629,39 @@ export class DbService {
       discipline: m.discipline,
       invitationStatus: m.invitationStatus,
       currentLevel: m.currentLevel,
-      squad: m.squad
-    }));
+      squad: squads.length > 0 ? squads.join(', ') : 'Unassigned',
+      squads
+    };
+  }
+
+  private static normalizeSquadNames(values: unknown): string[] {
+    if (!Array.isArray(values)) return [];
+    return [...new Set(values
+      .filter((value): value is string => typeof value === 'string')
+      .map(value => value.trim())
+      .filter(value => value && value !== 'Unassigned'))];
+  }
+
+  private static squadColumnsFor(squads: string[]) {
+    return { squads, squad: squads[0] ?? 'Unassigned' };
+  }
+
+  static async getClubMembers(clubId?: string) {
+    const where: any = {};
+    if (clubId) where.clubId = clubId;
+
+    const members = await prisma.clubMember.findMany({
+      where,
+      orderBy: { id: 'asc' }
+    });
+
+    return members.map(m => DbService.toClubMemberDto(m));
   }
 
   static async createClubMember(member: any) {
+    const squads = DbService.normalizeSquadNames(
+      Array.isArray(member.squads) ? member.squads : [member.squad]
+    );
     const created = await prisma.clubMember.create({
       data: {
         id: member.id,
@@ -651,59 +673,70 @@ export class DbService {
         discipline: member.discipline,
         invitationStatus: member.invitationStatus || 'PENDING_ACCEPTANCE',
         currentLevel: member.currentLevel || 'FOUNDATION',
-        squad: member.squad || 'Unassigned'
+        ...DbService.squadColumnsFor(squads)
       }
     });
 
-    return {
-      id: created.id,
-      clubId: created.clubId,
-      name: created.name,
-      email: created.email,
-      role: created.role,
-      ageGroup: created.ageGroup,
-      discipline: created.discipline,
-      invitationStatus: created.invitationStatus,
-      currentLevel: created.currentLevel,
-      squad: created.squad
-    };
+    return DbService.toClubMemberDto(created);
   }
 
-  static async updateClubMember(id: string, updates: { invitationStatus?: string; currentLevel?: string; squad?: string; name?: string; email?: string; role?: string; ageGroup?: string; discipline?: string }) {
+  static async updateClubMember(id: string, updates: { invitationStatus?: string; currentLevel?: string; squad?: string; squads?: string[]; addSquad?: string; removeSquad?: string; name?: string; email?: string; role?: string; ageGroup?: string; discipline?: string }) {
     const data: any = {};
     if (updates.invitationStatus !== undefined) data.invitationStatus = updates.invitationStatus;
     if (updates.currentLevel !== undefined) data.currentLevel = updates.currentLevel;
-    if (updates.squad !== undefined) data.squad = updates.squad;
     if (updates.name !== undefined) data.name = updates.name;
     if (updates.email !== undefined) data.email = updates.email;
     if (updates.role !== undefined) data.role = updates.role;
     if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
     if (updates.discipline !== undefined) data.discipline = updates.discipline;
 
+    const changesSquads = updates.squads !== undefined || updates.squad !== undefined ||
+      updates.addSquad !== undefined || updates.removeSquad !== undefined;
+
     try {
-      const updated = await prisma.clubMember.update({
-        where: { id },
-        data
+      const updated = await prisma.$transaction(async tx => {
+        if (changesSquads) {
+          // Lock the row so concurrent add/remove toggles from different squads cannot overwrite each other.
+          const rows = await tx.$queryRaw<{ squads: string[] }[]>`SELECT squads FROM club_members WHERE id = ${id} FOR UPDATE`;
+          if (rows.length === 0) throw new Error('Member not found');
+          let squads = DbService.normalizeSquadNames(rows[0].squads);
+          if (updates.squads !== undefined) {
+            squads = DbService.normalizeSquadNames(updates.squads);
+          } else if (updates.squad !== undefined) {
+            squads = DbService.normalizeSquadNames([updates.squad]);
+          }
+          if (updates.addSquad !== undefined) squads = DbService.normalizeSquadNames([...squads, updates.addSquad]);
+          if (updates.removeSquad !== undefined) squads = squads.filter(name => name !== updates.removeSquad);
+          Object.assign(data, DbService.squadColumnsFor(squads));
+        }
+        return tx.clubMember.update({ where: { id }, data });
       });
 
-      return {
-        id: updated.id,
-        clubId: updated.clubId,
-        name: updated.name,
-        email: updated.email,
-        role: updated.role,
-        ageGroup: updated.ageGroup,
-        discipline: updated.discipline,
-        invitationStatus: updated.invitationStatus,
-        currentLevel: updated.currentLevel,
-        squad: updated.squad
-      };
+      return DbService.toClubMemberDto(updated);
     } catch {
       return null;
     }
   }
 
+  // Keeps member squad lists in step when a squad is renamed (newName) or deleted (newName = null).
+  private static async renameSquadForMembers(clubId: string | null, oldName: string, newName: string | null) {
+    const members = await prisma.clubMember.findMany({
+      where: { clubId, squads: { has: oldName } },
+      select: { id: true, squads: true }
+    });
+    for (const member of members) {
+      const squads = DbService.normalizeSquadNames(
+        member.squads.flatMap(name => name === oldName ? (newName ? [newName] : []) : [name])
+      );
+      await prisma.clubMember.update({ where: { id: member.id }, data: DbService.squadColumnsFor(squads) });
+    }
+  }
+
   // --- Squads ---
+  private static async countSquadMembers(clubId: string | null, name: string) {
+    return prisma.clubMember.count({ where: { clubId, squads: { has: name } } });
+  }
+
   static async getSquads(clubId?: string) {
     const where: any = {};
     if (clubId) where.clubId = clubId;
@@ -713,13 +746,18 @@ export class DbService {
       orderBy: { id: 'asc' }
     });
 
-    // Membership lives on club_members.squad, so derive counts from it rather than the stored column, which drifts.
-    const memberGroups = await prisma.clubMember.groupBy({
-      by: ['clubId', 'squad'],
+    // Membership lives on club_members.squads, so derive counts from it rather than the stored column, which drifts.
+    const members = await prisma.clubMember.findMany({
       where: clubId ? { clubId } : undefined,
-      _count: { _all: true }
+      select: { clubId: true, squads: true }
     });
-    const counts = new Map(memberGroups.map(group => [`${group.clubId}|${group.squad}`, group._count._all]));
+    const counts = new Map<string, number>();
+    for (const member of members) {
+      for (const name of DbService.normalizeSquadNames(member.squads)) {
+        const key = `${member.clubId}|${name}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
 
     return squads.map(s => ({
       id: s.id,
@@ -747,7 +785,7 @@ export class DbService {
       name: created.name,
       ageGroup: created.ageGroup,
       discipline: created.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
-      memberCount: created.memberCount
+      memberCount: await DbService.countSquadMembers(created.clubId, created.name)
     };
   }
 
@@ -759,16 +797,21 @@ export class DbService {
       if (updates.ageGroup !== undefined) data.ageGroup = updates.ageGroup;
       if (updates.discipline !== undefined) data.discipline = Array.isArray(updates.discipline) ? updates.discipline.join(',') : updates.discipline;
 
+      const existing = await prisma.squad.findUnique({ where: { id } });
+      if (!existing) return null;
       const updated = await prisma.squad.update({
         where: { id },
         data
       });
+      if (updated.name !== existing.name) {
+        await DbService.renameSquadForMembers(existing.clubId, existing.name, updated.name);
+      }
       return {
         id: updated.id,
         name: updated.name,
         ageGroup: updated.ageGroup,
         discipline: updated.discipline.split(',').map(discipline => discipline.trim()).filter(Boolean),
-        memberCount: updated.memberCount
+        memberCount: await DbService.countSquadMembers(updated.clubId, updated.name)
       };
     } catch {
       return null;
@@ -777,7 +820,8 @@ export class DbService {
 
   static async deleteSquad(id: string) {
     try {
-      await prisma.squad.delete({ where: { id } });
+      const deleted = await prisma.squad.delete({ where: { id } });
+      await DbService.renameSquadForMembers(deleted.clubId, deleted.name, null);
       return true;
     } catch {
       return false;

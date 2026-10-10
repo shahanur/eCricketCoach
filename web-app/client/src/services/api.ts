@@ -396,7 +396,7 @@ export const api = {
     return data.member;
   },
 
-  async updateClubMember(memberId: string, updates: Partial<ClubMember>): Promise<ClubMember> {
+  async updateClubMember(memberId: string, updates: Partial<ClubMember> & { addSquad?: string; removeSquad?: string }): Promise<ClubMember> {
     const res = await fetch(`${API_BASE}/club/members/${memberId}`, {
       method: 'PATCH',
       headers: authenticatedHeaders(),

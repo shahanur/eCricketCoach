@@ -74,7 +74,7 @@ fun clubReportRows(
     return selectedSessions.flatMap { session ->
         val assignedIds = session.assignedPlayerIds.toSet()
         val participants = players.filter { player ->
-            if (assignedIds.isNotEmpty()) player.id in assignedIds else player.squad == session.squadName
+            if (assignedIds.isNotEmpty()) player.id in assignedIds else player.isInSquad(session.squadName)
         }
         if (participants.isEmpty()) {
             listOf(ClubReportRow(

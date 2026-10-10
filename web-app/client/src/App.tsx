@@ -15,6 +15,7 @@ import {
   SupportTicket
 } from './types';
 import { api } from './services/api';
+import { isInSquad, memberSquads, squadLabel } from './utils/squads';
 import { Navbar } from './components/common/Navbar';
 import { LoginModal } from './components/common/LoginModal';
 import { ConfirmationModal, ConfirmationType } from './components/common/ConfirmationModal';
@@ -678,6 +679,15 @@ export default function App() {
   };
 
   const handleUpdateSquad = async (squadId: string, updates: Partial<Squad>) => {
+    const previousName = squads.find(sq => sq.id === squadId)?.name;
+    // The server moves members to the new name on rename; mirror that locally so membership stays visible.
+    if (previousName && updates.name && updates.name !== previousName) {
+      setClubMembers(prev => prev.map(m => {
+        if (!isInSquad(m, previousName)) return m;
+        const renamed = memberSquads(m).map(name => (name === previousName ? updates.name as string : name));
+        return { ...m, squads: renamed, squad: squadLabel(renamed) };
+      }));
+    }
     try {
       const updated = await api.updateSquad(squadId, updates);
       setSquads(prev => prev.map(sq => (sq.id === squadId ? { ...sq, ...(updated || updates) } : sq)));
@@ -706,25 +716,19 @@ export default function App() {
     }
   };
 
-  const handleUpdateMemberSquad = async (memberId: string, squadName: string) => {
+  const handleUpdateMemberSquad = async (memberId: string, squadName: string, inSquad: boolean) => {
+    const applyChange = (member: ClubMember): ClubMember => {
+      const current = memberSquads(member).filter(name => name !== squadName);
+      const squadsAfter = inSquad ? [...current, squadName] : current;
+      return { ...member, squads: squadsAfter, squad: squadLabel(squadsAfter) };
+    };
+    setClubMembers(prev => prev.map(m => (m.id === memberId ? applyChange(m) : m)));
     try {
-      await api.updateClubMember(memberId, { squad: squadName });
+      const saved = await api.updateClubMember(memberId, inSquad ? { addSquad: squadName } : { removeSquad: squadName });
+      if (saved) setClubMembers(prev => prev.map(m => (m.id === memberId ? saved : m)));
     } catch {
       // ignore
     }
-    setClubMembers(prev =>
-      prev.map(m => (m.id === memberId ? { ...m, squad: squadName } : m))
-    );
-    // Update squad member count locally and via API
-    setSquads(prev =>
-      prev.map(sq => {
-        const count = clubMembers.filter(m =>
-          m.id === memberId ? squadName === sq.name : m.squad === sq.name
-        ).length;
-        api.updateSquad(sq.id, { memberCount: count }).catch(() => {});
-        return { ...sq, memberCount: count };
-      })
-    );
   };
 
   const handleScheduleSession = async (session: TrainingSession) => {
