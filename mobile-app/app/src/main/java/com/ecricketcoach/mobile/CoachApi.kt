@@ -92,7 +92,18 @@ data class PlayerAssessment(
     val strengths: String = "",
     val focusAreas: String = "",
     val coachFeedback: String = "",
-    val playerFeedback: String = ""
+    val playerFeedback: String = "",
+    val videoAnalysisId: String? = null
+)
+
+data class AssessmentVideo(
+    val id: String,
+    val overallScore: Int,
+    val detectedIssues: List<String>,
+    val recommendedDrills: List<String>,
+    val biomechanics: List<Pair<String, String>>,
+    val driveLink: String?,
+    val createdAt: String
 )
 
 internal fun sessionPlanUpdates(
@@ -589,6 +600,61 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         discipline: String,
         player: ClubMember?
     ): VideoAnalysisEntry = withContext(Dispatchers.IO) {
+        val fields = buildList {
+            add("discipline" to discipline)
+            add("context" to if (player == null) "GROUP" else "INDIVIDUAL")
+            if (player != null) {
+                add("playerId" to player.id)
+                add("playerName" to player.name)
+            }
+        }
+        val responseBody = postVideoMultipart(context, token, "/api/videos/analyze", uri, fields)
+        responseToVideoEntry(JSONObject(responseBody), discipline, player?.name)
+    }
+
+    suspend fun getAssessmentVideo(token: String, assessmentId: String): AssessmentVideo? = withContext(Dispatchers.IO) {
+        JSONObject(request(assessmentVideoPath(assessmentId), token)).optJSONObject("video")?.toAssessmentVideo()
+    }
+
+    // Uploads a clip recorded during an assessment. The server stores it in the coach's Google Drive,
+    // analyses it with AI and links the analysis to the assessment.
+    suspend fun uploadAssessmentVideo(
+        context: Context,
+        token: String,
+        assessmentId: String,
+        uri: Uri
+    ): Pair<PlayerAssessment, AssessmentVideo> = withContext(Dispatchers.IO) {
+        val response = JSONObject(postVideoMultipart(context, token, assessmentVideoPath(assessmentId), uri, emptyList()))
+        response.getJSONObject("assessment").toPlayerAssessment() to response.getJSONObject("video").toAssessmentVideo()
+    }
+
+    internal fun assessmentVideoPath(assessmentId: String): String =
+        "/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}/video"
+
+    suspend fun analyzeAssessmentDriveVideo(
+        token: String,
+        assessmentId: String,
+        driveFileId: String
+    ): Pair<PlayerAssessment, AssessmentVideo> = withContext(Dispatchers.IO) {
+        val response = JSONObject(
+            request(
+                assessmentVideoPath(assessmentId),
+                token,
+                JSONObject().put("driveFileId", driveFileId),
+                method = "POST",
+                readTimeoutMs = 300_000
+            )
+        )
+        response.getJSONObject("assessment").toPlayerAssessment() to response.getJSONObject("video").toAssessmentVideo()
+    }
+
+    private fun postVideoMultipart(
+        context: Context,
+        token: String,
+        path: String,
+        uri: Uri,
+        fields: List<Pair<String, String>>
+    ): String {
         val resolver = context.contentResolver
         val fileName = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor ->
@@ -609,10 +675,10 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
 
         val boundary = "eCricketCoach-${System.currentTimeMillis()}"
-        val connection = URL(baseUrl.trimEnd('/') + "/api/videos/analyze").openConnection() as HttpURLConnection
+        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.connectTimeout = 15_000
-        connection.readTimeout = 180_000
+        connection.readTimeout = 300_000
         connection.doOutput = true
         connection.setChunkedStreamingMode(64 * 1024)
         connection.setRequestProperty("Accept", "application/json")
@@ -621,12 +687,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
 
         try {
             DataOutputStream(connection.outputStream).use { output ->
-                writeMultipartField(output, boundary, "discipline", discipline)
-                writeMultipartField(output, boundary, "context", if (player == null) "GROUP" else "INDIVIDUAL")
-                if (player != null) {
-                    writeMultipartField(output, boundary, "playerId", player.id)
-                    writeMultipartField(output, boundary, "playerName", player.name)
-                }
+                fields.forEach { (name, value) -> writeMultipartField(output, boundary, name, value) }
                 output.writeBytes("--$boundary\r\n")
                 output.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n")
                 output.writeBytes("Content-Type: $mimeType\r\n\r\n")
@@ -645,7 +706,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                     .ifBlank { "The server returned HTTP $status." }
                 throw ApiException(status, message)
             }
-            responseToVideoEntry(JSONObject(responseBody), discipline, player?.name)
+            return responseBody
         } finally {
             connection.disconnect()
         }
@@ -840,7 +901,25 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             strengths = optString("strengths").takeUnless { it == "null" }.orEmpty(),
             focusAreas = optString("focusAreas").takeUnless { it == "null" }.orEmpty(),
             coachFeedback = optString("coachFeedback").takeUnless { it == "null" }.orEmpty(),
-            playerFeedback = optString("playerFeedback").takeUnless { it == "null" }.orEmpty()
+            playerFeedback = optString("playerFeedback").takeUnless { it == "null" }.orEmpty(),
+            videoAnalysisId = optString("videoAnalysisId").takeIf { it.isNotBlank() && it != "null" }
+        )
+    }
+
+    private fun JSONObject.toAssessmentVideo(): AssessmentVideo {
+        fun strings(key: String) = optJSONArray(key)?.let { rows -> (0 until rows.length()).map(rows::getString) } ?: emptyList()
+        val metrics = optJSONArray("biomechanicalMetrics") ?: JSONArray()
+        return AssessmentVideo(
+            id = optString("id"),
+            overallScore = optInt("overallScore"),
+            detectedIssues = strings("detectedIssues"),
+            recommendedDrills = strings("recommendedDrills"),
+            biomechanics = (0 until metrics.length()).map { index ->
+                val row = metrics.getJSONObject(index)
+                row.optString("key") to row.optString("value")
+            },
+            driveLink = optString("driveLink").takeIf { it.startsWith("https://drive.google.com/") },
+            createdAt = optString("createdAt")
         )
     }
 

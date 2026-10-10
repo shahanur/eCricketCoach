@@ -329,9 +329,124 @@ router.get('/videos', authenticateToken, async (req: AuthenticatedRequest, res: 
   }
 });
 
-// Upload a device video into the user's connected Google Drive (creates a new file via drive.file scope).
-// The video is organized into eCricketCoach/{playerName}/{discipline}/ so every player's clips are
+export type DriveUploadedFile = {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  modifiedTime: string;
+  webViewLink?: string;
+  thumbnailLink?: string;
+  durationMillis: number | null;
+  width?: number;
+  height?: number;
+};
+
+export class DriveUploadError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+const MAX_DRIVE_VIDEO_BYTES = 500 * 1024 * 1024;
+
+// Downloads a video the user already has in their connected Google Drive.
+export async function downloadVideoFromDrive(userId: string, fileId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId)) {
+    throw new DriveUploadError(400, 'The selected Google Drive video is invalid.');
+  }
+  const tokenInfo = await getValidAccessToken(userId);
+  if (!tokenInfo) {
+    throw new DriveUploadError(409, 'Connect Google Drive before choosing a Drive video.');
+  }
+  const downloadRes = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${tokenInfo.accessToken}` }
+  }, { label: 'Google Drive video download' });
+  if (!downloadRes.ok) {
+    throw new DriveUploadError(downloadRes.status === 404 ? 404 : 502, 'Failed to download the selected video from Google Drive.');
+  }
+  const mimeType = (downloadRes.headers.get('content-type') || 'video/mp4').split(';')[0].trim();
+  if (!/^video\/[A-Za-z0-9.+-]+$/.test(mimeType)) {
+    throw new DriveUploadError(400, 'The selected Google Drive file is not a video.');
+  }
+  if (Number(downloadRes.headers.get('content-length') || 0) > MAX_DRIVE_VIDEO_BYTES) {
+    throw new DriveUploadError(413, 'Choose a video smaller than 500 MB.');
+  }
+  return { buffer: Buffer.from(await downloadRes.arrayBuffer()), mimeType };
+}
+
+// Uploads a video into the user's connected Google Drive (creates a new file via drive.file scope).
+// Clips are organized into eCricketCoach/{playerName}/{discipline}/ so every player's videos are
 // neatly structured by discipline inside the user's own Google Drive.
+export async function uploadVideoToDrive(userId: string, video: {
+  buffer: Buffer;
+  mimeType: string;
+  fileName?: string;
+  playerName: string;
+  discipline: string;
+  description?: string;
+}): Promise<DriveUploadedFile> {
+  const tokenInfo = await getValidAccessToken(userId);
+  if (!tokenInfo) {
+    throw new DriveUploadError(409, 'Google Drive is not connected for this account. Connect Google Drive to store assessment videos.');
+  }
+  const accessToken = tokenInfo.accessToken;
+  const folderId = await resolvePlayerDisciplineFolder(accessToken, video.playerName, video.discipline);
+
+  const boundary = `ecc_${crypto.randomBytes(16).toString('hex')}`;
+  const metadata = {
+    name: video.fileName || `upload-${Date.now()}.mp4`,
+    mimeType: video.mimeType,
+    description: video.description || 'Uploaded from eCricketCoach (device upload)',
+    parents: [folderId]
+  };
+
+  const multipartBody = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`, 'utf-8'),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${video.mimeType}\r\n\r\n`, 'utf-8'),
+    video.buffer,
+    Buffer.from(`\r\n--${boundary}--`, 'utf-8')
+  ]);
+
+  const uploadUrl = new URL(GOOGLE_DRIVE_UPLOAD_URL);
+  uploadUrl.searchParams.set('uploadType', 'multipart');
+  uploadUrl.searchParams.set('fields', 'id,name,mimeType,size,modifiedTime,webViewLink,thumbnailLink,videoMediaMetadata');
+
+  const driveRes = await fetchWithRetry(uploadUrl.toString(), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body: multipartBody
+  }, { label: 'Google Drive video upload' });
+  const driveData = await driveRes.json() as any;
+
+  if (!driveRes.ok) {
+    console.error('Google Drive upload rejected:', driveRes.status, JSON.stringify(driveData));
+    const insufficientScope = driveRes.status === 403 && JSON.stringify(driveData).includes('insufficient');
+    throw new DriveUploadError(
+      driveRes.status,
+      insufficientScope
+        ? 'Your Google Drive connection needs an updated permission to upload files. Please disconnect and reconnect Google Drive, then try again.'
+        : (driveData?.error?.message || 'Failed to upload video to Google Drive.')
+    );
+  }
+
+  return {
+    id: driveData.id,
+    name: driveData.name,
+    mimeType: driveData.mimeType,
+    sizeBytes: driveData.size ? Number(driveData.size) : video.buffer.length,
+    modifiedTime: driveData.modifiedTime || new Date().toISOString(),
+    webViewLink: driveData.webViewLink,
+    thumbnailLink: driveData.thumbnailLink,
+    durationMillis: driveData.videoMediaMetadata?.durationMillis ? Number(driveData.videoMediaMetadata.durationMillis) : null,
+    width: driveData.videoMediaMetadata?.width,
+    height: driveData.videoMediaMetadata?.height
+  };
+}
+
 router.post('/upload', authenticateToken, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.userId;
   const file = (req as Request & { file?: Express.Multer.File }).file;
@@ -348,69 +463,20 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req: Aut
   }
 
   try {
-    const tokenInfo = await getValidAccessToken(userId);
-    if (!tokenInfo) {
-      res.status(404).json({ error: 'Google Drive is not connected for this account.' });
-      return;
-    }
-
-    const folderId = await resolvePlayerDisciplineFolder(tokenInfo.accessToken, playerName, discipline);
-
-    const boundary = `ecc_${crypto.randomBytes(16).toString('hex')}`;
-    const metadata = {
-      name: file.originalname || `upload-${Date.now()}.mp4`,
+    const driveFile = await uploadVideoToDrive(userId, {
+      buffer: file.buffer,
       mimeType: file.mimetype,
-      description: 'Uploaded from eCricketCoach (device upload)',
-      parents: [folderId]
-    };
-
-    const multipartBody = Buffer.concat([
-      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`, 'utf-8'),
-      Buffer.from(`--${boundary}\r\nContent-Type: ${file.mimetype}\r\n\r\n`, 'utf-8'),
-      file.buffer,
-      Buffer.from(`\r\n--${boundary}--`, 'utf-8')
-    ]);
-
-    const uploadUrl = new URL(GOOGLE_DRIVE_UPLOAD_URL);
-    uploadUrl.searchParams.set('uploadType', 'multipart');
-    uploadUrl.searchParams.set('fields', 'id,name,mimeType,size,modifiedTime,webViewLink,thumbnailLink,videoMediaMetadata');
-
-    const driveRes = await fetchWithRetry(uploadUrl.toString(), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${tokenInfo.accessToken}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`
-      },
-      body: multipartBody
-    }, { label: 'Google Drive video upload' });
-    const driveData = await driveRes.json() as any;
-
-    if (!driveRes.ok) {
-      console.error('Google Drive upload rejected:', driveRes.status, JSON.stringify(driveData));
-      const insufficientScope = driveRes.status === 403 && JSON.stringify(driveData).includes('insufficient');
-      res.status(driveRes.status).json({
-        error: insufficientScope
-          ? 'Your Google Drive connection needs an updated permission to upload files. Please disconnect and reconnect Google Drive, then try again.'
-          : (driveData?.error?.message || 'Failed to upload video to Google Drive.')
-      });
+      fileName: file.originalname,
+      playerName,
+      discipline
+    });
+    res.json({ file: driveFile });
+  } catch (err) {
+    if (err instanceof DriveUploadError) {
+      // Keep the original "not connected" status for existing web callers.
+      res.status(err.status === 409 ? 404 : err.status).json({ error: err.status === 409 ? 'Google Drive is not connected for this account.' : err.message });
       return;
     }
-
-    res.json({
-      file: {
-        id: driveData.id,
-        name: driveData.name,
-        mimeType: driveData.mimeType,
-        sizeBytes: driveData.size ? Number(driveData.size) : file.size,
-        modifiedTime: driveData.modifiedTime || new Date().toISOString(),
-        webViewLink: driveData.webViewLink,
-        thumbnailLink: driveData.thumbnailLink,
-        durationMillis: driveData.videoMediaMetadata?.durationMillis ? Number(driveData.videoMediaMetadata.durationMillis) : null,
-        width: driveData.videoMediaMetadata?.width,
-        height: driveData.videoMediaMetadata?.height
-      }
-    });
-  } catch (err) {
     console.error('Google Drive upload error:', err);
     res.status(500).json({ error: 'Failed to upload video to Google Drive.' });
   }

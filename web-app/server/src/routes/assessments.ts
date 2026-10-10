@@ -1,11 +1,17 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { Router, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { prisma } from '../config/prisma.js';
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
 import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisService.js';
+import { DbService } from '../services/dbService.js';
+import { DriveUploadError, downloadVideoFromDrive, uploadVideoToDrive } from './googleDrive.js';
 
 export const assessmentRouter = Router();
+
+// Same in-memory multipart pattern and 500 MB per-file limit as the other video upload routes.
+const videoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024, files: 1 } });
 
 const DISCIPLINES = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'] as const;
 type Discipline = typeof DISCIPLINES[number];
@@ -305,6 +311,165 @@ assessmentRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response)
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to delete assessment.' });
   }
 });
+
+function videoSummary(entry: { id: string; overallScore: number; analysis: Prisma.JsonValue; driveFileId: string | null; sourceType: string; createdAt: Date }) {
+  const analysis = isRecord(entry.analysis) ? entry.analysis : {};
+  const strings = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  const drills = Array.isArray(analysis.recommendedDrills)
+    ? analysis.recommendedDrills.flatMap(drill => isRecord(drill) && typeof drill.title === 'string' ? [drill.title] : [])
+    : [];
+  const metrics = isRecord(analysis.biomechanicalMetrics)
+    ? Object.entries(analysis.biomechanicalMetrics).flatMap(([key, value]) => typeof value === 'string' && value ? [{ key, value }] : [])
+    : [];
+  return {
+    id: entry.id,
+    overallScore: entry.overallScore,
+    detectedIssues: strings(analysis.detectedIssues),
+    recommendedDrills: drills,
+    biomechanicalMetrics: metrics,
+    sourceType: entry.sourceType,
+    driveFileId: entry.driveFileId,
+    driveLink: entry.driveFileId ? `https://drive.google.com/file/d/${encodeURIComponent(entry.driveFileId)}/view` : null,
+    createdAt: entry.createdAt.toISOString()
+  };
+}
+
+// Returns the AI video analysis linked to an assessment, if any.
+assessmentRouter.get('/:id/video', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const assessment = await prisma.playerAssessment.findFirst({
+      where: { id: req.params.id, clubId: req.user!.tenantId }
+    });
+    if (!assessment || !canAccessAssessment(req, assessment)) {
+      res.status(404).json({ error: 'Assessment not found.' });
+      return;
+    }
+    const entry = assessment.videoAnalysisId
+      ? await prisma.videoAnalysis.findFirst({ where: { id: assessment.videoAnalysisId, playerId: assessment.playerId } })
+      : null;
+    res.json({ video: entry ? videoSummary(entry) : null });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load the assessment video.' });
+  }
+});
+
+// Uploads a clip recorded during an assessment: the video is stored in the coach's connected
+// Google Drive (eCricketCoach/{Player}/{Discipline}), analysed with Gemini, and the saved
+// analysis is linked to the assessment so it also informs the assessment insights.
+assessmentRouter.post(
+  '/:id/video',
+  (req: Request, res: Response, next: NextFunction) => {
+    videoUpload.single('file')(req, res, error => {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({ error: 'Choose a video smaller than 500 MB.' });
+      } else if (error) {
+        res.status(400).json({ error: 'The video upload could not be read.' });
+      } else {
+        next();
+      }
+    });
+  },
+  async (req: AuthenticatedRequest, res: Response) => {
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    let driveFileId: string | null = null;
+    try {
+      const assessment = await prisma.playerAssessment.findFirst({
+        where: { id: req.params.id, clubId: req.user!.tenantId }
+      });
+      if (!assessment || !canAccessAssessment(req, assessment)) {
+        res.status(404).json({ error: 'Assessment not found.' });
+        return;
+      }
+      if (assessment.status === 'COMPLETED') {
+        res.status(409).json({ error: 'Videos can only be added before the assessment is completed.' });
+        return;
+      }
+      if (!isDiscipline(assessment.discipline)) {
+        res.status(409).json({ error: 'Assessment discipline is invalid.' });
+        return;
+      }
+      const selectedDriveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
+      if (!file && selectedDriveFileId) {
+        // The clip already lives in the coach's Google Drive: analyse it without re-uploading.
+        const driveVideo = await downloadVideoFromDrive(req.user!.userId, selectedDriveFileId);
+        driveFileId = selectedDriveFileId;
+        const analysis = await GeminiVideoAnalysisService.analyzeVideoBuffer(driveVideo.buffer, driveVideo.mimeType, assessment.discipline, 'INDIVIDUAL');
+        const saved = await DbService.createVideoAnalysis({
+          userId: req.user!.userId,
+          playerId: assessment.playerId,
+          playerName: assessment.playerName,
+          discipline: assessment.discipline,
+          context: 'INDIVIDUAL',
+          sourceType: 'GOOGLE_DRIVE',
+          driveFileId,
+          model: GeminiVideoAnalysisService.getLastUsedModel() || process.env.GEMINI_MODEL || 'gemini-flash-latest',
+          analysis
+        });
+        const updated = await prisma.playerAssessment.update({
+          where: { id: assessment.id },
+          data: { videoAnalysisId: saved.id }
+        });
+        const entry = await prisma.videoAnalysis.findUniqueOrThrow({ where: { id: saved.id } });
+        res.json({ assessment: updated, video: videoSummary(entry) });
+        return;
+      }
+      if (!file) {
+        res.status(400).json({ error: 'Upload a video or choose one from Google Drive.' });
+        return;
+      }
+      if (!/^video\/[A-Za-z0-9.+-]+$/.test(file.mimetype)) {
+        res.status(400).json({ error: 'Only video files can be analysed.' });
+        return;
+      }
+
+      const extension = (file.originalname.match(/\.[A-Za-z0-9]{1,5}$/)?.[0] || '.mp4').toLowerCase();
+      const safeTitle = assessment.title.replace(/[\\/:*?"<>|\r\n]+/g, ' ').trim().slice(0, 80) || 'Assessment';
+      const driveFile = await uploadVideoToDrive(req.user!.userId, {
+        buffer: file.buffer,
+        mimeType: file.mimetype,
+        fileName: `${assessment.scheduledDate} ${safeTitle}${extension}`,
+        playerName: assessment.playerName,
+        discipline: assessment.discipline,
+        description: `eCricketCoach assessment video: ${assessment.title} (${assessment.playerName}, ${assessment.discipline})`
+      });
+      driveFileId = driveFile.id;
+
+      const analysis = await GeminiVideoAnalysisService.analyzeVideoBuffer(file.buffer, file.mimetype, assessment.discipline, 'INDIVIDUAL');
+      const saved = await DbService.createVideoAnalysis({
+        userId: req.user!.userId,
+        playerId: assessment.playerId,
+        playerName: assessment.playerName,
+        discipline: assessment.discipline,
+        context: 'INDIVIDUAL',
+        sourceType: 'GOOGLE_DRIVE',
+        driveFileId,
+        model: GeminiVideoAnalysisService.getLastUsedModel() || process.env.GEMINI_MODEL || 'gemini-flash-latest',
+        analysis
+      });
+      const updated = await prisma.playerAssessment.update({
+        where: { id: assessment.id },
+        data: { videoAnalysisId: saved.id }
+      });
+      const entry = await prisma.videoAnalysis.findUniqueOrThrow({ where: { id: saved.id } });
+      res.json({ assessment: updated, video: videoSummary(entry) });
+    } catch (error) {
+      if (error instanceof DriveUploadError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      console.error('Assessment video analysis error:', error);
+      const message = error instanceof Error ? error.message : '';
+      const stored = driveFileId && file ? ' The video was saved to Google Drive.' : '';
+      if (message.startsWith('GEMINI_QUOTA_EXCEEDED')) {
+        res.status(429).json({ error: `The AI video analysis limit has been reached. Please try again later.${stored}` });
+      } else if (/not configured/i.test(message)) {
+        res.status(503).json({ error: `AI video analysis is not available on this server right now.${stored}` });
+      } else {
+        res.status(502).json({ error: `We could not analyse this video right now. Please try again in a moment.${stored}` });
+      }
+    }
+  }
+);
 
 assessmentRouter.post('/:id/insights', async (req: AuthenticatedRequest, res: Response) => {
   try {

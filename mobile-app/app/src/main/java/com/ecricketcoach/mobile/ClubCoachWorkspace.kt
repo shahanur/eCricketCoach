@@ -1307,7 +1307,38 @@ internal fun ClubCoachWorkspace(
                         }.exceptionOrNull()?.message.orEmpty()
                     },
                     onBack = { activeAssessment = null; tab = "Assessments" },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    videoCard = {
+                        AssessmentVideoCard(
+                            api = api,
+                            token = token,
+                            assessment = assessment,
+                            driveConnected = driveConnected,
+                            driveEmail = driveEmail,
+                            onRefreshDrive = {
+                                scope.launch {
+                                    try {
+                                        val (connected, email) = api.getGoogleDriveStatus(token)
+                                        driveConnected = connected
+                                        driveEmail = email.orEmpty()
+                                    } catch (failure: Exception) {
+                                        notice = failure.message ?: "Unable to refresh Google Drive status."
+                                    }
+                                }
+                            },
+                            onDisconnectDrive = {
+                                api.disconnectGoogleDrive(token)
+                                driveConnected = false
+                                driveEmail = ""
+                                driveVideos = emptyList()
+                            },
+                            onAssessmentUpdated = { updated ->
+                                assessments = assessments.map { if (it.id == updated.id) updated else it }
+                                if (activeAssessment?.id == updated.id) activeAssessment = updated
+                            },
+                            onNotice = { notice = it }
+                        )
+                    }
                 )
             }
             "Reports" -> ClubReportsPanel(
@@ -3535,7 +3566,8 @@ private fun AssessmentRunPanel(
     onDownloadReport: () -> Unit,
     onShareReport: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    videoCard: (@Composable () -> Unit)? = null
 ) {
     val names = AssessmentMetricNames[assessment.discipline].orEmpty()
     val scores = remember(assessment.id) {
@@ -3671,6 +3703,7 @@ private fun AssessmentRunPanel(
                     editable, Modifier.fillMaxWidth()
                 )
             }
+            if (videoCard != null) item { videoCard() }
             if (completed && assessment.aiSummary != null) {
                 item {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))) {
