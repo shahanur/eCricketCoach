@@ -36,6 +36,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
@@ -59,6 +61,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import java.util.Base64
 
 private val ExtensionDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
@@ -429,6 +432,19 @@ internal fun VideoAnalysisPanel(
     var selectedDriveVideo by remember { mutableStateOf<DriveVideoFile?>(null) }
     var driveMenuOpen by remember { mutableStateOf(false) }
     var driveBusy by remember { mutableStateOf(false) }
+    var kinematicsBusy by remember { mutableStateOf(false) }
+    var latestKinematics by remember { mutableStateOf<KinematicsOverlay?>(null) }
+    val overlaySaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
+        val overlay = latestKinematics ?: return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
+        try {
+            val bytes = Base64.getDecoder().decode(overlay.imageBase64)
+            context.contentResolver.openOutputStream(uri)?.use { output: OutputStream -> output.write(bytes) }
+                ?: error("Unable to open the selected save location.")
+        } catch (failure: Exception) {
+            error = failure.message ?: "Unable to save the overlay image."
+        }
+    }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedUri = it }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
@@ -518,6 +534,43 @@ internal fun VideoAnalysisPanel(
                                     }
                                 }
                             ) { Text(if (driveBusy) "Starting…" else "Analyze Drive video") }
+                        }
+                    }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Kinematic overlay", fontWeight = FontWeight.SemiBold)
+                            Text("Separate AIHub analysis draws pose landmarks and highlights movement risks on a frame.", fontSize = 12.sp)
+                            Button(
+                                enabled = !kinematicsBusy && (selectedUri != null || (driveConnected && selectedDriveVideo != null)),
+                                onClick = {
+                                    scope.launch {
+                                        kinematicsBusy = true
+                                        error = ""
+                                        try {
+                                            latestKinematics = if (source == "DEVICE") {
+                                                api.analyzeKinematicsVideo(context, token, selectedUri!!, discipline)
+                                            } else {
+                                                api.analyzeKinematicsDriveVideo(token, selectedDriveVideo!!.id, discipline)
+                                            }
+                                        } catch (failure: Exception) {
+                                            error = failure.message ?: "Unable to create the kinematic overlay."
+                                        } finally {
+                                            kinematicsBusy = false
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text(if (kinematicsBusy) " Analysing overlay…" else " Analyse and draw overlay")
+                            }
+                            latestKinematics?.let { overlay ->
+                                Text("${overlay.issues.size} findings · ${overlay.timestampMs} ms", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                overlay.issues.forEach { issue -> Text("• $issue", fontSize = 12.sp) }
+                                TextButton(onClick = { overlaySaver.launch("ecricketcoach-kinematics.png") }) {
+                                    Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(17.dp))
+                                    Text(" Save overlay image")
+                                }
+                            }
                         }
                     }
                     if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)

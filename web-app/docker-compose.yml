@@ -22,6 +22,15 @@ services:
     volumes:
       - redisdata:/data
 
+  aihub:
+    build:
+      context: ./aihub
+      dockerfile: Dockerfile
+    container_name: ecricket_aihub
+    restart: unless-stopped
+    expose:
+      - "8100"
+
   server:
     build:
       context: ./server
@@ -44,11 +53,13 @@ services:
       APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      AI_HUB_URL: http://aihub:8100
     ports:
       - "5001:5001"
     depends_on:
       - postgres
       - redis
+      - aihub
 
   client:
     build:

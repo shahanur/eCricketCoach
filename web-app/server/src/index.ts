@@ -12,6 +12,7 @@ import { coachRouter } from './routes/coach.js';
 import { assessmentRouter } from './routes/assessments.js';
 import { initDb } from './config/initDb.js';
 import { trainingTemplatesRouter } from './routes/trainingTemplates.js';
+import { kinematicsRouter } from './routes/kinematics.js';
 import { DRILL_IMAGE_JSON_LIMIT } from './services/drillImage.js';
 
 dotenv.config();
@@ -49,6 +50,7 @@ app.use('/api/admin', adminRouter);
 app.use('/api/club', clubRouter);
 app.use('/api/club/assessments', assessmentRouter);
 app.use('/api/videos', aiRouter);
+app.use('/api/videos/kinematics', kinematicsRouter);
 app.use('/api/google-drive', googleDriveRouter);
 app.use('/api/coach', coachRouter);
 

@@ -6,7 +6,7 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy, ScanLine, Eye } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
@@ -258,6 +258,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [analysisDiscipline, setAnalysisDiscipline] = useState<Discipline>('BATTING');
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false);
   const [clubAnalysisResult, setClubAnalysisResult] = useState<VideoAnalysisResult | null>(null);
+  const [isAnalyzingKinematics, setIsAnalyzingKinematics] = useState(false);
+  const [kinematicsResult, setKinematicsResult] = useState<{
+    discipline: string;
+    timestampMs: number;
+    issues: string[];
+    metrics: Record<string, string | number>;
+    overlayImageBase64: string;
+    overlayMimeType: string;
+    overlaySeries: Array<{ timestampMs: number; overlayImageBase64: string; overlayMimeType: string; phase: string }>;
+    cricketInterpretation: {
+      cricketSummary: string;
+      phase: string;
+      contactTimestampMs: number | null;
+      contactConfidence: number;
+      ballLine: { status: 'DETECTED' | 'NOT_VISIBLE' | 'UNCERTAIN'; label: string; confidence: number; evidence: string };
+      errors: Array<{ title: string; cricketMeaning: string; evidence: string }>;
+      corrections: Array<{ title: string; coachingCue: string; drill: string }>;
+    } | null;
+    cricketInterpretationError: string | null;
+  } | null>(null);
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<Array<{
     id: string;
@@ -2903,6 +2923,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setUploadError(null);
                     setDriveBackupStatus('IDLE');
                     setClubAnalysisResult(null);
+                    setKinematicsResult(null);
                     setLastAnalysisId(null);
                     setViewingAnalysisId(null);
                   }}
@@ -2951,6 +2972,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     onClick={() => {
                       setVideoSourceMode('LOCAL_UPLOAD');
                       setUploadError(null);
+                      setKinematicsResult(null);
                     }}
                     className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       videoSourceMode === 'LOCAL_UPLOAD'
@@ -3148,7 +3170,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
 
             {/* Run Analysis Action Button */}
-            <div className="pt-2">
+            <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
                 type="button"
                 disabled={isAnalyzingVideo || (videoSourceMode === 'LOCAL_UPLOAD' && !uploadedVideoName)}
@@ -3187,11 +3209,29 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Play className="w-4 h-4 fill-current" />
-                <span>
-                  {isAnalyzingVideo
-                    ? 'Running Computer Vision Kinematic Pose Estimation...'
-                    : `Run Biomechanical AI Analysis (${videoSourceMode === 'LOCAL_UPLOAD' ? (uploadedVideoName ? `File: ${uploadedVideoName}` : 'Local Device Video') : `Drive: ${driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Select a video'}`})`}
-                </span>
+                <span>{isAnalyzingVideo ? 'Running Biomechanical Analysis...' : 'Run Biomechanical AI Analysis'}</span>
+              </button>
+              <button
+                type="button"
+                disabled={isAnalyzingKinematics || (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoName : !selectedDriveVideo)}
+                onClick={async () => {
+                  setIsAnalyzingKinematics(true);
+                  setKinematicsResult(null);
+                  try {
+                    const result = videoSourceMode === 'LOCAL_UPLOAD'
+                      ? await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, videoFile: uploadedVideoFile || undefined })
+                      : await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, driveFileId: selectedDriveVideo });
+                    setKinematicsResult(result);
+                  } catch (err: any) {
+                    setUploadError(err?.message || 'Failed to create the kinematic overlay. Please try again.');
+                  } finally {
+                    setIsAnalyzingKinematics(false);
+                  }
+                }}
+                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-fuchsia-400/40 text-fuchsia-200 font-bold text-xs sm:text-sm shadow-lg shadow-fuchsia-500/10 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <ScanLine className="w-4 h-4" />
+                <span>{isAnalyzingKinematics ? 'Drawing Kinematic Overlay...' : 'Analyse & Draw Overlay'}</span>
               </button>
             </div>
           </div>
@@ -3298,6 +3338,153 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         </button>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {kinematicsResult && (
+            <div className="bg-slate-950 border border-fuchsia-400/30 rounded-xl p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <h4 className="text-sm font-bold text-white">Kinematic Overlay Analysis</h4>
+                  <p className="text-xs text-slate-400">
+                    AIHub pose landmarks and movement warnings for {analysisDiscipline.toLowerCase()} at {kinematicsResult.timestampMs} ms.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`data:${kinematicsResult.overlayMimeType};base64,${kinematicsResult.overlayImageBase64}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> View image
+                  </a>
+                  <a
+                    href={`data:${kinematicsResult.overlayMimeType};base64,${kinematicsResult.overlayImageBase64}`}
+                    download={`ecricketcoach-${analysisDiscipline.toLowerCase()}-kinematics.png`}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-fuchsia-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-fuchsia-400"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </a>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_260px] gap-4">
+                <div className="overflow-hidden rounded-lg border border-slate-800 bg-black">
+                  <img
+                    src={`data:${kinematicsResult.overlayMimeType};base64,${kinematicsResult.overlayImageBase64}`}
+                    alt="AI-generated kinematic pose overlay"
+                    className="w-full max-h-[520px] object-contain"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">Detected movement risks</span>
+                    <ul className="mt-2 space-y-1.5">
+                      {kinematicsResult.issues.map((issue, index) => (
+                        <li key={index} className="rounded border border-slate-800 bg-slate-900/70 p-2 text-xs text-slate-200">{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">Measurements</span>
+                    <div className="mt-2 grid grid-cols-1 gap-1.5">
+                      {Object.entries(kinematicsResult.metrics).map(([key, value]) => (
+                        <div key={key} className="flex items-center justify-between rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-xs">
+                          <span className="text-slate-400">{key.replace(/([A-Z])/g, ' $1')}</span>
+                          <span className="font-semibold text-fuchsia-200">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {kinematicsResult.cricketInterpretation ? (
+                <div className="border-t border-slate-800 pt-4 space-y-4">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Cricket coaching interpretation</span>
+                    <p className="mt-1 text-sm text-slate-200">{kinematicsResult.cricketInterpretation.cricketSummary}</p>
+                    <p className="mt-1 text-xs text-slate-400">Phase: <span className="text-white">{kinematicsResult.cricketInterpretation.phase}</span> · Contact confidence: <span className="text-white">{Math.round(kinematicsResult.cricketInterpretation.contactConfidence * 100)}%</span></p>
+                  </div>
+                  <div className="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-sky-300">Line of ball</span>
+                      <span className="text-xs font-bold text-white">{kinematicsResult.cricketInterpretation.ballLine.label.replace(/_/g, ' ')}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-300">{kinematicsResult.cricketInterpretation.ballLine.evidence}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Status: {kinematicsResult.cricketInterpretation.ballLine.status} · Confidence {Math.round(kinematicsResult.cricketInterpretation.ballLine.confidence * 100)}%
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-amber-300">Cricket errors</span>
+                      <div className="mt-2 space-y-2">
+                        {kinematicsResult.cricketInterpretation.errors.map((error, index) => (
+                          <div key={index} className="rounded border border-slate-800 bg-slate-900/70 p-3">
+                            <p className="text-xs font-bold text-white">{error.title}</p>
+                            <p className="mt-1 text-xs text-slate-300">{error.cricketMeaning}</p>
+                            <p className="mt-1 text-[11px] text-slate-500">Evidence: {error.evidence}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300">How to correct it</span>
+                      <div className="mt-2 space-y-2">
+                        {kinematicsResult.cricketInterpretation.corrections.map((correction, index) => (
+                          <div key={index} className="rounded border border-emerald-400/20 bg-emerald-500/5 p-3">
+                            <p className="text-xs font-bold text-white">{correction.title}</p>
+                            <p className="mt-1 text-xs text-emerald-100">Cue: {correction.coachingCue}</p>
+                            <p className="mt-1 text-[11px] text-slate-400">Drill: {correction.drill}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : kinematicsResult.cricketInterpretationError ? (
+                <p className="border-t border-slate-800 pt-3 text-xs text-amber-300">{kinematicsResult.cricketInterpretationError}</p>
+              ) : null}
+              {kinematicsResult.overlaySeries?.length > 0 && (
+                <div className="border-t border-slate-800 pt-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-fuchsia-300">Contact sequence</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-slate-500">Four frames around bat contact</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          kinematicsResult.overlaySeries.forEach((frame, index) => {
+                            const link = document.createElement('a');
+                            link.href = `data:${frame.overlayMimeType};base64,${frame.overlayImageBase64}`;
+                            link.download = `ecricketcoach-contact-${index + 1}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg bg-fuchsia-500 px-2.5 py-1.5 text-[11px] font-bold text-slate-950 hover:bg-fuchsia-400"
+                      >
+                        <Download className="h-3 w-3" /> Download all
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {kinematicsResult.overlaySeries.map((frame, index) => {
+                      const imageUrl = `data:${frame.overlayMimeType};base64,${frame.overlayImageBase64}`;
+                      return (
+                        <div key={`${frame.timestampMs}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900 p-2">
+                          <img src={imageUrl} alt={`${frame.phase} kinematic overlay`} className="w-full max-h-[520px] rounded object-contain bg-black" />
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-semibold text-slate-300">{frame.phase.replace(/_/g, ' ')}</span>
+                            <a href={imageUrl} download={`ecricketcoach-contact-${index + 1}.png`} className="text-[10px] font-bold text-fuchsia-300 hover:text-fuchsia-200">Download</a>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -12,6 +12,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+data class KinematicsOverlay(
+    val discipline: String,
+    val timestampMs: Long,
+    val issues: List<String>,
+    val metrics: Map<String, String>,
+    val imageBase64: String,
+    val imageMimeType: String
+)
+
 class ApiException(val statusCode: Int, message: String) : Exception(message)
 
 internal fun apiErrorMessage(status: Int, body: String, path: String): String {
@@ -164,6 +173,38 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         GoogleSignInChallenge(json.getString("clientId"), json.getString("nonce"), json.getString("challenge"))
     }
 
+    suspend fun analyzeKinematicsDriveVideo(
+        token: String,
+        driveFileId: String,
+        discipline: String,
+        timestampMs: Long = 0
+    ): KinematicsOverlay = withContext(Dispatchers.IO) {
+        val response = JSONObject(request(
+            "/api/videos/kinematics/analyze",
+            token,
+            JSONObject()
+                .put("driveFileId", driveFileId)
+                .put("discipline", discipline)
+                .put("timestampMs", timestampMs),
+            method = "POST",
+            readTimeoutMs = 300_000
+        ))
+        responseToKinematicsOverlay(response)
+    }
+
+    private fun responseToKinematicsOverlay(response: JSONObject): KinematicsOverlay {
+        val metricsJson = response.optJSONObject("metrics") ?: JSONObject()
+        val metrics = metricsJson.keys().asSequence().associateWith { metricsJson.optString(it) }
+        val issues = response.optJSONArray("issues") ?: JSONArray()
+        return KinematicsOverlay(
+            discipline = response.optString("discipline"),
+            timestampMs = response.optLong("timestampMs"),
+            issues = (0 until issues.length()).map(issues::getString),
+            metrics = metrics,
+            imageBase64 = response.getString("overlayImageBase64"),
+            imageMimeType = response.optString("overlayMimeType", "image/png")
+        )
+    }
     suspend fun signInWithGoogle(idToken: String, challenge: String): CoachSession = withContext(Dispatchers.IO) {
         val body = JSONObject().put("idToken", idToken).put("challenge", challenge)
         val json = JSONObject(request("/api/auth/google/native", body = body))
@@ -643,6 +684,17 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
         val responseBody = postVideoMultipart(context, token, "/api/videos/analyze", uri, fields)
         responseToVideoEntry(JSONObject(responseBody), discipline, player?.name)
+    }
+
+    suspend fun analyzeKinematicsVideo(
+        context: Context,
+        token: String,
+        uri: Uri,
+        discipline: String,
+        timestampMs: Long = 0
+    ): KinematicsOverlay = withContext(Dispatchers.IO) {
+        val fields = listOf("discipline" to discipline, "timestampMs" to timestampMs.toString())
+        responseToKinematicsOverlay(JSONObject(postVideoMultipart(context, token, "/api/videos/kinematics/analyze", uri, fields)))
     }
 
     suspend fun getAssessmentVideo(token: String, assessmentId: String): AssessmentVideo? = withContext(Dispatchers.IO) {

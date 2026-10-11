@@ -20,6 +20,10 @@ docker compose config --quiet
 echo "Building and starting eCricketCoach..."
 docker compose up --build --detach
 
+# Nginx resolves the server service when it starts. Recreate/restart the proxy
+# after a server rebuild so it does not retain a stale container IP.
+docker compose restart client
+
 echo
 echo "Service status:"
 docker compose ps
