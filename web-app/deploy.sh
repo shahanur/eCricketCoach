@@ -4,6 +4,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
+usage() {
+  cat <<'EOF'
+Usage: ./deploy.sh [--cape]
+
+  (no flag)  Build and start the whole stack, including CAPE.
+  --cape     Rebuild and restart only the cape-api container; other services are left untouched.
+EOF
+}
+
+CAPE_ONLY=false
+for arg in "$@"; do
+  case "$arg" in
+    --cape) CAPE_ONLY=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown option: $arg" >&2; usage >&2; exit 1 ;;
+  esac
+done
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: Docker is not installed or is not available on PATH." >&2
   exit 1
@@ -20,6 +38,14 @@ COMPOSE=(docker compose --profile cape)
 
 echo "Validating Docker Compose configuration..."
 "${COMPOSE[@]}" config --quiet
+
+if [ "$CAPE_ONLY" = true ]; then
+  echo "Building and restarting cape-api only..."
+  "${COMPOSE[@]}" build cape-api
+  "${COMPOSE[@]}" up --detach --no-deps --force-recreate cape-api
+  "${COMPOSE[@]}" ps cape-api
+  exit 0
+fi
 
 echo "Building and starting eCricketCoach (including CAPE)..."
 "${COMPOSE[@]}" up --build --detach

@@ -1,9 +1,9 @@
+# syntax=docker/dockerfile:1
 # CAPE runtime (spec §8). Build context: cape-api/.
 # Stage 1 – build the virtualenv with the same Python (deadsnakes 3.11) the runner uses.
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common gpg-agent && \
@@ -17,10 +17,13 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY requirements.txt .
 # Pin a CUDA 12.1 PyTorch build (bundles its own CUDA/cuDNN) so drivers >= 530 work; an unpinned
-# install pulls the newest wheel, which needs a much newer driver.
-RUN pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+# install pulls the newest wheel, which needs a much newer driver. The pip cache mount keeps
+# downloaded wheels between builds, so changing a requirement doesn't re-download torch (~2.5 GB).
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
 # ultralytics/mediapipe pull GUI OpenCV builds that need libGL; keep only the headless build.
-RUN pip install -r requirements.txt && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt && \
     pip uninstall -y opencv-python opencv-contrib-python && \
     pip install --force-reinstall --no-deps "$(grep -i '^opencv-python-headless' requirements.txt)"
 # MediaPipe downloads pose_landmark_heavy.tflite into site-packages on first use; the runtime user

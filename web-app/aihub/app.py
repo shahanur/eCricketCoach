@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import io
 import math
 import os
@@ -9,6 +10,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from PIL import Image
 
@@ -23,6 +25,11 @@ POSE_CONNECTIONS = tuple(mp.solutions.pose.POSE_CONNECTIONS)
 YOLO_MODEL_PATH = os.getenv("AIHUB_YOLO_MODEL", "yolo11n.pt")
 YOLO_BALL_CLASS = 32  # COCO sports ball; fine-tuned cricket models may use a custom class map.
 YOLO_MODEL: Any | None = None
+# CPU inference costs ~0.5 s per frame, so long clips are sampled down to this many frames.
+MAX_SCAN_FRAMES = max(10, int(os.getenv("AIHUB_MAX_SCAN_FRAMES", "120")))
+MAX_CONTACT_CANDIDATES = max(5, int(os.getenv("AIHUB_MAX_CONTACT_CANDIDATES", "40")))
+BALL_PATH_CACHE: dict[str, list[tuple[int, int, int]]] = {}
+BALL_PATH_CACHE_SIZE = 8
 
 
 def get_yolo_model() -> Any | None:
@@ -30,6 +37,9 @@ def get_yolo_model() -> Any | None:
     if YOLO_MODEL is not None or YOLO is None:
         return YOLO_MODEL
     try:
+        import torch
+
+        torch.set_num_threads(os.cpu_count() or 1)
         YOLO_MODEL = YOLO(YOLO_MODEL_PATH)
     except Exception as error:
         print(f"AIHub YOLO detector unavailable; using CV fallback: {error}")
@@ -140,7 +150,7 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
     velocity = np.array([0.0, 0.0])
     yolo = get_yolo_model()
     frame_index = 0
-    frame_stride = max(1, int(os.getenv("AIHUB_FRAME_STRIDE", "2")))
+    frame_stride = max(1, int(os.getenv("AIHUB_FRAME_STRIDE", "2")), math.ceil(frame_count / MAX_SCAN_FRAMES))
     while True:
         ok, frame = capture.read()
         if not ok:
@@ -195,8 +205,9 @@ def estimate_contact_ms(video_path: str, ball_path: list[tuple[int, int, int]], 
     if not capture.isOpened():
         return None, None, "VIDEO_UNAVAILABLE"
     best: tuple[float, int, tuple[tuple[int, int], tuple[int, int]] | None, str] | None = None
+    step = max(1, math.ceil(len(ball_path) / MAX_CONTACT_CANDIDATES))
     with mp.solutions.pose.Pose(static_image_mode=True, model_complexity=1, enable_segmentation=False, min_detection_confidence=0.35) as pose:
-        for ball_x, ball_y, timestamp_ms in ball_path:
+        for ball_x, ball_y, timestamp_ms in ball_path[::step]:
             capture.set(cv2.CAP_PROP_POS_MSEC, timestamp_ms)
             success, frame = capture.read()
             if not success:
@@ -329,7 +340,12 @@ async def kinematics_analyze(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="The uploaded video is empty.")
+    # The analysis is CPU-bound; run it off the event loop so health checks and other requests stay responsive.
+    result = await run_in_threadpool(analyze_video, content, suffix, discipline, timestamp_ms, force_timestamp)
+    return JSONResponse(result)
 
+
+def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: int, force_timestamp: bool) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile(suffix=suffix) as source:
         source.write(content)
         source.flush()
@@ -344,9 +360,19 @@ async def kinematics_analyze(
         if not success:
             raise HTTPException(status_code=422, detail="AIHub could not read a frame from this video.")
         height, width = frame.shape[:2]
-        # Scan the complete clip from frame zero before choosing a contact frame.
-        ball_path = detect_ball_path(source.name, width, height)
-        contact_ms, contact_segment, contact_method = estimate_contact_ms(source.name, ball_path, width, height)
+        # Scan the complete clip from frame zero before choosing a contact frame. The server calls again
+        # with a forced contact timestamp for the same video, so reuse the track from the first call.
+        video_key = hashlib.sha256(content).hexdigest()
+        ball_path = BALL_PATH_CACHE.get(video_key)
+        if ball_path is None:
+            ball_path = detect_ball_path(source.name, width, height)
+            BALL_PATH_CACHE[video_key] = ball_path
+            while len(BALL_PATH_CACHE) > BALL_PATH_CACHE_SIZE:
+                BALL_PATH_CACHE.pop(next(iter(BALL_PATH_CACHE)))
+        if force_timestamp and timestamp_ms > 0:
+            contact_ms, contact_segment, contact_method = None, None, "NONE"
+        else:
+            contact_ms, contact_segment, contact_method = estimate_contact_ms(source.name, ball_path, width, height)
         if force_timestamp and timestamp_ms > 0:
             contact_ms = timestamp_ms
             contact_segment = None
@@ -384,4 +410,4 @@ async def kinematics_analyze(
         result["overlaySeries"] = series
         capture.release()
 
-    return JSONResponse(result)
+    return result

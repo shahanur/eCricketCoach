@@ -7,6 +7,8 @@ import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
+import { AnalysisComparison } from './AnalysisComparison';
+import type { CapeJob } from '../../types';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy, ScanLine, Eye } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
@@ -280,6 +282,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     cricketInterpretationError: string | null;
   } | null>(null);
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
+  const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
+  const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
   const [analysisHistory, setAnalysisHistory] = useState<Array<{
     id: string;
     playerId: string | null;
@@ -3171,7 +3175,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
 
             {/* Run Analysis Action Button */}
-            <div className="pt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="pt-2">
               <button
                 type="button"
                 disabled={isAnalyzingVideo || (videoSourceMode === 'LOCAL_UPLOAD' && !uploadedVideoName)}
@@ -3212,39 +3216,58 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <Play className="w-4 h-4 fill-current" />
                 <span>{isAnalyzingVideo ? 'Running Biomechanical Analysis...' : 'Run Biomechanical AI Analysis'}</span>
               </button>
+            </div>
+
+            {/* Two computer-vision engines on the same selected video, compared below */}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+              <div>
+                <h4 className="text-xs font-bold text-white">Compare computer-vision engines</h4>
+                <p className="text-[11px] text-slate-400">Run both on the same video to see how AIHub and CAPE differ.</p>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
               <button
                 type="button"
                 disabled={isAnalyzingKinematics || (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoName : !selectedDriveVideo)}
                 onClick={async () => {
                   setIsAnalyzingKinematics(true);
                   setKinematicsResult(null);
+                  setAihubDurationMs(null);
+                  const startedAt = performance.now();
                   try {
                     const result = videoSourceMode === 'LOCAL_UPLOAD'
                       ? await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, videoFile: uploadedVideoFile || undefined })
                       : await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, driveFileId: selectedDriveVideo });
                     setKinematicsResult(result);
+                    setAihubDurationMs(performance.now() - startedAt);
                   } catch (err: any) {
                     setUploadError(err?.message || 'Failed to create the kinematic overlay. Please try again.');
                   } finally {
                     setIsAnalyzingKinematics(false);
                   }
                 }}
-                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-fuchsia-400/40 text-fuchsia-200 font-bold text-xs sm:text-sm shadow-lg shadow-fuchsia-500/10 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-sky-400/40 text-sky-200 font-bold text-xs sm:text-sm shadow-lg shadow-sky-500/10 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <ScanLine className="w-4 h-4" />
-                <span>{isAnalyzingKinematics ? 'Drawing Kinematic Overlay...' : 'Analyse & Draw Overlay'}</span>
+                <span>{isAnalyzingKinematics ? 'Analysing with AIHub...' : 'Analyse with AIHub'}</span>
               </button>
-            </div>
 
             {/* Detailed computer-vision analysis (CAPE) of the same selected video */}
             <CapeAnalysisPanel
               playerId={selectedAnalysisPlayer}
               discipline={analysisDiscipline}
               canSubmit
+              startLabel="Analyse with CAPE"
+              onJobChange={setComparisonCapeJob}
               source={videoSourceMode === 'LOCAL_UPLOAD'
                 ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
                 : (selectedDriveVideo ? { name: driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Drive video', driveFileId: selectedDriveVideo } : null)}
             />
+              </div>
+              {analysisDiscipline !== 'BATTING' && analysisDiscipline !== 'BOWLING' && (
+                <p className="text-[11px] text-amber-300">CAPE supports batting and bowling only; choose one of those to compare.</p>
+              )}
+              <AnalysisComparison aihub={kinematicsResult} aihubDurationMs={aihubDurationMs} capeJob={comparisonCapeJob} />
+            </div>
           </div>
 
           {/* AI Analysis Result Cards */}

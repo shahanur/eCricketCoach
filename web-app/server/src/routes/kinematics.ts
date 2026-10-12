@@ -6,6 +6,8 @@ import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisServi
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 const aihubUrl = () => (process.env.AI_HUB_URL || 'http://localhost:8100').replace(/\/$/, '');
+// Stay under nginx's 300 s proxy_read_timeout so the client gets a JSON error instead of a gateway timeout.
+const aihubTimeoutMs = () => Number(process.env.AI_HUB_TIMEOUT_MS) || 280_000;
 const disciplines = new Set(['BATTING', 'BOWLING', 'KEEPING', 'FIELDING']);
 
 async function requestAihub(video: Buffer, mimeType: string, filename: string, discipline: string, timestampMs: number, forceTimestamp: boolean) {
@@ -17,7 +19,7 @@ async function requestAihub(video: Buffer, mimeType: string, filename: string, d
   const response = await fetch(`${aihubUrl()}/v1/kinematics/analyze`, {
     method: 'POST',
     body,
-    signal: AbortSignal.timeout(180_000)
+    signal: AbortSignal.timeout(aihubTimeoutMs())
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {

@@ -56,9 +56,11 @@ interface CapeAnalysisPanelProps {
   // Standalone mode: analyses `source` (chosen elsewhere on the page) for this club player.
   playerId?: string;
   source?: CapeVideoSource | null;
+  startLabel?: string;
+  onJobChange?: (job: CapeJob | null) => void;
 }
 
-export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit }) => {
+export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange }) => {
   const target: CapeTarget | null = discipline === 'BATTING' ? 'batter' : discipline === 'BOWLING' ? 'bowler' : null;
   const isStandalone = !assessmentId;
   const [job, setJob] = useState<CapeJob | null>(null);
@@ -126,6 +128,10 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   }, [pendingJobId]);
 
   useEffect(() => () => { if (videoUrl) URL.revokeObjectURL(videoUrl); }, [videoUrl]);
+
+  const onJobChangeRef = useRef(onJobChange);
+  onJobChangeRef.current = onJobChange;
+  useEffect(() => { onJobChangeRef.current?.(job); }, [job]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -239,7 +245,7 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
           <button type="button" disabled={isStandalone && !source} onClick={startSetup} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">
             {job ? <RotateCcw size={13} /> : <Upload size={13} />}
             {isStandalone
-              ? (source ? `Run detailed analysis (${source.name})` : 'Choose a video above')
+              ? (source ? (startLabel || `Run detailed analysis (${source.name})`) : 'Choose a video above')
               : job ? 'Analyse another video' : 'Analyse a video'}
           </button>
         )}
