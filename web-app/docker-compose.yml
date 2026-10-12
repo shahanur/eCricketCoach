@@ -22,6 +22,17 @@ services:
     volumes:
       - redisdata:/data
 
+  aihub:
+    build:
+      context: ./aihub
+      dockerfile: Dockerfile
+    container_name: ecricket_aihub
+    restart: unless-stopped
+    environment:
+      AIHUB_YOLO_MODEL: ${AIHUB_YOLO_MODEL:-yolo11n.pt}
+    expose:
+      - "8100"
+
   server:
     build:
       context: ./server
@@ -44,6 +55,7 @@ services:
       APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      AI_HUB_URL: http://aihub:8100
       # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).
       CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}
       CAPE_API_KEY: ${CAPE_API_KEY:-}
@@ -55,6 +67,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - aihub
 
   cape-api:
     profiles: [cape]

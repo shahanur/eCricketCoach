@@ -99,6 +99,21 @@ async function discoverModelCandidates(): Promise<string[]> {
 type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 type TrainingContext = 'INDIVIDUAL' | 'GROUP';
 
+export interface CricketKinematicsInterpretation {
+  cricketSummary: string;
+  phase: string;
+  contactTimestampMs: number | null;
+  contactConfidence: number;
+  ballLine: {
+    status: 'DETECTED' | 'NOT_VISIBLE' | 'UNCERTAIN';
+    label: string;
+    confidence: number;
+    evidence: string;
+  };
+  errors: Array<{ title: string; cricketMeaning: string; evidence: string }>;
+  corrections: Array<{ title: string; coachingCue: string; drill: string }>;
+}
+
 function buildPrompt(discipline: Discipline, context: TrainingContext): string {
   return `You are an elite cricket biomechanics coach and computer-vision analyst reviewing a short training clip.
 
@@ -173,47 +188,71 @@ export class GeminiVideoAnalysisService {
 
     const prompt = buildPrompt(discipline, context);
 
-    let videoPart: any;
-
-    if (buffer.length <= INLINE_SIZE_LIMIT) {
-      videoPart = {
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType
-        }
-      };
-    } else {
-      // Larger clips must go through the Gemini Files API (still free-tier) rather than inline base64.
-      const fileManager = new GoogleAIFileManager(GEMINI_API_KEY);
-      const tmpPath = path.join(os.tmpdir(), `ecc_${crypto.randomBytes(8).toString('hex')}.mp4`);
-      fs.writeFileSync(tmpPath, buffer);
-      try {
-        const uploadResult = await fileManager.uploadFile(tmpPath, {
-          mimeType,
-          displayName: 'eCricketCoach training clip'
-        });
-        let uploadedFile = uploadResult.file;
-        let attempts = 0;
-        while (uploadedFile.state === FileState.PROCESSING && attempts < 30) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          uploadedFile = await fileManager.getFile(uploadedFile.name);
-          attempts += 1;
-        }
-        if (uploadedFile.state === FileState.FAILED) {
-          throw new Error('Gemini failed to process the uploaded video file.');
-        }
-        videoPart = {
-          fileData: {
-            fileUri: uploadedFile.uri,
-            mimeType: uploadedFile.mimeType
-          }
-        };
-      } finally {
-        fs.unlink(tmpPath, () => {});
-      }
-    }
+    const videoPart = await GeminiVideoAnalysisService.createVideoPart(buffer, mimeType);
 
     return GeminiVideoAnalysisService.generateJson([prompt, videoPart], isValidResult, 'Gemini video analysis');
+  }
+
+  static async analyzeCricketKinematics(
+    buffer: Buffer,
+    mimeType: string,
+    discipline: Discipline,
+    metrics: Record<string, unknown>
+  ): Promise<CricketKinematicsInterpretation> {
+    const prompt = `You are a cricket batting and bowling coach interpreting a computer-vision pose pass.
+
+Discipline: ${discipline}
+Pose measurements from the selected frame: ${JSON.stringify(metrics)}
+
+Review the uploaded video and return ONLY one valid JSON object with exactly this shape:
+{
+  "cricketSummary": "short cricket-specific coaching summary",
+  "phase": "setup|loading|downswing|impact|release|follow-through|unknown",
+  "contactTimestampMs": number or null,
+  "contactConfidence": number between 0 and 1,
+  "ballLine": {
+    "status": "DETECTED|NOT_VISIBLE|UNCERTAIN",
+    "label": "OUTSIDE_OFF|MIDDLE_STUMP|LEG_STUMP|DOWN_LEG|WIDE_OF_OFF|NOT_VISIBLE|UNCERTAIN",
+    "confidence": number between 0 and 1,
+    "evidence": "what in the footage supports this, or why it cannot be determined"
+  },
+  "errors": [{ "title": "specific technical error", "cricketMeaning": "what it means in cricket", "evidence": "visible evidence" }],
+  "corrections": [{ "title": "correction", "coachingCue": "short cue a coach can say", "drill": "specific cricket drill" }]
+}
+
+Use the pose measurements as supporting evidence, but inspect the footage for cricket context: head-over-ball, base, bat or bowling-arm path, balance, release, and follow-through. Only mark ballLine DETECTED when the ball trajectory and its relation to the stumps/crease are actually visible; otherwise use NOT_VISIBLE or UNCERTAIN. Never infer true force or torque from video alone.`;
+    const videoPart = await GeminiVideoAnalysisService.createVideoPart(buffer, mimeType);
+    const isValid = (data: any): data is CricketKinematicsInterpretation => Boolean(
+          data && typeof data.cricketSummary === 'string' && typeof data.phase === 'string' &&
+          (typeof data.contactTimestampMs === 'number' || data.contactTimestampMs === null) &&
+          typeof data.contactConfidence === 'number' &&
+      data.ballLine && ['DETECTED', 'NOT_VISIBLE', 'UNCERTAIN'].includes(data.ballLine.status) &&
+      typeof data.ballLine.label === 'string' && Array.isArray(data.errors) && Array.isArray(data.corrections)
+    );
+    return GeminiVideoAnalysisService.generateJson([prompt, videoPart], isValid, 'Gemini cricket kinematics interpretation');
+  }
+
+  private static async createVideoPart(buffer: Buffer, mimeType: string): Promise<any> {
+    if (buffer.length <= INLINE_SIZE_LIMIT) {
+      return { inlineData: { data: buffer.toString('base64'), mimeType } };
+    }
+    const fileManager = new GoogleAIFileManager(GEMINI_API_KEY!);
+    const tmpPath = path.join(os.tmpdir(), `ecc_${crypto.randomBytes(8).toString('hex')}.mp4`);
+    fs.writeFileSync(tmpPath, buffer);
+    try {
+      const uploadResult = await fileManager.uploadFile(tmpPath, { mimeType, displayName: 'eCricketCoach training clip' });
+      let uploadedFile = uploadResult.file;
+      let attempts = 0;
+      while (uploadedFile.state === FileState.PROCESSING && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        uploadedFile = await fileManager.getFile(uploadedFile.name);
+        attempts += 1;
+      }
+      if (uploadedFile.state === FileState.FAILED) throw new Error('Gemini failed to process the uploaded video file.');
+      return { fileData: { fileUri: uploadedFile.uri, mimeType: uploadedFile.mimeType } };
+    } finally {
+      fs.unlink(tmpPath, () => {});
+    }
   }
 
   /**

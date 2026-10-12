@@ -151,6 +151,14 @@ integration and deployment-side credentials/token registration; provider
 credentials must remain server-side. Existing server-generated in-app/web
 notifications do not imply Android push delivery.
 
+Kinematic overlay analysis is a separate workflow from the existing AI video
+analysis. The mobile app calls `POST /api/videos/kinematics/analyze`; the API
+gateway forwards the authenticated video or Google Drive clip to the private
+`aihub` Compose service. AIHub uses MediaPipe and OpenCV to select a frame,
+draw pose landmarks and posture warnings, and return a PNG overlay plus
+measurements. The app can save the returned PNG through Android's document
+picker. The existing `POST /api/videos/analyze` Gemini workflow is unchanged.
+
 Deploy the matching API build to expose the authenticated, tenant-scoped
 session-report data route and coach session-execution load route, and to enforce
 tenant/role checks on session deletion. Device verification of the Google OAuth

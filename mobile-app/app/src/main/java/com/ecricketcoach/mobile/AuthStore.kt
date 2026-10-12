@@ -24,7 +24,9 @@ data class Drill(
     val skillSet: String,
     val durationMinutes: Int,
     val instructions: String,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val contextType: String = "GROUP",
+    val source: String = "SYSTEM_PREDEFINED"
 )
 
 data class TrainingTemplate(
@@ -88,7 +90,10 @@ class AuthStore(context: Context) {
                 discipline = row.optString("discipline", "GENERAL"),
                 skillSet = row.optString("skillSet", ""),
                 durationMinutes = row.optInt("durationMinutes", row.optInt("duration", 0)),
-                instructions = row.optString("instructions", "")
+                instructions = row.optString("instructions", ""),
+                imageUrl = row.optString("imageUrl").takeIf(String::isNotBlank),
+                contextType = row.optString("contextType", "GROUP"),
+                source = row.optString("source", "SYSTEM_PREDEFINED")
             )
         }
     }
@@ -103,6 +108,9 @@ class AuthStore(context: Context) {
                 .put("skillSet", drill.skillSet)
                 .put("durationMinutes", drill.durationMinutes)
                 .put("instructions", drill.instructions)
+                .put("imageUrl", drill.imageUrl)
+                .put("contextType", drill.contextType)
+                .put("source", drill.source)
         })
     }
 

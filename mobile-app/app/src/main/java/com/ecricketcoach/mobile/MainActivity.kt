@@ -276,8 +276,9 @@ private fun CoachApp(
                             error = ""
                             try {
                                 openSignIn(provider)
-                            } catch (_: GetCredentialCancellationException) {
-                                error = "Sign-in was cancelled."
+                            } catch (failure: GetCredentialCancellationException) {
+                                Log.w("eCricketCoach", "Google Credential Manager sign-in was cancelled (${failure.message}).")
+                                error = "Google sign-in was dismissed or unavailable. Add a Google account to this device and verify the Android OAuth client uses package com.ecricketcoach.mobile with SHA-1 6B:6B:F6:7E:EC:D5:1B:E8:A0:E7:99:AA:C6:E5:D5:5E:73:90:B5:93."
                             } catch (failure: CancellationException) {
                                 throw failure
                             } catch (failure: GetCredentialException) {

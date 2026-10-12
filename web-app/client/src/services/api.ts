@@ -708,6 +708,62 @@ export const api = {
     return res.json();
   },
 
+  async analyzeKinematicsOverlay(payload: {
+    discipline: string;
+    videoFile?: File;
+    driveFileId?: string;
+  }): Promise<{
+    discipline: string;
+    timestampMs: number;
+    issues: string[];
+    metrics: Record<string, string | number>;
+    overlayImageBase64: string;
+    overlayMimeType: string;
+    overlaySeries: Array<{
+      timestampMs: number;
+      overlayImageBase64: string;
+      overlayMimeType: string;
+      phase: string;
+    }>;
+    cricketInterpretation: {
+      cricketSummary: string;
+      phase: string;
+      contactTimestampMs: number | null;
+      contactConfidence: number;
+      ballLine: { status: 'DETECTED' | 'NOT_VISIBLE' | 'UNCERTAIN'; label: string; confidence: number; evidence: string };
+      errors: Array<{ title: string; cricketMeaning: string; evidence: string }>;
+      corrections: Array<{ title: string; coachingCue: string; drill: string }>;
+    } | null;
+    cricketInterpretationError: string | null;
+  }> {
+    const token = localStorage.getItem('auth_token');
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    let res: Response;
+
+    if (payload.videoFile) {
+      const formData = new FormData();
+      formData.append('file', payload.videoFile, payload.videoFile.name);
+      formData.append('discipline', payload.discipline);
+      res = await fetch(`${API_BASE}/videos/kinematics/analyze`, {
+        method: 'POST',
+        headers: authHeader,
+        body: formData
+      });
+    } else {
+      res = await fetch(`${API_BASE}/videos/kinematics/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ discipline: payload.discipline, driveFileId: payload.driveFileId })
+      });
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error || 'Failed to create the kinematic overlay');
+    }
+    return res.json();
+  },
+
   // Fetch previously saved real Gemini video analysis results (most recent first), optionally
   // filtered to a specific player, persisted server-side in video_analysis_store.
   async getVideoAnalysisHistory(playerId?: string): Promise<{

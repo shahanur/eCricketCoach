@@ -24,6 +24,10 @@ echo "Validating Docker Compose configuration..."
 echo "Building and starting eCricketCoach (including CAPE)..."
 "${COMPOSE[@]}" up --build --detach
 
+# Nginx resolves the server service when it starts. Recreate/restart the proxy
+# after a server rebuild so it does not retain a stale container IP.
+docker compose restart client
+
 echo
 echo "Service status:"
 "${COMPOSE[@]}" ps

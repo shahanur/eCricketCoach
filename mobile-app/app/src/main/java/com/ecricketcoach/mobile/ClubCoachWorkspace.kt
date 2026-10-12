@@ -387,6 +387,7 @@ private data class ClubWorkspaceSnapshot(
     val squads: List<ClubSquad>,
     val sessions: List<ClubTrainingSession>,
     val drills: List<Drill>,
+    val catalogueDrills: List<Drill>,
     val certificates: List<ClubCertificate>,
     val videoHistory: List<VideoAnalysisEntry>,
     val logo: String?
@@ -416,6 +417,7 @@ internal fun ClubCoachWorkspace(
     var reportError by remember { mutableStateOf("") }
     var assessments by remember { mutableStateOf<List<PlayerAssessment>>(emptyList()) }
     var clubDrills by remember { mutableStateOf(drills.filter { it.id.startsWith("drill-club-") }) }
+    var catalogueDrills by remember { mutableStateOf(drills) }
     var certificates by remember { mutableStateOf<List<ClubCertificate>>(emptyList()) }
     var videoHistory by remember { mutableStateOf<List<VideoAnalysisEntry>>(emptyList()) }
     var driveConnected by remember { mutableStateOf(false) }
@@ -567,6 +569,7 @@ internal fun ClubCoachWorkspace(
                 val squadsRequest = async { api.getSquads(token, clubId) }
                 val sessionsRequest = async { api.getClubSessions(token, clubId) }
                 val drillsRequest = async { api.getClubDrills(token, clubId) }
+                val catalogueRequest = async { api.getDrills(token, clubId) }
                 val certificatesRequest = async { api.getCertificates(token) }
                 val videoHistoryRequest = async { api.getVideoAnalysisHistory(token) }
                 val logoRequest = async { api.getClubBranding(token) }
@@ -575,6 +578,7 @@ internal fun ClubCoachWorkspace(
                     squads = squadsRequest.await(),
                     sessions = sessionsRequest.await(),
                     drills = drillsRequest.await(),
+                    catalogueDrills = catalogueRequest.await(),
                     certificates = certificatesRequest.await(),
                     videoHistory = videoHistoryRequest.await(),
                     logo = logoRequest.await()
@@ -584,6 +588,7 @@ internal fun ClubCoachWorkspace(
             squads = snapshot.squads
             sessions = snapshot.sessions
             clubDrills = snapshot.drills
+            catalogueDrills = snapshot.catalogueDrills
             certificates = snapshot.certificates
             videoHistory = snapshot.videoHistory
             clubLogo = snapshot.logo
@@ -686,7 +691,7 @@ internal fun ClubCoachWorkspace(
             buildList {
                 add("Overview")
                 if (isClubAdmin) add("Roster")
-                addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Club drills", "Templates", "Progression", "Video analysis"))
+                addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Templates", "Progression", "Video analysis"))
                 if (isClubAdmin) add("Settings")
             }
         }
@@ -1365,8 +1370,8 @@ internal fun ClubCoachWorkspace(
                 },
                 modifier = Modifier.weight(1f)
             )
-            "Club drills" -> ClubDrillsPanel(
-                drills = clubDrills,
+            "Drills", "Club drills" -> ClubDrillsPanel(
+                drills = catalogueDrills,
                 canCreate = isClubCoach || isClubAdmin,
                 onCreate = { title, discipline, skillSet, context, duration, instructions ->
                     scope.launch {
@@ -1385,9 +1390,48 @@ internal fun ClubCoachWorkspace(
                                     .put("clubName", user.clubName)
                             )
                             clubDrills = api.getClubDrills(token, clubId)
+                            catalogueDrills = api.getDrills(token, clubId)
                             notice = "Club drill added to the catalogue."
                         } catch (failure: Exception) {
                             error = failure.message ?: "Unable to add this drill."
+                        }
+                    }
+                },
+                onClone = { drill ->
+                    scope.launch {
+                        error = ""
+                        try {
+                            api.cloneDrill(token, drill.id)
+                            clubDrills = api.getClubDrills(token, clubId)
+                            catalogueDrills = api.getDrills(token, clubId)
+                            notice = "Drill cloned into your club catalogue."
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Unable to clone this drill."
+                        }
+                    }
+                },
+                onUpdate = { drill, title, discipline, skillSet, context, duration, instructions, imageUrl ->
+                    scope.launch {
+                        error = ""
+                        try {
+                            val updates = JSONObject()
+                                .put("title", title)
+                                .put("discipline", discipline)
+                                .put("skillSet", skillSet)
+                                .put("contextType", context)
+                                .put("durationMinutes", duration)
+                                .put("instructions", instructions)
+                            if (imageUrl != drill.imageUrl) updates.put("imageUrl", imageUrl ?: JSONObject.NULL)
+                            api.updateDrill(
+                                token,
+                                drill.id,
+                                updates
+                            )
+                            clubDrills = api.getClubDrills(token, clubId)
+                            catalogueDrills = api.getDrills(token, clubId)
+                            notice = "Club drill updated."
+                        } catch (failure: Exception) {
+                            error = failure.message ?: "Unable to update this drill."
                         }
                     }
                 },
@@ -1397,6 +1441,7 @@ internal fun ClubCoachWorkspace(
                         try {
                             api.deleteDrill(token, drill.id)
                             clubDrills = api.getClubDrills(token, clubId)
+                            catalogueDrills = api.getDrills(token, clubId)
                             notice = "Club drill deleted."
                         } catch (failure: Exception) {
                             error = failure.message ?: "Unable to delete this drill."
@@ -1474,7 +1519,6 @@ internal fun ClubCoachWorkspace(
                 },
                 modifier = Modifier.weight(1f)
             )
-            "Drills" -> ReadOnlyDrills(drills, Modifier.weight(1f))
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
