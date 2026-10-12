@@ -28,6 +28,8 @@ services:
       dockerfile: Dockerfile
     container_name: ecricket_aihub
     restart: unless-stopped
+    environment:
+      AIHUB_YOLO_MODEL: ${AIHUB_YOLO_MODEL:-yolo11n.pt}
     expose:
       - "8100"
 

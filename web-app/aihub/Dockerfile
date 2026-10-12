@@ -12,6 +12,10 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Cache the baseline detector in the image. Production deployments can replace
+# it with a cricket fine-tuned model through AIHUB_YOLO_MODEL.
+RUN python -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
+
 COPY app.py .
 
 EXPOSE 8100

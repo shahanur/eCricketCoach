@@ -12,9 +12,29 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image
 
+try:
+    from ultralytics import YOLO
+except ImportError:  # Allows the service to boot for pose-only development images.
+    YOLO = None
+
 app = FastAPI(title="eCricketCoach AIHub", version="0.1.0")
 
 POSE_CONNECTIONS = tuple(mp.solutions.pose.POSE_CONNECTIONS)
+YOLO_MODEL_PATH = os.getenv("AIHUB_YOLO_MODEL", "yolo11n.pt")
+YOLO_BALL_CLASS = 32  # COCO sports ball; fine-tuned cricket models may use a custom class map.
+YOLO_MODEL: Any | None = None
+
+
+def get_yolo_model() -> Any | None:
+    global YOLO_MODEL
+    if YOLO_MODEL is not None or YOLO is None:
+        return YOLO_MODEL
+    try:
+        YOLO_MODEL = YOLO(YOLO_MODEL_PATH)
+    except Exception as error:
+        print(f"AIHub YOLO detector unavailable; using CV fallback: {error}")
+        YOLO_MODEL = None
+    return YOLO_MODEL
 
 
 def point(landmarks: Any, index: int, width: int, height: int) -> tuple[int, int]:
@@ -117,18 +137,36 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     path: list[tuple[int, int, int]] = []
     last: tuple[int, int] | None = None
+    velocity = np.array([0.0, 0.0])
+    yolo = get_yolo_model()
     frame_index = 0
+    frame_stride = max(1, int(os.getenv("AIHUB_FRAME_STRIDE", "2")))
     while True:
         ok, frame = capture.read()
         if not ok:
             break
         sample_ms = int((frame_index / fps) * 1000)
         frame_index += 1
-        candidates = candidates_for(frame)
+        if frame_index % frame_stride != 0:
+            continue
+        candidates = []
+        if yolo is not None:
+            try:
+                prediction = yolo.predict(frame, classes=[YOLO_BALL_CLASS], verbose=False, conf=0.12, imgsz=640)[0]
+                if prediction.boxes is not None:
+                    for box in prediction.boxes:
+                        confidence = float(box.conf[0])
+                        x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
+                        candidates.append(((x1 + x2) // 2, (y1 + y2) // 2, max(2.0, min(x2 - x1, y2 - y1) / 2.0, confidence)))
+            except Exception as error:
+                print(f"AIHub YOLO frame inference failed; using CV fallback: {error}")
+                yolo = None
+        candidates.extend(candidates_for(frame))
         if not candidates:
             continue
         if last is not None:
-            candidates = sorted(candidates, key=lambda item: (item[0] - last[0]) ** 2 + (item[1] - last[1]) ** 2)
+            predicted = np.array(last, dtype=float) + velocity
+            candidates = sorted(candidates, key=lambda item: math.dist(item[:2], predicted))
             candidate = candidates[0]
             max_jump = max(width, height) * 0.28
             if math.hypot(candidate[0] - last[0], candidate[1] - last[1]) > max_jump:
@@ -138,6 +176,8 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
             candidate = min(candidates, key=lambda item: abs(item[2] - min(width, height) * 0.012))
         point_value = (candidate[0], candidate[1])
         if 0 <= point_value[0] < width and 0 <= point_value[1] < height:
+            if last is not None:
+                velocity = 0.65 * velocity + 0.35 * (np.array(point_value, dtype=float) - np.array(last, dtype=float))
             path.append((point_value[0], point_value[1], int(sample_ms)))
             last = point_value
     capture.release()
