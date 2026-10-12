@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+cricket_workspace/
+weights/
+*.pt
+*.onnx
+*.engine
+.env
+datasets/
+training/runs/

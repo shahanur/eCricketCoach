@@ -15,7 +15,11 @@ import java.net.URLEncoder
 class ApiException(val statusCode: Int, message: String) : Exception(message)
 
 internal fun apiErrorMessage(status: Int, body: String, path: String): String {
-    val serverError = runCatching { JSONObject(body).optString("error") }.getOrNull().orEmpty()
+    val json = runCatching { JSONObject(body) }.getOrNull()
+    val serverError = json?.optString("error").orEmpty()
+    // Some routes send a machine code in "error" with the user-facing text in "message".
+    val message = json?.optString("message").orEmpty()
+    if (message.isNotBlank() && serverError.matches(Regex("[a-z_]+"))) return message
     if (serverError.isNotBlank()) return serverError
     if (status == 404 && path.startsWith("/api/coach/sessions/") && path.endsWith("/execution")) {
         return "The API does not provide the session execution route. Deploy the matching API build, then sync and try Run again."
@@ -105,6 +109,68 @@ data class AssessmentVideo(
     val driveLink: String?,
     val createdAt: String
 )
+
+data class CapeFault(
+    val code: String,
+    val milestone: String,
+    val metric: String,
+    val value: Double,
+    val expectedLo: Double?,
+    val expectedHi: Double?,
+    val severity: String,
+    val message: String,
+    val recommendation: String,
+    val drill: String?
+)
+
+data class CapeDelivery(
+    val speedKmh: Double?,
+    val speedToleranceKmh: Double,
+    val lengthM: Double,
+    val lengthZone: String,
+    val lineZone: String,
+    val isGoodBall: Boolean
+)
+
+data class CapeResult(
+    val sessionId: String,
+    val target: String,
+    val handedness: String,
+    val shotType: String?,
+    val bowlerType: String?,
+    val score: Int,
+    val verdict: String,
+    val faults: List<CapeFault>,
+    val strengths: List<String>,
+    val unavailable: List<String>,
+    val summary: String?,
+    val jointAngles: List<Pair<String, Double>>,
+    val delivery: CapeDelivery?,
+    // (endpoint key, Node download path) for each stored snapshot, ZIP excluded.
+    val images: List<Pair<String, String>>,
+    val zipPath: String?
+)
+
+data class CapeJob(
+    val jobId: String,
+    val status: String,
+    val queuePosition: Int?,
+    val errorMessage: String?,
+    val result: CapeResult?
+) {
+    val isPending: Boolean get() = status == "QUEUED" || status == "RUNNING"
+}
+
+data class CapeInput(
+    val target: String,
+    val handedness: String,
+    val shotType: String?,
+    val bowlerType: String?,
+    val calibrationPoints: List<Pair<Int, Int>>
+) {
+    fun calibrationJson(): String =
+        JSONArray(calibrationPoints.map { (x, y) -> JSONArray().put(x).put(y) }).toString()
+}
 
 internal fun sessionPlanUpdates(
     session: ClubTrainingSession,
@@ -648,6 +714,64 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         response.getJSONObject("assessment").toPlayerAssessment() to response.getJSONObject("video").toAssessmentVideo()
     }
 
+    suspend fun getAssessmentCapeJob(token: String, assessmentId: String): CapeJob? = withContext(Dispatchers.IO) {
+        JSONObject(request(assessmentVideoPath(assessmentId), token)).optJSONObject("capeJob")?.toCapeJob()
+    }
+
+    // Queues a detailed (CAPE) analysis from a local clip or a Google Drive file; returns the job id.
+    suspend fun analyzeAssessmentVideoWithCape(
+        context: Context,
+        token: String,
+        assessmentId: String,
+        uri: Uri?,
+        driveFileId: String?,
+        input: CapeInput
+    ): String = withContext(Dispatchers.IO) {
+        val fields = buildList {
+            add("engine" to "cape")
+            add("target" to input.target)
+            add("handedness" to input.handedness)
+            input.shotType?.let { add("shot_type" to it) }
+            input.bowlerType?.let { add("bowler_type" to it) }
+            add("calibration_points" to input.calibrationJson())
+        }
+        val body = if (uri != null) {
+            postVideoMultipart(context, token, assessmentVideoPath(assessmentId), uri, fields)
+        } else {
+            val json = JSONObject().put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
+            fields.forEach { (name, value) -> json.put(name, value) }
+            request(assessmentVideoPath(assessmentId), token, json, method = "POST", readTimeoutMs = 60_000)
+        }
+        JSONObject(body).getString("jobId")
+    }
+
+    suspend fun getCapeJob(token: String, jobId: String): CapeJob = withContext(Dispatchers.IO) {
+        JSONObject(request("/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}", token)).getJSONObject("job").toCapeJob()
+    }
+
+    // Downloads an analysis image or ZIP through the authenticated Node route; returns bytes and file name.
+    suspend fun downloadCapeArtifact(token: String, path: String): Pair<ByteArray, String> = withContext(Dispatchers.IO) {
+        require(path.startsWith("/api/club/cape-jobs/")) { "Invalid download link." }
+        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 120_000
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val body = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw ApiException(status, apiErrorMessage(status, body, path))
+            }
+            val fileName = Regex("filename=\"?([^\";]+)\"?")
+                .find(connection.getHeaderField("Content-Disposition").orEmpty())
+                ?.groupValues?.get(1)
+                ?: path.substringAfterLast('/')
+            connection.inputStream.use { it.readBytes() } to fileName
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun postVideoMultipart(
         context: Context,
         token: String,
@@ -700,10 +824,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (status !in 200..299) {
-                val message = runCatching { JSONObject(responseBody).optString("error") }
-                    .getOrNull()
-                    .orEmpty()
-                    .ifBlank { "The server returned HTTP $status." }
+                val message = apiErrorMessage(status, responseBody, path)
                 throw ApiException(status, message)
             }
             return responseBody
@@ -920,6 +1041,75 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             },
             driveLink = optString("driveLink").takeIf { it.startsWith("https://drive.google.com/") },
             createdAt = optString("createdAt")
+        )
+    }
+
+    private fun JSONObject.text(key: String): String? = if (isNull(key)) null else optString(key).takeIf(String::isNotBlank)
+    private fun JSONObject.number(key: String): Double? = if (isNull(key)) null else optDouble(key).takeUnless(Double::isNaN)
+    private fun JSONObject.strings(key: String): List<String> =
+        optJSONArray(key)?.let { rows -> (0 until rows.length()).map(rows::getString) } ?: emptyList()
+
+    private fun JSONObject.toCapeJob() = CapeJob(
+        jobId = getString("jobId"),
+        status = optString("status", "QUEUED"),
+        queuePosition = if (isNull("queuePosition")) null else optInt("queuePosition"),
+        errorMessage = text("errorMessage"),
+        result = optJSONObject("result")?.toCapeResult()
+    )
+
+    private fun JSONObject.toCapeResult(): CapeResult {
+        val metadata = optJSONObject("metadata") ?: JSONObject()
+        val coaching = optJSONObject("coaching") ?: JSONObject()
+        val payload = optJSONObject("analytics_payload") ?: JSONObject()
+        val angles = payload.optJSONObject("pre_contact")?.optJSONObject("batter_joint_angles")
+            ?: payload.optJSONObject("release")?.optJSONObject("bowler_joint_angles")
+            ?: JSONObject()
+        val faults = coaching.optJSONArray("faults") ?: JSONArray()
+        val downloads = optJSONObject("download_endpoints") ?: JSONObject()
+        return CapeResult(
+            sessionId = optString("session_id"),
+            target = metadata.optString("target", "batter"),
+            handedness = metadata.optString("handedness", "right"),
+            shotType = metadata.text("shot_type"),
+            bowlerType = metadata.text("bowler_type"),
+            score = coaching.optInt("score"),
+            verdict = coaching.optString("verdict"),
+            faults = (0 until faults.length()).map { index ->
+                val row = faults.getJSONObject(index)
+                val expected = row.optJSONArray("expected") ?: JSONArray()
+                CapeFault(
+                    code = row.optString("code"),
+                    milestone = row.optString("milestone"),
+                    metric = row.optString("metric"),
+                    value = row.optDouble("value"),
+                    expectedLo = if (expected.isNull(0)) null else expected.optDouble(0),
+                    expectedHi = if (expected.isNull(1)) null else expected.optDouble(1),
+                    severity = row.optString("severity", "medium"),
+                    message = row.optString("message"),
+                    recommendation = row.optString("recommendation"),
+                    drill = row.text("drill")
+                )
+            },
+            strengths = coaching.strings("strengths"),
+            unavailable = coaching.strings("unavailable"),
+            summary = coaching.text("summary"),
+            jointAngles = angles.keys().asSequence().map { it to angles.optDouble(it) }.toList(),
+            delivery = optJSONObject("delivery")?.let { d ->
+                CapeDelivery(
+                    speedKmh = d.number("speed_kmh"),
+                    speedToleranceKmh = d.optDouble("speed_tolerance_kmh", 5.0),
+                    lengthM = d.optDouble("length_m"),
+                    lengthZone = d.optString("length_zone"),
+                    lineZone = d.optString("line_zone"),
+                    isGoodBall = d.optBoolean("is_good_ball")
+                )
+            },
+            images = downloads.keys().asSequence()
+                .filter { it != "all_zip" }
+                .mapNotNull { key -> downloads.text(key)?.let { key to it } }
+                .sortedBy { it.second.substringAfterLast('/') }
+                .toList(),
+            zipPath = downloads.text("all_zip")
         )
     }
 

@@ -1,0 +1,11 @@
+# Ultralytics dataset config for the CAPE ball detector (spec §10).
+# `path` is resolved by train_ball.py (--data); relative paths here are relative to it.
+# Produce the layout with: python -m training.split_dataset <raw_dir> <path>
+path: datasets/ball
+train: train/images
+val: val/images
+test: test/images
+
+names:
+  0: cricket_ball   # crisp ball: tight box on the ball perimeter
+  1: blurred_ball   # motion-blurred ball: box covers the whole visible streak

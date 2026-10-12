@@ -197,7 +197,27 @@ export async function initDb() {
       analysis JSONB NOT NULL,
       drill_adopted BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT NOW()
-    )`
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS cape_jobs (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      created_by_id TEXT NOT NULL,
+      player_id TEXT,
+      player_name TEXT,
+      assessment_id TEXT,
+      drive_file_id TEXT,
+      upload_path TEXT,
+      request JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'QUEUED',
+      error TEXT,
+      result JSONB,
+      artifacts JSONB,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS cape_jobs_tenant_id_created_at_idx ON cape_jobs (tenant_id, created_at)`
   ];
 
   // 1. Execute each DDL statement individually

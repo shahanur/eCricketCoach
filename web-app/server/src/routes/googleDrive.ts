@@ -2,6 +2,9 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import multer from 'multer';
+import fs from 'fs';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { fetchWithRetry } from '../utils/retry.js';
@@ -446,6 +449,121 @@ export async function uploadVideoToDrive(userId: string, video: {
     height: driveData.videoMediaMetadata?.height
   };
 }
+
+async function requireAccessToken(userId: string): Promise<string> {
+  const tokenInfo = await getValidAccessToken(userId);
+  if (!tokenInfo) {
+    throw new DriveUploadError(409, 'Google Drive is not connected for this account.');
+  }
+  return tokenInfo.accessToken;
+}
+
+// Streams a Drive file straight to disk (no full in-memory buffer); enforces the 500 MB video cap.
+export async function downloadDriveFileToPath(userId: string, fileId: string, destPath: string): Promise<{ mimeType: string }> {
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId)) {
+    throw new DriveUploadError(400, 'The selected Google Drive file is invalid.');
+  }
+  const accessToken = await requireAccessToken(userId);
+  const res = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  }, { label: 'Google Drive file download' });
+  if (!res.ok || !res.body) {
+    throw new DriveUploadError(res.status === 404 ? 404 : 502, 'Failed to download the file from Google Drive.');
+  }
+  if (Number(res.headers.get('content-length') || 0) > MAX_DRIVE_VIDEO_BYTES) {
+    throw new DriveUploadError(413, 'Choose a video smaller than 500 MB.');
+  }
+  await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(destPath));
+  return { mimeType: (res.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim() };
+}
+
+// Downloads a small Drive file (e.g. an analysis image) into memory.
+export async function downloadDriveFile(userId: string, fileId: string): Promise<Buffer> {
+  const accessToken = await requireAccessToken(userId);
+  const res = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${encodeURIComponent(fileId)}?alt=media`, {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  }, { label: 'Google Drive file download' });
+  if (!res.ok) {
+    throw new DriveUploadError(res.status === 404 ? 404 : 502, 'Failed to download the file from Google Drive.');
+  }
+  return Buffer.from(await res.arrayBuffer());
+}
+
+// Resolves eCricketCoach/{playerName}/{discipline}/{subfolder}, creating folders as needed.
+export async function resolveDriveFolder(userId: string, playerName: string, discipline: string, subfolder: string): Promise<string> {
+  const accessToken = await requireAccessToken(userId);
+  const disciplineFolderId = await resolvePlayerDisciplineFolder(accessToken, playerName, discipline);
+  return findOrCreateFolder(accessToken, subfolder, disciplineFolderId);
+}
+
+// Uploads a small file (images, reports) into a Drive folder and returns its id.
+export async function uploadFileToDriveFolder(userId: string, folderId: string, file: {
+  buffer: Buffer;
+  mimeType: string;
+  fileName: string;
+  description?: string;
+}): Promise<string> {
+  const accessToken = await requireAccessToken(userId);
+  const boundary = `ecc_${crypto.randomBytes(16).toString('hex')}`;
+  const metadata = { name: file.fileName, mimeType: file.mimeType, description: file.description, parents: [folderId] };
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`, 'utf-8'),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${file.mimeType}\r\n\r\n`, 'utf-8'),
+    file.buffer,
+    Buffer.from(`\r\n--${boundary}--`, 'utf-8')
+  ]);
+  const res = await fetchWithRetry(`${GOOGLE_DRIVE_UPLOAD_URL}?uploadType=multipart&fields=id`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body
+  }, { label: 'Google Drive file upload' });
+  const data = await res.json() as { id?: string; error?: { message?: string } };
+  if (!res.ok || !data.id) {
+    throw new DriveUploadError(res.status, data.error?.message || 'Failed to upload the file to Google Drive.');
+  }
+  return data.id;
+}
+
+// Streams one of the user's own Drive videos to the browser (e.g. to mark calibration corners on its
+// first frame) without buffering it in server memory.
+router.get('/videos/:fileId/content', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  const fileId = req.params.fileId;
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId)) {
+    res.status(400).json({ error: 'The selected Google Drive video is invalid.' });
+    return;
+  }
+  try {
+    const accessToken = await requireAccessToken(req.user!.userId);
+    const driveRes = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    }, { label: 'Google Drive video stream' });
+    if (!driveRes.ok || !driveRes.body) {
+      res.status(driveRes.status === 404 ? 404 : 502).json({ error: 'Failed to load the video from Google Drive.' });
+      return;
+    }
+    const mimeType = (driveRes.headers.get('content-type') || '').split(';')[0].trim();
+    if (!/^video\/[A-Za-z0-9.+-]+$/.test(mimeType)) {
+      res.status(400).json({ error: 'The selected Google Drive file is not a video.' });
+      return;
+    }
+    const length = Number(driveRes.headers.get('content-length') || 0);
+    if (length > MAX_DRIVE_VIDEO_BYTES) {
+      res.status(413).json({ error: 'Choose a video smaller than 500 MB.' });
+      return;
+    }
+    res.setHeader('Content-Type', mimeType);
+    if (length) res.setHeader('Content-Length', String(length));
+    res.setHeader('Cache-Control', 'private, no-store');
+    await pipeline(Readable.fromWeb(driveRes.body as any), res);
+  } catch (error) {
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    const status = error instanceof DriveUploadError ? error.status : 500;
+    res.status(status).json({ error: error instanceof Error ? error.message : 'Failed to load the video from Google Drive.' });
+  }
+});
 
 router.post('/upload', authenticateToken, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.userId;

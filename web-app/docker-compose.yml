@@ -44,11 +44,66 @@ services:
       APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).
+      CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}
+      CAPE_API_KEY: ${CAPE_API_KEY:-}
+      CAPE_UPLOAD_DIR: /var/cape-uploads
+    volumes:
+      - cape-uploads:/var/cape-uploads
     ports:
       - "5001:5001"
     depends_on:
       - postgres
       - redis
+
+  cape-api:
+    profiles: [cape]
+    build:
+      context: ../cape-api
+    container_name: ecricket_cape_api
+    restart: unless-stopped
+    environment:
+      CAPE_API_KEY: ${CAPE_API_KEY:-}
+      CAPE_DEVICE: ${CAPE_DEVICE:-cuda}
+    volumes:
+      - ../cape-api/weights:/app/weights:ro
+      - cape-workspace:/app/cricket_workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  cape-worker:
+    profiles: [cape]
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ecricket_cape_worker
+    restart: unless-stopped
+    command: npm run worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cricket_user}:${POSTGRES_PASSWORD:-cricket_secret}@postgres:5432/${POSTGRES_DB:-ecricketcoach}
+      REDIS_URL: redis://redis:6379
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}
+      CAPE_API_KEY: ${CAPE_API_KEY:-}
+      CAPE_CONCURRENCY: ${CAPE_CONCURRENCY:-1}
+      CAPE_TIMEOUT_MS: ${CAPE_TIMEOUT_MS:-600000}
+      CAPE_GEMINI_SUMMARY: ${CAPE_GEMINI_SUMMARY:-false}
+      CAPE_UPLOAD_DIR: /var/cape-uploads
+    volumes:
+      - cape-uploads:/var/cape-uploads
+    depends_on:
+      - postgres
+      - redis
+      - cape-api
 
   client:
     build:
@@ -64,3 +119,5 @@ services:
 volumes:
   pgdata:
   redisdata:
+  cape-uploads:
+  cape-workspace:

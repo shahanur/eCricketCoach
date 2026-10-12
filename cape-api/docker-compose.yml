@@ -1,0 +1,30 @@
+# GPU deployment (spec §8.3). Requires the NVIDIA Container Toolkit on the host.
+# CPU-only hosts: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up
+services:
+  cape-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ecricketcoach/cape-api:latest
+    container_name: cape_production_runtime
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CAPE_DEVICE: ${CAPE_DEVICE:-cuda}
+      CAPE_WORKERS: ${CAPE_WORKERS:-1} # each worker holds its own models in GPU memory
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ./cricket_workspace:/app/cricket_workspace
+      - ./weights:/app/weights:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

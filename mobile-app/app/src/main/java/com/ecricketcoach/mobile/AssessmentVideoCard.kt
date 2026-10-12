@@ -223,6 +223,8 @@ internal fun AssessmentVideoCard(
 
             video?.let { result -> AssessmentVideoResult(result) }
 
+            CapeAnalysisSection(api, token, assessment, canSubmit = !completed, onNotice = onNotice)
+
             if (driveConnected && !completed) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {

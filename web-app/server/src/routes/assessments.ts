@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs/promises';
 import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { prisma } from '../config/prisma.js';
@@ -7,6 +8,9 @@ import { AuthenticatedRequest, authenticateToken, requireRole } from '../middlew
 import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisService.js';
 import { DbService } from '../services/dbService.js';
 import { DriveUploadError, downloadVideoFromDrive, uploadVideoToDrive } from './googleDrive.js';
+import { createCapeJob, stageCapeUpload } from '../queues/capeQueue.js';
+import { isCapeConfigured } from '../services/capeClient.js';
+import { capeJobView, parseCapeRequest } from './capeJobs.js';
 
 export const assessmentRouter = Router();
 
@@ -347,7 +351,11 @@ assessmentRouter.get('/:id/video', async (req: AuthenticatedRequest, res: Respon
     const entry = assessment.videoAnalysisId
       ? await prisma.videoAnalysis.findFirst({ where: { id: assessment.videoAnalysisId, playerId: assessment.playerId } })
       : null;
-    res.json({ video: entry ? videoSummary(entry) : null });
+    const capeJob = await prisma.capeJob.findFirst({
+      where: { tenantId: req.user!.tenantId, assessmentId: assessment.id },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ video: entry ? videoSummary(entry) : null, capeJob: capeJob ? await capeJobView(capeJob) : null });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load the assessment video.' });
   }
@@ -389,6 +397,51 @@ assessmentRouter.post(
         return;
       }
       const selectedDriveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
+      if (req.body?.engine === 'cape') {
+        if (!isCapeConfigured()) {
+          res.status(503).json({ error: 'cape_unavailable', message: 'Detailed video analysis is not available on this server right now.' });
+          return;
+        }
+        const parsed = parseCapeRequest(req.body);
+        if ('error' in parsed) {
+          res.status(400).json({ error: parsed.error });
+          return;
+        }
+        const expectedTarget = assessment.discipline === 'BATTING' ? 'batter' : assessment.discipline === 'BOWLING' ? 'bowler' : null;
+        if (parsed.request.target !== expectedTarget) {
+          res.status(409).json({ error: 'Detailed analysis is available for batting (batter) and bowling (bowler) assessments only.' });
+          return;
+        }
+        if (file && !/^video\/[A-Za-z0-9.+-]+$/.test(file.mimetype)) {
+          res.status(400).json({ error: 'Only video files can be analysed.' });
+          return;
+        }
+        if (!file && !selectedDriveFileId) {
+          res.status(400).json({ error: 'Upload a video or choose one from Google Drive.' });
+          return;
+        }
+        const uploadPath = file ? await stageCapeUpload(file.buffer, file.originalname) : null;
+        let job;
+        try {
+          job = await createCapeJob({
+            tenantId: req.user!.tenantId,
+            createdById: req.user!.userId,
+            request: parsed.request,
+            playerId: assessment.playerId,
+            playerName: assessment.playerName,
+            assessmentId: assessment.id,
+            driveFileId: uploadPath ? null : selectedDriveFileId,
+            uploadPath
+          });
+        } catch (queueError) {
+          console.error('CAPE job could not be queued:', queueError);
+          if (uploadPath) await fs.rm(uploadPath, { force: true });
+          res.status(503).json({ error: 'cape_unavailable', message: 'The analysis queue is unavailable right now. Please try again later.' });
+          return;
+        }
+        res.status(202).json({ jobId: job.id, status: job.status });
+        return;
+      }
       if (!file && selectedDriveFileId) {
         // The clip already lives in the coach's Google Drive: analyse it without re-uploading.
         const driveVideo = await downloadVideoFromDrive(req.user!.userId, selectedDriveFileId);

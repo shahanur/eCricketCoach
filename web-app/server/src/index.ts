@@ -10,9 +10,11 @@ import { authRouter } from './routes/auth.js';
 import { googleDriveRouter } from './routes/googleDrive.js';
 import { coachRouter } from './routes/coach.js';
 import { assessmentRouter } from './routes/assessments.js';
+import { capeJobsRouter } from './routes/capeJobs.js';
 import { initDb } from './config/initDb.js';
 import { trainingTemplatesRouter } from './routes/trainingTemplates.js';
 import { DRILL_IMAGE_JSON_LIMIT } from './services/drillImage.js';
+import { startCapeWorker } from './workers/capeWorker.js';
 
 dotenv.config();
 
@@ -46,6 +48,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/drills', drillsRouter);
 app.use('/api/training-templates', trainingTemplatesRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/club/cape-jobs', capeJobsRouter);
 app.use('/api/club', clubRouter);
 app.use('/api/club/assessments', assessmentRouter);
 app.use('/api/videos', aiRouter);
@@ -53,6 +56,15 @@ app.use('/api/google-drive', googleDriveRouter);
 app.use('/api/coach', coachRouter);
 
 // Start Server
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`🏏 eCricketCoach Microservices API Gateway listening on http://localhost:${port}`);
 });
+
+// In-process CAPE worker (alternatively run `npm run worker` as its own container).
+if (process.env.CAPE_WORKER_ENABLED === 'true') {
+  const worker = startCapeWorker();
+  process.once('SIGTERM', () => {
+    server.close();
+    void worker.close().then(() => process.exit(0));
+  });
+}

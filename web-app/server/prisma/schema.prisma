@@ -258,3 +258,28 @@ model VideoAnalysis {
 
   @@map("video_analyses")
 }
+
+// One CAPE (computer-vision) analysis run. Status: QUEUED | RUNNING | SUCCEEDED | FAILED.
+model CapeJob {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  createdById  String   @map("created_by_id")
+  playerId     String?  @map("player_id")
+  playerName   String?  @map("player_name")
+  assessmentId String?  @map("assessment_id")
+  driveFileId  String?  @map("drive_file_id")
+  // Staged device upload (shared upload dir); removed once the job reaches a final state.
+  uploadPath   String?  @map("upload_path")
+  request      Json
+  status       String   @default("QUEUED")
+  error        String?
+  result       Json?
+  // { "<artifact file name>": "<Drive file id>" }
+  artifacts    Json?
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, createdAt])
+  @@map("cape_jobs")
+}

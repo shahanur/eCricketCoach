@@ -1,0 +1,447 @@
+# CAPE coaching rules (spec §11.3–11.5).
+#
+# Every range, severity band and message below is a starting HEURISTIC. They must be
+# validated and tuned with club coaches before release. Evaluation is fully deterministic:
+# the same metrics always produce the same faults.
+#
+# Check fields:
+#   code, milestone, metric          metric is looked up as "<milestone>.<metric>", then "<metric>"
+#   min / max                        ideal range (either may be omitted)
+#   scale                            divisor for the deviation % (default: |violated bound|, or 1 if 0)
+#   severity_bands: [low, medium]    deviation % upper limits for low / medium; above = high
+#   message, recommendation, drill   fault text; `below:` / `above:` override any of these
+#   verdict                          one-line verdict when this is the top fault
+#   strength                         shown when in range; may use {value}
+
+scoring:
+  penalties: {high: 20, medium: 10, low: 5}
+  default_severity_bands: [10, 25]
+
+length_zones:
+  pace:
+    yorker: [0, 2]
+    full: [2, 5]
+    good_length: [5, 8]
+    short_of_a_length: [8, 10]
+    short: [10, null]
+  spin:
+    yorker: [0, 1]
+    full: [1, 3]
+    good_length: [3, 5]
+    short_of_a_length: [5, 6]
+    short: [6, null]
+
+line_zones:
+  down_leg: [null, -0.15]
+  stumps: [-0.15, 0.15]
+  off_stump_channel: [0.15, 0.45]
+  wide_of_off: [0.45, null]
+
+labels:
+  length_zone:
+    yorker: Yorker
+    full: Full ball
+    good_length: Good-length ball
+    short_of_a_length: Short-of-a-length ball
+    short: Short ball
+  line_zone:
+    down_leg: down the leg side
+    stumps: on the stumps
+    off_stump_channel: in the off-stump channel
+    wide_of_off: wide of off stump
+  positive:
+    batting: Well played – technique looks sound at contact
+    bowling: Sound action at delivery
+
+batting:
+  front_foot_drive:
+    - code: front_knee
+      milestone: point_of_contact
+      metric: front_knee
+      min: 110
+      max: 150
+      strength: "Front knee nicely flexed at contact ({value:.0f}°)"
+      below:
+        code: front_knee_collapsed
+        message: Front knee is over-bent at contact, so weight is not transferring into the shot.
+        recommendation: Stride to the pitch of the ball and keep the front knee softly flexed over the front foot.
+        drill: Front-foot stride drill with cones
+        verdict: Drive played with a collapsed front knee
+      above:
+        code: front_knee_locked
+        message: Front leg is locked straight at contact, which blocks the hips from driving through the ball.
+        recommendation: Let the front knee bend so your weight moves over the front foot as you hit.
+        drill: Slow-motion shadow drives holding the finish
+        verdict: Drive played with a locked front leg
+    - code: head_falling_away
+      milestone: point_of_contact
+      metric: head_front_knee_offset_pct
+      min: -10
+      message: Head is behind the front knee at contact, so you are off balance and likely to hit in the air.
+      recommendation: Lead with the head towards the ball and finish with your head over the front knee.
+      drill: Drop-ball drives with the head over a cone
+      verdict: Drive played with the head falling away
+      strength: "Head well over the front knee at contact"
+    - code: angled_bat
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      max: 20
+      message: Bat is angled at contact, bringing the edge into play.
+      recommendation: Keep the top hand in control and swing the bat straight down the line of the ball.
+      drill: Straight-bat throwdowns along a chalk line
+      verdict: Drive played with an angled bat
+      strength: "Straight bat at contact ({value:.0f}°)"
+    - code: short_stride
+      milestone: point_of_contact
+      metric: stride_m
+      min: 0.6
+      message: Stride is short, so you are not getting to the pitch of the ball.
+      recommendation: Take a longer, decisive front-foot stride towards where the ball pitches.
+      drill: Stride-to-the-marker drill
+      verdict: Drive played without getting to the pitch of the ball
+      strength: "Good stride to the pitch of the ball ({value:.2f} m)"
+
+  back_foot_drive:
+    - code: back_knee_collapsed
+      milestone: point_of_contact
+      metric: back_knee
+      min: 140
+      message: Back knee collapses at contact, so you sink rather than standing tall.
+      recommendation: Push back and across, staying tall on a firm back leg.
+      drill: Back-and-across step drill against a wall
+      verdict: Back-foot drive played without standing tall
+      strength: "Standing tall on the back leg ({value:.0f}°)"
+    - code: head_moving
+      milestone: point_of_contact
+      metric: head_travel_pct
+      max: 10
+      message: Head moves a lot between backlift and contact, making it hard to track the ball.
+      recommendation: Keep the head still and level as you move back, then play the ball under your eyes.
+      drill: Head-still throwdowns with a cap marker
+      verdict: Back-foot drive played with a moving head
+      strength: "Head still through the shot"
+    - code: angled_bat
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      max: 20
+      message: Bat is angled at contact, bringing the edge into play.
+      recommendation: Keep a high front elbow and present the full face of the bat.
+      drill: High-elbow punch drill off a tee
+      verdict: Back-foot drive played with an angled bat
+      strength: "Straight bat at contact ({value:.0f}°)"
+
+  forward_defence:
+    - code: bat_pad_gap
+      milestone: point_of_contact
+      metric: bat_ahead_of_pad_cm
+      min: 0
+      scale: 10
+      message: Bat is behind the front pad, leaving a gap between bat and pad.
+      recommendation: Push the bat out in front of the pad, angled down, with soft hands.
+      drill: Bat-and-pad together drill with a tennis ball
+      verdict: Defence played with a bat-pad gap
+      strength: "Bat in front of the pad, no gap"
+    - code: head_behind_ball
+      milestone: point_of_contact
+      metric: head_front_knee_offset_pct
+      min: 0
+      scale: 20
+      message: Head is behind the front knee, so the ball is not played under the eyes.
+      recommendation: Lean the head and front shoulder into the line of the ball.
+      drill: Kneeling forward-defence drill
+      verdict: Defence played with the head behind the ball
+      strength: "Head over the ball in defence"
+    - code: angled_bat
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      max: 15
+      message: Bat is not straight, so edges can carry to the slips.
+      recommendation: Keep the bat face straight and the handle ahead of the blade.
+      drill: Straight-bat defence along a chalk line
+      verdict: Defence played with an angled bat
+      strength: "Straight bat in defence ({value:.0f}°)"
+    - code: front_knee
+      milestone: point_of_contact
+      metric: front_knee
+      min: 110
+      max: 150
+      strength: "Front knee flexed and stable ({value:.0f}°)"
+      below:
+        code: front_knee_collapsed
+        message: Front knee is over-bent, putting you off balance.
+        recommendation: Make a controlled stride and keep the knee over the front foot.
+        drill: Front-foot stride drill with cones
+        verdict: Defence played with a collapsed front knee
+      above:
+        code: front_knee_locked
+        message: Front leg is locked straight, so you cannot get your head over the ball.
+        recommendation: Soften the front knee and let the weight come forward.
+        drill: Slow-motion shadow defence
+        verdict: Defence played with a locked front leg
+    - code: short_stride
+      milestone: point_of_contact
+      metric: stride_m
+      min: 0.5
+      message: Stride is short, so the ball can turn or seam past the bat.
+      recommendation: Get further forward to smother the ball where it pitches.
+      drill: Stride-to-the-marker drill
+      verdict: Defence played without getting forward
+      strength: "Well forward in defence ({value:.2f} m)"
+
+  backward_defence:
+    - code: angled_bat
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      max: 15
+      message: Bat is angled, so the ball can take the edge.
+      recommendation: Keep the top hand high and the bat straight, with a soft bottom-hand grip.
+      drill: Top-hand-only defence drill
+      verdict: Back-foot defence played with an angled bat
+      strength: "Straight bat in defence ({value:.0f}°)"
+    - code: head_moving
+      milestone: point_of_contact
+      metric: head_travel_pct
+      max: 8
+      message: Head moves too much as you go back.
+      recommendation: Move back and across with a still, level head.
+      drill: Head-still throwdowns with a cap marker
+      verdict: Back-foot defence played with a moving head
+      strength: "Head still going back"
+    - code: back_knee_collapsed
+      milestone: point_of_contact
+      metric: back_knee
+      min: 140
+      message: Back knee collapses, so you lose height and balance.
+      recommendation: Stay tall on a firm back leg to get on top of the bounce.
+      drill: Back-and-across step drill against a wall
+      verdict: Back-foot defence played without standing tall
+      strength: "Tall on the back leg ({value:.0f}°)"
+
+  pull:
+    - code: bat_plane
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      min: 60
+      max: 100
+      strength: "Bat rolling over the ball ({value:.0f}°)"
+      below:
+        code: bat_too_vertical
+        message: Bat is too vertical at contact, so you hit upwards and risk a top edge.
+        recommendation: Get on top of the bounce and swing the bat across the line, rolling the wrists.
+        drill: Pull shots off a raised tee
+        verdict: Pull played with an upward bat path
+      above:
+        code: bat_dropping
+        message: Bat face is dropping below horizontal, so the ball goes straight up.
+        recommendation: Keep the bat level and hit down on the ball.
+        drill: Pull shots into a target net at ground level
+        verdict: Pull played with a dropping bat
+    - code: head_moving
+      milestone: point_of_contact
+      metric: head_travel_pct
+      max: 8
+      message: Head is moving between backlift and contact, so you lose sight of the ball.
+      recommendation: Keep the head still and inside the line of the ball.
+      drill: Head-still short-ball throwdowns
+      verdict: Pull played with a moving head
+      strength: "Head still into the pull"
+    - code: back_leg_unbalanced
+      milestone: point_of_contact
+      metric: back_knee
+      min: 120
+      max: 175
+      message: Back leg is not balanced under you at contact.
+      recommendation: Transfer weight onto a flexed, stable back leg and pivot through the hips.
+      drill: Pivot-and-pull shadow drill
+      verdict: Pull played off balance
+      strength: "Balanced on the back leg ({value:.0f}°)"
+
+  cut:
+    - code: bat_plane
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      min: 45
+      max: 100
+      message: Bat is not level enough to cut the ball along the ground.
+      recommendation: Get the bat on top of the ball and strike down with a level blade.
+      drill: Cut shots off a tee into a ground target
+      verdict: Cut played with the wrong bat angle
+      strength: "Bat level through the cut ({value:.0f}°)"
+    - code: arms_cramped
+      milestone: point_of_contact
+      metric: front_elbow
+      min: 120
+      message: Arms are cramped, so there is no room to free the arms.
+      recommendation: Move back and across to create room and extend the arms through the ball.
+      drill: Width-cut throwdowns
+      verdict: Cut played with cramped arms
+      strength: "Arms extended through the cut ({value:.0f}°)"
+    - code: head_moving
+      milestone: point_of_contact
+      metric: head_travel_pct
+      max: 10
+      message: Head is moving away from the line of the ball.
+      recommendation: Keep the head still and over the ball as you strike.
+      drill: Head-still throwdowns with a cap marker
+      verdict: Cut played with a moving head
+      strength: "Head still through the cut"
+    - code: back_knee_collapsed
+      milestone: point_of_contact
+      metric: back_knee
+      min: 130
+      message: Back knee collapses, so you fall away from the shot.
+      recommendation: Stay tall on the back foot and get on top of the bounce.
+      drill: Back-and-across step drill against a wall
+      verdict: Cut played falling away
+      strength: "Stable base for the cut ({value:.0f}°)"
+
+  sweep:
+    - code: front_knee_not_low
+      milestone: point_of_contact
+      metric: front_knee
+      min: 60
+      max: 110
+      message: Front knee is not bent the right amount to get low and stable.
+      recommendation: Get down low with the front knee well bent over the line of the ball.
+      drill: Kneeling sweep drill
+      verdict: Sweep played without getting low
+      strength: "Low, stable base ({value:.0f}°)"
+    - code: head_behind_ball
+      milestone: point_of_contact
+      metric: head_front_knee_offset_pct
+      min: -10
+      message: Head is behind the front knee, so you lose sight of the ball.
+      recommendation: Get your head over the front knee and close to the line of the ball.
+      drill: Sweep drill with a cone at the front knee
+      verdict: Sweep played with the head behind the ball
+      strength: "Head over the front knee"
+    - code: bat_plane
+      milestone: point_of_contact
+      metric: bat_angle_deg
+      min: 60
+      max: 110
+      message: Bat is not horizontal enough, risking a top edge.
+      recommendation: Sweep with a horizontal bat and roll the wrists over the ball.
+      drill: Sweep throwdowns off a short length
+      verdict: Sweep played with the wrong bat angle
+      strength: "Horizontal bat in the sweep ({value:.0f}°)"
+    - code: head_moving
+      milestone: point_of_contact
+      metric: head_travel_pct
+      max: 15
+      message: Head moves a lot into the sweep.
+      recommendation: Commit early and keep the head still as you go down.
+      drill: Kneeling sweep drill
+      verdict: Sweep played with a moving head
+      strength: "Head still into the sweep"
+
+bowling:
+  pace:
+    - code: front_leg_not_braced
+      milestone: release
+      metric: front_knee
+      min: 160
+      message: Front leg collapses at front-foot contact, so you lose pace and bounce.
+      recommendation: Land on a firm, braced front leg and pull through over it.
+      drill: Braced-front-leg run-throughs
+      verdict: Front leg collapsing at delivery
+      strength: "Braced front leg at delivery ({value:.0f}°)"
+    - code: bent_bowling_arm
+      milestone: release
+      metric: back_elbow
+      min: 165
+      severity_bands: [3, 6]
+      message: Bowling arm appears bent at release.
+      recommendation: Keep the bowling arm straight through the delivery swing; have a coach check the action.
+      drill: Straight-arm bowling against a wall
+      verdict: Bowling arm bent at release
+      strength: "Straight bowling arm ({value:.0f}°)"
+    - code: low_release
+      milestone: release
+      metric: release_height_m
+      min: 1.9
+      message: Release point is low, reducing bounce.
+      recommendation: Stand tall at the crease and release the ball at the top of the arc.
+      drill: High-release target bowling
+      verdict: Low release point
+      strength: "High release point ({value:.2f} m)"
+  spin:
+    - code: front_leg_not_braced
+      milestone: release
+      metric: front_knee
+      min: 140
+      message: Front leg is collapsing at delivery, so you cannot pivot over it.
+      recommendation: Land on a stable front leg and rotate over it.
+      drill: Front-leg pivot drill
+      verdict: Front leg collapsing at delivery
+      strength: "Stable front leg at delivery ({value:.0f}°)"
+    - code: bent_bowling_arm
+      milestone: release
+      metric: back_elbow
+      min: 165
+      severity_bands: [3, 6]
+      message: Bowling arm appears bent at release.
+      recommendation: Keep the bowling arm straight; have a coach check the action.
+      drill: Straight-arm bowling against a wall
+      verdict: Bowling arm bent at release
+      strength: "Straight bowling arm ({value:.0f}°)"
+    - code: low_release
+      milestone: release
+      metric: release_height_m
+      min: 1.7
+      message: Release point is low, which flattens the trajectory.
+      recommendation: Stay tall and release over the top to get dip and drift.
+      drill: Bowling over a raised rope
+      verdict: Low release point
+      strength: "High release point ({value:.2f} m)"
+  # Delivery checks apply to every bowler_type. value = length_m / line offset (m, + = off side);
+  # expected = the good-length range for the bowler_type / the good-line range.
+  delivery:
+    - code: length
+      milestone: pitching_point
+      field: length_zone
+      good: [good_length]
+      strength: "Good length ({value:.1f} m from the stumps)"
+      zones:
+        yorker:
+          code: length_yorker
+          severity: low
+          message: Ball pitched on a yorker length, which is easy to miss and turn into a full toss.
+          recommendation: Use the yorker as a variation and aim for a good length as your stock ball.
+          drill: Target-zone bowling with a good-length mat
+        full:
+          code: length_full
+          severity: medium
+          message: Ball pitched too full, giving the batter an easy drive.
+          recommendation: Pull your length back slightly and aim at the good-length zone.
+          drill: Target-zone bowling with a good-length mat
+        short_of_a_length:
+          code: length_short_of_a_length
+          severity: low
+          message: Ball pitched just short of a good length, letting the batter go back.
+          recommendation: Pitch the ball a little fuller to make the batter play forward.
+          drill: Target-zone bowling with a good-length mat
+        short:
+          code: length_short
+          severity: high
+          message: Ball pitched short, which is easy to pull or cut.
+          recommendation: Bowl fuller and use the short ball only as a planned variation.
+          drill: Target-zone bowling with a good-length mat
+    - code: line
+      milestone: pitching_point
+      field: line_zone
+      good: [stumps, off_stump_channel]
+      strength: "Good line ({value:+.2f} m from middle stump)"
+      zones:
+        down_leg:
+          code: line_down_leg
+          severity: high
+          message: Ball pitched down the leg side, giving away runs.
+          recommendation: Align your run-up and front foot towards off stump.
+          drill: Channel bowling between two cones
+        wide_of_off:
+          code: line_wide_of_off
+          severity: medium
+          message: Ball pitched wide of off stump, so the batter can leave it.
+          recommendation: Bring your line in to the off-stump channel to make the batter play.
+          drill: Channel bowling between two cones

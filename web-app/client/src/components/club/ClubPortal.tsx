@@ -6,6 +6,7 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
+import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
@@ -3194,6 +3195,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </span>
               </button>
             </div>
+
+            {/* Detailed computer-vision analysis (CAPE) of the same selected video */}
+            <CapeAnalysisPanel
+              playerId={selectedAnalysisPlayer}
+              discipline={analysisDiscipline}
+              canSubmit
+              source={videoSourceMode === 'LOCAL_UPLOAD'
+                ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
+                : (selectedDriveVideo ? { name: driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Drive video', driveFileId: selectedDriveVideo } : null)}
+            />
           </div>
 
           {/* AI Analysis Result Cards */}

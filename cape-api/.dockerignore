@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+cricket_workspace/
+weights/
+training/
+*.pt
+*.onnx
+*.engine
+.env
+.env.*
+docker-compose*.yml
+Dockerfile
+.dockerignore
+.gitignore

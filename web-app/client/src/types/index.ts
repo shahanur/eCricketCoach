@@ -319,3 +319,61 @@ export interface GoogleDriveStatus {
   connected: boolean;
   email: string | null;
 }
+
+export type CapeTarget = 'batter' | 'bowler';
+export type CapeJobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+export type CapeSeverity = 'low' | 'medium' | 'high';
+
+export interface CapeFault {
+  code: string;
+  milestone: string;
+  metric: string;
+  value: number;
+  expected: [number | null, number | null];
+  severity: CapeSeverity;
+  message: string;
+  recommendation: string;
+  drill: string | null;
+}
+
+export interface CapeResult {
+  session_id: string;
+  metadata: { resolution: string; framerate_fps: number; target: CapeTarget; handedness: 'right' | 'left'; shot_type: string | null; bowler_type: string | null };
+  analytics_payload: {
+    pre_contact?: { milestone_frame: number; batter_joint_angles: Record<string, number> } | null;
+    point_of_contact?: { milestone_frame: number; ball_velocity_kmh: number | null; bat_angle_degrees: number | null } | null;
+    post_contact?: { milestone_frame: number; exit_velocity_kmh: number | null; launch_angle_degrees: number | null } | null;
+    release?: { milestone_frame: number; bowler_joint_angles: Record<string, number>; release_height_m: number | null } | null;
+  };
+  delivery: {
+    speed_kmh: number | null;
+    speed_tolerance_kmh: number;
+    pitching_point_m: [number, number];
+    length_m: number;
+    length_zone: string;
+    line_zone: string;
+    is_good_ball: boolean;
+  } | null;
+  coaching: { score: number; verdict: string; faults: CapeFault[]; strengths: string[]; unavailable: string[]; summary: string | null };
+  download_endpoints: Record<string, string | null>;
+}
+
+export interface CapeJob {
+  jobId: string;
+  status: CapeJobStatus;
+  queuePosition: number | null;
+  attempts: number;
+  error: string | null;
+  errorMessage: string | null;
+  result: CapeResult | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapeAnalysisInput {
+  target: CapeTarget;
+  handedness: 'right' | 'left';
+  shot_type?: string;
+  bowler_type?: string;
+  calibration_points: [number, number][];
+}

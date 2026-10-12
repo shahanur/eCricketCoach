@@ -14,17 +14,22 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Validating Docker Compose configuration..."
-docker compose config --quiet
+# CAPE (video analysis + its queue worker) needs an NVIDIA GPU with the Container Toolkit
+# and model weights in ../cape-api/weights; CAPE_API_URL in .env points the API at it.
+COMPOSE=(docker compose --profile cape)
 
-echo "Building and starting eCricketCoach..."
-docker compose up --build --detach
+echo "Validating Docker Compose configuration..."
+"${COMPOSE[@]}" config --quiet
+
+echo "Building and starting eCricketCoach (including CAPE)..."
+"${COMPOSE[@]}" up --build --detach
 
 echo
 echo "Service status:"
-docker compose ps
+"${COMPOSE[@]}" ps
 
 echo
 echo "Frontend: http://localhost:3000"
 echo "API health: http://localhost:3000/api/health"
+echo "CAPE runs internally at http://cape-api:8000 (not published to the host)."
 echo "This Compose configuration is for local development, not production."

@@ -3,6 +3,7 @@ import { ArrowUpDown, CalendarDays, Check, Download, Mail, Play, Plus, Save, Spa
 import { api } from '../../services/api';
 import { AssessmentMetric, AuthUser, ClubMember, PlayerAssessment, TrainingSession } from '../../types';
 import { downloadPdfReport, PdfBlock } from '../../utils/pdfReport';
+import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 
 const METRICS: Record<string, string[]> = {
   BATTING: ['Stance & balance', 'Footwork', 'Shot selection', 'Timing & contact', 'Running between wickets'],
@@ -709,6 +710,8 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                     ) : <p className="mt-1 text-xs text-slate-400">Video analysis details are unavailable.</p>}
                 </div>
               )}
+
+              <CapeAnalysisPanel assessmentId={selectedAssessment.id} discipline={selectedAssessment.discipline} canSubmit={selectedAssessment.status !== 'COMPLETED'} />
 
               {selectedAssessment.status !== 'SCHEDULED' && (
                 <>

@@ -13,7 +13,11 @@ import {
   CoachDashboardData,
   SessionExecutionUpdate,
   PlayerAssessment,
-  AssessmentMetric
+  AssessmentMetric,
+  CapeAnalysisInput,
+  CapeJob,
+  CapeJobStatus,
+  CapeTarget
 } from '../types';
 
 const API_BASE = '/api';
@@ -24,6 +28,12 @@ function authenticatedHeaders(): HeadersInit {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   };
+}
+
+// Auth header only, so the browser sets the multipart boundary itself.
+function bearerHeader(): Record<string, string> {
+  const { 'Content-Type': _contentType, ...rest } = authenticatedHeaders() as Record<string, string>;
+  return rest;
 }
 
 async function responseError(response: Response, fallback: string): Promise<Error> {
@@ -249,6 +259,92 @@ export const api = {
     });
     if (!res.ok) throw await responseError(res, 'Failed to schedule player assessment');
     return res.json();
+  },
+
+  async getAssessmentCapeJob(assessmentId: string): Promise<CapeJob | null> {
+    const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}/video`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load the video analysis');
+    const data = await res.json();
+    return data.capeJob ?? null;
+  },
+
+  async analyzeAssessmentVideoWithCape(assessmentId: string, file: File, input: CapeAnalysisInput): Promise<{ jobId: string; status: CapeJobStatus }> {
+    const form = new FormData();
+    form.append('engine', 'cape');
+    form.append('target', input.target);
+    form.append('handedness', input.handedness);
+    if (input.shot_type) form.append('shot_type', input.shot_type);
+    if (input.bowler_type) form.append('bowler_type', input.bowler_type);
+    form.append('calibration_points', JSON.stringify(input.calibration_points));
+    form.append('file', file);
+    const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}/video`, {
+      method: 'POST',
+      headers: bearerHeader(),
+      body: form
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : 'The video could not be submitted for analysis');
+    }
+    return res.json();
+  },
+
+  async getLatestPlayerCapeJob(playerId: string, target: CapeTarget): Promise<CapeJob | null> {
+    const query = new URLSearchParams({ playerId, target });
+    const res = await fetch(`${API_BASE}/club/cape-jobs/latest?${query}`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load the video analysis');
+    const data = await res.json();
+    return data.job ?? null;
+  },
+
+  // Standalone analysis for a club player: a device file is sent as multipart, a Drive video by id.
+  async analyzePlayerVideoWithCape(playerId: string, source: { file?: File; driveFileId?: string }, input: CapeAnalysisInput): Promise<{ jobId: string; status: CapeJobStatus }> {
+    let res: Response;
+    if (source.file) {
+      const form = new FormData();
+      form.append('playerId', playerId);
+      form.append('target', input.target);
+      form.append('handedness', input.handedness);
+      if (input.shot_type) form.append('shot_type', input.shot_type);
+      if (input.bowler_type) form.append('bowler_type', input.bowler_type);
+      form.append('calibration_points', JSON.stringify(input.calibration_points));
+      form.append('file', source.file);
+      res = await fetch(`${API_BASE}/club/cape-jobs`, { method: 'POST', headers: bearerHeader(), body: form });
+    } else {
+      res = await fetch(`${API_BASE}/club/cape-jobs`, {
+        method: 'POST',
+        headers: authenticatedHeaders(),
+        body: JSON.stringify({ ...input, playerId, driveFileId: source.driveFileId })
+      });
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : 'The video could not be submitted for analysis');
+    }
+    return res.json();
+  },
+
+  async fetchDriveVideo(fileId: string): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/google-drive/videos/${encodeURIComponent(fileId)}/content`, { headers: bearerHeader() });
+    if (!res.ok) throw await responseError(res, 'Failed to load the video from Google Drive');
+    return res.blob();
+  },
+
+  async getCapeJob(jobId: string): Promise<CapeJob> {
+    const res = await fetch(`${API_BASE}/club/cape-jobs/${encodeURIComponent(jobId)}`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load the video analysis');
+    const data = await res.json();
+    return data.job;
+  },
+
+  // Fetches an analysis image or ZIP through the authenticated Node route (never the CAPE service directly).
+  async fetchCapeArtifact(path: string): Promise<{ blob: Blob; fileName: string }> {
+    if (!path.startsWith(`${API_BASE}/club/cape-jobs/`)) throw new Error('Invalid download link');
+    const res = await fetch(path, { headers: bearerHeader() });
+    if (!res.ok) throw await responseError(res, 'The download failed');
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const fileName = disposition.match(/filename="?([^";]+)"?/)?.[1] || path.split('/').pop() || 'analysis';
+    return { blob: await res.blob(), fileName };
   },
 
   async updatePlayerAssessment(
