@@ -50,6 +50,13 @@ NOSE_HEIGHT_M = 1.68  # assumed nose height; release height is a body-ratio esti
 DEFAULT_FPS = 30.0
 CRICKET_BALL_MASS_KG = 0.156
 log = logging.getLogger("cape")
+YOLO_POSE_NAMES = (
+    "nose", "left_eye", "right_eye", "left_ear", "right_ear",
+    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
+    "left_wrist", "right_wrist", "left_hip", "right_hip",
+    "left_knee", "right_knee", "left_ankle", "right_ankle",
+)
+LOWER_BODY_POINTS = frozenset(("left_knee", "right_knee", "left_ankle", "right_ankle"))
 
 _ENDPOINT_FIELDS = {
     Target.batter: ("pre_contact_snapshot", "impact_snapshot", "post_contact_snapshot"),
@@ -102,6 +109,19 @@ def bat_angle_deg(poly: np.ndarray, lm: Landmarks | None) -> float | None:
     return math.degrees(math.acos(max(-1.0, min(1.0, float(d[1] / np.linalg.norm(d))))))
 
 
+def bat_angle_from_contact(lm: Landmarks | None, contact: Point | None) -> float | None:
+    """Estimate the bat axis from the hand centre to the observed impact point."""
+    wrists = [lm.points[k][:2] for k in ("left_wrist", "right_wrist") if lm and k in lm.points]
+    if not wrists or contact is None:
+        return None
+    hands = np.mean(np.asarray(wrists, np.float64), axis=0)
+    d = np.asarray(contact, np.float64) - hands
+    length = float(np.linalg.norm(d))
+    if length < 1:
+        return None
+    return math.degrees(math.acos(max(-1.0, min(1.0, float(d[1] / length)))))
+
+
 def _metres_per_px(cal: Calibrator, p: Point) -> float | None:
     try:
         return _dist(cal.to_metres(p), cal.to_metres((p[0] + 10, p[1]))) / 10
@@ -118,6 +138,84 @@ def stride_m(lm: Landmarks, handedness, cal: Calibrator) -> float | None:
         return _dist(cal.to_metres(_xy(fa)), cal.to_metres(_xy(ba)))
     except ValueError:
         return None
+
+
+def front_foot_metrics(
+    lm: Landmarks,
+    handedness,
+    contact: Point,
+    cal: Calibrator,
+) -> dict[str, float]:
+    """Front-foot/toe direction relative to the impact line and calibrated toe distance."""
+    front, _ = kinematics.sides(handedness)
+    ankle = lm.points.get(f"{front}_ankle")
+    toe = lm.points.get(f"{front}_foot_index")
+    if ankle is None or toe is None:
+        return {}
+    foot_vector = np.subtract(toe[:2], ankle[:2], dtype=np.float64)
+    contact_vector = np.subtract(contact, ankle[:2], dtype=np.float64)
+    if np.linalg.norm(foot_vector) < 1 or np.linalg.norm(contact_vector) < 1:
+        return {}
+    cross = float(foot_vector[0] * contact_vector[1] - foot_vector[1] * contact_vector[0])
+    dot = float(np.dot(foot_vector, contact_vector))
+    angle = math.degrees(math.atan2(cross, dot))
+    out = {"front_foot_to_contact_angle_deg": angle}
+    try:
+        out["front_toe_contact_distance_cm"] = _dist(cal.to_metres(_xy(toe)), cal.to_metres(contact)) * 100
+    except ValueError:
+        pass
+    return out
+
+
+def batting_alignment_metrics(
+    lm: Landmarks,
+    handedness,
+    contact: Point,
+    cal: Calibrator,
+) -> tuple[dict[str, float], tuple[Point, Point] | None]:
+    """Checklist alignment metrics at impact; nose is the available chin-line proxy."""
+    front, back = kinematics.sides(handedness)
+    points = lm.points
+    torso = kinematics.torso_length(lm)
+    nose = points.get("nose")
+    front_toe = points.get(f"{front}_foot_index")
+    front_shoulder = points.get(f"{front}_shoulder")
+    back_shoulder = points.get(f"{back}_shoulder")
+    front_elbow = points.get(f"{front}_elbow")
+    back_ankle = points.get(f"{back}_ankle")
+    back_toe = points.get(f"{back}_foot_index")
+    metrics: dict[str, float] = {}
+
+    if torso and nose is not None and front_toe is not None:
+        metrics["chin_front_toe_offset_pct"] = abs(nose[0] - front_toe[0]) / torso * 100
+    if front_shoulder is not None and back_shoulder is not None:
+        shoulder = np.subtract(front_shoulder[:2], back_shoulder[:2], dtype=np.float64)
+        target = np.subtract(contact, front_shoulder[:2], dtype=np.float64)
+        if np.linalg.norm(shoulder) >= 1 and np.linalg.norm(target) >= 1:
+            cosine = float(np.dot(shoulder, target) / (np.linalg.norm(shoulder) * np.linalg.norm(target)))
+            shoulder_angle = math.degrees(
+                math.acos(max(-1.0, min(1.0, cosine)))
+            )
+            metrics["front_shoulder_target_angle_deg"] = min(shoulder_angle, 180 - shoulder_angle)
+    if torso and front_shoulder is not None and front_elbow is not None:
+        metrics["front_elbow_height_pct"] = (front_shoulder[1] - front_elbow[1]) / torso * 100
+
+    crease_line = None
+    if back_ankle is not None:
+        try:
+            ankle_m = cal.to_metres(_xy(back_ankle))
+            crease_line = (
+                cal.to_pixels((ankle_m[0] - 0.5, ankle_m[1])),
+                cal.to_pixels((ankle_m[0] + 0.5, ankle_m[1])),
+            )
+            if back_toe is not None:
+                toe_m = cal.to_metres(_xy(back_toe))
+                dx, dy = toe_m[0] - ankle_m[0], toe_m[1] - ankle_m[1]
+                if math.hypot(dx, dy) > 0.001:
+                    metrics["back_foot_crease_angle_deg"] = math.degrees(math.atan2(abs(dy), abs(dx)))
+        except ValueError:
+            pass
+    return metrics, crease_line
 
 
 def bat_ahead_of_pad_cm(poly: np.ndarray, lm: Landmarks, handedness, cal: Calibrator) -> float | None:
@@ -400,7 +498,32 @@ class _Pass:
         box = self.boxes.get(key)
         if key not in self.frames or box is None:
             return None
-        return self.det.landmarks.estimate_in_frame(self.frames[key][1], box)
+        frame = self.frames[key][1]
+        landmarks = self.det.landmarks.estimate_in_frame(frame, box)
+        if landmarks is not None and LOWER_BODY_POINTS.issubset(landmarks.points):
+            return landmarks
+        foot_landmarks = landmarks
+        foot_points = {"left_foot_index", "right_foot_index"}
+        if landmarks is None or not foot_points.issubset(landmarks.points):
+            foot_landmarks = self.det.landmarks.estimate_in_frame(frame, box, pad=0.3) or landmarks
+        person = _nearest(self.det.pose.detect(frame), box.center, key=_center)
+        if person is None or len(person.keypoints) < len(YOLO_POSE_NAMES):
+            return landmarks
+        yolo_points = {
+            name: (float(point[0]), float(point[1]), 0.0)
+            for name, point in zip(YOLO_POSE_NAMES, person.keypoints)
+            if point[0] > 0 and point[1] > 0
+        }
+        if not yolo_points:
+            return landmarks
+        if foot_landmarks is not None:
+            for name in ("left_heel", "right_heel", "left_foot_index", "right_foot_index"):
+                if name in foot_landmarks.points:
+                    yolo_points[name] = foot_landmarks.points[name]
+        # Use one internally consistent 2D skeleton when MediaPipe loses the
+        # lower body. MediaPipe heel/toe points supplement YOLO because COCO
+        # Pose ends at the ankle and cannot express foot direction.
+        return Landmarks(yolo_points)
 
 
 # --- target-specific analysis -------------------------------------------------
@@ -423,15 +546,17 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         if lm_c and (travel := kinematics.head_travel_pct(lm_p, lm_c)) is not None:
             metrics["head_travel_pct"] = travel
     poly = p.det.bat.segment(cimg)
-    bat_angle = bat_angle_deg(poly, lm_c) if poly is not None else None
+    bat_angle = (
+        bat_angle_deg(poly, lm_c)
+        if poly is not None
+        else bat_angle_from_contact(lm_c, p.visual_contact_point)
+    )
     extras = {
         "bat_angle_deg": bat_angle,
         "stride_m": stride_m(lm_c, h, cal) if lm_c else None,
         "bat_ahead_of_pad_cm": bat_ahead_of_pad_cm(poly, lm_c, h, cal) if lm_c and poly is not None else None,
     }
     metrics.update({k: v for k, v in extras.items() if v is not None})
-    result = coaching.evaluate(req, metrics, None)
-
     all_track = p.ball_track or [
         *p.tracker.history(Phase.PRE_CONTACT),
         *p.tracker.history(Phase.AT_CONTACT),
@@ -444,6 +569,12 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     if contact_point is None:
         raise CapeError(422, "no_contact_point_detected", "The impact frame was found but the contact point was not visible")
     contact_pt = (cf, contact_point)
+    back_foot_crease_line = None
+    if lm_c:
+        metrics.update(front_foot_metrics(lm_c, h, contact_point, cal))
+        alignment_metrics, back_foot_crease_line = batting_alignment_metrics(lm_c, h, contact_point, cal)
+        metrics.update(alignment_metrics)
+    result = coaching.evaluate(req, metrics, None)
     post_pts = post_hist[:POST_POINTS]
     exit_v = _speed(cal, post_pts, fps)
     launch = None
@@ -464,16 +595,8 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
 
     statuses = _statuses(result)
     checked = _checked(req, "point_of_contact")
-    contact_lines = [_fmt(m, metrics[m]) for m in checked if m in metrics]
-    if ball_v is not None:
-        contact_lines.append(f"Ball speed: {ball_v:.0f} km/h")
-    if inbound_momentum is not None:
-        contact_lines.append(f"Ball momentum: {inbound_momentum:.2f} kg m/s")
-    if inbound_energy is not None:
-        contact_lines.append(f"Ball energy: {inbound_energy:.0f} J")
     pf = p.frames["pre_contact"][0]
     postf = p.frames["post_contact"][0]
-    title = f"{req.shot_type.value.replace('_', ' ').title()} | score {result.score}/100"
     post_lines = []
     if exit_v is not None:
         post_lines.append(f"Exit speed: {exit_v:.0f} km/h")
@@ -484,6 +607,9 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     post_angles = {k: round(v, 1) for k, v in kinematics.batter_angles(lm_post, h).items()} if lm_post else {}
     pre_ball = _last_at(pre_hist, pf)
     post_ball = _last_at(post_hist, postf)
+    landmark_points = {k: _xy(v) for k, v in lm_c.points.items()} if lm_c else {}
+    incoming_start = pre_hist[max(0, len(pre_hist) - POST_POINTS)][1] if pre_hist else None
+    outgoing_end = post_pts[-1][1] if post_pts else None
     overlays = {
         "pre_contact": [
             partial(render.draw_trail, pts=[pt for f, pt in pre_hist if f <= pf]),
@@ -496,8 +622,16 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
             partial(render.draw_trail, pts=[pt for _, pt in pre_hist] + [contact_pt[1]]),
             *_body_layers(lm_c, h, statuses, contact_pt[1]),
             *_angle_layers(lm_c, h, metrics, checked, statuses),
+            partial(
+                render.draw_batting_guides,
+                points=landmark_points,
+                handedness=h,
+                contact=contact_pt[1],
+                incoming_start=incoming_start,
+                outgoing_end=outgoing_end,
+                back_foot_crease_line=back_foot_crease_line,
+            ),
             partial(render.draw_contact, point=contact_pt[1]),
-            _panel(title, contact_lines),
         ],
         "post_contact": [
             partial(render.draw_trail, pts=[contact_pt[1]] + [pt for f, pt in post_hist if f <= postf]),
@@ -517,6 +651,21 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
             estimated_ball_momentum_kg_m_s=inbound_momentum,
             estimated_ball_kinetic_energy_j=inbound_energy,
             bat_angle_degrees=round(bat_angle, 1) if bat_angle is not None else None,
+            head_front_knee_offset_pct=round(metrics["head_front_knee_offset_pct"], 1)
+            if "head_front_knee_offset_pct" in metrics else None,
+            stride_m=round(metrics["stride_m"], 2) if "stride_m" in metrics else None,
+            front_foot_to_contact_angle_degrees=round(metrics["front_foot_to_contact_angle_deg"], 1)
+            if "front_foot_to_contact_angle_deg" in metrics else None,
+            front_toe_contact_distance_cm=round(metrics["front_toe_contact_distance_cm"], 1)
+            if "front_toe_contact_distance_cm" in metrics else None,
+            chin_front_toe_offset_pct=round(metrics["chin_front_toe_offset_pct"], 1)
+            if "chin_front_toe_offset_pct" in metrics else None,
+            front_shoulder_target_angle_degrees=round(metrics["front_shoulder_target_angle_deg"], 1)
+            if "front_shoulder_target_angle_deg" in metrics else None,
+            back_foot_crease_angle_degrees=round(metrics["back_foot_crease_angle_deg"], 1)
+            if "back_foot_crease_angle_deg" in metrics else None,
+            front_elbow_height_pct=round(metrics["front_elbow_height_pct"], 1)
+            if "front_elbow_height_pct" in metrics else None,
             ball_line=ball_line,
             batter_joint_angles={k: round(v, 1) for k, v in metrics.items() if k in kinematics.ANGLE_METRICS},
             batter_3d_landmarks=dict(lm_c.points) if lm_c else {},

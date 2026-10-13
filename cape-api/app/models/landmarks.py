@@ -20,6 +20,8 @@ LANDMARK_NAMES: tuple[str, ...] = (
     "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle", "left_heel",
     "right_heel", "left_foot_index", "right_foot_index",
 )  # fmt: skip
+FOOT_LANDMARK_NAMES = frozenset(("left_heel", "right_heel", "left_foot_index", "right_foot_index"))
+FOOT_MIN_VISIBILITY = 0.2
 
 
 def crop_roi(frame: np.ndarray, box: Box, pad: float = 0.15) -> tuple[np.ndarray, tuple[int, int]] | None:
@@ -55,7 +57,8 @@ def remap_landmarks(
     points = {
         name: (x0 + lm.x * cw, y0 + lm.y * ch, lm.z * cw)
         for name, lm in zip(LANDMARK_NAMES, raw)
-        if getattr(lm, "visibility", 1.0) >= min_visibility
+        if getattr(lm, "visibility", 1.0)
+        >= (min(min_visibility, FOOT_MIN_VISIBILITY) if name in FOOT_LANDMARK_NAMES else min_visibility)
     }
     return Landmarks(points) if points else None
 

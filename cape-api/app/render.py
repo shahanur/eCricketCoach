@@ -169,6 +169,16 @@ KEY_JOINTS: dict[str, str] = {
 }
 HEAD_COLOR = (255, 0, 255)
 BALL_COLOR = (0, 255, 255)
+HEAD_GUIDE_COLOR = (255, 0, 255)
+ELBOW_COLOR = (255, 255, 0)
+KNEE_COLOR = (0, 165, 255)
+FOOT_COLOR = (255, 80, 180)
+TOE_COLOR = (180, 105, 255)
+BAT_COLOR = (255, 100, 0)
+SHOULDER_TARGET_COLOR = (255, 180, 0)
+BACK_FOOT_COLOR = (180, 255, 0)
+INCOMING_COLOR = (0, 215, 255)
+OUTGOING_COLOR = (80, 220, 80)
 
 
 def draw_skeleton(frame: np.ndarray, points: Mapping[str, Sequence[float]]) -> np.ndarray:
@@ -196,6 +206,129 @@ def draw_skeleton(frame: np.ndarray, points: Mapping[str, Sequence[float]]) -> n
         cv2.circle(out, c, r, color, th, cv2.LINE_AA)
         cv2.circle(out, c, max(2, th), color, -1, cv2.LINE_AA)
         _text(out, text, (c[0] + r + 4, c[1] + r + 4), fs, color, max(1, th - 1))
+    return out
+
+
+def _dashed_line(img: np.ndarray, start: Point, end: Point, color, thickness: int, dash: int = 14) -> None:
+    length = math.dist(start, end)
+    if length <= 0:
+        return
+    steps = max(1, math.ceil(length / dash))
+    for i in range(0, steps, 2):
+        a, b = i / steps, min(1.0, (i + 1) / steps)
+        p0 = (start[0] + (end[0] - start[0]) * a, start[1] + (end[1] - start[1]) * a)
+        p1 = (start[0] + (end[0] - start[0]) * b, start[1] + (end[1] - start[1]) * b)
+        cv2.line(img, _ipt(p0), _ipt(p1), color, thickness, cv2.LINE_AA)
+
+
+def _direction_arrow(
+    img: np.ndarray,
+    start: Point,
+    end: Point,
+    label: str,
+    color,
+    thickness: int,
+    scale: float,
+) -> None:
+    cv2.arrowedLine(img, _ipt(start), _ipt(end), color, thickness, cv2.LINE_AA, tipLength=0.16)
+    midpoint = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+    _text(img, label, (round(midpoint[0]) + 8, round(midpoint[1]) - 8), 0.42 * scale, color, max(1, thickness - 1))
+
+
+def draw_batting_guides(
+    frame: np.ndarray,
+    points: Mapping[str, Sequence[float]],
+    handedness: Handedness | str,
+    contact: Point | None,
+    incoming_start: Point | None = None,
+    outgoing_end: Point | None = None,
+    back_foot_crease_line: tuple[Point, Point] | None = None,
+) -> np.ndarray:
+    """Highlight the measured head, front elbow, knee, foot and their alignment."""
+    out = frame.copy()
+    pts = {k: (float(v[0]), float(v[1])) for k, v in points.items()}
+    front = "left" if Handedness(handedness) is Handedness.right else "right"
+    back = "right" if front == "left" else "left"
+    joints = (
+        ("nose", "HEAD", HEAD_GUIDE_COLOR),
+        (f"{front}_elbow", "FRONT ELBOW", ELBOW_COLOR),
+        (f"{front}_knee", "FRONT KNEE", KNEE_COLOR),
+        (f"{front}_ankle", "FRONT FOOT", FOOT_COLOR),
+        (f"{front}_foot_index", "FRONT TOE", TOE_COLOR),
+    )
+    s = _ui_scale(out)
+    thickness = max(2, round(3 * s))
+    radius = max(7, round(11 * s))
+    for name, label, color in joints:
+        if name not in pts:
+            continue
+        point = _ipt(pts[name])
+        cv2.circle(out, point, radius, color, thickness, cv2.LINE_AA)
+        cv2.circle(out, point, max(2, thickness), color, -1, cv2.LINE_AA)
+        _text(out, label, (point[0] + radius + 5, point[1] - radius), 0.48 * s, color, max(1, thickness - 1))
+
+    head = pts.get("nose")
+    knee = pts.get(f"{front}_knee")
+    foot = pts.get(f"{front}_ankle")
+    toe = pts.get(f"{front}_foot_index")
+    front_shoulder = pts.get(f"{front}_shoulder")
+    back_shoulder = pts.get(f"{back}_shoulder")
+    front_elbow = pts.get(f"{front}_elbow")
+    back_foot = pts.get(f"{back}_ankle")
+    back_toe = pts.get(f"{back}_foot_index")
+    if head is not None and knee is not None:
+        _dashed_line(out, head, knee, HEAD_GUIDE_COLOR, thickness)
+    if head is not None and toe is not None:
+        projected = (head[0], toe[1])
+        _dashed_line(out, head, projected, FOOT_COLOR, thickness)
+        cv2.line(out, _ipt(toe), _ipt(projected), FOOT_COLOR, thickness, cv2.LINE_AA)
+        _text(out, "CHIN / FRONT TOE", (min(_ipt(toe)[0], _ipt(projected)[0]), _ipt(toe)[1] + 24), 0.42 * s, FOOT_COLOR)
+    if foot is not None and toe is not None:
+        vector = np.subtract(toe, foot, dtype=np.float64)
+        length = float(np.linalg.norm(vector))
+        if length > 0:
+            arrow_end = np.asarray(foot) + vector / length * max(length * 2.0, 80 * s)
+            _direction_arrow(out, foot, (float(arrow_end[0]), float(arrow_end[1])), "FOOT / TOE", TOE_COLOR, thickness, s)
+    if front_shoulder is not None and back_shoulder is not None and contact is not None:
+        cv2.line(out, _ipt(back_shoulder), _ipt(front_shoulder), SHOULDER_TARGET_COLOR, thickness, cv2.LINE_AA)
+        _dashed_line(out, front_shoulder, contact, SHOULDER_TARGET_COLOR, thickness)
+        _text(
+            out,
+            "SHOULDER -> TARGET",
+            (_ipt(front_shoulder)[0] + 8, _ipt(front_shoulder)[1] - 12),
+            0.42 * s,
+            SHOULDER_TARGET_COLOR,
+            max(1, thickness - 1),
+        )
+    if front_shoulder is not None and front_elbow is not None:
+        reference_end = (front_shoulder[0] + math.copysign(max(80 * s, 1), front_elbow[0] - front_shoulder[0]), front_shoulder[1])
+        _dashed_line(out, front_shoulder, reference_end, ELBOW_COLOR, thickness)
+        cv2.line(out, _ipt(front_shoulder), _ipt(front_elbow), ELBOW_COLOR, thickness, cv2.LINE_AA)
+        _text(out, "HIGH ELBOW", (_ipt(front_elbow)[0] + 8, _ipt(front_elbow)[1] + 22), 0.42 * s, ELBOW_COLOR)
+    if back_foot is not None and back_toe is not None:
+        _direction_arrow(out, back_foot, back_toe, "BACK FOOT", BACK_FOOT_COLOR, thickness, s)
+    if back_foot_crease_line is not None:
+        _dashed_line(out, back_foot_crease_line[0], back_foot_crease_line[1], BACK_FOOT_COLOR, thickness)
+        _text(
+            out,
+            "CREASE PARALLEL",
+            (_ipt(back_foot_crease_line[0])[0], _ipt(back_foot_crease_line[0])[1] - 10),
+            0.42 * s,
+            BACK_FOOT_COLOR,
+            max(1, thickness - 1),
+        )
+    if contact is not None:
+        c = _ipt(contact)
+        cv2.circle(out, c, max(12, round(22 * s)), CONTACT_COLOR, thickness, cv2.LINE_AA)
+        _text(out, "BAT-BALL CONTACT", (c[0] + 18, c[1] + 28), 0.5 * s, CONTACT_COLOR, thickness)
+        wrists = [pts[name] for name in ("left_wrist", "right_wrist") if name in pts]
+        if wrists:
+            hands = tuple(np.mean(np.asarray(wrists), axis=0))
+            _direction_arrow(out, hands, contact, "BAT DIRECTION", BAT_COLOR, thickness, s)
+        if incoming_start is not None:
+            _direction_arrow(out, incoming_start, contact, "BALL IN", INCOMING_COLOR, thickness, s)
+        if outgoing_end is not None and math.dist(contact, outgoing_end) > 2:
+            _direction_arrow(out, contact, outgoing_end, "BALL OUT", OUTGOING_COLOR, thickness, s)
     return out
 
 

@@ -147,7 +147,10 @@ def applicable_checks(req: AnalysisRequest) -> list[dict[str, Any]]:
     """Pose checks for this request's shot_type / bowler_type (delivery checks excluded)."""
     rules = load_rules()
     if req.target is Target.batter:
-        return list(rules["batting"].get(req.shot_type.value, []))
+        return [
+            *rules["batting"].get("alignment", []),
+            *rules["batting"].get(req.shot_type.value, []),
+        ]
     return list(rules["bowling"].get(req.bowler_type.value, []))
 
 

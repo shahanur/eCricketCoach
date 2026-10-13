@@ -345,10 +345,42 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
   const { coaching, delivery, analytics_payload: payload } = result;
   const [images, setImages] = useState<Record<string, string>>({});
   const [downloadError, setDownloadError] = useState('');
-  const angles = payload.pre_contact?.batter_joint_angles || payload.release?.bowler_joint_angles || {};
+  const contact = payload.point_of_contact;
+  const postContact = payload.post_contact;
+  const angles = contact?.batter_joint_angles || payload.pre_contact?.batter_joint_angles || payload.release?.bowler_joint_angles || {};
   const faultByMetric = new Map(coaching.faults.map(fault => [fault.metric, fault]));
   const snapshots = Object.entries(result.download_endpoints).filter((entry): entry is [string, string] => entry[0] !== 'all_zip' && Boolean(entry[1]));
+  const impactSnapshot = snapshots.find(([key]) => key === 'impact_snapshot');
+  const secondarySnapshots = snapshots.filter(([key]) => key !== 'impact_snapshot');
   const zipPath = result.download_endpoints.all_zip;
+  const kinematicRows = [
+    ...Object.entries(angles).map(([metric, value]) => ({ metric, value, unit: '°' })),
+    ...(contact?.head_front_knee_offset_pct === null || contact?.head_front_knee_offset_pct === undefined
+      ? [] : [{ metric: 'head_front_knee_offset_pct', value: contact.head_front_knee_offset_pct, unit: '%' }]),
+    ...(contact?.bat_angle_degrees === null || contact?.bat_angle_degrees === undefined
+      ? [] : [{ metric: 'bat_angle_deg', value: contact.bat_angle_degrees, unit: '°' }]),
+    ...(contact?.stride_m === null || contact?.stride_m === undefined
+      ? [] : [{ metric: 'stride_m', value: contact.stride_m, unit: ' m' }]),
+    ...(contact?.front_foot_to_contact_angle_degrees === null || contact?.front_foot_to_contact_angle_degrees === undefined
+      ? [] : [{ metric: 'front_foot_to_contact_angle', value: contact.front_foot_to_contact_angle_degrees, unit: '°' }]),
+    ...(contact?.front_toe_contact_distance_cm === null || contact?.front_toe_contact_distance_cm === undefined
+      ? [] : [{ metric: 'front_toe_contact_distance', value: contact.front_toe_contact_distance_cm, unit: ' cm' }])
+  ];
+  const alignmentRows = [
+    { metric: 'chin_front_toe_offset_pct', name: 'Chin over front toe', value: contact?.chin_front_toe_offset_pct, unit: '%', expected: '≤ 20%' },
+    { metric: 'front_shoulder_target_angle_deg', name: 'Front shoulder to target', value: contact?.front_shoulder_target_angle_degrees, unit: '°', expected: '≤ 25°' },
+    { metric: 'back_foot_crease_angle_deg', name: 'Back foot to crease', value: contact?.back_foot_crease_angle_degrees, unit: '°', expected: '≤ 20°' },
+    { metric: 'front_elbow_height_pct', name: 'Front elbow height', value: contact?.front_elbow_height_pct, unit: '%', expected: '≥ -5%' }
+  ];
+  const kineticRows = [
+    { name: 'Incoming ball speed', value: contact?.ball_velocity_kmh, unit: ' km/h' },
+    { name: 'Incoming momentum', value: contact?.estimated_ball_momentum_kg_m_s, unit: ' kg m/s' },
+    { name: 'Incoming kinetic energy', value: contact?.estimated_ball_kinetic_energy_j, unit: ' J' },
+    { name: 'Exit speed', value: postContact?.exit_velocity_kmh, unit: ' km/h' },
+    { name: 'Exit momentum', value: postContact?.estimated_ball_momentum_kg_m_s, unit: ' kg m/s' },
+    { name: 'Exit kinetic energy', value: postContact?.estimated_ball_kinetic_energy_j, unit: ' J' },
+    { name: 'Launch angle', value: postContact?.launch_angle_degrees, unit: '°' }
+  ].filter((row): row is { name: string; value: number; unit: string } => row.value !== null && row.value !== undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -400,24 +432,67 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
         </div>
       )}
 
-      {Object.keys(angles).length > 0 && (
+      {kinematicRows.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-slate-500"><tr><th className="py-1 pr-2 font-medium">Pose</th><th className="py-1 pr-2 font-medium">Measured</th><th className="py-1 pr-2 font-medium">Expected</th><th className="py-1 font-medium">Status</th></tr></thead>
+            <thead className="text-slate-500"><tr><th className="py-1 pr-2 font-medium">Kinematics</th><th className="py-1 pr-2 font-medium">Measured</th><th className="py-1 pr-2 font-medium">Expected</th><th className="py-1 font-medium">Status</th></tr></thead>
             <tbody>
-              {Object.entries(angles).map(([metric, value]) => {
+              {kinematicRows.map(({ metric, value, unit }) => {
                 const fault = faultByMetric.get(metric);
                 return (
                   <tr key={metric} className="border-t border-slate-800">
                     <td className="py-1.5 pr-2 text-slate-200">{label(metric)}</td>
-                    <td className="py-1.5 pr-2 text-white">{formatNumber(value)}°</td>
-                    <td className="py-1.5 pr-2 text-slate-400">{fault ? `${expectedRange(fault)}°` : 'In range'}</td>
-                    <td className="py-1.5"><span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityStyle(fault ? fault.severity : 'ok')}`}>{fault ? label(fault.severity) : 'Good'}</span></td>
+                    <td className="py-1.5 pr-2 text-white">{formatNumber(value)}{unit}</td>
+                    <td className="py-1.5 pr-2 text-slate-400">{fault ? `${expectedRange(fault)}${unit}` : 'Observed'}</td>
+                    <td className="py-1.5"><span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityStyle(fault ? fault.severity : 'ok')}`}>{fault ? label(fault.severity) : 'Measured'}</span></td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {contact && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-slate-500"><tr><th className="py-1 pr-2 font-medium">Alignment checklist</th><th className="py-1 pr-2 font-medium">Measured</th><th className="py-1 pr-2 font-medium">Expected</th><th className="py-1 font-medium">Status</th></tr></thead>
+            <tbody>
+              {alignmentRows.map(row => {
+                const fault = faultByMetric.get(row.metric);
+                return (
+                  <tr key={row.metric} className="border-t border-slate-800">
+                    <td className="py-1.5 pr-2 text-slate-200">{row.name}</td>
+                    <td className="py-1.5 pr-2 text-white">{formatNumber(row.value)}{row.unit}</td>
+                    <td className="py-1.5 pr-2 text-slate-400">{row.expected}</td>
+                    <td className="py-1.5">
+                      {row.value === null || row.value === undefined
+                        ? <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">Unavailable</span>
+                        : <span className={`rounded-full border px-2 py-0.5 text-[11px] ${severityStyle(fault ? fault.severity : 'ok')}`}>{fault ? label(fault.severity) : 'Aligned'}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="mt-1 text-[11px] text-slate-500">Chin alignment uses the detected face centre as a 2D chin-line proxy.</p>
+        </div>
+      )}
+
+      {kineticRows.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-slate-500"><tr><th className="py-1 pr-2 font-medium">Kinetics</th><th className="py-1 font-medium">Estimated</th></tr></thead>
+            <tbody>
+              {kineticRows.map(row => (
+                <tr key={row.name} className="border-t border-slate-800">
+                  <td className="py-1.5 pr-2 text-slate-200">{row.name}</td>
+                  <td className="py-1.5 text-white">{formatNumber(row.value)}{row.unit}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-1 text-[11px] text-slate-500">Momentum and energy use the calibrated 2D track and an assumed 156 g cricket ball.</p>
         </div>
       )}
 
@@ -451,10 +526,21 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
             <h5 className="text-xs font-semibold text-white">Images</h5>
             {zipPath && <button type="button" onClick={() => download(zipPath)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-200 hover:border-emerald-400"><Download size={13} /> Download all (ZIP)</button>}
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {snapshots.map(([key, path]) => (
+          {impactSnapshot && (
+            <figure className="overflow-hidden rounded-lg border border-emerald-500/20 bg-slate-950/50">
+              {images[impactSnapshot[0]]
+                ? <img src={images[impactSnapshot[0]]} alt="Point of contact" className="max-h-[85vh] w-full bg-black object-contain" />
+                : <div className="flex min-h-96 items-center justify-center text-[11px] text-slate-500">Loading…</div>}
+              <figcaption className="flex items-center justify-between px-3 py-2 text-xs text-slate-300">
+                Point of contact · geometry overlay
+                <button type="button" onClick={() => download(impactSnapshot[1])} aria-label="Download Point of contact" className="text-slate-400 hover:text-emerald-300"><Download size={14} /></button>
+              </figcaption>
+            </figure>
+          )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {secondarySnapshots.map(([key, path]) => (
               <figure key={key} className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950/50">
-                {images[key] ? <img src={images[key]} alt={SNAPSHOT_LABELS[key] || label(key)} className="aspect-video w-full object-cover" /> : <div className="flex aspect-video items-center justify-center text-[11px] text-slate-500">Loading…</div>}
+                {images[key] ? <img src={images[key]} alt={SNAPSHOT_LABELS[key] || label(key)} className="max-h-[55vh] w-full bg-black object-contain" /> : <div className="flex aspect-video items-center justify-center text-[11px] text-slate-500">Loading…</div>}
                 <figcaption className="flex items-center justify-between px-2 py-1.5 text-[11px] text-slate-300">
                   {SNAPSHOT_LABELS[key] || label(key)}
                   <button type="button" onClick={() => download(path)} aria-label={`Download ${SNAPSHOT_LABELS[key] || key}`} className="text-slate-400 hover:text-emerald-300"><Download size={13} /></button>

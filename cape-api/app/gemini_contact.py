@@ -27,6 +27,8 @@ MAX_COARSE_FRAMES = 48
 TILES_PER_SHEET = 16
 TILE_WIDTH = 320
 FINE_FRAME_WIDTH = 768
+TRANSIENT_HTTP_ATTEMPTS = 4
+NETWORK_ATTEMPTS = 2
 
 
 @dataclass(frozen=True)
@@ -156,20 +158,37 @@ def _request(api_key: str, model: str, prompt: str, sheets: list[bytes], timeout
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     payload = None
     last_error: Exception | None = None
-    for attempt in range(2):
+    attempt = 0
+    while True:
         try:
             with urllib.request.urlopen(req, timeout=timeout_s) as response:
                 payload = json.load(response)
             break
         except urllib.error.HTTPError as exc:
             last_error = exc
-            if exc.code not in (429, 500, 502, 503, 504) or attempt:
+            attempt += 1
+            if exc.code not in (429, 500, 502, 503, 504) or attempt >= TRANSIENT_HTTP_ATTEMPTS:
                 break
+            retry_after = exc.headers.get("Retry-After")
+            try:
+                delay = min(10.0, max(1.0, float(retry_after))) if retry_after else float(2**attempt)
+            except ValueError:
+                delay = float(2**attempt)
+            log.warning(
+                "Gemini contact request returned HTTP %d; retrying in %.1fs (%d/%d)",
+                exc.code,
+                delay,
+                attempt + 1,
+                TRANSIENT_HTTP_ATTEMPTS,
+            )
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             last_error = exc
-            if attempt:
+            attempt += 1
+            if attempt >= NETWORK_ATTEMPTS:
                 break
-        time.sleep(1)
+            delay = 2.0
+            log.warning("Gemini contact request failed; retrying once in %.1fs: %s", delay, exc)
+        time.sleep(delay)
     if payload is None:
         raise GeminiContactError(f"Gemini contact request failed: {last_error}") from last_error
     try:
@@ -289,7 +308,7 @@ def select_contact_frame(
         selection = ContactSelection(
             corrected,
             selection.confidence,
-            None,
+            selection.contact_point_norm,
             f"Temporal lead correction from Gemini frame {selection.frame_index}: {selection.reason}",
         )
     log.info(

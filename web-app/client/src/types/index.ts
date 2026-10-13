@@ -341,8 +341,8 @@ export interface CapeResult {
   metadata: { resolution: string; framerate_fps: number; target: CapeTarget; handedness: 'right' | 'left'; shot_type: string | null; bowler_type: string | null };
   analytics_payload: {
     pre_contact?: { milestone_frame: number; batter_joint_angles: Record<string, number> } | null;
-    point_of_contact?: { milestone_frame: number; ball_velocity_kmh: number | null; bat_angle_degrees: number | null; ball_line?: string | null; batter_joint_angles?: Record<string, number>; batter_3d_landmarks?: Record<string, [number, number, number]> } | null;
-    post_contact?: { milestone_frame: number; exit_velocity_kmh: number | null; launch_angle_degrees: number | null } | null;
+    point_of_contact?: { milestone_frame: number; selection_source?: 'gemini' | 'detector'; selection_confidence?: number | null; ball_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; bat_angle_degrees: number | null; head_front_knee_offset_pct?: number | null; stride_m?: number | null; front_foot_to_contact_angle_degrees?: number | null; front_toe_contact_distance_cm?: number | null; chin_front_toe_offset_pct?: number | null; front_shoulder_target_angle_degrees?: number | null; back_foot_crease_angle_degrees?: number | null; front_elbow_height_pct?: number | null; ball_line?: string | null; batter_joint_angles?: Record<string, number>; batter_3d_landmarks?: Record<string, [number, number, number]> } | null;
+    post_contact?: { milestone_frame: number; exit_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; launch_angle_degrees: number | null; batter_joint_angles?: Record<string, number> } | null;
     release?: { milestone_frame: number; bowler_joint_angles: Record<string, number>; release_height_m: number | null } | null;
   };
   delivery: {

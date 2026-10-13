@@ -185,6 +185,14 @@ class PointOfContact(BaseModel):
     estimated_ball_momentum_kg_m_s: float | None = None
     estimated_ball_kinetic_energy_j: float | None = None
     bat_angle_degrees: float | None = None
+    head_front_knee_offset_pct: float | None = None
+    stride_m: float | None = None
+    front_foot_to_contact_angle_degrees: float | None = None
+    front_toe_contact_distance_cm: float | None = None
+    chin_front_toe_offset_pct: float | None = None
+    front_shoulder_target_angle_degrees: float | None = None
+    back_foot_crease_angle_degrees: float | None = None
+    front_elbow_height_pct: float | None = None
     ball_line: LineZone | None = None
     batter_joint_angles: dict[str, float] = Field(default_factory=dict)
     batter_3d_landmarks: dict[str, Point3] = Field(default_factory=dict)

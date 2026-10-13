@@ -54,6 +54,48 @@ labels:
     bowling: Sound action at delivery
 
 batting:
+  alignment:
+    - code: chin_not_over_front_toe
+      milestone: point_of_contact
+      metric: chin_front_toe_offset_pct
+      max: 20
+      scale: 20
+      message: The chin line is too far from the front toe at contact, reducing balance and control over the ball.
+      recommendation: Move the head towards the ball so the chin finishes over the front toe.
+      drill: Chin-over-toe shadow shots beside a vertical marker
+      verdict: Head and front toe are not aligned at contact
+      strength: "Chin line aligned over the front toe ({value:.0f}% offset)"
+    - code: front_shoulder_off_target
+      milestone: point_of_contact
+      metric: front_shoulder_target_angle_deg
+      max: 25
+      scale: 25
+      message: The shoulder line is not pointing towards the contact target, so the body opens or closes away from the intended swing path.
+      recommendation: Keep the front shoulder directed towards the ball and intended target through contact.
+      drill: Shoulder-to-target alignment drill with a floor marker
+      verdict: Front shoulder is not aligned with the target
+      strength: "Front shoulder points towards the contact target ({value:.0f}°)"
+    - code: back_foot_not_parallel
+      milestone: point_of_contact
+      metric: back_foot_crease_angle_deg
+      max: 20
+      scale: 20
+      message: The back foot is not parallel to the crease, weakening the base and changing hip alignment.
+      recommendation: Set and hold the back foot parallel to the crease while transferring weight into the shot.
+      drill: Back-foot crease-line setup drill
+      verdict: Back foot is not locked parallel to the crease
+      strength: "Back foot parallel to the crease ({value:.0f}°)"
+    - code: front_elbow_low
+      milestone: point_of_contact
+      metric: front_elbow_height_pct
+      min: -5
+      scale: 20
+      message: The front elbow is below shoulder level at contact, making a straight, vertical bat path harder to maintain.
+      recommendation: Lead with a high front elbow and let the bat swing vertically beneath the hands.
+      drill: High-elbow straight-bat throwdowns
+      verdict: Front elbow is too low to guide a vertical swing
+      strength: "Front elbow held at or above shoulder level ({value:.0f}%)"
+
   front_foot_drive:
     - code: front_knee
       milestone: point_of_contact
