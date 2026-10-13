@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -25,6 +26,7 @@ log = logging.getLogger("cape")
 MAX_COARSE_FRAMES = 48
 TILES_PER_SHEET = 16
 TILE_WIDTH = 320
+FINE_FRAME_WIDTH = 768
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,45 @@ def _sheet(frames: list[tuple[int, np.ndarray]], fps: float) -> bytes:
     return encoded.tobytes()
 
 
+def _batter_crop(frame: np.ndarray, pose_detector: Any | None) -> tuple[np.ndarray, tuple[int, int, int, int]]:
+    height, width = frame.shape[:2]
+    if pose_detector is None:
+        return frame, (0, 0, width, height)
+    persons = pose_detector.detect(frame)
+    if not persons:
+        return frame, (0, 0, width, height)
+    box = max(persons, key=lambda person: person.box.area).box
+    pad_x, pad_y = (box.x2 - box.x1) * 0.4, (box.y2 - box.y1) * 0.2
+    x0, y0 = max(0, round(box.x1 - pad_x)), max(0, round(box.y1 - pad_y))
+    x1, y1 = min(width, round(box.x2 + pad_x)), min(height, round(box.y2 + pad_y))
+    if x1 <= x0 or y1 <= y0:
+        return frame, (0, 0, width, height)
+    return frame[y0:y1, x0:x1], (x0, y0, x1, y1)
+
+
+def _labelled_frame(idx: int, frame: np.ndarray, fps: float) -> bytes:
+    """Encode one refinement frame at enough resolution to retain a blurred cricket ball."""
+    height, width = frame.shape[:2]
+    output_width = min(FINE_FRAME_WIDTH, width)
+    resized_h = max(1, round(height * output_width / width))
+    image = cv2.resize(frame, (output_width, resized_h), interpolation=cv2.INTER_AREA)
+    image = cv2.copyMakeBorder(image, 44, 0, 0, 0, cv2.BORDER_CONSTANT, value=(12, 20, 31))
+    cv2.putText(
+        image,
+        f"FRAME {idx} | {idx / fps:.3f}s",
+        (12, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
+    ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    if not ok:
+        raise GeminiContactError(f"Could not encode refinement frame {idx}")
+    return encoded.tobytes()
+
+
 def _request(api_key: str, model: str, prompt: str, sheets: list[bytes], timeout_s: float) -> dict:
     parts: list[dict] = [{"text": prompt}]
     parts.extend(
@@ -158,17 +199,25 @@ def _parse_selection(data: dict, allowed: list[int]) -> ContactSelection:
     return ContactSelection(frame, confidence, contact, str(data.get("reason", "")).strip())
 
 
-def _prompt(stage: str) -> str:
+def _prompt(stage: str, individual_frames: bool = False) -> str:
+    presentation = (
+        "Each attached image is one consecutive, high-resolution video frame labelled with its exact FRAME number."
+        if individual_frames
+        else "These contact sheets are chronological. Each tile is labelled with its exact FRAME number."
+    )
     return f"""You are locating the exact bat-ball impact in a cricket batting clip.
-These contact sheets are chronological. Each tile is labelled with its exact FRAME number.
+{presentation}
 {stage}
 Choose only a displayed frame. Distinguish the moving bat in the batter's hands from stumps
-and any spare bat. Impact is the first frame where the ball touches or is closest to the blade,
-with trajectory change as supporting evidence. Do not choose a follow-through frame.
+and any spare bat. Impact is the EARLIEST frame with physical ball/blade overlap. A ball can be
+partly hidden inside bat motion blur at impact; that occlusion is stronger evidence than a later,
+clearer frame after the ball has departed. Trace the incoming ball across all frames, find the last
+clearly pre-contact frame, and choose the immediately following first-overlap frame. Never choose
+the clearest post-impact or follow-through frame.
 Return only JSON:
 {{"frame_index": integer, "confidence": number from 0 to 1,
   "contact_point_norm": [x, y] or null, "reason": "brief visible evidence"}}
-The contact point is normalised within that individual video tile, not within the full sheet."""
+The contact point is normalised within the chosen individual video frame, excluding its label bar."""
 
 
 def select_contact_frame(
@@ -176,6 +225,8 @@ def select_contact_frame(
     api_key: str,
     model: str = "gemini-flash-latest",
     timeout_s: float = 45,
+    pose_detector: Any | None = None,
+    lead_frames: int = 1,
 ) -> ContactSelection:
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -200,24 +251,47 @@ def select_contact_frame(
         coarse_indices,
     )
 
-    start, stop = max(0, coarse.frame_index - stride), min(frame_count - 1, coarse.frame_index + stride)
+    # Coarse sheets can lose a small blurred ball and bias selection towards a
+    # clearer post-impact frame. Search up to 0.75 s earlier, but only 0.2 s
+    # later, then compare those frames individually at high resolution.
+    start = max(0, coarse.frame_index - max(stride, math.ceil(fps * 0.75)))
+    stop = min(frame_count - 1, coarse.frame_index + max(stride, math.ceil(fps * 0.2)))
     fine_indices = list(range(start, stop + 1))
     fine_frames, fps, _ = _read_frames(video_path, fine_indices)
     fine_indices = [idx for idx in fine_indices if idx in fine_frames]
-    fine_sheets = [
-        _sheet([(idx, fine_frames[idx]) for idx in fine_indices[i : i + TILES_PER_SHEET]], fps)
-        for i in range(0, len(fine_indices), TILES_PER_SHEET)
-    ]
+    crops = {idx: _batter_crop(fine_frames[idx], pose_detector) for idx in fine_indices}
+    fine_images = [_labelled_frame(idx, crops[idx][0], fps) for idx in fine_indices]
     selection = _parse_selection(
         _request(
             api_key,
             model,
-            _prompt("Now refine frame-by-frame around the coarse selection and choose the closest visible impact frame."),
-            fine_sheets,
+            _prompt(
+                "Refine the coarse result by comparing every consecutive image and choose the first-overlap frame.",
+                individual_frames=True,
+            ),
+            fine_images,
             timeout_s,
         ),
         fine_indices,
     )
+    if selection.contact_point_norm is not None:
+        x0, y0, x1, y1 = crops[selection.frame_index][1]
+        frame_h, frame_w = fine_frames[selection.frame_index].shape[:2]
+        crop_x, crop_y = selection.contact_point_norm
+        selection = ContactSelection(
+            selection.frame_index,
+            selection.confidence,
+            ((x0 + crop_x * (x1 - x0)) / frame_w, (y0 + crop_y * (y1 - y0)) / frame_h),
+            selection.reason,
+        )
+    if lead_frames and selection.frame_index > 0:
+        corrected = max(0, selection.frame_index - lead_frames)
+        selection = ContactSelection(
+            corrected,
+            selection.confidence,
+            None,
+            f"Temporal lead correction from Gemini frame {selection.frame_index}: {selection.reason}",
+        )
     log.info(
         "Gemini selected batting contact frame %d (%.3fs, confidence %.2f): %s",
         selection.frame_index,

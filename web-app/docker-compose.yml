@@ -84,6 +84,7 @@ services:
       CAPE_GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       CAPE_GEMINI_CONTACT: ${CAPE_GEMINI_CONTACT:-true}
       CAPE_GEMINI_TIMEOUT_SECONDS: ${CAPE_GEMINI_TIMEOUT_SECONDS:-90}
+      CAPE_GEMINI_CONTACT_LEAD_FRAMES: ${CAPE_GEMINI_CONTACT_LEAD_FRAMES:-1}
     volumes:
       - ../cape-api/weights:/app/weights:ro
       - cape-workspace:/app/cricket_workspace

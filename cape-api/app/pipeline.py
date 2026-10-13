@@ -614,6 +614,8 @@ def analyze(
                     settings.gemini_api_key.get_secret_value(),
                     settings.gemini_model,
                     settings.gemini_timeout_seconds,
+                    detectors.pose,
+                    settings.gemini_contact_lead_frames,
                 )
             except GeminiContactError as exc:
                 log.warning("Gemini contact selection failed; using detector fallback: %s", exc)

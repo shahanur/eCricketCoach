@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-flash-latest"
     gemini_contact: bool = True
     gemini_timeout_seconds: float = Field(90, gt=0)
+    gemini_contact_lead_frames: int = Field(1, ge=0, le=5)
 
     @property
     def max_upload_bytes(self) -> int:
