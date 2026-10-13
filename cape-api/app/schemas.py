@@ -181,6 +181,8 @@ class PointOfContact(BaseModel):
     milestone_frame: int
     ball_velocity_kmh: float | None = None
     bat_angle_degrees: float | None = None
+    ball_line: LineZone | None = None
+    batter_joint_angles: dict[str, float] = Field(default_factory=dict)
     batter_3d_landmarks: dict[str, Point3] = Field(default_factory=dict)
 
 

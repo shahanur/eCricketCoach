@@ -57,6 +57,11 @@ html.light body {
   color: var(--soft-text);
 }
 
+html.light #root .engine-comparison {
+  background: #ffffff;
+  color: #242424;
+}
+
 html.light #root .text-white { color: var(--soft-text); }
 html.light #root .hover\:text-white:hover { color: var(--soft-strong); }
 html.light #root :is(.text-slate-900, .text-slate-950) { color: var(--soft-strong); }

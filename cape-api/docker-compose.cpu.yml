@@ -1,6 +1,10 @@
 # CPU override: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up
 services:
   cape-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    image: ecricketcoach/cape-api:cpu
     environment:
       CAPE_DEVICE: cpu
       NVIDIA_VISIBLE_DEVICES: void

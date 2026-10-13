@@ -8,8 +8,9 @@ import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
+import { AihubResultView } from './AihubResultView';
 import type { CapeJob } from '../../types';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy, ScanLine, Eye } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy, ScanLine } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
@@ -281,6 +282,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     } | null;
     cricketInterpretationError: string | null;
   } | null>(null);
+  const analysisPlayers = clubMembers.filter(member => member.role === 'PLAYER' && member.invitationStatus === 'ACTIVE');
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
   const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
@@ -305,8 +307,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isBackingUpToDrive, setIsBackingUpToDrive] = useState(false);
   const [driveBackupStatus, setDriveBackupStatus] = useState<'IDLE' | 'SUCCESS' | 'ERROR'>('IDLE');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Real Google Drive video files, fetched from the connected account via the backend Drive API.
   const [driveVideoFiles, setDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [modalDriveVideoFiles, setModalDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [selectedDriveVideo, setSelectedDriveVideo] = useState<string>('');
@@ -314,12 +314,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [modalDriveVideosError, setModalDriveVideosError] = useState<string | null>(null);
   const [isSyncingDriveTab, setIsSyncingDriveTab] = useState(false);
   const [isSyncingDriveModal, setIsSyncingDriveModal] = useState(false);
-
-  // Google Drive Connection State (shared across Video Analysis tab & Roster upload modal)
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [driveEmail, setDriveEmail] = useState<string>('');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
-
   const handleDisconnectDrive = async () => {
     try {
       await api.disconnectGoogleDrive();
@@ -355,6 +352,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   useEffect(() => {
     fetchAnalysisHistory();
   }, [selectedAnalysisPlayer]);
+
+  useEffect(() => {
+    if (analysisPlayers.length > 0 && !analysisPlayers.some(player => player.id === selectedAnalysisPlayer)) {
+      setSelectedAnalysisPlayer(analysisPlayers[0].id);
+    }
+  }, [analysisPlayers, selectedAnalysisPlayer]);
 
   // Full (unfiltered) video analysis history across all players, used to cross-reference
   // AI-recommended drills for whichever squad/players a training session targets.
@@ -2934,7 +2937,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   }}
                   className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 >
-                  {clubMembers.filter(m => m.role === 'PLAYER').map(p => (
+                  {analysisPlayers.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.ageGroup} • {p.currentLevel})
                     </option>
@@ -3219,37 +3222,46 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
 
             {/* Two computer-vision engines on the same selected video, compared below */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+            <div className="engine-comparison rounded-xl border border-sky-200 p-3 space-y-3">
               <div>
-                <h4 className="text-xs font-bold text-white">Compare computer-vision engines</h4>
-                <p className="text-[11px] text-slate-400">Run both on the same video to see how AIHub and CAPE differ.</p>
+                <h4 className="text-xs font-bold text-slate-800">Compare computer-vision engines</h4>
+                <p className="text-[11px] text-slate-500">Run both on the same video to see how AIHub and CAPE differ.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-              <button
-                type="button"
-                disabled={isAnalyzingKinematics || (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoName : !selectedDriveVideo)}
-                onClick={async () => {
-                  setIsAnalyzingKinematics(true);
-                  setKinematicsResult(null);
-                  setAihubDurationMs(null);
-                  const startedAt = performance.now();
-                  try {
-                    const result = videoSourceMode === 'LOCAL_UPLOAD'
-                      ? await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, videoFile: uploadedVideoFile || undefined })
-                      : await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, driveFileId: selectedDriveVideo });
-                    setKinematicsResult(result);
-                    setAihubDurationMs(performance.now() - startedAt);
-                  } catch (err: any) {
-                    setUploadError(err?.message || 'Failed to create the kinematic overlay. Please try again.');
-                  } finally {
-                    setIsAnalyzingKinematics(false);
-                  }
-                }}
-                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-sky-400/40 text-sky-200 font-bold text-xs sm:text-sm shadow-lg shadow-sky-500/10 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <ScanLine className="w-4 h-4" />
-                <span>{isAnalyzingKinematics ? 'Analysing with AIHub...' : 'Analyse with AIHub'}</span>
-              </button>
+              <div className="rounded-lg border border-sky-200 bg-white p-3 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-sky-800">Detailed batting analysis (pose, ball &amp; speed)</h4>
+                    <p className="mt-1 text-[11px] text-slate-500">One-click AIHub analysis with pose, ball-line, corrections, and downloadable overlays.</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isAnalyzingKinematics || (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoName : !selectedDriveVideo)}
+                    onClick={async () => {
+                      setIsAnalyzingKinematics(true);
+                      setKinematicsResult(null);
+                      setAihubDurationMs(null);
+                      const startedAt = performance.now();
+                      try {
+                        const result = videoSourceMode === 'LOCAL_UPLOAD'
+                          ? await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, videoFile: uploadedVideoFile || undefined })
+                          : await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, driveFileId: selectedDriveVideo });
+                        setKinematicsResult(result);
+                        setAihubDurationMs(performance.now() - startedAt);
+                      } catch (err: any) {
+                        setUploadError(err?.message || 'Failed to create the kinematic overlay.');
+                      } finally {
+                        setIsAnalyzingKinematics(false);
+                      }
+                    }}
+                    className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 transition hover:bg-sky-50 disabled:opacity-50"
+                  >
+                    <ScanLine className="h-4 w-4" />
+                    {isAnalyzingKinematics ? 'Analysing...' : 'Analyse with AIHub'}
+                  </button>
+                </div>
+                {kinematicsResult && <AihubResultView result={kinematicsResult} discipline={analysisDiscipline} />}
+              </div>
 
             {/* Detailed computer-vision analysis (CAPE) of the same selected video */}
             <CapeAnalysisPanel
@@ -3378,7 +3390,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
           )}
 
-          {kinematicsResult && (
+          {/* Legacy compact AIHub result retained for reference during the UI migration.
+          {false && kinematicsResult && (
             <div className="bg-slate-950 border border-fuchsia-400/30 rounded-xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div>
@@ -3524,6 +3537,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               )}
             </div>
           )}
+          */}
 
           {/* Past Analysis History (persisted AI results, filtered to selected player) */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">

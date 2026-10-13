@@ -1,0 +1,11 @@
+# CPU override for macOS, Apple Silicon, CI, and hosts without NVIDIA Container Toolkit.
+services:
+  cape-api:
+    build:
+      context: ../cape-api
+      dockerfile: Dockerfile.cpu
+    image: ecricketcoach/cape-api:cpu
+    environment:
+      CAPE_DEVICE: cpu
+      NVIDIA_VISIBLE_DEVICES: void
+    deploy: !reset {}

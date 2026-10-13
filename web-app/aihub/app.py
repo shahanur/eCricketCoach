@@ -32,6 +32,14 @@ BALL_PATH_CACHE: dict[str, list[tuple[int, int, int]]] = {}
 BALL_PATH_CACHE_SIZE = 8
 
 
+def open_video(path: str) -> cv2.VideoCapture:
+    capture = cv2.VideoCapture(path)
+    # Phone videos often store portrait orientation as metadata rather than in pixels.
+    # Ask the FFmpeg-backed OpenCV reader to apply that metadata before analysis/rendering.
+    capture.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+    return capture
+
+
 def get_yolo_model() -> Any | None:
     global YOLO_MODEL
     if YOLO_MODEL is not None or YOLO is None:
@@ -140,7 +148,7 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
                 candidates.append((int(round(x)), int(round(y)), float(radius)))
         return candidates
 
-    capture = cv2.VideoCapture(video_path)
+    capture = open_video(video_path)
     if not capture.isOpened():
         return []
     fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
@@ -201,7 +209,7 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
 def estimate_contact_ms(video_path: str, ball_path: list[tuple[int, int, int]], width: int, height: int) -> tuple[int | None, tuple[tuple[int, int], tuple[int, int]] | None, str]:
     if len(ball_path) < 3:
         return None, None, "NO_BALL_TRACK"
-    capture = cv2.VideoCapture(video_path)
+    capture = open_video(video_path)
     if not capture.isOpened():
         return None, None, "VIDEO_UNAVAILABLE"
     best: tuple[float, int, tuple[tuple[int, int], tuple[int, int]] | None, str] | None = None
@@ -251,6 +259,10 @@ def analyze_frame(frame: np.ndarray, discipline: str, timestamp_ms: int, ball_pa
 
     left_shoulder = point(landmarks, mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, width, height)
     right_shoulder = point(landmarks, mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, width, height)
+    left_elbow = point(landmarks, mp.solutions.pose.PoseLandmark.LEFT_ELBOW, width, height)
+    right_elbow = point(landmarks, mp.solutions.pose.PoseLandmark.RIGHT_ELBOW, width, height)
+    left_wrist = point(landmarks, mp.solutions.pose.PoseLandmark.LEFT_WRIST, width, height)
+    right_wrist = point(landmarks, mp.solutions.pose.PoseLandmark.RIGHT_WRIST, width, height)
     left_hip = point(landmarks, mp.solutions.pose.PoseLandmark.LEFT_HIP, width, height)
     right_hip = point(landmarks, mp.solutions.pose.PoseLandmark.RIGHT_HIP, width, height)
     left_knee = point(landmarks, mp.solutions.pose.PoseLandmark.LEFT_KNEE, width, height)
@@ -264,6 +276,8 @@ def analyze_frame(frame: np.ndarray, discipline: str, timestamp_ms: int, ball_pa
     head_drop_degrees = round(math.degrees(math.atan2(nose[1] - shoulder_mid[1], abs(nose[0] - shoulder_mid[0]) + 1)), 1)
     left_knee_angle = round(angle(left_hip, left_knee, left_ankle), 1)
     right_knee_angle = round(angle(right_hip, right_knee, right_ankle), 1)
+    left_elbow_angle = round(angle(left_shoulder, left_elbow, left_wrist), 1)
+    right_elbow_angle = round(angle(right_shoulder, right_elbow, right_wrist), 1)
     torso_angle = round(math.degrees(math.atan2(hip_mid[0] - shoulder_mid[0], shoulder_mid[1] - hip_mid[1] + 1)), 1)
 
     issues: list[str] = []
@@ -307,6 +321,8 @@ def analyze_frame(frame: np.ndarray, discipline: str, timestamp_ms: int, ball_pa
             "torsoAngleDegrees": torso_angle,
             "leftKneeAngleDegrees": left_knee_angle,
             "rightKneeAngleDegrees": right_knee_angle,
+            "leftElbowAngleDegrees": left_elbow_angle,
+            "rightElbowAngleDegrees": right_elbow_angle,
         },
         "ballLine": {
             "status": "DETECTED" if ball_path else "NOT_VISIBLE",
@@ -319,6 +335,21 @@ def analyze_frame(frame: np.ndarray, discipline: str, timestamp_ms: int, ball_pa
         "overlayImageBase64": base64.b64encode(encoded.tobytes()).decode("ascii"),
         "overlayMimeType": "image/png",
     }
+
+
+def analyze_nearby_frame(capture: cv2.VideoCapture, timestamp_ms: int, discipline: str, ball_path: list[tuple[int, int, int]], contact_detected: bool, contact_segment: tuple[tuple[int, int], tuple[int, int]] | None, contact_method: str) -> tuple[dict[str, Any], int]:
+    for offset in (0, -80, 80, -160, 160, -240, 240):
+        candidate_ms = max(0, timestamp_ms + offset)
+        capture.set(cv2.CAP_PROP_POS_MSEC, candidate_ms)
+        success, candidate = capture.read()
+        if not success:
+            continue
+        try:
+            return analyze_frame(candidate, discipline, candidate_ms, ball_path, contact_detected, contact_segment, contact_method), candidate_ms
+        except HTTPException as error:
+            if error.status_code != 422:
+                raise
+    raise HTTPException(status_code=422, detail="No player pose was detected near the requested analysis frame.")
 
 
 @app.get("/health")
@@ -349,7 +380,7 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
     with tempfile.NamedTemporaryFile(suffix=suffix) as source:
         source.write(content)
         source.flush()
-        capture = cv2.VideoCapture(source.name)
+        capture = open_video(source.name)
         if not capture.isOpened():
             raise HTTPException(status_code=422, detail="AIHub could not open this video.")
         fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
@@ -384,7 +415,9 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
             success, frame = capture.read()
             if not success:
                 raise HTTPException(status_code=422, detail="AIHub could not read the detected contact frame.")
-        result = analyze_frame(frame, discipline, selected_ms, ball_path, contact_detected, contact_segment, contact_method)
+        result, selected_ms = analyze_nearby_frame(
+            capture, selected_ms, discipline, ball_path, contact_detected, contact_segment, contact_method
+        )
         series = []
         for offset_ms in (-300, -100, 0, 250):
             series_ms = max(0, selected_ms + offset_ms)
@@ -392,15 +425,20 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
             series_success, series_frame = capture.read()
             if not series_success:
                 continue
-            series_result = analyze_frame(
-                series_frame,
-                discipline,
-                series_ms,
-                ball_path,
-                contact_detected and offset_ms == 0,
-                contact_segment if offset_ms == 0 else None,
-                contact_method if offset_ms == 0 else "NONE"
-            )
+            try:
+                series_result = analyze_frame(
+                    series_frame,
+                    discipline,
+                    series_ms,
+                    ball_path,
+                    contact_detected and offset_ms == 0,
+                    contact_segment if offset_ms == 0 else None,
+                    contact_method if offset_ms == 0 else "NONE"
+                )
+            except HTTPException as error:
+                if error.status_code == 422:
+                    continue
+                raise
             series.append({
                 "timestampMs": series_ms,
                 "overlayImageBase64": series_result["overlayImageBase64"],

@@ -60,6 +60,11 @@ html:not(.light) #root.logged-in-shell main {
   background: #0d1117;
 }
 
+html:not(.light) #root .engine-comparison {
+  background: #161b22;
+  color: #f0f6fc;
+}
+
 html:not(.light) #root.logged-in-shell .portal-navbar {
   background-color: #010409;
   border-color: #30363d;

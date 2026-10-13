@@ -341,7 +341,7 @@ export interface CapeResult {
   metadata: { resolution: string; framerate_fps: number; target: CapeTarget; handedness: 'right' | 'left'; shot_type: string | null; bowler_type: string | null };
   analytics_payload: {
     pre_contact?: { milestone_frame: number; batter_joint_angles: Record<string, number> } | null;
-    point_of_contact?: { milestone_frame: number; ball_velocity_kmh: number | null; bat_angle_degrees: number | null } | null;
+    point_of_contact?: { milestone_frame: number; ball_velocity_kmh: number | null; bat_angle_degrees: number | null; ball_line?: string | null; batter_joint_angles?: Record<string, number>; batter_3d_landmarks?: Record<string, [number, number, number]> } | null;
     post_contact?: { milestone_frame: number; exit_velocity_kmh: number | null; launch_angle_degrees: number | null } | null;
     release?: { milestone_frame: number; bowler_joint_angles: Record<string, number>; release_height_m: number | null } | null;
   };

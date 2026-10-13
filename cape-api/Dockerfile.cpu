@@ -1,0 +1,39 @@
+# CPU-only CAPE runtime for macOS, CI, and hosts without NVIDIA Container Toolkit.
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    YOLO_CONFIG_DIR=/tmp/ultralytics \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    CAPE_WORKSPACE_DIR=/app/cricket_workspace \
+    CAPE_WEIGHTS_DIR=/app/weights \
+    CAPE_DEVICE=cpu \
+    CAPE_WORKERS=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libglib2.0-0 libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 \
+    && pip install --no-cache-dir -r requirements.txt \
+    && (pip uninstall -y opencv-python opencv-contrib-python || true) \
+    && pip install --force-reinstall --no-deps opencv-python-headless==4.10.0.84
+
+# Download the MediaPipe pose model during the image build while site-packages
+# is writable; the non-root runtime user must never download model files.
+RUN python -c "import mediapipe as mp; mp.solutions.pose.Pose(static_image_mode=True, model_complexity=2).close()" \
+    && test -f /usr/local/lib/python3.11/site-packages/mediapipe/modules/pose_landmark/pose_landmark_heavy.tflite
+
+COPY app ./app
+RUN useradd --create-home --uid 10001 cape \
+    && mkdir -p cricket_workspace weights \
+    && chown -R cape:cape /app
+USER cape
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
+
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${CAPE_WORKERS}"]

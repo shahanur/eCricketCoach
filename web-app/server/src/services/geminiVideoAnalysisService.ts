@@ -100,6 +100,7 @@ type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 type TrainingContext = 'INDIVIDUAL' | 'GROUP';
 
 export interface CricketKinematicsInterpretation {
+  overallScore: number;
   cricketSummary: string;
   phase: string;
   contactTimestampMs: number | null;
@@ -206,6 +207,7 @@ Pose measurements from the selected frame: ${JSON.stringify(metrics)}
 
 Review the uploaded video and return ONLY one valid JSON object with exactly this shape:
 {
+  "overallScore": number between 0 and 100,
   "cricketSummary": "short cricket-specific coaching summary",
   "phase": "setup|loading|downswing|impact|release|follow-through|unknown",
   "contactTimestampMs": number or null,
@@ -223,7 +225,7 @@ Review the uploaded video and return ONLY one valid JSON object with exactly thi
 Use the pose measurements as supporting evidence, but inspect the footage for cricket context: head-over-ball, base, bat or bowling-arm path, balance, release, and follow-through. Only mark ballLine DETECTED when the ball trajectory and its relation to the stumps/crease are actually visible; otherwise use NOT_VISIBLE or UNCERTAIN. Never infer true force or torque from video alone.`;
     const videoPart = await GeminiVideoAnalysisService.createVideoPart(buffer, mimeType);
     const isValid = (data: any): data is CricketKinematicsInterpretation => Boolean(
-          data && typeof data.cricketSummary === 'string' && typeof data.phase === 'string' &&
+          data && typeof data.overallScore === 'number' && typeof data.cricketSummary === 'string' && typeof data.phase === 'string' &&
           (typeof data.contactTimestampMs === 'number' || data.contactTimestampMs === null) &&
           typeof data.contactConfidence === 'number' &&
       data.ballLine && ['DETECTED', 'NOT_VISIBLE', 'UNCERTAIN'].includes(data.ballLine.status) &&

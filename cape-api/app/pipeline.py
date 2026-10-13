@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 
 from . import coaching, kinematics, render
-from .bowling import bounce_index, delivery_metrics
+from .bowling import bounce_index, delivery_metrics, line_zone
 from .calibration import Calibrator
 from .models.base import Box, Landmarks, PoseResult
 from .schemas import (
@@ -34,6 +34,7 @@ from .schemas import (
     Release,
     Severity,
     Target,
+    line_offset_m,
 )
 from .tracking.state_machine import Phase, Tracker
 
@@ -247,6 +248,7 @@ class _Pass:
         self.lock_tries = 0
         self.track: list[tuple[int, Point]] = []
         self.post_target: int | None = None
+        self.best_bat_contact: tuple[float, int, np.ndarray] | None = None
         self.done = False
         ref = (0.0, 0.0) if self.batter else (0.0, PITCH_LENGTH_M - POPPING_CREASE_M)
         try:
@@ -294,6 +296,24 @@ class _Pass:
         (self._batter_step if self.batter else self._bowler_step)(idx, frame, ball)
 
     def _batter_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
+        if ball is not None:
+            bat = self.det.bat.segment(frame)
+            if bat is not None and len(bat) >= 3:
+                distance = abs(float(cv2.pointPolygonTest(np.asarray(bat, dtype=np.float32), ball, True)))
+                persons = self.det.pose.detect(frame)
+                batter = _nearest(persons, self.crease_px)
+                wrists = []
+                if batter and len(batter.keypoints) > 10:
+                    wrists = [p for p in (batter.keypoints[9], batter.keypoints[10]) if p[0] > 0 and p[1] > 0]
+                wrist_distance = min(
+                    abs(float(cv2.pointPolygonTest(np.asarray(bat, dtype=np.float32), wrist, True)))
+                    for wrist in wrists
+                ) if wrists else None
+                # Reject bat-like background lines that are nowhere near the batter's hands.
+                if wrist_distance is not None and wrist_distance <= max(120.0, self.width * 0.16):
+                    score = distance + wrist_distance * 0.35
+                    if self.best_bat_contact is None or score < self.best_bat_contact[0]:
+                        self.best_bat_contact = (score, idx, frame.copy())
         self.tracker.update(idx, ball)
         c = self.tracker.contact_frame
         if c is not None and self.post_target is None:
@@ -307,7 +327,8 @@ class _Pass:
             self.post_target = c + max(POST_POINTS, round(self.fps * POST_CONTACT_S))
         if self.post_target is not None and idx >= self.post_target:
             self._keep("post_contact", idx, frame)
-            self.done = True
+            # Keep scanning so a bat-ball proximity minimum later in the clip can
+            # replace an early velocity-inversion estimate.
 
     def _bowler_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
         if ball is None:
@@ -322,6 +343,12 @@ class _Pass:
             self.done = True
 
     def finish(self) -> None:
+        if self.batter and self.best_bat_contact is not None:
+            _, frame_idx, frame = self.best_bat_contact
+            self._keep("point_of_contact", frame_idx, frame)
+            ref = self.locked.center if self.locked else self.crease_px
+            self.boxes["point_of_contact"] = self._person_box(frame, ref)
+            self.tracker.contact_frame = frame_idx
         if self.batter and self.post_target is not None and "post_contact" not in self.frames and self.buffer:
             self._keep("post_contact", *self.buffer[-1])
 
@@ -358,7 +385,12 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     result = coaching.evaluate(req, metrics, None)
 
     pre_hist = p.tracker.history(Phase.PRE_CONTACT)
-    contact_pt = p.tracker.history(Phase.AT_CONTACT)[0]
+    contact_candidates = [
+        *pre_hist,
+        *p.tracker.history(Phase.AT_CONTACT),
+        *p.tracker.history(Phase.POST_CONTACT),
+    ]
+    contact_pt = min(contact_candidates, key=lambda item: abs(item[0] - cf))
     post_hist = p.tracker.history(Phase.POST_CONTACT)
     post_pts = post_hist[:POST_POINTS]
     exit_v = _speed(cal, post_pts, fps)
@@ -367,6 +399,12 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         dx, dy = np.subtract(post_pts[-1][1], post_pts[0][1])
         launch = round(math.degrees(math.atan2(-dy, abs(dx))), 1)
     ball_v = _speed(cal, [*pre_hist[-POST_POINTS:], contact_pt], fps)
+    ball_line = None
+    try:
+        contact_x, _ = cal.to_metres(contact_pt[1])
+        ball_line = line_zone(line_offset_m(contact_x, h))
+    except ValueError:
+        pass
 
     statuses = _statuses(result)
     checked = _checked(req, "point_of_contact")
@@ -410,6 +448,8 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
             milestone_frame=cf,
             ball_velocity_kmh=ball_v,
             bat_angle_degrees=round(bat_angle, 1) if bat_angle is not None else None,
+            ball_line=ball_line,
+            batter_joint_angles={k: round(v, 1) for k, v in metrics.items() if k in kinematics.ANGLE_METRICS},
             batter_3d_landmarks=dict(lm_c.points) if lm_c else {},
         ),
         post_contact=PostContact(milestone_frame=postf, exit_velocity_kmh=exit_v, launch_angle_degrees=launch),

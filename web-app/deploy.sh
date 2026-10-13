@@ -10,6 +10,9 @@ Usage: ./deploy.sh [--cape]
 
   (no flag)  Build and start the whole stack, including CAPE.
   --cape     Rebuild and restart only the cape-api container; other services are left untouched.
+
+Environment:
+  CAPE_MODE=auto|cpu|gpu  Select CAPE runtime mode (default: auto).
 EOF
 }
 
@@ -22,6 +25,11 @@ for arg in "$@"; do
   esac
 done
 
+if [[ "${CAPE_MODE:-auto}" != "auto" && "${CAPE_MODE:-auto}" != "cpu" && "${CAPE_MODE:-auto}" != "gpu" ]]; then
+  echo "Error: CAPE_MODE must be auto, cpu, or gpu." >&2
+  exit 1
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: Docker is not installed or is not available on PATH." >&2
   exit 1
@@ -32,9 +40,24 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-# CAPE (video analysis + its queue worker) needs an NVIDIA GPU with the Container Toolkit
-# and model weights in ../cape-api/weights; CAPE_API_URL in .env points the API at it.
-COMPOSE=(docker compose --profile cape)
+# CAPE uses CUDA on NVIDIA Linux hosts and the CPU image on macOS/ARM or when NVIDIA is unavailable.
+# CAPE_API_URL in .env points the API at the selected internal service.
+CAPE_MODE_EFFECTIVE="${CAPE_MODE:-auto}"
+if [[ "$CAPE_MODE_EFFECTIVE" == "auto" ]]; then
+  if [[ "$(uname -s)" == "Darwin" || "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]]; then
+    CAPE_MODE_EFFECTIVE="cpu"
+  elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+    CAPE_MODE_EFFECTIVE="gpu"
+  else
+    CAPE_MODE_EFFECTIVE="cpu"
+  fi
+fi
+
+COMPOSE_FILES=(-f docker-compose.yml)
+if [[ "$CAPE_MODE_EFFECTIVE" == "cpu" ]]; then
+  COMPOSE_FILES+=(-f docker-compose.cape-cpu.yml)
+fi
+COMPOSE=(docker compose "${COMPOSE_FILES[@]}" --profile cape)
 
 echo "Validating Docker Compose configuration..."
 "${COMPOSE[@]}" config --quiet
@@ -48,6 +71,7 @@ if [ "$CAPE_ONLY" = true ]; then
 fi
 
 echo "Building and starting eCricketCoach (including CAPE)..."
+echo "CAPE runtime: ${CAPE_MODE_EFFECTIVE} ($(uname -s)/$(uname -m))"
 "${COMPOSE[@]}" up --build --detach
 
 # Nginx resolves the server service when it starts. Recreate/restart the proxy
