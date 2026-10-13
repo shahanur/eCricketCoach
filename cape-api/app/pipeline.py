@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import logging
 from collections import deque
 from functools import partial
 from pathlib import Path
@@ -12,6 +13,8 @@ import cv2
 import numpy as np
 
 from . import coaching, kinematics, render
+from .config import Settings
+from .gemini_contact import ContactSelection, GeminiContactError, select_contact_frame
 from .bowling import bounce_index, delivery_metrics, line_zone
 from .calibration import Calibrator
 from .models.base import Box, Landmarks, PoseResult
@@ -45,6 +48,8 @@ LOCK_TIMEOUT_FRAMES = 10
 MOVE_FRACTION = 0.005  # of frame width per frame, to call a person "moving"
 NOSE_HEIGHT_M = 1.68  # assumed nose height; release height is a body-ratio estimate (approximate)
 DEFAULT_FPS = 30.0
+CRICKET_BALL_MASS_KG = 0.156
+log = logging.getLogger("cape")
 
 _ENDPOINT_FIELDS = {
     Target.batter: ("pre_contact_snapshot", "impact_snapshot", "post_contact_snapshot"),
@@ -236,7 +241,15 @@ def _last_at(hist, frame_idx: int) -> Point | None:
 
 
 class _Pass:
-    def __init__(self, req: AnalysisRequest, cal: Calibrator, det: Any, fps: float, width: int) -> None:
+    def __init__(
+        self,
+        req: AnalysisRequest,
+        cal: Calibrator,
+        det: Any,
+        fps: float,
+        width: int,
+        contact_selection: ContactSelection | None = None,
+    ) -> None:
         self.req, self.cal, self.det, self.fps, self.width = req, cal, det, fps, max(width, 1)
         self.batter = req.target is Target.batter
         self.tracker = Tracker()
@@ -247,8 +260,11 @@ class _Pass:
         self.prev_persons: list[PoseResult] = []
         self.lock_tries = 0
         self.track: list[tuple[int, Point]] = []
+        self.ball_track: list[tuple[int, Point]] = []
         self.post_target: int | None = None
         self.best_bat_contact: tuple[float, int, np.ndarray] | None = None
+        self.contact_selection = contact_selection
+        self.visual_contact_point: Point | None = None
         self.done = False
         ref = (0.0, 0.0) if self.batter else (0.0, PITCH_LENGTH_M - POPPING_CREASE_M)
         try:
@@ -297,6 +313,8 @@ class _Pass:
 
     def _batter_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
         if ball is not None:
+            self.ball_track.append((idx, ball))
+        if ball is not None and self.contact_selection is None:
             bat = self.det.bat.segment(frame)
             if bat is not None and len(bat) >= 3:
                 distance = abs(float(cv2.pointPolygonTest(np.asarray(bat, dtype=np.float32), ball, True)))
@@ -315,6 +333,26 @@ class _Pass:
                     if self.best_bat_contact is None or score < self.best_bat_contact[0]:
                         self.best_bat_contact = (score, idx, frame.copy())
         self.tracker.update(idx, ball)
+        if self.contact_selection is not None:
+            contact_frame = self.contact_selection.frame_index
+            pre_frame = max(0, contact_frame - round(self.fps * PRE_CONTACT_S))
+            post_frame = contact_frame + max(POST_POINTS, round(self.fps * POST_CONTACT_S))
+            ref = self.locked.center if self.locked else self.crease_px
+            if idx == pre_frame:
+                self._keep("pre_contact", idx, frame)
+                self.boxes["pre_contact"] = self._person_box(frame, ref)
+            if idx == contact_frame:
+                self._keep("point_of_contact", idx, frame)
+                self.boxes["point_of_contact"] = self._person_box(frame, ref)
+                self.tracker.contact_frame = idx
+                if self.contact_selection.contact_point_norm is not None:
+                    height, width = frame.shape[:2]
+                    x, y = self.contact_selection.contact_point_norm
+                    self.visual_contact_point = (x * width, y * height)
+            if idx >= post_frame and "post_contact" not in self.frames:
+                self._keep("post_contact", idx, frame)
+                self.boxes["post_contact"] = self._person_box(frame, ref)
+            return
         c = self.tracker.contact_frame
         if c is not None and self.post_target is None:
             cf, cimg = self._frame_at(c)
@@ -325,7 +363,7 @@ class _Pass:
             self.boxes["point_of_contact"] = self._person_box(cimg, ref)
             self.boxes["pre_contact"] = self._person_box(pimg, ref)
             self.post_target = c + max(POST_POINTS, round(self.fps * POST_CONTACT_S))
-        if self.post_target is not None and idx >= self.post_target:
+        if self.post_target is not None and idx >= self.post_target and "post_contact" not in self.frames:
             self._keep("post_contact", idx, frame)
             # Keep scanning so a bat-ball proximity minimum later in the clip can
             # replace an early velocity-inversion estimate.
@@ -343,7 +381,9 @@ class _Pass:
             self.done = True
 
     def finish(self) -> None:
-        if self.batter and self.best_bat_contact is not None:
+        if self.batter and self.contact_selection is not None:
+            self.tracker.contact_frame = self.contact_selection.frame_index
+        elif self.batter and self.best_bat_contact is not None:
             _, frame_idx, frame = self.best_bat_contact
             self._keep("point_of_contact", frame_idx, frame)
             ref = self.locked.center if self.locked else self.crease_px
@@ -351,6 +391,10 @@ class _Pass:
             self.tracker.contact_frame = frame_idx
         if self.batter and self.post_target is not None and "post_contact" not in self.frames and self.buffer:
             self._keep("post_contact", *self.buffer[-1])
+        if self.batter and self.contact_selection is not None and "post_contact" not in self.frames and self.buffer:
+            self._keep("post_contact", *self.buffer[-1])
+            ref = self.locked.center if self.locked else self.crease_px
+            self.boxes["post_contact"] = self._person_box(self.buffer[-1][1], ref)
 
     def landmarks(self, key: str) -> Landmarks | None:
         box = self.boxes.get(key)
@@ -363,10 +407,14 @@ class _Pass:
 
 
 def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float):
-    if p.tracker.contact_frame is None:
+    if p.tracker.contact_frame is None or "point_of_contact" not in p.frames or "pre_contact" not in p.frames:
         raise CapeError(422, "no_contact_detected", "No bat-ball contact was detected in the clip")
     h = req.handedness
-    lm_c, lm_p = p.landmarks("point_of_contact"), p.landmarks("pre_contact")
+    lm_c, lm_p, lm_post = (
+        p.landmarks("point_of_contact"),
+        p.landmarks("pre_contact"),
+        p.landmarks("post_contact"),
+    )
     cf, cimg = p.frames["point_of_contact"]
     metrics: dict[str, float] = kinematics.pose_metrics(lm_c, h) if lm_c else {}
     pre_angles = {k: round(v, 1) for k, v in kinematics.batter_angles(lm_p, h).items()} if lm_p else {}
@@ -384,14 +432,18 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     metrics.update({k: v for k, v in extras.items() if v is not None})
     result = coaching.evaluate(req, metrics, None)
 
-    pre_hist = p.tracker.history(Phase.PRE_CONTACT)
-    contact_candidates = [
-        *pre_hist,
+    all_track = p.ball_track or [
+        *p.tracker.history(Phase.PRE_CONTACT),
         *p.tracker.history(Phase.AT_CONTACT),
         *p.tracker.history(Phase.POST_CONTACT),
     ]
-    contact_pt = min(contact_candidates, key=lambda item: abs(item[0] - cf))
-    post_hist = p.tracker.history(Phase.POST_CONTACT)
+    pre_hist = [(f, pt) for f, pt in all_track if f <= cf]
+    post_hist = [(f, pt) for f, pt in all_track if f >= cf]
+    nearest = min(all_track, key=lambda item: abs(item[0] - cf), default=None)
+    contact_point = p.visual_contact_point or (nearest[1] if nearest else None)
+    if contact_point is None:
+        raise CapeError(422, "no_contact_point_detected", "The impact frame was found but the contact point was not visible")
+    contact_pt = (cf, contact_point)
     post_pts = post_hist[:POST_POINTS]
     exit_v = _speed(cal, post_pts, fps)
     launch = None
@@ -399,6 +451,10 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         dx, dy = np.subtract(post_pts[-1][1], post_pts[0][1])
         launch = round(math.degrees(math.atan2(-dy, abs(dx))), 1)
     ball_v = _speed(cal, [*pre_hist[-POST_POINTS:], contact_pt], fps)
+    inbound_momentum = round(CRICKET_BALL_MASS_KG * ball_v / 3.6, 2) if ball_v is not None else None
+    inbound_energy = round(0.5 * CRICKET_BALL_MASS_KG * (ball_v / 3.6) ** 2, 1) if ball_v is not None else None
+    exit_momentum = round(CRICKET_BALL_MASS_KG * exit_v / 3.6, 2) if exit_v is not None else None
+    exit_energy = round(0.5 * CRICKET_BALL_MASS_KG * (exit_v / 3.6) ** 2, 1) if exit_v is not None else None
     ball_line = None
     try:
         contact_x, _ = cal.to_metres(contact_pt[1])
@@ -411,6 +467,10 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     contact_lines = [_fmt(m, metrics[m]) for m in checked if m in metrics]
     if ball_v is not None:
         contact_lines.append(f"Ball speed: {ball_v:.0f} km/h")
+    if inbound_momentum is not None:
+        contact_lines.append(f"Ball momentum: {inbound_momentum:.2f} kg m/s")
+    if inbound_energy is not None:
+        contact_lines.append(f"Ball energy: {inbound_energy:.0f} J")
     pf = p.frames["pre_contact"][0]
     postf = p.frames["post_contact"][0]
     title = f"{req.shot_type.value.replace('_', ' ').title()} | score {result.score}/100"
@@ -419,6 +479,9 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         post_lines.append(f"Exit speed: {exit_v:.0f} km/h")
     if launch is not None:
         post_lines.append(f"Launch angle: {launch:.0f} deg")
+    if exit_momentum is not None:
+        post_lines.append(f"Exit momentum: {exit_momentum:.2f} kg m/s")
+    post_angles = {k: round(v, 1) for k, v in kinematics.batter_angles(lm_post, h).items()} if lm_post else {}
     pre_ball = _last_at(pre_hist, pf)
     post_ball = _last_at(post_hist, postf)
     overlays = {
@@ -438,6 +501,8 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         ],
         "post_contact": [
             partial(render.draw_trail, pts=[contact_pt[1]] + [pt for f, pt in post_hist if f <= postf]),
+            *_body_layers(lm_post, h, {}, post_ball),
+            *_angle_layers(lm_post, h, post_angles, list(post_angles), {}),
             *_ball_layer(post_ball),
             _panel("Post-contact", post_lines),
         ],
@@ -446,13 +511,24 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         pre_contact=PreContact(milestone_frame=pf, batter_joint_angles=pre_angles),
         point_of_contact=PointOfContact(
             milestone_frame=cf,
+            selection_source="gemini" if p.contact_selection is not None else "detector",
+            selection_confidence=p.contact_selection.confidence if p.contact_selection is not None else None,
             ball_velocity_kmh=ball_v,
+            estimated_ball_momentum_kg_m_s=inbound_momentum,
+            estimated_ball_kinetic_energy_j=inbound_energy,
             bat_angle_degrees=round(bat_angle, 1) if bat_angle is not None else None,
             ball_line=ball_line,
             batter_joint_angles={k: round(v, 1) for k, v in metrics.items() if k in kinematics.ANGLE_METRICS},
             batter_3d_landmarks=dict(lm_c.points) if lm_c else {},
         ),
-        post_contact=PostContact(milestone_frame=postf, exit_velocity_kmh=exit_v, launch_angle_degrees=launch),
+        post_contact=PostContact(
+            milestone_frame=postf,
+            exit_velocity_kmh=exit_v,
+            estimated_ball_momentum_kg_m_s=exit_momentum,
+            estimated_ball_kinetic_energy_j=exit_energy,
+            launch_angle_degrees=launch,
+            batter_joint_angles=post_angles,
+        ),
     )
     return payload, None, result, overlays
 
@@ -515,13 +591,34 @@ def _analyze_bowler(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
 # --- entry point --------------------------------------------------------------
 
 
-def analyze(video_path: Path, req: AnalysisRequest, session_dir: Path, detectors: Any = None) -> AnalysisResponse:
+def analyze(
+    video_path: Path,
+    req: AnalysisRequest,
+    session_dir: Path,
+    detectors: Any = None,
+    settings: Settings | None = None,
+) -> AnalysisResponse:
     if detectors is None:
         raise CapeError(503, "models_unavailable", "Analysis models are not loaded")
     try:
         cal = Calibrator(req.calibration_points, req.pitch_points)
     except ValueError as exc:
         raise CapeError(422, "calibration_invalid", f"Calibration points are invalid: {exc}") from None
+
+    contact_selection = None
+    if req.target is Target.batter and settings and settings.gemini_contact:
+        if settings.gemini_api_key:
+            try:
+                contact_selection = select_contact_frame(
+                    video_path,
+                    settings.gemini_api_key.get_secret_value(),
+                    settings.gemini_model,
+                    settings.gemini_timeout_seconds,
+                )
+            except GeminiContactError as exc:
+                log.warning("Gemini contact selection failed; using detector fallback: %s", exc)
+        else:
+            log.warning("Gemini contact selection enabled but CAPE_GEMINI_API_KEY is unset; using detector fallback")
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -530,7 +627,7 @@ def analyze(video_path: Path, req: AnalysisRequest, session_dir: Path, detectors
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 0)
         fps = fps if math.isfinite(fps) and fps > 0 else DEFAULT_FPS
         width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        scan = _Pass(req, cal, detectors, fps, width)
+        scan = _Pass(req, cal, detectors, fps, width, contact_selection)
         idx = 0
         while not scan.done:
             ok, frame = cap.read()

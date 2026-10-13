@@ -113,7 +113,7 @@ async def analyze_cricket_video(
         meta = await run_in_threadpool(ingest.probe, video_path)
         _check_points_in_frame(req, meta)
         detectors = getattr(request.app.state, "detectors", None)
-        result = await run_in_threadpool(pipeline.analyze, video_path, req, session_dir, detectors)
+        result = await run_in_threadpool(pipeline.analyze, video_path, req, session_dir, detectors, settings)
     except BaseException:
         workspace.purge(session_id, settings)
         raise

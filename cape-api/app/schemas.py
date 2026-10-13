@@ -179,7 +179,11 @@ class PreContact(BaseModel):
 
 class PointOfContact(BaseModel):
     milestone_frame: int
+    selection_source: Literal["gemini", "detector"] = "detector"
+    selection_confidence: float | None = Field(default=None, ge=0, le=1)
     ball_velocity_kmh: float | None = None
+    estimated_ball_momentum_kg_m_s: float | None = None
+    estimated_ball_kinetic_energy_j: float | None = None
     bat_angle_degrees: float | None = None
     ball_line: LineZone | None = None
     batter_joint_angles: dict[str, float] = Field(default_factory=dict)
@@ -189,7 +193,10 @@ class PointOfContact(BaseModel):
 class PostContact(BaseModel):
     milestone_frame: int
     exit_velocity_kmh: float | None = None
+    estimated_ball_momentum_kg_m_s: float | None = None
+    estimated_ball_kinetic_energy_j: float | None = None
     launch_angle_degrees: float | None = None
+    batter_joint_angles: dict[str, float] = Field(default_factory=dict)
 
 
 class Release(BaseModel):

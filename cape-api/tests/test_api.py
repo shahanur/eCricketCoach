@@ -116,8 +116,8 @@ def test_missing_weights_returns_503_and_cleans_up(client, settings, video_bytes
 def test_pipeline_receives_request_and_input_is_purged(client, settings, video_bytes, monkeypatch):
     seen = {}
 
-    def fake_analyze(video_path, req, session_dir, detectors):
-        seen.update(path=video_path, req=req)
+    def fake_analyze(video_path, req, session_dir, detectors, pipeline_settings):
+        seen.update(path=video_path, req=req, settings=pipeline_settings)
         assert video_path.read_bytes() == video_bytes
         (session_dir / "1_pre_contact.jpg").write_bytes(b"jpg")
         raise CapeError(422, "no_contact_detected", "No bat contact found")
@@ -126,6 +126,7 @@ def test_pipeline_receives_request_and_input_is_purged(client, settings, video_b
     r = post(client, form(target="bowler", shot_type=None, bowler_type="pace"), content=video_bytes)
     assert r.status_code == 422 and r.json()["error"] == "no_contact_detected"
     assert seen["req"].bowler_type == "pace" and seen["path"].suffix == ".avi"
+    assert seen["settings"] is settings
     assert seen["req"].pitch_points[2] == (1.525, 20.12)
     assert sessions(settings) == []
 

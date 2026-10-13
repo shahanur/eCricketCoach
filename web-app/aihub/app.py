@@ -28,6 +28,12 @@ YOLO_MODEL: Any | None = None
 # CPU inference costs ~0.5 s per frame, so long clips are sampled down to this many frames.
 MAX_SCAN_FRAMES = max(10, int(os.getenv("AIHUB_MAX_SCAN_FRAMES", "120")))
 MAX_CONTACT_CANDIDATES = max(5, int(os.getenv("AIHUB_MAX_CONTACT_CANDIDATES", "40")))
+# Frame-accurate contact search: coarse scan of the clip, then every frame within the window of the best.
+CONTACT_SCAN_FRAMES = max(10, int(os.getenv("AIHUB_CONTACT_SCAN_FRAMES", "90")))
+REFINE_WINDOW_MS = max(50, int(os.getenv("AIHUB_REFINE_WINDOW_MS", "200")))
+REFINE_USE_YOLO = os.getenv("AIHUB_REFINE_YOLO", "1") != "0"
+# Experimental: unreliable and slow (minutes per clip) until trained bat/ball models are loaded.
+FRAME_CONTACT_SEARCH = os.getenv("AIHUB_FRAME_CONTACT", "0") == "1"
 BALL_PATH_CACHE: dict[str, list[tuple[int, int, int]]] = {}
 BALL_PATH_CACHE_SIZE = 8
 
@@ -79,10 +85,14 @@ def point_segment_distance(point_value: tuple[int, int], start: tuple[int, int],
     return float(np.linalg.norm(np.array(point_value, dtype=float) - closest))
 
 
-def find_bat_segment(frame: np.ndarray, ball: tuple[int, int], wrists: list[tuple[int, int]]) -> tuple[tuple[int, int], tuple[int, int]] | None:
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=28, minLineLength=45, maxLineGap=18)
+def bat_lines(frame: np.ndarray) -> np.ndarray | None:
+    edges = cv2.Canny(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), 50, 150)
+    return cv2.HoughLinesP(edges, 1, np.pi / 180, threshold=28, minLineLength=45, maxLineGap=18)
+
+
+def find_bat_segment(frame: np.ndarray, ball: tuple[int, int], wrists: list[tuple[int, int]], lines: np.ndarray | None = None) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    if lines is None:
+        lines = bat_lines(frame)
     if lines is None:
         return None
     best: tuple[float, tuple[int, int], tuple[int, int]] | None = None
@@ -110,44 +120,88 @@ def draw_label(image: np.ndarray, text: str, origin: tuple[int, int], color: tup
     cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2, cv2.LINE_AA)
 
 
-def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int, int, int]]:
-    def candidates_for(frame: np.ndarray) -> list[tuple[int, int, float]]:
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.medianBlur(gray, 5)
-        candidates: list[tuple[int, int, float]] = []
-        circles = cv2.HoughCircles(
-            gray,
-            cv2.HOUGH_GRADIENT,
-            dp=1.15,
-            minDist=7,
-            param1=75,
-            param2=11,
-            minRadius=max(2, int(min(width, height) * 0.002)),
-            maxRadius=max(10, int(min(width, height) * 0.045)),
-        )
-        if circles is not None:
-            candidates.extend((int(round(x)), int(round(y)), float(r)) for x, y, r in np.round(circles[0]).tolist())
+def ball_candidates(frame: np.ndarray, motion: np.ndarray | None = None) -> list[tuple[int, int, float]]:
+    height, width = frame.shape[:2]
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 5)
+    candidates: list[tuple[int, int, float]] = []
+    circles = cv2.HoughCircles(
+        gray,
+        cv2.HOUGH_GRADIENT,
+        dp=1.15,
+        minDist=7,
+        param1=75,
+        param2=11,
+        minRadius=max(2, int(min(width, height) * 0.002)),
+        maxRadius=max(10, int(min(width, height) * 0.045)),
+    )
+    if circles is not None:
+        candidates.extend((int(round(x)), int(round(y)), float(r)) for x, y, r in np.round(circles[0]).tolist())
 
-        # Cricket balls are commonly red/orange; this catches motion-blurred balls
-        # that no longer present a clean Hough circle.
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        red_low = cv2.inRange(hsv, np.array([0, 70, 35]), np.array([18, 255, 255]))
-        red_high = cv2.inRange(hsv, np.array([165, 70, 35]), np.array([179, 255, 255]))
-        mask = cv2.morphologyEx(red_low | red_high, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < 8 or area > max(3000, width * height * 0.01):
-                continue
-            perimeter = cv2.arcLength(contour, True)
-            circularity = 4 * math.pi * area / (perimeter * perimeter) if perimeter else 0
-            if circularity < 0.25:
-                continue
-            (x, y), radius = cv2.minEnclosingCircle(contour)
-            if 2 <= radius <= max(10, min(width, height) * 0.06):
-                candidates.append((int(round(x)), int(round(y)), float(radius)))
+    # Cricket balls are commonly red/orange; this catches motion-blurred balls
+    # that no longer present a clean Hough circle.
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    red_low = cv2.inRange(hsv, np.array([0, 70, 35]), np.array([18, 255, 255]))
+    red_high = cv2.inRange(hsv, np.array([165, 70, 35]), np.array([179, 255, 255]))
+    # Yellow/green tennis and indoor practice balls.
+    yellow = cv2.inRange(hsv, np.array([22, 90, 90]), np.array([45, 255, 255]))
+    mask = cv2.morphologyEx(red_low | red_high | yellow, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < 8 or area > max(3000, width * height * 0.01):
+            continue
+        perimeter = cv2.arcLength(contour, True)
+        circularity = 4 * math.pi * area / (perimeter * perimeter) if perimeter else 0
+        if circularity < 0.25:
+            continue
+        (x, y), radius = cv2.minEnclosingCircle(contour)
+        if 2 <= radius <= max(10, min(width, height) * 0.06):
+            candidates.append((int(round(x)), int(round(y)), float(radius)))
+    return moving_only(candidates, motion)
+
+
+def motion_mask(previous: np.ndarray | None, frame: np.ndarray) -> np.ndarray | None:
+    if previous is None or previous.shape != frame.shape:
+        return None
+    diff = cv2.absdiff(cv2.cvtColor(previous, cv2.COLOR_BGR2GRAY), cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+    _, mask = cv2.threshold(cv2.GaussianBlur(diff, (5, 5), 0), 18, 255, cv2.THRESH_BINARY)
+    return cv2.dilate(mask, np.ones((5, 5), np.uint8))
+
+
+def moving_only(candidates: list[tuple[int, int, float]], motion: np.ndarray | None) -> list[tuple[int, int, float]]:
+    # A ball in play always moves between consecutive frames; captions, stumps and spare balls do not.
+    if motion is None:
         return candidates
+    height, width = motion.shape[:2]
+    kept = []
+    for x, y, r in candidates:
+        reach = int(max(3, r))
+        patch = motion[max(0, y - reach):min(height, y + reach + 1), max(0, x - reach):min(width, x + reach + 1)]
+        if patch.size and np.count_nonzero(patch) >= patch.size * 0.15:
+            kept.append((x, y, r))
+    return kept
 
+
+def yolo_ball_candidates(yolo: Any, frame: np.ndarray, centre: tuple[int, int] | None = None, crop: int = 640) -> list[tuple[int, int, float]]:
+    # Cropping around the expected ball keeps it large enough for YOLO to see at imgsz=640.
+    offset_x = offset_y = 0
+    image = frame
+    if centre is not None:
+        height, width = frame.shape[:2]
+        offset_x = int(np.clip(centre[0] - crop // 2, 0, max(0, width - crop)))
+        offset_y = int(np.clip(centre[1] - crop // 2, 0, max(0, height - crop)))
+        image = frame[offset_y:offset_y + crop, offset_x:offset_x + crop]
+    prediction = yolo.predict(image, classes=[YOLO_BALL_CLASS], verbose=False, conf=0.12, imgsz=640)[0]
+    candidates: list[tuple[int, int, float]] = []
+    if prediction.boxes is not None:
+        for box in prediction.boxes:
+            x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
+            candidates.append(((x1 + x2) // 2 + offset_x, (y1 + y2) // 2 + offset_y, max(2.0, min(x2 - x1, y2 - y1) / 2.0)))
+    return candidates
+
+
+def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int, int, int]]:
     capture = open_video(video_path)
     if not capture.isOpened():
         return []
@@ -159,27 +213,25 @@ def detect_ball_path(video_path: str, width: int, height: int) -> list[tuple[int
     yolo = get_yolo_model()
     frame_index = 0
     frame_stride = max(1, int(os.getenv("AIHUB_FRAME_STRIDE", "2")), math.ceil(frame_count / MAX_SCAN_FRAMES))
+    previous: np.ndarray | None = None
     while True:
         ok, frame = capture.read()
         if not ok:
             break
         sample_ms = int((frame_index / fps) * 1000)
         frame_index += 1
+        prior, previous = previous, frame
         if frame_index % frame_stride != 0:
             continue
+        motion = motion_mask(prior, frame)
         candidates = []
         if yolo is not None:
             try:
-                prediction = yolo.predict(frame, classes=[YOLO_BALL_CLASS], verbose=False, conf=0.12, imgsz=640)[0]
-                if prediction.boxes is not None:
-                    for box in prediction.boxes:
-                        confidence = float(box.conf[0])
-                        x1, y1, x2, y2 = [int(value) for value in box.xyxy[0].tolist()]
-                        candidates.append(((x1 + x2) // 2, (y1 + y2) // 2, max(2.0, min(x2 - x1, y2 - y1) / 2.0, confidence)))
+                candidates.extend(moving_only(yolo_ball_candidates(yolo, frame), motion))
             except Exception as error:
                 print(f"AIHub YOLO frame inference failed; using CV fallback: {error}")
                 yolo = None
-        candidates.extend(candidates_for(frame))
+        candidates.extend(ball_candidates(frame, motion))
         if not candidates:
             continue
         if last is not None:
@@ -237,6 +289,96 @@ def estimate_contact_ms(video_path: str, ball_path: list[tuple[int, int, int]], 
                 best = (score, timestamp_ms, bat_segment, method)
     capture.release()
     return (best[1], best[2], best[3]) if best else (None, None, "NO_POSE")
+
+
+ContactSegment = tuple[tuple[int, int], tuple[int, int]]
+
+
+def contact_evidence(frame: np.ndarray, motion: np.ndarray | None, pose: Any, yolo: Any | None) -> tuple[float, tuple[int, int], ContactSegment | None] | None:
+    """Score how close a moving ball is to the bat in one frame (lower = closer). Independent of the clip-wide
+    ball track, so a noisy track cannot pull the contact frame away from the actual bat-ball meeting."""
+    height, width = frame.shape[:2]
+    result = pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    if not result.pose_landmarks:
+        return None
+    landmarks = result.pose_landmarks.landmark
+    landmark = mp.solutions.pose.PoseLandmark
+    wrists = [point(landmarks, landmark.LEFT_WRIST, width, height), point(landmarks, landmark.RIGHT_WRIST, width, height)]
+    shoulder_mid = np.mean([point(landmarks, landmark.LEFT_SHOULDER, width, height), point(landmarks, landmark.RIGHT_SHOULDER, width, height)], axis=0)
+    ankle_mid = np.mean([point(landmarks, landmark.LEFT_ANKLE, width, height), point(landmarks, landmark.RIGHT_ANKLE, width, height)], axis=0)
+    body = max(float(np.linalg.norm(shoulder_mid - ankle_mid)), height * 0.15)
+    # Moving round/red/yellow blobs on the batter (helmet, shoes) must not be mistaken for the ball.
+    own_body = [point(landmarks, index, width, height) for index in (
+        landmark.NOSE, landmark.LEFT_ANKLE, landmark.RIGHT_ANKLE, landmark.LEFT_HEEL, landmark.RIGHT_HEEL,
+        landmark.LEFT_FOOT_INDEX, landmark.RIGHT_FOOT_INDEX,
+    )]
+    candidates = ball_candidates(frame, motion)
+    if yolo is not None:
+        hands = (int((wrists[0][0] + wrists[1][0]) / 2), int((wrists[0][1] + wrists[1][1]) / 2))
+        candidates.extend(moving_only(yolo_ball_candidates(yolo, frame, hands), motion))
+    lines = bat_lines(frame)
+    best: tuple[float, tuple[int, int], ContactSegment | None] | None = None
+    for x, y, radius in candidates:
+        ball = (int(x), int(y))
+        wrist_distance = min(math.dist(ball, wrist) for wrist in wrists)
+        if radius > body * 0.06 or wrist_distance > body * 0.75 or wrist_distance < body * 0.08:
+            continue
+        if min(math.dist(ball, part) for part in own_body) < body * 0.07:
+            continue
+        segment = find_bat_segment(frame, ball, wrists, lines)
+        bat_distance = max(0.0, point_segment_distance(ball, *segment) - radius) if segment else wrist_distance + 100
+        score = bat_distance + wrist_distance * 0.2
+        if best is None or score < best[0]:
+            best = (score, ball, segment)
+    return best
+
+
+def find_contact(video_path: str) -> tuple[int, ContactSegment | None, str, np.ndarray, tuple[int, int]] | None:
+    """Scan the whole clip coarsely, then re-check every frame around the best candidate so a contact that
+    lasts a single frame is not skipped by sampling. Returns (ms, bat segment, method, frame, ball)."""
+    capture = open_video(video_path)
+    if not capture.isOpened():
+        return None
+    fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+    frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    if frame_count <= 0:
+        capture.release()
+        return None
+    yolo = get_yolo_model() if REFINE_USE_YOLO else None
+    # best = (score, frame_index, segment, frame, ball)
+    best: tuple[float, int, ContactSegment | None, np.ndarray, tuple[int, int]] | None = None
+
+    def scan(start: int, end: int, stride: int, pose: Any, detector: Any | None) -> None:
+        nonlocal best
+        # Start one frame early so the first evaluated frame has a motion reference.
+        capture.set(cv2.CAP_PROP_POS_FRAMES, max(0, start - 1))
+        previous: np.ndarray | None = None
+        for index in range(max(0, start - 1), end + 1):
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if index >= start and (index - start) % stride == 0:
+                try:
+                    evidence = contact_evidence(frame, motion_mask(previous, frame), pose, detector)
+                except Exception as error:
+                    print(f"AIHub contact evidence failed on frame {index}: {error}")
+                    evidence = None
+                if evidence is not None and (best is None or evidence[0] < best[0]):
+                    best = (evidence[0], index, evidence[2], frame.copy(), evidence[1])
+            previous = frame
+
+    with mp.solutions.pose.Pose(static_image_mode=True, model_complexity=1, enable_segmentation=False, min_detection_confidence=0.35) as pose:
+        stride = max(1, math.ceil(frame_count / CONTACT_SCAN_FRAMES))
+        scan(0, frame_count - 1, stride, pose, None)
+        if best is not None:
+            half = max(stride - 1, int(round(REFINE_WINDOW_MS * fps / 1000)))
+            centre = best[1]
+            scan(max(0, centre - half), min(frame_count - 1, centre + half), 1, pose, yolo)
+    capture.release()
+    if best is None:
+        return None
+    method = "FRAME_REFINED_BAT" if best[2] else "FRAME_REFINED_WRIST"
+    return int(round(best[1] * 1000 / fps)), best[2], method, best[3], best[4]
 
 
 def analyze_frame(frame: np.ndarray, discipline: str, timestamp_ms: int, ball_path: list[tuple[int, int, int]], contact_detected: bool, contact_segment: tuple[tuple[int, int], tuple[int, int]] | None = None, contact_method: str = "NONE") -> dict[str, Any]:
@@ -400,10 +542,18 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
             BALL_PATH_CACHE[video_key] = ball_path
             while len(BALL_PATH_CACHE) > BALL_PATH_CACHE_SIZE:
                 BALL_PATH_CACHE.pop(next(iter(BALL_PATH_CACHE)))
+        contact_frame: np.ndarray | None = None
+        draw_path = ball_path
         if force_timestamp and timestamp_ms > 0:
             contact_ms, contact_segment, contact_method = None, None, "NONE"
         else:
-            contact_ms, contact_segment, contact_method = estimate_contact_ms(source.name, ball_path, width, height)
+            refined = find_contact(source.name) if FRAME_CONTACT_SEARCH else None
+            if refined is not None:
+                contact_ms, contact_segment, contact_method, contact_frame, contact_ball = refined
+                # Mark the exact ball position at contact instead of the nearest sampled track point.
+                draw_path = sorted([*ball_path, (*contact_ball, contact_ms)], key=lambda item: item[2])
+            else:
+                contact_ms, contact_segment, contact_method = estimate_contact_ms(source.name, ball_path, width, height)
         if force_timestamp and timestamp_ms > 0:
             contact_ms = timestamp_ms
             contact_segment = None
@@ -415,14 +565,26 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
             success, frame = capture.read()
             if not success:
                 raise HTTPException(status_code=422, detail="AIHub could not read the detected contact frame.")
-        result, selected_ms = analyze_nearby_frame(
-            capture, selected_ms, discipline, ball_path, contact_detected, contact_segment, contact_method
-        )
+        result = None
+        if contact_frame is not None:
+            try:
+                result = analyze_frame(contact_frame, discipline, selected_ms, draw_path, contact_detected, contact_segment, contact_method)
+            except HTTPException as error:
+                if error.status_code != 422:
+                    raise
+                contact_frame = None
+        if result is None:
+            result, selected_ms = analyze_nearby_frame(
+                capture, selected_ms, discipline, draw_path, contact_detected, contact_segment, contact_method
+            )
         series = []
         for offset_ms in (-300, -100, 0, 250):
             series_ms = max(0, selected_ms + offset_ms)
-            capture.set(cv2.CAP_PROP_POS_MSEC, series_ms)
-            series_success, series_frame = capture.read()
+            if offset_ms == 0 and contact_frame is not None:
+                series_success, series_frame = True, contact_frame
+            else:
+                capture.set(cv2.CAP_PROP_POS_MSEC, series_ms)
+                series_success, series_frame = capture.read()
             if not series_success:
                 continue
             try:
@@ -430,7 +592,7 @@ def analyze_video(content: bytes, suffix: str, discipline: str, timestamp_ms: in
                     series_frame,
                     discipline,
                     series_ms,
-                    ball_path,
+                    draw_path,
                     contact_detected and offset_ms == 0,
                     contact_segment if offset_ms == 0 else None,
                     contact_method if offset_ms == 0 else "NONE"

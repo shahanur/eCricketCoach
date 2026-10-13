@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app import pipeline
 from app.config import Settings
+from app.gemini_contact import ContactSelection
 from app.main import create_app
 from app.models.base import Box, Landmarks, PoseResult
 from app.schemas import DEFAULT_PITCH_POINTS_M, AnalysisRequest, CapeError
@@ -154,6 +155,25 @@ def test_batter_pipeline(video, tmp_path):
     assert res.delivery is None and res.metadata.resolution == "320x240"
     assert sorted(p.name for p in session.iterdir()) == ["1_pre_contact.jpg", "2_point_of_contact.jpg", "3_post_contact.jpg"]
     assert res.download_endpoints.impact_snapshot.endswith("/s1/2_point_of_contact.jpg")
+
+
+def test_gemini_contact_frame_overrides_detector_milestone(video, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        pipeline,
+        "select_contact_frame",
+        lambda *_: ContactSelection(25, 0.91, (0.2, 0.6), "visible impact"),
+    )
+    settings = Settings(gemini_api_key="test-key")
+    session = tmp_path / "gemini"
+    session.mkdir()
+    res = pipeline.analyze(video, batter_req(), session, batter_detectors(), settings)
+    contact = res.analytics_payload.point_of_contact
+    assert contact.milestone_frame == 25
+    assert contact.selection_source == "gemini"
+    assert contact.selection_confidence == 0.91
+    assert res.analytics_payload.pre_contact.milestone_frame == 21
+    assert res.analytics_payload.post_contact.milestone_frame == 31
+    assert res.analytics_payload.post_contact.batter_joint_angles
 
 
 def test_bowler_pipeline(video, tmp_path):

@@ -8,9 +8,9 @@ import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
-import { AihubResultView } from './AihubResultView';
+import { AihubAnalysisPanel } from './AihubAnalysisPanel';
 import type { CapeJob } from '../../types';
-import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy, ScanLine } from 'lucide-react';
+import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
@@ -262,7 +262,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [analysisDiscipline, setAnalysisDiscipline] = useState<Discipline>('BATTING');
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false);
   const [clubAnalysisResult, setClubAnalysisResult] = useState<VideoAnalysisResult | null>(null);
-  const [isAnalyzingKinematics, setIsAnalyzingKinematics] = useState(false);
   const [kinematicsResult, setKinematicsResult] = useState<{
     discipline: string;
     timestampMs: number;
@@ -3228,40 +3227,18 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <p className="text-[11px] text-slate-500">Run both on the same video to see how AIHub and CAPE differ.</p>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-              <div className="rounded-lg border border-sky-200 bg-white p-3 space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h4 className="text-sm font-semibold text-sky-800">Detailed batting analysis (pose, ball &amp; speed)</h4>
-                    <p className="mt-1 text-[11px] text-slate-500">One-click AIHub analysis with pose, ball-line, corrections, and downloadable overlays.</p>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={isAnalyzingKinematics || (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoName : !selectedDriveVideo)}
-                    onClick={async () => {
-                      setIsAnalyzingKinematics(true);
-                      setKinematicsResult(null);
-                      setAihubDurationMs(null);
-                      const startedAt = performance.now();
-                      try {
-                        const result = videoSourceMode === 'LOCAL_UPLOAD'
-                          ? await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, videoFile: uploadedVideoFile || undefined })
-                          : await api.analyzeKinematicsOverlay({ discipline: analysisDiscipline, driveFileId: selectedDriveVideo });
-                        setKinematicsResult(result);
-                        setAihubDurationMs(performance.now() - startedAt);
-                      } catch (err: any) {
-                        setUploadError(err?.message || 'Failed to create the kinematic overlay.');
-                      } finally {
-                        setIsAnalyzingKinematics(false);
-                      }
-                    }}
-                    className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 transition hover:bg-sky-50 disabled:opacity-50"
-                  >
-                    <ScanLine className="h-4 w-4" />
-                    {isAnalyzingKinematics ? 'Analysing...' : 'Analyse with AIHub'}
-                  </button>
-                </div>
-                {kinematicsResult && <AihubResultView result={kinematicsResult} discipline={analysisDiscipline} />}
-              </div>
+            {/* Detailed computer-vision analysis (AIHub) of the same selected video */}
+            <AihubAnalysisPanel
+              discipline={analysisDiscipline}
+              startLabel="Analyse with AIHub"
+              onResultChange={(result, durationMs) => {
+                setKinematicsResult(result);
+                setAihubDurationMs(durationMs);
+              }}
+              source={videoSourceMode === 'LOCAL_UPLOAD'
+                ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
+                : (selectedDriveVideo ? { name: driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Drive video', driveFileId: selectedDriveVideo } : null)}
+            />
 
             {/* Detailed computer-vision analysis (CAPE) of the same selected video */}
             <CapeAnalysisPanel

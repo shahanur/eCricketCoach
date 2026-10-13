@@ -1,0 +1,10 @@
+# Ultralytics dataset config for the CAPE bat segmenter.
+# `path` is resolved by train_bat.py (--data); relative paths here are relative to it.
+# Produce the layout with: python -m training.split_dataset <raw_bat_dir> <path>
+path: datasets/bat
+train: train/images
+val: val/images
+test: test/images
+
+names:
+  0: cricket_bat   # polygon around the whole bat (blade + handle) as seen; covers the full blur

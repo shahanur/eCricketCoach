@@ -129,7 +129,7 @@ export const AnalysisComparison: React.FC<AnalysisComparisonProps> = ({ aihub, a
             detail: 'Calibrated pose, coaching faults, and delivery analysis'
           },
         ].map(engine => (
-          <figure key={engine.name} className={`overflow-hidden rounded-lg border ${engine.border} bg-black`}>
+          <figure key={engine.name} className={`self-start overflow-hidden rounded-lg border ${engine.border} bg-black`}>
             <div className="flex items-center justify-between gap-3 bg-slate-900 px-3 py-2">
               <div>
                 <p className={`text-sm font-bold ${engine.color}`}>{engine.name}</p>
@@ -140,9 +140,12 @@ export const AnalysisComparison: React.FC<AnalysisComparisonProps> = ({ aihub, a
                 <p className="text-[10px] text-slate-500">{engine.duration}</p>
               </div>
             </div>
-            {engine.image
-              ? <img src={engine.image} alt={`${engine.name} annotated frame`} className="w-full max-h-[420px] object-contain" />
-              : <div className="flex aspect-video items-center justify-center text-xs text-slate-500">{engine.ready ? 'Loading image…' : `Not run yet`}</div>}
+            {/* Identical fixed viewer for both engines so portrait and landscape frames line up. */}
+            <div className="flex aspect-[4/3] w-full items-center justify-center bg-black">
+              {engine.image
+                ? <img src={engine.image} alt={`${engine.name} annotated frame`} className="h-full w-full object-contain" />
+                : <span className="text-xs text-slate-500">{engine.ready ? 'Loading image…' : 'Not run yet'}</span>}
+            </div>
             <figcaption className={`border-t border-slate-800 bg-slate-950 px-3 py-1.5 text-[11px] font-semibold ${engine.color}`}>{engine.ready ? 'COMPLETED' : 'NOT RUN'}</figcaption>
           </figure>
         ))}

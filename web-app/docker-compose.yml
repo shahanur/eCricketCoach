@@ -37,6 +37,8 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+    # cape-worker runs this same image, so it is built once.
+    image: ecricket-server:latest
     container_name: ecricket_api
     restart: unless-stopped
     environment:
@@ -78,6 +80,10 @@ services:
     environment:
       CAPE_API_KEY: ${CAPE_API_KEY:-}
       CAPE_DEVICE: ${CAPE_DEVICE:-cuda}
+      CAPE_GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CAPE_GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+      CAPE_GEMINI_CONTACT: ${CAPE_GEMINI_CONTACT:-true}
+      CAPE_GEMINI_TIMEOUT_SECONDS: ${CAPE_GEMINI_TIMEOUT_SECONDS:-90}
     volumes:
       - ../cape-api/weights:/app/weights:ro
       - cape-workspace:/app/cricket_workspace
@@ -94,6 +100,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+    image: ecricket-server:latest
     container_name: ecricket_cape_worker
     restart: unless-stopped
     command: npm run worker

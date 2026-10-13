@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     artifact_ttl_seconds: int = Field(900, gt=0)
     sweep_interval_seconds: int = Field(60, gt=0)
     api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-flash-latest"
+    gemini_contact: bool = True
+    gemini_timeout_seconds: float = Field(90, gt=0)
 
     @property
     def max_upload_bytes(self) -> int:
