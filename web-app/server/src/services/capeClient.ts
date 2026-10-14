@@ -45,6 +45,7 @@ export interface CapeFault {
 
 export interface CapeAiGuidance {
   source: 'gemini';
+  model?: string;
   summary: string;
   items: Array<{
     fault_code: string;

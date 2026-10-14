@@ -276,6 +276,8 @@ model CapeJob {
   result       Json?
   // { "<artifact file name>": "<Drive file id>" }
   artifacts    Json?
+  // Audit of the Gemini coaching-guidance call: prompt, facts, model, outcome.
+  geminiRequest Json?   @map("gemini_request")
   attempts     Int      @default(0)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

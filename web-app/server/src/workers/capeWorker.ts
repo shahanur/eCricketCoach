@@ -97,18 +97,34 @@ function rewriteDownloads(capeJobId: string, endpoints: Record<string, string | 
   return out;
 }
 
+export interface GeminiRequestAudit {
+  label: string;
+  requestedAt: string;
+  durationMs: number;
+  model: string | null;
+  status: 'SUCCEEDED' | 'FAILED';
+  error: string | null;
+  prompt: string;
+  facts: Record<string, unknown>;
+}
+
 // Gemini personalizes corrections for CAPE's deterministic findings. It cannot alter
 // measurements, severity, score, or introduce additional faults.
-export async function geminiCoachingGuidance(response: CapeResponse): Promise<CapeAiGuidance | null> {
-  if (process.env.CAPE_GEMINI_SUMMARY !== 'true' || !GeminiVideoAnalysisService.isConfigured()) return null;
-  if (response.coaching.faults.length === 0) return null;
-  const facts = JSON.stringify({
+export async function geminiCoachingGuidance(
+  response: CapeResponse,
+  capeJobId = 'unknown'
+): Promise<{ guidance: CapeAiGuidance | null; audit: GeminiRequestAudit | null }> {
+  if (process.env.CAPE_GEMINI_SUMMARY !== 'true' || !GeminiVideoAnalysisService.isConfigured()) return { guidance: null, audit: null };
+  if (response.coaching.faults.length === 0) return { guidance: null, audit: null };
+  const label = 'CAPE Gemini coaching guidance';
+  const factsObj = {
     metadata: response.metadata,
     score: response.coaching.score,
     verdict: response.coaching.verdict,
     faults: response.coaching.faults,
     strengths: response.coaching.strengths
-  });
+  };
+  const facts = JSON.stringify(factsObj);
   const expectedCodes = response.coaching.faults.map(fault => fault.code);
   const prompt = [
     'You are an elite cricket skills coach receiving verified CAPE measurements and deterministic findings.',
@@ -119,10 +135,16 @@ export async function geminiCoachingGuidance(response: CapeResponse): Promise<Ca
     '{"summary":"brief overall coaching priority","items":[{"fault_code":"exact supplied fault code","title":"short correction title","why_it_matters":"cricket consequence grounded only in the supplied finding","coaching_cues":["cue"],"drill":{"name":"drill name","instructions":["step"],"equipment":["item"]}}]}',
     facts
   ].join('\n');
+  const requestedAt = new Date();
+  const audit = (status: GeminiRequestAudit['status'], model: string | null, error: string | null): GeminiRequestAudit => ({
+    label, requestedAt: requestedAt.toISOString(), durationMs: Date.now() - requestedAt.getTime(),
+    model, status, error, prompt, facts: factsObj
+  });
+  console.log(`${label} for CAPE job ${capeJobId}: sending ${expectedCodes.length} fault(s) [${expectedCodes.join(', ')}]; facts=${facts}`);
   try {
-    const data = await GeminiVideoAnalysisService.generateJson(
+    const { data, model } = await GeminiVideoAnalysisService.generateJsonDetailed(
       [prompt],
-      (d: any): d is Omit<CapeAiGuidance, 'source'> => {
+      (d: any): d is Omit<CapeAiGuidance, 'source' | 'model'> => {
         if (typeof d?.summary !== 'string' || !Array.isArray(d?.items) || d.items.length !== expectedCodes.length) return false;
         const returnedCodes = d.items.map((item: any) => item?.fault_code);
         if (new Set(returnedCodes).size !== expectedCodes.length || expectedCodes.some(code => !returnedCodes.includes(code))) return false;
@@ -140,16 +162,18 @@ export async function geminiCoachingGuidance(response: CapeResponse): Promise<Ca
           item.drill.equipment.every((equipment: unknown) => typeof equipment === 'string')
         );
       },
-      'CAPE Gemini coaching guidance'
+      label,
+      { jsonMode: true }
     );
+    console.log(`${label} for CAPE job ${capeJobId} succeeded (model ${model}, ${Date.now() - requestedAt.getTime()}ms)`);
     return {
-      source: 'gemini',
-      summary: data.summary.trim(),
-      items: data.items
+      guidance: { source: 'gemini', model, summary: data.summary.trim(), items: data.items },
+      audit: audit('SUCCEEDED', model, null)
     };
   } catch (err) {
-    console.warn('CAPE Gemini coaching guidance skipped:', err instanceof Error ? err.message : err);
-    return null;
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`${label} for CAPE job ${capeJobId} skipped:`, message);
+    return { guidance: null, audit: audit('FAILED', null, message) };
   }
 }
 
@@ -170,7 +194,7 @@ export async function processCapeJob(job: Job<CapeQueueData>): Promise<void> {
     const videoPath = await resolveVideo(record, workDir);
     const response = await analyzeWithCape(videoPath, request);
     const stored = await storeArtifacts(record, request, response, workDir);
-    const aiGuidance = await geminiCoachingGuidance(response);
+    const { guidance: aiGuidance, audit: geminiAudit } = await geminiCoachingGuidance(response, capeJobId);
     const result = {
       ...response,
       coaching: {
@@ -182,7 +206,13 @@ export async function processCapeJob(job: Job<CapeQueueData>): Promise<void> {
     };
     await prisma.capeJob.update({
       where: { id: capeJobId },
-      data: { status: 'SUCCEEDED', result: result as unknown as Prisma.InputJsonValue, artifacts: stored, error: null }
+      data: {
+        status: 'SUCCEEDED',
+        result: result as unknown as Prisma.InputJsonValue,
+        artifacts: stored,
+        error: null,
+        geminiRequest: geminiAudit ? (geminiAudit as unknown as Prisma.InputJsonValue) : Prisma.DbNull
+      }
     });
     final = true;
   } catch (err) {

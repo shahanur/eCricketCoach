@@ -144,14 +144,25 @@ Respond with ONLY a single valid JSON object (no markdown fences, no commentary,
 Base every observation strictly on what is visually evident in the video (posture, head position, foot/base alignment, swing or arm path, release point, balance, follow-through). Be specific and realistic rather than generic. If the clip quality makes an exact measurement impossible, give your best expert visual estimate rather than omitting the field.`;
 }
 
+// A reply that arrived but could not be used; worth trying the next model candidate.
+class MalformedGeminiResponseError extends Error {}
+
 function extractJson(text: string): any {
   const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
   if (start === -1 || end === -1) {
-    throw new Error('Gemini response did not contain a JSON object.');
+    throw new MalformedGeminiResponseError('Gemini response did not contain a JSON object.');
   }
-  return JSON.parse(cleaned.slice(start, end + 1));
+  const json = cleaned.slice(start, end + 1);
+  try {
+    return JSON.parse(json);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const position = Number(/position (\d+)/.exec(message)?.[1]);
+    const excerpt = Number.isFinite(position) ? json.slice(Math.max(0, position - 150), position + 150) : json.slice(0, 300);
+    throw new MalformedGeminiResponseError(`Gemini returned invalid JSON (${message}). Excerpt: ${JSON.stringify(excerpt)}`);
+  }
 }
 
 function isValidResult(data: any): data is AiAnalysisResult {
@@ -164,6 +175,19 @@ function isValidResult(data: any): data is AiAnalysisResult {
     typeof data.biomechanicalMetrics.footAlignment === 'string' &&
     Array.isArray(data.recommendedDrills)
   );
+}
+
+// Loggable view of request parts: text in full, media as type/size only (never base64 payloads).
+function describeParts(parts: any[]): unknown[] {
+  return parts.map(part => {
+    if (typeof part === 'string') return { text: part };
+    if (part?.text !== undefined) return { text: part.text };
+    if (part?.inlineData) {
+      return { inlineData: { mimeType: part.inlineData.mimeType, bytes: Math.floor((part.inlineData.data?.length ?? 0) * 3 / 4) } };
+    }
+    if (part?.fileData) return { fileData: part.fileData };
+    return { unknownPart: Object.keys(part ?? {}) };
+  });
 }
 
 export class GeminiVideoAnalysisService {
@@ -265,31 +289,52 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
    * GEMINI_QUOTA_EXCEEDED so routes can show an actionable message).
    */
   static async generateJson<T>(parts: any[], isValid: (data: any) => data is T, label: string): Promise<T> {
+    return (await GeminiVideoAnalysisService.generateJsonDetailed(parts, isValid, label)).data;
+  }
+
+  /**
+   * Same as generateJson, but also reports which model answered. `jsonMode` asks Gemini to reply
+   * with application/json, which prevents most malformed-JSON replies for text-only prompts.
+   */
+  static async generateJsonDetailed<T>(
+    parts: any[],
+    isValid: (data: any) => data is T,
+    label: string,
+    options: { jsonMode?: boolean } = {}
+  ): Promise<{ data: T; model: string }> {
     if (!GEMINI_API_KEY) {
       throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable AI analysis.');
     }
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const candidates = (await resolveModelCandidates()).slice(0, 4);
     let lastError: unknown = null;
+    console.log(`${label} request: candidates=[${candidates.join(', ')}] parts=${JSON.stringify(describeParts(parts))}`);
 
     for (let i = 0; i < candidates.length; i++) {
       const modelName = candidates[i];
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        ...(options.jsonMode ? { generationConfig: { responseMimeType: 'application/json' } } : {})
+      });
 
       try {
         const parsed = await withRetry(
           async attempt => {
             // The SDK's own `timeout` option makes requests hang in this runtime, so race against a timer instead.
             let timer: NodeJS.Timeout | undefined;
+            const startedAt = Date.now();
+            console.log(`${label} call: model=${modelName} attempt=${attempt}/${MAX_RETRIES}`);
             const result = await Promise.race([
               model.generateContent(parts),
               new Promise<never>((_, reject) => {
                 timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS);
               })
             ]).finally(() => clearTimeout(timer));
-            const data = extractJson(result.response.text());
+            const text = result.response.text();
+            console.log(`${label} response: model=${modelName} attempt=${attempt} durationMs=${Date.now() - startedAt} chars=${text.length}`);
+            const data = extractJson(text);
             if (!isValid(data)) {
-              throw new Error(`Gemini returned a response that did not match the expected ${label} shape.`);
+              throw new MalformedGeminiResponseError(`Gemini returned a response that did not match the expected ${label} shape.`);
             }
             console.log(`${label} succeeded (attempt ${attempt}/${MAX_RETRIES}, model ${modelName}):`, JSON.stringify(data));
             return data;
@@ -305,17 +350,19 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
         );
 
         lastUsedModel = modelName;
-        return parsed;
+        return { data: parsed, model: modelName };
       } catch (err: any) {
         lastError = err;
         const message = err instanceof Error ? err.message : String(err);
         const isModelUnavailable = /not found|404|is not supported|does not support|unknown model/i.test(message);
         const isQuotaIssue = isQuotaExceededError(err);
         const isOverloaded = isRateLimitOrOverloadedError(err) || /abort|timed? ?out|fetch failed/i.test(message);
+        const isMalformed = err instanceof MalformedGeminiResponseError;
         const hasMoreCandidates = i < candidates.length - 1;
 
-        if ((isQuotaIssue || isModelUnavailable || isOverloaded) && hasMoreCandidates) {
-          console.warn(`Gemini model "${modelName}" ${isQuotaIssue ? 'has exhausted its quota' : `is unavailable (${message})`}. Trying next candidate: ${candidates[i + 1]}`);
+        if ((isQuotaIssue || isModelUnavailable || isOverloaded || isMalformed) && hasMoreCandidates) {
+          const reason = isQuotaIssue ? 'has exhausted its quota' : isMalformed ? `returned an unusable response (${message})` : `is unavailable (${message})`;
+          console.warn(`Gemini model "${modelName}" ${reason}. Trying next candidate: ${candidates[i + 1]}`);
           continue;
         }
 
