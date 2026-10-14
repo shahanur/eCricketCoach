@@ -31,9 +31,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -357,7 +359,7 @@ internal fun CapeAnalysisSection(api: CoachApi, token: String, assessment: Playe
                 )
             }
             current.status == "FAILED" -> Text(current.errorMessage ?: "The analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-            current.result != null -> CapeResultPanel(api, token, current.result)
+            current.result != null -> CapeResultPanel(api, token, current.result, current.jobId, assessment.playerName, canAssign = canSubmit)
         }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
     }
@@ -392,13 +394,58 @@ private fun CalibrationOverlay(frame: CalibrationFrame, points: List<Pair<Int, I
     }
 }
 
+/**
+ * Full CAPE result, matching the web view. When [jobId] is given, the drills already assigned from the
+ * coaching guidance are loaded; [canAssign] adds an "Assign to [playerName]" button per guidance item.
+ */
 @Composable
-internal fun CapeResultPanel(api: CoachApi, token: String, result: CapeResult) {
+internal fun CapeResultPanel(
+    api: CoachApi,
+    token: String,
+    result: CapeResult,
+    jobId: String? = null,
+    playerName: String? = null,
+    canAssign: Boolean = false
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val images = remember(result.sessionId) { mutableStateMapOf<String, Bitmap>() }
     var message by remember(result.sessionId) { mutableStateOf("") }
     val faultByMetric = remember(result) { result.faults.associateBy { it.metric } }
+    val assignments = remember(jobId) { mutableStateListOf<CapeDrillAssignment>() }
+    var assigningCode by remember(jobId) { mutableStateOf("") }
+    var assignError by remember(jobId) { mutableStateOf("") }
+
+    LaunchedEffect(jobId) {
+        val id = jobId ?: return@LaunchedEffect
+        try {
+            assignments.clear()
+            assignments.addAll(api.getCapeJobDrills(token, id))
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (_: Exception) {
+            // Assignment history is optional; the assign button still reports errors.
+        }
+    }
+
+    fun assign(faultCode: String) {
+        val id = jobId ?: return
+        scope.launch {
+            assigningCode = faultCode
+            assignError = ""
+            try {
+                val assignment = api.assignCapeDrill(token, id, faultCode)
+                assignments.removeAll { it.id == assignment.id }
+                assignments.add(0, assignment)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                assignError = failure.message ?: "Unable to assign the drill."
+            } finally {
+                assigningCode = ""
+            }
+        }
+    }
 
     LaunchedEffect(result.sessionId) {
         result.images.forEach { (key, path) ->
@@ -446,6 +493,14 @@ internal fun CapeResultPanel(api: CoachApi, token: String, result: CapeResult) {
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (result.contactManual && result.contactFrame != null) {
+                    Text(
+                        "Contact frame #${result.contactFrame}" +
+                            if (result.contactCandidateCount > 1) " chosen from ${result.contactCandidateCount} selected frames" else " selected manually",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 
@@ -458,16 +513,50 @@ internal fun CapeResultPanel(api: CoachApi, token: String, result: CapeResult) {
             }
         }
 
-        if (result.jointAngles.isNotEmpty()) {
-            result.jointAngles.forEach { (metric, value) ->
-                val fault = faultByMetric[metric]
+        val kinematics = result.jointAngles.map { (metric, value) -> CapeMeasure(metric, pretty(metric), value, "°") } +
+            result.contactMetrics.map { it.copy(label = pretty(it.label)) }
+        if (kinematics.isNotEmpty()) {
+            SectionTitle("Kinematics")
+            kinematics.forEach { row ->
+                val fault = faultByMetric[row.key]
+                MetricRow(
+                    name = row.label,
+                    value = "${fmt(row.value)}${row.unit}",
+                    expected = fault?.let { "exp ${expectedRange(it)}${row.unit}" } ?: "Observed",
+                    status = fault?.let { pretty(it.severity) } ?: "Measured",
+                    color = severityColor(fault?.severity)
+                )
+            }
+        }
+
+        result.alignment?.let { rows ->
+            SectionTitle("Alignment checklist")
+            rows.forEach { row ->
+                val fault = faultByMetric[row.metric]
+                MetricRow(
+                    name = row.label,
+                    value = row.value?.let { "${fmt(it)}${row.unit}" } ?: "—",
+                    expected = row.expected,
+                    status = when {
+                        row.value == null -> "Unavailable"
+                        fault != null -> pretty(fault.severity)
+                        else -> "Aligned"
+                    },
+                    color = if (row.value == null) MaterialTheme.colorScheme.onSurfaceVariant else severityColor(fault?.severity)
+                )
+            }
+            Note("Chin alignment uses the detected face centre as a 2D chin-line proxy.")
+        }
+
+        if (result.kinetics.isNotEmpty()) {
+            SectionTitle("Kinetics")
+            result.kinetics.forEach { row ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(pretty(metric), fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text("${fmt(value)}°", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp))
-                    Text(fault?.let { "exp ${expectedRange(it)}°" } ?: "in range", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 8.dp))
-                    Box(Modifier.size(10.dp).background(severityColor(fault?.severity), CircleShape))
+                    Text(row.label, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${fmt(row.value)}${row.unit}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
+            Note("Momentum and energy use the calibrated 2D track and an assumed 156 g cricket ball.")
         }
 
         if (result.faults.isNotEmpty()) {
@@ -482,6 +571,64 @@ internal fun CapeResultPanel(api: CoachApi, token: String, result: CapeResult) {
                     Text("${pretty(fault.metric)}: ${fmt(fault.value)} · expected ${expectedRange(fault)} · ${pretty(fault.milestone)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(fault.recommendation, fontSize = 12.sp)
                     fault.drill?.let { Text("Drill: $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+        }
+
+        result.guidance?.let { guidance ->
+            val violet = Color(0xFF8B5CF6)
+            val assignedByFault = assignments.associateBy { it.faultCode }
+            Column(
+                Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.4f), RoundedCornerShape(12.dp)).background(violet.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = violet, modifier = Modifier.size(16.dp))
+                    Text("  Coaching guidance", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = violet)
+                }
+                if (guidance.summary.isNotBlank()) Text(guidance.summary, fontSize = 12.sp)
+                Note("Generated by Gemini from CAPE’s measured findings; Gemini does not change measurements or severity.")
+                guidance.items.forEach { item ->
+                    Column(
+                        Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.25f), RoundedCornerShape(10.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(item.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = violet)
+                        if (item.whyItMatters.isNotBlank()) Text(item.whyItMatters, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (item.cues.isNotEmpty()) {
+                            Text("COACHING CUES", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            item.cues.forEach { Text("• $it", fontSize = 12.sp) }
+                        }
+                        if (item.drillName.isNotBlank()) Text("Drill: ${item.drillName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = GOOD)
+                        item.drillInstructions.forEachIndexed { index, step -> Text("${index + 1}. $step", fontSize = 11.sp) }
+                        if (item.equipment.isNotEmpty()) Note("Equipment: ${item.equipment.joinToString()}")
+                        val assigned = assignedByFault[item.faultCode]
+                        when {
+                            assigned != null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = GOOD, modifier = Modifier.size(14.dp))
+                                Text("  Assigned to ${assigned.playerName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = GOOD)
+                            }
+                            canAssign && jobId != null -> Button(
+                                onClick = { assign(item.faultCode) },
+                                enabled = assigningCode.isEmpty(),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                if (assigningCode == item.faultCode) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Outlined.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Text("  Assign to ${playerName ?: "player"}", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+                if (assignError.isNotBlank()) Text(assignError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (assignments.isNotEmpty()) {
+                    Text("Assigned drills", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    assignments.forEach { a ->
+                        Text(
+                            "• ${a.title} — ${a.playerName}" + (a.assignedByName?.let { " · by $it" } ?: "") + " · ${a.createdAt.take(10)}",
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         }
@@ -523,6 +670,24 @@ internal fun CapeResultPanel(api: CoachApi, token: String, result: CapeResult) {
             }
         }
         if (message.isNotBlank()) Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) = Text(text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+
+@Composable
+private fun Note(text: String) = Text(text, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+@Composable
+private fun MetricRow(name: String, value: String, expected: String, status: String, color: Color) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(name, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(value, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp))
+            Badge(status, color)
+        }
+        Text(expected, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

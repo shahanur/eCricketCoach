@@ -157,7 +157,56 @@ data class CapeResult(
     val delivery: CapeDelivery?,
     // (endpoint key, Node download path) for each stored snapshot, ZIP excluded.
     val images: List<Pair<String, String>>,
-    val zipPath: String?
+    val zipPath: String?,
+    // Extra kinematics (metric key, value, unit) measured at contact, after the joint angles.
+    val contactMetrics: List<CapeMeasure> = emptyList(),
+    // Null when the run had no point-of-contact data (e.g. bowling).
+    val alignment: List<CapeAlignmentRow>? = null,
+    val kinetics: List<CapeMeasure> = emptyList(),
+    val contactFrame: Int? = null,
+    val contactManual: Boolean = false,
+    val contactCandidateCount: Int = 0,
+    val guidance: CapeGuidance? = null
+)
+
+data class CapeMeasure(val key: String, val label: String, val value: Double, val unit: String)
+
+data class CapeAlignmentRow(val metric: String, val label: String, val value: Double?, val unit: String, val expected: String)
+
+data class CapeGuidance(val summary: String, val items: List<CapeGuidanceItem>)
+
+data class CapeGuidanceItem(
+    val faultCode: String,
+    val title: String,
+    val whyItMatters: String,
+    val cues: List<String>,
+    val drillName: String,
+    val drillInstructions: List<String>,
+    val equipment: List<String>
+)
+
+data class CapeJobSummary(
+    val jobId: String,
+    val status: String,
+    val assessmentId: String?,
+    val target: String?,
+    val shotType: String?,
+    val bowlerType: String?,
+    val score: Int?,
+    val verdict: String?,
+    val faultCount: Int,
+    val errorMessage: String?,
+    val createdAt: String
+)
+
+data class CapeDrillAssignment(
+    val id: String,
+    val faultCode: String?,
+    val title: String,
+    val playerName: String,
+    val correction: String?,
+    val assignedByName: String?,
+    val createdAt: String
 )
 
 data class CapeJob(
@@ -230,7 +279,19 @@ data class VideoAnalysisEntry(
     val discipline: String,
     val score: Int,
     val detectedIssues: List<String>,
-    val createdAt: String
+    val createdAt: String,
+    val context: String = "",
+    val sourceType: String = "",
+    val metrics: List<Pair<String, String>> = emptyList(),
+    val recommendedDrills: List<VideoRecommendedDrill> = emptyList()
+)
+
+data class VideoRecommendedDrill(
+    val title: String,
+    val discipline: String,
+    val durationMinutes: Int,
+    val context: String,
+    val isNew: Boolean
 )
 
 class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
@@ -721,14 +782,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
             val analysis = row.optJSONObject("analysis") ?: JSONObject()
-            val issues = analysis.optJSONArray("detectedIssues") ?: JSONArray()
-            VideoAnalysisEntry(
+            analysis.toVideoEntry(
                 id = row.optString("id"),
                 playerName = row.optString("playerName").takeIf { it.isNotBlank() && it != "null" },
                 discipline = row.optString("discipline"),
                 score = row.optInt("overallScore", analysis.optInt("overallScore")),
-                detectedIssues = (0 until issues.length()).map(issues::getString),
-                createdAt = row.optString("createdAt")
+                createdAt = row.optString("createdAt"),
+                context = row.optString("context"),
+                sourceType = row.optString("sourceType")
             )
         }
     }
@@ -833,6 +894,53 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     suspend fun getCapeJob(token: String, jobId: String): CapeJob = withContext(Dispatchers.IO) {
         JSONObject(request("/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}", token)).getJSONObject("job").toCapeJob()
     }
+
+    suspend fun getPlayerCapeJobs(token: String, playerId: String): List<CapeJobSummary> = withContext(Dispatchers.IO) {
+        val rows = JSONObject(request("/api/club/cape-jobs?playerId=${URLEncoder.encode(playerId, UTF_8)}", token))
+            .optJSONArray("jobs") ?: JSONArray()
+        (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            CapeJobSummary(
+                jobId = row.getString("jobId"),
+                status = row.optString("status"),
+                assessmentId = row.text("assessmentId"),
+                target = row.text("target"),
+                shotType = row.text("shotType"),
+                bowlerType = row.text("bowlerType"),
+                score = if (row.isNull("score")) null else row.optInt("score"),
+                verdict = row.text("verdict"),
+                faultCount = row.optInt("faultCount"),
+                errorMessage = row.text("errorMessage"),
+                createdAt = row.optString("createdAt")
+            )
+        }
+    }
+
+    suspend fun getCapeJobDrills(token: String, jobId: String): List<CapeDrillAssignment> = withContext(Dispatchers.IO) {
+        val rows = JSONObject(request("/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}/drills", token))
+            .optJSONArray("assignments") ?: JSONArray()
+        (0 until rows.length()).map { rows.getJSONObject(it).toCapeDrillAssignment() }
+    }
+
+    // Assigns a coaching-guidance drill to the analysed player; the server also adds it to the drill catalogues.
+    suspend fun assignCapeDrill(token: String, jobId: String, faultCode: String): CapeDrillAssignment = withContext(Dispatchers.IO) {
+        JSONObject(request(
+            "/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}/drills",
+            token,
+            JSONObject().put("faultCode", faultCode),
+            method = "POST"
+        )).getJSONObject("assignment").toCapeDrillAssignment()
+    }
+
+    private fun JSONObject.toCapeDrillAssignment() = CapeDrillAssignment(
+        id = optString("id"),
+        faultCode = text("faultCode"),
+        title = optString("title"),
+        playerName = optString("playerName"),
+        correction = optJSONObject("details")?.text("correction"),
+        assignedByName = text("assignedByName"),
+        createdAt = optString("createdAt")
+    )
 
     // Downloads an analysis image or ZIP through the authenticated Node route; returns bytes and file name.
     suspend fun downloadCapeArtifact(token: String, path: String): Pair<ByteArray, String> = withContext(Dispatchers.IO) {
@@ -964,14 +1072,56 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         playerName: String?
     ): VideoAnalysisEntry {
         val analysis = response.getJSONObject("analysis")
-        val issues = analysis.optJSONArray("detectedIssues") ?: JSONArray()
-        return VideoAnalysisEntry(
+        return analysis.toVideoEntry(
             id = response.optString("analysisId"),
             playerName = playerName,
             discipline = response.optString("discipline", discipline),
             score = analysis.optInt("overallScore"),
+            createdAt = "",
+            context = if (playerName == null) "GROUP" else "INDIVIDUAL",
+            sourceType = response.optString("sourceType")
+        )
+    }
+
+    private fun JSONObject.toVideoEntry(
+        id: String,
+        playerName: String?,
+        discipline: String,
+        score: Int,
+        createdAt: String,
+        context: String,
+        sourceType: String
+    ): VideoAnalysisEntry {
+        val issues = optJSONArray("detectedIssues") ?: JSONArray()
+        val metricsJson = optJSONObject("biomechanicalMetrics")
+        val metrics = metricsJson?.keys()?.asSequence()
+            ?.mapNotNull { key ->
+                metricsJson.optString(key).takeIf { it.isNotBlank() && it != "null" }?.let { key to it }
+            }
+            ?.toList()
+            .orEmpty()
+        val drillsJson = optJSONArray("recommendedDrills") ?: JSONArray()
+        val drills = (0 until drillsJson.length()).mapNotNull { index ->
+            val drill = drillsJson.optJSONObject(index) ?: return@mapNotNull null
+            VideoRecommendedDrill(
+                title = drill.optString("title"),
+                discipline = drill.optString("discipline"),
+                durationMinutes = drill.optInt("durationMinutes"),
+                context = drill.optString("context"),
+                isNew = drill.optBoolean("isNewRecommendation")
+            )
+        }
+        return VideoAnalysisEntry(
+            id = id,
+            playerName = playerName,
+            discipline = discipline,
+            score = score,
             detectedIssues = (0 until issues.length()).map(issues::getString),
-            createdAt = ""
+            createdAt = createdAt,
+            context = context.takeIf { it != "null" }.orEmpty(),
+            sourceType = sourceType.takeIf { it != "null" }.orEmpty(),
+            metrics = metrics,
+            recommendedDrills = drills
         )
     }
 
@@ -1131,6 +1281,8 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
 
     private fun JSONObject.text(key: String): String? = if (isNull(key)) null else optString(key).takeIf(String::isNotBlank)
     private fun JSONObject.number(key: String): Double? = if (isNull(key)) null else optDouble(key).takeUnless(Double::isNaN)
+    private fun JSONObject.measure(key: String, label: String, unit: String, metric: String = key): CapeMeasure? =
+        number(key)?.let { CapeMeasure(metric, label, it, unit) }
     private fun JSONObject.strings(key: String): List<String> =
         optJSONArray(key)?.let { rows -> (0 until rows.length()).map(rows::getString) } ?: emptyList()
 
@@ -1146,7 +1298,11 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         val metadata = optJSONObject("metadata") ?: JSONObject()
         val coaching = optJSONObject("coaching") ?: JSONObject()
         val payload = optJSONObject("analytics_payload") ?: JSONObject()
-        val angles = payload.optJSONObject("pre_contact")?.optJSONObject("batter_joint_angles")
+        val contact = payload.optJSONObject("point_of_contact")
+        val preContact = payload.optJSONObject("pre_contact")
+        val postContact = payload.optJSONObject("post_contact")
+        val angles = contact?.optJSONObject("batter_joint_angles")
+            ?: preContact?.optJSONObject("batter_joint_angles")
             ?: payload.optJSONObject("release")?.optJSONObject("bowler_joint_angles")
             ?: JSONObject()
         val faults = coaching.optJSONArray("faults") ?: JSONArray()
@@ -1194,7 +1350,68 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
                 .mapNotNull { key -> downloads.text(key)?.let { key to it } }
                 .sortedBy { it.second.substringAfterLast('/') }
                 .toList(),
-            zipPath = downloads.text("all_zip")
+            zipPath = downloads.text("all_zip"),
+            contactMetrics = listOfNotNull(
+                contact?.measure("head_front_knee_offset_pct", "head_front_knee_offset_pct", "%"),
+                contact?.measure("bat_angle_degrees", "bat_angle_deg", "°", metric = "bat_angle_deg"),
+                contact?.measure("stride_m", "stride_m", " m"),
+                contact?.measure("front_foot_to_contact_angle_degrees", "front_foot_to_contact_angle", "°", metric = "front_foot_to_contact_angle"),
+                contact?.measure("front_toe_contact_distance_cm", "front_toe_contact_distance", " cm", metric = "front_toe_contact_distance")
+            ),
+            alignment = contact?.let { c ->
+                listOf(
+                    CapeAlignmentRow("chin_front_toe_offset_pct", "Chin over front toe", c.number("chin_front_toe_offset_pct"), "%", "≤ 20%"),
+                    CapeAlignmentRow("front_shoulder_target_angle_deg", "Front shoulder to target", c.number("front_shoulder_target_angle_degrees"), "°", "≤ 25°"),
+                    CapeAlignmentRow("back_foot_crease_angle_deg", "Back foot to crease", c.number("back_foot_crease_angle_degrees"), "°", "≤ 20°"),
+                    CapeAlignmentRow("front_elbow_height_pct", "Front elbow height", c.number("front_elbow_height_pct"), "%", "≥ -5%")
+                )
+            },
+            kinetics = listOfNotNull(
+                contact?.measure("ball_velocity_kmh", "Incoming ball speed", " km/h"),
+                contact?.measure("estimated_ball_momentum_kg_m_s", "Incoming momentum", " kg m/s"),
+                contact?.measure("estimated_ball_kinetic_energy_j", "Incoming kinetic energy", " J"),
+                postContact?.measure("exit_velocity_kmh", "Exit speed", " km/h"),
+                postContact?.measure("estimated_ball_momentum_kg_m_s", "Exit momentum", " kg m/s"),
+                postContact?.measure("estimated_ball_kinetic_energy_j", "Exit kinetic energy", " J"),
+                postContact?.measure("launch_angle_degrees", "Launch angle", "°"),
+                preContact?.measure("bat_swing_speed_kmh", "Bat swing speed before contact (est.)", " km/h"),
+                preContact?.measure(
+                    "bat_swing_arc_degrees",
+                    "Bat swing arc" +
+                        (if (preContact.optBoolean("bat_swing_estimated")) " (est. from forearms)" else "") +
+                        (if (preContact.optBoolean("swing_frames_auto")) " · auto-detected frames" else ""),
+                    "°"
+                ),
+                postContact?.measure(
+                    "follow_through_arc_degrees",
+                    "Follow-through arc" +
+                        (if (postContact.optBoolean("follow_through_estimated")) " (est. from forearms)" else "") +
+                        (if (postContact.optBoolean("follow_through_frames_auto")) " · auto-detected frames" else ""),
+                    "°"
+                )
+            ),
+            contactFrame = contact?.takeUnless { it.isNull("milestone_frame") }?.optInt("milestone_frame"),
+            contactManual = contact?.optString("selection_source") == "manual",
+            contactCandidateCount = contact?.optJSONArray("candidate_frames")?.length() ?: 0,
+            guidance = coaching.optJSONObject("ai_guidance")?.let { g ->
+                val items = g.optJSONArray("items") ?: JSONArray()
+                CapeGuidance(
+                    summary = g.optString("summary"),
+                    items = (0 until items.length()).mapNotNull { index ->
+                        val item = items.optJSONObject(index) ?: return@mapNotNull null
+                        val drill = item.optJSONObject("drill") ?: JSONObject()
+                        CapeGuidanceItem(
+                            faultCode = item.optString("fault_code"),
+                            title = item.optString("title"),
+                            whyItMatters = item.optString("why_it_matters"),
+                            cues = item.strings("coaching_cues"),
+                            drillName = drill.optString("name"),
+                            drillInstructions = drill.strings("instructions"),
+                            equipment = drill.strings("equipment")
+                        )
+                    }
+                )
+            }
         )
     }
 
