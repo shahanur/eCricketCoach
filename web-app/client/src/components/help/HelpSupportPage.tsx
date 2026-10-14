@@ -301,7 +301,7 @@ export const HelpSupportPage: React.FC<HelpSupportPageProps> = ({
         {currentUser && (
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>Logged in as <strong className="text-white">{currentUser.name}</strong></span>
-            {(currentUser.roles.includes('CLUB_ADMIN') || (currentUser.roles.includes('COACH') && currentUser.coachContext === 'CLUB')) && (
+            {currentUser.roles.includes('CLUB_ADMIN') && (
               <button
                 onClick={() => setViewMode('CLUB_PORTAL')}
                 className="text-sky-400 hover:text-sky-300 underline font-semibold flex items-center gap-1 cursor-pointer"

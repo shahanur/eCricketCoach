@@ -62,6 +62,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
   const isCoach = currentUser.roles.includes('COACH');
   const isClubCoach = isCoach && currentUser.coachContext === 'CLUB';
   const hasClubPortal = isClubAdmin || isClubCoach;
+  const clubPortalView = isClubAdmin ? 'CLUB_PORTAL' : 'COACHING_PORTAL';
   const isPlayer = currentUser.roles.includes('PLAYER');
   const playerCertificates = certificates.filter(certificate => certificate.playerId === currentUser.id);
   const [assignedDrills, setAssignedDrills] = useState<PlayerDrillAssignment[]>([]);
@@ -134,9 +135,9 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
               </button>
             )}
 
-            {hasClubPortal && (
+            {isClubAdmin && (
               <button
-                onClick={() => setViewMode('CLUB_PORTAL')}
+                onClick={() => setViewMode(clubPortalView)}
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold text-xs shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Launch Club Portal</span>
@@ -385,7 +386,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                 <>
                   {isClubAdmin && (
                   <button
-                    onClick={() => setViewMode('CLUB_PORTAL')}
+                    onClick={() => setViewMode(clubPortalView)}
                     className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
@@ -404,7 +405,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   )}
 
                   <button
-                    onClick={() => setViewMode('CLUB_PORTAL')}
+                    onClick={() => setViewMode(clubPortalView)}
                     className="p-4 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 hover:border-sky-500/50 text-left transition group space-y-2 cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
@@ -627,7 +628,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                   <span>Featured Skill Development Drills</span>
                 </h3>
                 <button
-                  onClick={() => setViewMode(hasClubPortal ? 'CLUB_PORTAL' : 'COACHING_PORTAL')}
+                  onClick={() => setViewMode(clubPortalView)}
                   className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer"
                 >
                   <span>View Full Catalogue</span>
@@ -756,7 +757,7 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
                     <p>No active sessions scheduled this week.</p>
                     {hasClubPortal && (
                       <button
-                        onClick={() => setViewMode('CLUB_PORTAL')}
+                        onClick={() => setViewMode(clubPortalView)}
                         className="text-sky-400 hover:underline font-semibold block mx-auto cursor-pointer"
                       >
                         Schedule a practice now

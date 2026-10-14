@@ -23,8 +23,21 @@ import {
 import { PlayerAssessments } from '../club/PlayerAssessments';
 import { SessionExecution } from './SessionExecution';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
+import type { ClubPortalSection } from '../club/ClubPortal';
 
-type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'ASSESSMENTS' | 'REPORTS';
+type CoachTab = 'OVERVIEW' | 'SESSIONS' | 'ASSESSMENTS' | 'REPORTS' | ClubPortalSection;
+
+const COACH_TABS: { id: CoachTab; label: string }[] = [
+  { id: 'OVERVIEW', label: 'Overview' },
+  { id: 'SESSIONS', label: 'Sessions' },
+  { id: 'ASSESSMENTS', label: 'Assessments' },
+  { id: 'REPORTS', label: 'Reports' },
+  { id: 'CLUB_DRILLS', label: 'Club drills' },
+  { id: 'VIDEO_ANALYSIS', label: 'Video analysis' },
+  { id: 'PROGRESSION', label: 'Certificates' }
+];
+
+const CLUB_SECTION_TABS: CoachTab[] = ['CLUB_DRILLS', 'VIDEO_ANALYSIS', 'PROGRESSION'];
 
 interface CoachOperationsProps {
   currentUser: AuthUser;
@@ -34,6 +47,8 @@ interface CoachOperationsProps {
   onDeleteSession: (sessionId: string) => void | Promise<void>;
   onDrillCreated?: (drill: Drill) => void;
   onSessionSynced?: (session: TrainingSession) => void;
+  onAddDrill?: (drill: Drill) => void | Promise<void>;
+  renderClubSection?: (section: ClubPortalSection) => React.ReactNode;
 }
 
 const currentDate = new Date();
@@ -51,7 +66,9 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   onUpdateSession,
   onDeleteSession,
   onDrillCreated,
-  onSessionSynced
+  onSessionSynced,
+  onAddDrill,
+  renderClubSection
 }) => {
   const [tab, setTab] = useState<CoachTab>('OVERVIEW');
   const [players, setPlayers] = useState<ClubMember[]>([]);
@@ -102,11 +119,12 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     () => sessions.filter(session => !session.isExecuted).sort((a, b) => a.sessionDate.localeCompare(b.sessionDate)),
     [sessions]
   );
+  // The assessments list includes the whole club's; the dashboard only counts those assigned to this coach.
   const upcomingAssessments = useMemo(
     () => assessments
-      .filter(assessment => assessment.status !== 'COMPLETED' && assessment.scheduledDate >= today)
+      .filter(assessment => assessment.coachId === currentUser.id && assessment.status !== 'COMPLETED' && assessment.scheduledDate >= today)
       .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || (a.scheduledTime || '').localeCompare(b.scheduledTime || '')),
-    [assessments]
+    [assessments, currentUser.id]
   );
   const deliveredSessions = mySessions.filter(session =>
     session.isExecuted && session.sessionDate >= seasonStart && session.sessionDate <= seasonEnd
@@ -118,6 +136,39 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     setTab('SESSIONS');
     setExecutingSessionId(session.id);
     loadDashboard();
+  };
+
+  // Mirrors the club portal: adopts an AI-recommended drill into the club catalogue, tagged with the player's squad.
+  const adoptAiDrillForPlayer = (
+    playerId: string | null,
+    aiDrill: { title: string; discipline: string; durationMinutes: number; context: string }
+  ) => {
+    if (!onAddDrill) return;
+    const player = playerId ? players.find(member => member.id === playerId) : undefined;
+    const squadName = player ? memberSquads(player)[0] || null : null;
+    void Promise.resolve(onAddDrill({
+      id: 'drill-club-ai-' + Date.now(),
+      title: aiDrill.title,
+      discipline: aiDrill.discipline as Drill['discipline'],
+      skillSet: 'Biomechanical Correction',
+      contextType: aiDrill.context as Drill['contextType'],
+      duration: aiDrill.durationMinutes,
+      source: 'AI_RECOMMENDED',
+      clubName: currentUser.clubName,
+      squadName,
+      instructions: 'Generated via Club AI video pose analysis.'
+    })).catch(error => setDashboardError(error instanceof Error ? error.message : 'Unable to add the drill.'));
+  };
+
+  const viewTrainingSession = (sessionId: string) => {
+    const session = mySessions.find(item => item.id === sessionId);
+    if (session?.isExecuted) {
+      openExecution(session);
+      return;
+    }
+    setDashboardError(session
+      ? 'Review is available only after the session is completed.'
+      : 'Session review is available only for sessions you deliver.');
   };
 
   // Picks up session amendments made elsewhere (e.g. drills added in the club portal) while a session is open.
@@ -245,7 +296,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           <p className="text-xs text-slate-400 mt-1">Plan sessions, monitor club events, and measure development.</p>
         </div>
         <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Coach workspace sections">
-          {(['OVERVIEW', 'SESSIONS', 'ASSESSMENTS', 'REPORTS'] as CoachTab[]).map(value => (
+          {COACH_TABS.filter(item => renderClubSection || !CLUB_SECTION_TABS.includes(item.id)).map(({ id: value, label }) => (
             <button
               key={value}
               role="tab"
@@ -253,13 +304,15 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
               onClick={() => setTab(value)}
               className={`px-3 py-2 text-xs font-semibold border-b-2 whitespace-nowrap ${tab === value ? 'border-indigo-400 text-white' : 'border-transparent text-slate-400 hover:text-white'}`}
             >
-              {value.charAt(0) + value.slice(1).toLowerCase()}
+              {label}
             </button>
           ))}
         </div>
       </div>
 
       {dashboardError && <p role="alert" className="text-xs text-rose-400">{dashboardError}</p>}
+
+      {renderClubSection && CLUB_SECTION_TABS.includes(tab) && renderClubSection(tab as ClubPortalSection)}
 
       {tab === 'OVERVIEW' && (
         <div className="space-y-5">
@@ -423,6 +476,8 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
           sessions={sessions}
           initialAssessmentId={focusedAssessmentId}
           onAssessmentsChanged={setAssessments}
+          onAdoptAiDrill={onAddDrill ? (drill, playerId) => adoptAiDrillForPlayer(playerId, drill) : undefined}
+          onViewTrainingSession={viewTrainingSession}
         />
       )}
 

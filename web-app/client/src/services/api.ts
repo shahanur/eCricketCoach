@@ -17,6 +17,7 @@ import {
   CapeAnalysisInput,
   CapeContactCandidates,
   CapeJob,
+  CapeJobSummary,
   CapeJobStatus,
   CapeTarget,
   PlayerDrillAssignment
@@ -357,6 +358,13 @@ export const api = {
     const res = await fetch(`${API_BASE}/google-drive/videos/${encodeURIComponent(fileId)}/content`, { headers: bearerHeader() });
     if (!res.ok) throw await responseError(res, 'Failed to load the video from Google Drive');
     return res.blob();
+  },
+
+  async getPlayerCapeJobs(playerId: string): Promise<CapeJobSummary[]> {
+    const res = await fetch(`${API_BASE}/club/cape-jobs?${new URLSearchParams({ playerId })}`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load the video analyses');
+    const data = await res.json();
+    return data.jobs ?? [];
   },
 
   async getCapeJob(jobId: string): Promise<CapeJob> {

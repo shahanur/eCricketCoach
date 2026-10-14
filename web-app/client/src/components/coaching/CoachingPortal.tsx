@@ -5,6 +5,7 @@ import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
 import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { CoachOperations } from './CoachOperations';
+import type { ClubPortalSection } from '../club/ClubPortal';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { Upload, Cloud, Play, Check, AlertCircle, RefreshCw, Folder, ExternalLink } from 'lucide-react';
 
@@ -17,6 +18,7 @@ interface CoachingPortalProps {
   onDeleteSession: (sessionId: string) => void;
   onDrillCreated?: (drill: Drill) => void;
   onSessionSynced?: (session: TrainingSession) => void;
+  renderClubSection?: (section: ClubPortalSection) => React.ReactNode;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -44,7 +46,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
   onUpdateSession,
   onDeleteSession,
   onDrillCreated,
-  onSessionSynced
+  onSessionSynced,
+  renderClubSection
 }) => {
   const [selectedDiscipline, setSelectedDiscipline] = useState<Discipline>('BATTING');
   const [selectedContext, setSelectedContext] = useState<ContextType>('INDIVIDUAL');
@@ -269,6 +272,8 @@ export const CoachingPortal: React.FC<CoachingPortalProps> = ({
           onScheduleSession={onScheduleSession}
           onUpdateSession={onUpdateSession}
           onDeleteSession={onDeleteSession}
+          onAddDrill={onAddAiDrill}
+          renderClubSection={renderClubSection}
         />
       )}
 

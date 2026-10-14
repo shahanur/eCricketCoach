@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const hasClubAdmin = currentUser?.roles.includes('CLUB_ADMIN');
   const hasCoachOrPlayer = currentUser?.roles.some(r => r === 'COACH' || r === 'PLAYER');
   const isClubCoach = currentUser?.roles.includes('COACH') && currentUser.coachContext === 'CLUB';
-  const hasClubPortal = hasClubAdmin || isClubCoach;
+  const hasClubPortal = hasClubAdmin;
 
   return (
     <header className="portal-navbar sticky top-0 z-30 border-b border-slate-800 bg-slate-900/90 px-3 py-2.5 shadow-lg shadow-slate-950/20 backdrop-blur sm:px-4">

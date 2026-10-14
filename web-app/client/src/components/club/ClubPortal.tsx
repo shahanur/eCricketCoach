@@ -88,7 +88,11 @@ interface ClubPortalProps {
   onDeleteDrill?: (drillId: string) => void | Promise<void>;
   onUpdateDrill?: (drillId: string, updates: Partial<Drill>) => void | Promise<void>;
   onCloneDrill?: (drillId: string) => Promise<Drill>;
+  // Renders a single portal section without the portal header or tab bar (used inside the club coach workspace).
+  embeddedTab?: ClubPortalSection;
 }
+
+export type ClubPortalSection = 'CLUB_DRILLS' | 'VIDEO_ANALYSIS' | 'PROGRESSION';
 
 export const ClubPortal: React.FC<ClubPortalProps> = ({
   currentUser,
@@ -119,12 +123,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   onDeleteDrill,
   onUpdateDrill,
   onCloneDrill,
+  embeddedTab,
 }) => {
-  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS' | 'SETTINGS'>(isClubCoach ? 'SQUADS' : 'ROSTER');
+  const [clubTab, setClubTab] = useState<'ROSTER' | 'SQUADS' | 'SESSIONS' | 'ASSESSMENTS' | 'CLUB_DRILLS' | 'PROGRESSION' | 'VIDEO_ANALYSIS' | 'SETTINGS'>(embeddedTab ?? (isClubCoach ? 'SQUADS' : 'ROSTER'));
 
   useEffect(() => {
+    if (embeddedTab) {
+      if (clubTab !== embeddedTab) setClubTab(embeddedTab);
+      return;
+    }
     if (isClubCoach && clubTab === 'ROSTER') setClubTab('SQUADS');
-  }, [isClubCoach, clubTab]);
+  }, [isClubCoach, clubTab, embeddedTab]);
 
   const [latestRatings, setLatestRatings] = useState<Record<string, { average: number; date: string; assessmentId: string }>>({});
   const [openAssessmentId, setOpenAssessmentId] = useState<string | undefined>(undefined);
@@ -1434,6 +1443,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
   return (
     <div className="space-y-6">
+      {!embeddedTab && (<>
       {/* Club Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -1542,6 +1552,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           <span>AI Video Analysis</span>
         </button>
       </div>
+      </>)}
 
       {/* Club Sub-tab 1: Roster & Invitations */}
       {!isClubCoach && clubTab === 'ROSTER' && (
@@ -2349,6 +2360,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
       {clubTab === 'ASSESSMENTS' && (
         <PlayerAssessments currentUser={currentUser} members={clubMembers} sessions={sessions} initialAssessmentId={openAssessmentId}
+          onAdoptAiDrill={(drill, playerId) => { adoptAiDrillForPlayer(playerId, drill); }}
           onViewTrainingSession={(sessionId, playerId) => {
             if (!executedSessions.some(session => session.id === sessionId)) {
               setClubTab('SESSIONS');

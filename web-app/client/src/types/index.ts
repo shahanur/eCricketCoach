@@ -408,6 +408,20 @@ export interface CapeJob {
   updatedAt: string;
 }
 
+export interface CapeJobSummary {
+  jobId: string;
+  status: CapeJobStatus;
+  assessmentId: string | null;
+  target: CapeTarget | null;
+  shotType: string | null;
+  bowlerType: string | null;
+  score: number | null;
+  verdict: string | null;
+  faultCount: number;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 export interface CapeManualFrames {
   pre_contact: number[];
   point_of_contact: number[];

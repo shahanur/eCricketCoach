@@ -138,7 +138,7 @@ export async function capeJobView(job: CapeJobRecord) {
   };
 }
 
-// Tenant-scoped lookup; coaches see jobs they created or for assessments they run, players only their own.
+// Tenant-scoped lookup; admins and active club coaches see every job in the club, players only their own.
 async function findAccessibleJob(req: AuthenticatedRequest, jobId: string): Promise<CapeJobRecord | null> {
   const user = req.user!;
   const job = await prisma.capeJob.findFirst({ where: { id: jobId, tenantId: user.tenantId } });
@@ -146,11 +146,7 @@ async function findAccessibleJob(req: AuthenticatedRequest, jobId: string): Prom
   if (user.role === 'CLUB_ADMIN') return job;
   if (user.role === 'PLAYER') return job.playerId === user.userId ? job : null;
   if (job.createdById === user.userId) return job;
-  if (job.assessmentId) {
-    const assessment = await prisma.playerAssessment.findFirst({ where: { id: job.assessmentId, clubId: user.tenantId } });
-    if (assessment?.coachId === user.userId) return job;
-  }
-  return null;
+  return (await isActiveClubCoach(req)) ? job : null;
 }
 
 function fileStem(job: CapeJobRecord): string {
@@ -208,6 +204,54 @@ capeJobsRouter.get('/latest', requireRole(['CLUB_ADMIN', 'COACH']), async (req: 
   } catch (error) {
     console.error('CAPE latest job lookup failed:', error);
     res.status(500).json({ error: 'Unable to load the analysis.' });
+  }
+});
+
+// Summaries of every CAPE job for a player (standalone and assessment-linked), newest first.
+// Same visibility as findAccessibleJob: admins and active club coaches see all, players their own.
+capeJobsRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const playerId = user.role === 'PLAYER'
+    ? user.userId
+    : typeof req.query.playerId === 'string' ? req.query.playerId.slice(0, 100) : '';
+  if (!playerId) {
+    res.status(400).json({ error: 'playerId is required.' });
+    return;
+  }
+  try {
+    if (!(await isActiveClubCoach(req))) {
+      res.status(403).json({ error: 'Active club coach membership required.' });
+      return;
+    }
+    const jobs = await prisma.capeJob.findMany({
+      where: { tenantId: user.tenantId, playerId },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json({
+      jobs: jobs.map(job => {
+        const request = (job.request && typeof job.request === 'object' && !Array.isArray(job.request) ? job.request : {}) as Record<string, unknown>;
+        const result = job.status === 'SUCCEEDED' && job.result && typeof job.result === 'object' && !Array.isArray(job.result)
+          ? job.result as { coaching?: { score?: unknown; verdict?: unknown; faults?: unknown[] } }
+          : null;
+        return {
+          jobId: job.id,
+          status: job.status,
+          assessmentId: job.assessmentId,
+          target: typeof request.target === 'string' ? request.target : null,
+          shotType: typeof request.shot_type === 'string' ? request.shot_type : null,
+          bowlerType: typeof request.bowler_type === 'string' ? request.bowler_type : null,
+          score: typeof result?.coaching?.score === 'number' ? result.coaching.score : null,
+          verdict: typeof result?.coaching?.verdict === 'string' ? result.coaching.verdict : null,
+          faultCount: Array.isArray(result?.coaching?.faults) ? result!.coaching!.faults!.length : 0,
+          errorMessage: job.status === 'FAILED' ? friendlyCapeError(job.error) : null,
+          createdAt: job.createdAt.toISOString()
+        };
+      })
+    });
+  } catch (error) {
+    console.error('CAPE job list failed:', error);
+    res.status(500).json({ error: 'Unable to load the analyses.' });
   }
 });
 

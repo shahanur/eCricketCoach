@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, CalendarDays, Check, Download, Mail, Play, Plus, Save, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, CalendarDays, Check, Download, Mail, Play, Plus, Save, Sparkles } from 'lucide-react';
 import { api } from '../../services/api';
-import { AssessmentMetric, AuthUser, ClubMember, PlayerAssessment, TrainingSession } from '../../types';
+import { AssessmentMetric, AuthUser, ClubMember, PlayerAssessment, TrainingSession, VideoAnalysisResult } from '../../types';
 import { downloadPdfReport, PdfBlock } from '../../utils/pdfReport';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
+import { PlayerVideoAnalyses } from './PlayerVideoAnalyses';
 
 const METRICS: Record<string, string[]> = {
   BATTING: ['Stance & balance', 'Footwork', 'Shot selection', 'Timing & contact', 'Running between wickets'],
@@ -21,6 +22,7 @@ interface PlayerAssessmentsProps {
   initialAssessmentId?: string;
   onViewTrainingSession?: (sessionId: string, playerId: string) => void;
   onAssessmentsChanged?: (assessments: PlayerAssessment[]) => void;
+  onAdoptAiDrill?: (drill: VideoAnalysisResult['recommendedDrills'][number], playerId: string | null) => void;
 }
 
 function meanScore(metrics: AssessmentMetric[]) {
@@ -67,7 +69,7 @@ function exportCalendarEvent(assessment: PlayerAssessment) {
   saveBlob(`assessment-${assessment.scheduledDate}.ics`, lines.join('\r\n'), 'text/calendar;charset=utf-8');
 }
 
-export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUser, members, sessions, initialAssessmentId, onViewTrainingSession, onAssessmentsChanged }) => {
+export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUser, members, sessions, initialAssessmentId, onViewTrainingSession, onAssessmentsChanged, onAdoptAiDrill }) => {
   const players = useMemo(
     () => members.filter(member => member.role === 'PLAYER' && member.invitationStatus === 'ACTIVE'),
     [members]
@@ -79,6 +81,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
   const [assessments, setAssessments] = useState<PlayerAssessment[]>([]);
   const [hasLoadedAssessments, setHasLoadedAssessments] = useState(false);
   const [selectedId, setSelectedId] = useState('');
+  const [detailTab, setDetailTab] = useState<'DETAILS' | 'VIDEO'>('DETAILS');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -183,14 +186,12 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
   const linkedSessions = sessions.filter(session => session.assignedPlayerIds?.includes(playerId));
   const matchingVideos = videoOptions.filter(video => video.discipline === discipline);
 
+  // Opening a different player's page starts on the details tab at the top of the page.
+  const selectedPlayerId = selectedAssessment?.playerId || '';
   useEffect(() => {
-    if (!selectedAssessment) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedId('');
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [selectedAssessment?.id]);
+    setDetailTab('DETAILS');
+    if (selectedPlayerId) window.scrollTo({ top: 0 });
+  }, [selectedPlayerId]);
 
   const playerProgress = useMemo(() => {
     const rows = players.map(player => {
@@ -385,6 +386,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
     setTrainingSessionId('');
     setVideoAnalysisId('');
     setShowSchedule(true);
+    setSelectedId('');
     setError('');
     setNotice('Follow-up draft prepared four weeks after this assessment. Confirm or adjust its schedule.');
   };
@@ -487,6 +489,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
 
   return (
     <section className="space-y-5">
+      {!selectedAssessment && (
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase text-emerald-400">Player development</p>
@@ -505,11 +508,12 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
           </button>
         </div>
       </header>
+      )}
 
       {error && <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p>}
       {notice && <p role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">{notice}</p>}
 
-      {showSchedule && (
+      {!selectedAssessment && showSchedule && (
         <form onSubmit={scheduleAssessment} className="grid gap-3 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="text-xs text-slate-300">Assessment title
             <input required maxLength={120} value={title} onChange={event => setTitle(event.target.value)} placeholder="e.g. Batting technique review" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
@@ -566,6 +570,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
         </form>
       )}
 
+      {!selectedAssessment && (
       <div className="space-y-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -653,24 +658,61 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
           </div>
         ) : <p className="rounded-lg border border-dashed border-slate-700 p-4 text-sm text-slate-400">No active players are available for assessment.</p>}
       </div>
+      )}
 
-      <div>
-        {selectedAssessment && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="assessment-detail-title"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-3 sm:p-6"
-            onClick={event => {
-              if (event.target === event.currentTarget) setSelectedId('');
-            }}
-          >
-            <div className="relative max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-2xl sm:p-6">
-              <div className="mb-3 flex justify-end">
-                <button type="button" onClick={() => setSelectedId('')} aria-label="Close assessment details" className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white">
-                  <X className="h-4 w-4" />
+      {selectedAssessment && (() => {
+        const playerAssessmentsForPage = assessments
+          .filter(item => item.playerId === selectedAssessment.playerId)
+          .sort((a, b) => (b.completedAt || b.scheduledDate).localeCompare(a.completedAt || a.scheduledDate));
+        // Coaches can view every assessment in the club but only change the ones assigned to them.
+        const canEdit = currentUser.roles.includes('CLUB_ADMIN') || selectedAssessment.coachId === currentUser.id;
+        const isEditing = selectedAssessment.status === 'IN_PROGRESS' && canEdit;
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button type="button" onClick={() => setSelectedId('')} className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white">
+                <ArrowLeft className="h-4 w-4" /> Back to assessments
+              </button>
+              {playerAssessmentsForPage.length > 1 && (
+                <label className="flex items-center gap-2 text-xs text-slate-400">Assessment
+                  <select value={selectedAssessment.id} onChange={event => setSelectedId(event.target.value)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white">
+                    {playerAssessmentsForPage.map(item => (
+                      <option key={item.id} value={item.id}>{item.title} · {item.completedAt?.slice(0, 10) || item.scheduledDate} · {item.status.replace('_', ' ').toLowerCase()}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase text-emerald-400">Player assessment</p>
+              <h2 className="text-xl font-bold text-white">{selectedAssessment.playerName}</h2>
+            </div>
+
+            <div role="tablist" aria-label="Player assessment sections" className="flex gap-1 border-b border-slate-800">
+              {([['DETAILS', 'Assessment details'], ['VIDEO', 'Video analysis']] as const).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={detailTab === tab}
+                  onClick={() => setDetailTab(tab)}
+                  className={`-mb-px border-b-2 px-3 py-2 text-xs font-semibold transition ${detailTab === tab ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-400 hover:text-white'}`}
+                >
+                  {label}
                 </button>
-              </div>
+              ))}
+            </div>
+
+            {detailTab === 'VIDEO' ? (
+              <PlayerVideoAnalyses
+                playerId={selectedAssessment.playerId}
+                playerName={selectedAssessment.playerName}
+                canAssignDrills={currentUser.roles.some(role => role === 'CLUB_ADMIN' || role === 'COACH')}
+                onAdoptDrill={onAdoptAiDrill}
+              />
+            ) : (
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
             <div className="space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
                 <div>
@@ -679,7 +721,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                   <p className="mt-1 text-xs text-slate-400">{selectedAssessment.scheduledDate}{selectedAssessment.scheduledTime ? ` at ${selectedAssessment.scheduledTime}` : ''} · Coach {selectedAssessment.coachName}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {selectedAssessment.status === 'SCHEDULED' && <button onClick={() => startAssessment(selectedAssessment)} disabled={isSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-400 px-3 py-2 text-xs font-bold text-slate-950"><Play className="h-3.5 w-3.5" /> Start</button>}
+                  {selectedAssessment.status === 'SCHEDULED' && canEdit && <button onClick={() => startAssessment(selectedAssessment)} disabled={isSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-400 px-3 py-2 text-xs font-bold text-slate-950"><Play className="h-3.5 w-3.5" /> Start</button>}
                   {selectedAssessment.status === 'SCHEDULED' && <button onClick={() => exportCalendarEvent(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><CalendarDays className="h-3.5 w-3.5" /> Calendar</button>}
                   {selectedAssessment.status === 'COMPLETED' && <button onClick={() => scheduleFollowUp(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><CalendarDays className="h-3.5 w-3.5" /> Follow-up</button>}
                   {selectedAssessment.status === 'COMPLETED' && <button onClick={() => downloadPdf(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><Download className="h-3.5 w-3.5" /> PDF</button>}
@@ -687,7 +729,9 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                 </div>
               </div>
 
-              {selectedAssessment.status === 'SCHEDULED' && <p className="text-sm text-slate-400">This assessment is scheduled. Start it when the player is ready to be assessed.</p>}
+              {!canEdit && <p className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">Read-only: this assessment is assigned to {selectedAssessment.coachName}.</p>}
+
+              {selectedAssessment.status === 'SCHEDULED' && <p className="text-sm text-slate-400">{canEdit ? 'This assessment is scheduled. Start it when the player is ready to be assessed.' : 'This assessment is scheduled and has not started yet.'}</p>}
 
               {selectedAssessment.videoAnalysisId && (
                 <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
@@ -714,7 +758,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
               <CapeAnalysisPanel
                 assessmentId={selectedAssessment.id}
                 discipline={selectedAssessment.discipline}
-                canSubmit={selectedAssessment.status !== 'COMPLETED'}
+                canSubmit={selectedAssessment.status !== 'COMPLETED' && canEdit}
                 canAssignDrills={currentUser.roles.some(role => role === 'CLUB_ADMIN' || role === 'COACH')}
               />
 
@@ -725,7 +769,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                     {metrics.map((metric, index) => (
                       <div key={metric.name} className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/50 p-3 sm:grid-cols-[minmax(120px,0.7fr)_180px_minmax(120px,1fr)] sm:items-center">
                         <span className="text-xs font-medium text-slate-200">{metric.name}</span>
-                        {selectedAssessment.status === 'IN_PROGRESS' ? (
+                        {isEditing ? (
                           <div role="group" aria-label={`${metric.name} rating`} className="flex items-center gap-2">
                             {[1, 2, 3, 4, 5].map(score => (
                               <button
@@ -745,13 +789,13 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                             ))}
                           </div>
                         ) : <span className="text-xs font-bold text-emerald-300">{metric.score ?? '—'} / 5</span>}
-                        {selectedAssessment.status === 'IN_PROGRESS'
+                        {isEditing
                           ? <input aria-label={`${metric.name} observation`} value={metric.note} maxLength={1000} onChange={event => setMetrics(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, note: event.target.value } : item))} placeholder="Observation (optional)" className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white" />
                           : <span className="text-xs text-slate-400">{metric.note || 'No observation recorded.'}</span>}
                       </div>
                     ))}
                   </div>
-                  {selectedAssessment.status === 'IN_PROGRESS' ? (
+                  {isEditing ? (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="text-xs text-slate-300">Strengths
                         <textarea rows={3} maxLength={4000} value={strengths} onChange={event => setStrengths(event.target.value)} placeholder={'Strength shown: ...\nEvidence from this assessment: ...'} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500" />
@@ -830,7 +874,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
                         <button onClick={() => mailFeedback(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><Mail className="h-3.5 w-3.5" /> Share by email</button>
-                        <button onClick={generateInsights} disabled={isGenerating} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {isGenerating ? 'Generating…' : selectedAssessment.aiInsights ? 'Refresh AI insights' : 'Generate AI insights'}</button>
+                        {canEdit && <button onClick={generateInsights} disabled={isGenerating} className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 px-3 py-2 text-xs text-violet-200 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {isGenerating ? 'Generating…' : selectedAssessment.aiInsights ? 'Refresh AI insights' : 'Generate AI insights'}</button>}
                       </div>
                       {selectedAssessment.aiInsights && (
                         <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-4">
@@ -844,10 +888,11 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                 </>
               )}
             </div>
+            </div>
+            )}
           </div>
-          </div>
-        )}
-      </div>
+        );
+      })()}
     </section>
   );
 };

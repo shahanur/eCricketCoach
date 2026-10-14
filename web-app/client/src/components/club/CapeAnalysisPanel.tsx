@@ -60,9 +60,11 @@ interface CapeAnalysisPanelProps {
   onJobChange?: (job: CapeJob | null) => void;
   // Club staff can assign suggested drills to the analysed player.
   canAssignDrills?: boolean;
+  // View mode: shows this existing job (read-only unless canSubmit).
+  jobId?: string;
 }
 
-export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange, canAssignDrills = false }) => {
+export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange, canAssignDrills = false, jobId }) => {
   const target: CapeTarget | null = discipline === 'BATTING' ? 'batter' : discipline === 'BOWLING' ? 'bowler' : null;
   const isStandalone = !assessmentId;
   const [job, setJob] = useState<CapeJob | null>(null);
@@ -94,13 +96,14 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   };
 
   useEffect(() => {
-    if (!target || (!assessmentId && !playerId)) return;
+    if (!target || (!assessmentId && !playerId && !jobId)) return;
     let cancelled = false;
     setJob(null);
-    const load = assessmentId ? api.getAssessmentCapeJob(assessmentId) : api.getLatestPlayerCapeJob(playerId!, target);
+    const load = jobId ? api.getCapeJob(jobId)
+      : assessmentId ? api.getAssessmentCapeJob(assessmentId) : api.getLatestPlayerCapeJob(playerId!, target);
     load.then(found => { if (!cancelled) setJob(found); }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [assessmentId, playerId, target]);
+  }, [assessmentId, playerId, target, jobId]);
 
   // A different video or player chosen above invalidates any corners already marked.
   useEffect(() => {

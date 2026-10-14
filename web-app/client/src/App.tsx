@@ -23,7 +23,7 @@ import { HomePage, PlanConfig } from './components/home/HomePage';
 import { PUBLIC_PAGES, PublicPage } from './components/home/PublicSite';
 import { CoachingPortal } from './components/coaching/CoachingPortal';
 import { AdminPanel } from './components/admin/AdminPanel';
-import { ClubPortal } from './components/club/ClubPortal';
+import { ClubPortal, ClubPortalSection } from './components/club/ClubPortal';
 import { UserHomeDashboard } from './components/dashboard/UserHomeDashboard';
 import { HelpSupportPage } from './components/help/HelpSupportPage';
 
@@ -44,7 +44,7 @@ export default function App() {
         const u = JSON.parse(savedUser);
         if (u.roles?.includes('SUPER_ADMIN')) return 'ADMIN_PANEL';
         if (u.roles?.includes('CLUB_ADMIN')) return 'CLUB_PORTAL';
-        if (u.roles?.includes('COACH') && u.coachContext === 'CLUB') return 'CLUB_PORTAL';
+        if (u.roles?.includes('COACH') && u.coachContext === 'CLUB') return 'COACHING_PORTAL';
         if (u.roles?.includes('PLAYER')) return 'HOME';
         if (u.roles?.includes('COACH')) return 'COACHING_PORTAL';
         return 'COACHING_PORTAL';
@@ -120,7 +120,7 @@ export default function App() {
       } else if (role === 'CLUB_ADMIN') {
         setViewMode('CLUB_PORTAL');
       } else if (role === 'COACH') {
-        setViewMode(user.coachContext === 'CLUB' ? 'CLUB_PORTAL' : 'COACHING_PORTAL');
+        setViewMode('COACHING_PORTAL');
       } else if (role === 'PLAYER') {
         setViewMode('HOME');
       } else {
@@ -844,6 +844,49 @@ export default function App() {
     }
   };
 
+  const isClubCoachUser = currentUser?.roles.includes('COACH') === true
+    && currentUser.coachContext === 'CLUB'
+    && !currentUser.roles.includes('CLUB_ADMIN');
+
+  // Club coaches reach club drills, video analysis and certificates from their coaching workspace instead.
+  useEffect(() => {
+    if (isClubCoachUser && viewMode === 'CLUB_PORTAL') setViewMode('COACHING_PORTAL');
+  }, [isClubCoachUser, viewMode]);
+
+  const renderClubPortal = (embeddedTab?: ClubPortalSection) => (
+    <ClubPortal
+      currentUser={currentUser!}
+      isClubCoach={currentUser?.roles.includes('COACH') === true && currentUser.coachContext === 'CLUB'}
+      clubMembers={clubMembers}
+      squads={squads}
+      sessions={sessions}
+      certificates={certificates}
+      drills={drills}
+      clubName={currentUser?.clubName || 'Marylebone Cricket Club Academy'}
+      onDeleteCertificate={handleDeleteCertificate}
+      onInviteMember={handleInviteMember}
+      onAcceptMemberInvite={handleAcceptMemberInvite}
+      onPromotePlayer={handlePromotePlayer}
+      onAddSquad={handleAddSquad}
+      onUpdateSquad={handleUpdateSquad}
+      onDeleteSquad={handleDeleteSquad}
+      onUpdateMemberSquad={handleUpdateMemberSquad}
+      onUpdateMember={handleUpdateMember}
+      onScheduleSession={handleScheduleSession}
+      onUpdateSession={handleUpdateSession}
+      onSessionUpdated={handleSessionUpdated}
+      onDeleteSession={handleDeleteSession}
+      onPublishSession={handlePublishSession}
+      onAddDrillToSession={handleAddDrillToSession}
+      onRemoveDrillFromSession={handleRemoveDrillFromSession}
+      onAddClubDrill={handleAddDrill}
+      onDeleteDrill={handleDeleteDrill}
+      onUpdateDrill={handleUpdateDrill}
+      onCloneDrill={handleCloneDrill}
+      embeddedTab={embeddedTab}
+    />
+  );
+
   return (
     <div className={`min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200 ${currentUser ? 'logged-in-shell' : ''}`}>
       {(currentUser || viewMode !== 'HOME') && <Navbar
@@ -928,6 +971,7 @@ export default function App() {
             onDeleteSession={handleDeleteSession}
             onDrillCreated={drill => setDrills(prev => prev.some(item => item.id === drill.id) ? prev : [drill, ...prev])}
             onSessionSynced={handleSessionSynced}
+            renderClubSection={section => renderClubPortal(section)}
           />
         )}
 
@@ -950,38 +994,7 @@ export default function App() {
           />
         )}
 
-        {viewMode === 'CLUB_PORTAL' && (
-          <ClubPortal
-            currentUser={currentUser!}
-            isClubCoach={currentUser?.roles.includes('COACH') === true && currentUser.coachContext === 'CLUB'}
-            clubMembers={clubMembers}
-            squads={squads}
-            sessions={sessions}
-            certificates={certificates}
-            drills={drills}
-            clubName={currentUser?.clubName || 'Marylebone Cricket Club Academy'}
-            onDeleteCertificate={handleDeleteCertificate}
-            onInviteMember={handleInviteMember}
-            onAcceptMemberInvite={handleAcceptMemberInvite}
-            onPromotePlayer={handlePromotePlayer}
-            onAddSquad={handleAddSquad}
-            onUpdateSquad={handleUpdateSquad}
-            onDeleteSquad={handleDeleteSquad}
-            onUpdateMemberSquad={handleUpdateMemberSquad}
-            onUpdateMember={handleUpdateMember}
-            onScheduleSession={handleScheduleSession}
-            onUpdateSession={handleUpdateSession}
-            onSessionUpdated={handleSessionUpdated}
-            onDeleteSession={handleDeleteSession}
-            onPublishSession={handlePublishSession}
-            onAddDrillToSession={handleAddDrillToSession}
-            onRemoveDrillFromSession={handleRemoveDrillFromSession}
-            onAddClubDrill={handleAddDrill}
-            onDeleteDrill={handleDeleteDrill}
-            onUpdateDrill={handleUpdateDrill}
-            onCloneDrill={handleCloneDrill}
-          />
-        )}
+        {viewMode === 'CLUB_PORTAL' && renderClubPortal()}
       </main>
     </div>
   );

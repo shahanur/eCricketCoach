@@ -78,13 +78,15 @@ const canAccessAssessment = (req: AuthenticatedRequest, assessment: { clubId: st
   assessment.clubId === req.user!.tenantId &&
   (req.user!.role === 'CLUB_ADMIN' || assessment.coachId === req.user!.userId);
 
+// Active club coaches (verified by the router middleware) can read every assessment in their club, like admins;
+// changes remain limited to the assigned coach via canAccessAssessment.
+const canViewAssessment = (req: AuthenticatedRequest, assessment: { clubId: string }) =>
+  Boolean(req.user) && assessment.clubId === req.user!.tenantId;
+
 assessmentRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const assessments = await prisma.playerAssessment.findMany({
-      where: {
-        clubId: req.user!.tenantId,
-        ...(req.user!.role === 'COACH' ? { coachId: req.user!.userId } : {})
-      },
+      where: { clubId: req.user!.tenantId },
       orderBy: [{ scheduledDate: 'desc' }, { createdAt: 'desc' }]
     });
     res.json(assessments);
@@ -344,7 +346,7 @@ assessmentRouter.get('/:id/video', async (req: AuthenticatedRequest, res: Respon
     const assessment = await prisma.playerAssessment.findFirst({
       where: { id: req.params.id, clubId: req.user!.tenantId }
     });
-    if (!assessment || !canAccessAssessment(req, assessment)) {
+    if (!assessment || !canViewAssessment(req, assessment)) {
       res.status(404).json({ error: 'Assessment not found.' });
       return;
     }
