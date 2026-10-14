@@ -19,8 +19,44 @@ export interface CapeResponse {
   metadata: Record<string, unknown>;
   analytics_payload: Record<string, unknown>;
   delivery: Record<string, unknown> | null;
-  coaching: { score: number; verdict: string; faults: unknown[]; strengths: string[]; unavailable: string[]; summary?: string | null };
+  coaching: {
+    score: number;
+    verdict: string;
+    faults: CapeFault[];
+    strengths: string[];
+    unavailable: string[];
+    summary?: string | null;
+    ai_guidance?: CapeAiGuidance | null;
+  };
   download_endpoints: Record<string, string | null>;
+}
+
+export interface CapeFault {
+  code: string;
+  milestone: string;
+  metric: string;
+  value: number;
+  expected: [number | null, number | null];
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+  recommendation: string;
+  drill?: string | null;
+}
+
+export interface CapeAiGuidance {
+  source: 'gemini';
+  summary: string;
+  items: Array<{
+    fault_code: string;
+    title: string;
+    why_it_matters: string;
+    coaching_cues: string[];
+    drill: {
+      name: string;
+      instructions: string[];
+      equipment: string[];
+    };
+  }>;
 }
 
 export class CapeError extends Error {

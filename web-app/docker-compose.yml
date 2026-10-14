@@ -117,7 +117,7 @@ services:
       CAPE_API_KEY: ${CAPE_API_KEY:-}
       CAPE_CONCURRENCY: ${CAPE_CONCURRENCY:-1}
       CAPE_TIMEOUT_MS: ${CAPE_TIMEOUT_MS:-600000}
-      CAPE_GEMINI_SUMMARY: ${CAPE_GEMINI_SUMMARY:-false}
+      CAPE_GEMINI_SUMMARY: ${CAPE_GEMINI_SUMMARY:-true}
       CAPE_UPLOAD_DIR: /var/cape-uploads
     volumes:
       - cape-uploads:/var/cape-uploads

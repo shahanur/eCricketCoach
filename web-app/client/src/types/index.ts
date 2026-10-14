@@ -336,6 +336,22 @@ export interface CapeFault {
   drill: string | null;
 }
 
+export interface CapeAiGuidance {
+  source: 'gemini';
+  summary: string;
+  items: Array<{
+    fault_code: string;
+    title: string;
+    why_it_matters: string;
+    coaching_cues: string[];
+    drill: {
+      name: string;
+      instructions: string[];
+      equipment: string[];
+    };
+  }>;
+}
+
 export interface CapeResult {
   session_id: string;
   metadata: { resolution: string; framerate_fps: number; target: CapeTarget; handedness: 'right' | 'left'; shot_type: string | null; bowler_type: string | null };
@@ -354,7 +370,7 @@ export interface CapeResult {
     line_zone: string;
     is_good_ball: boolean;
   } | null;
-  coaching: { score: number; verdict: string; faults: CapeFault[]; strengths: string[]; unavailable: string[]; summary: string | null };
+  coaching: { score: number; verdict: string; faults: CapeFault[]; strengths: string[]; unavailable: string[]; summary: string | null; ai_guidance?: CapeAiGuidance | null };
   download_endpoints: Record<string, string | null>;
 }
 

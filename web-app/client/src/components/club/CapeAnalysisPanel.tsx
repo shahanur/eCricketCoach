@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Download, Loader2, RotateCcw, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Loader2, RotateCcw, Sparkles, Upload, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { CapeFault, CapeJob, CapeResult, CapeTarget } from '../../types';
 
@@ -505,6 +505,35 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
               <p className="mt-1 text-[11px] text-slate-300">{label(fault.metric)}: {formatNumber(fault.value)} · expected {expectedRange(fault)} · {label(fault.milestone)}</p>
               <p className="mt-1 text-xs text-slate-200">{fault.recommendation}</p>
               {fault.drill && <p className="mt-1 text-[11px] text-slate-400">Drill: {fault.drill}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {coaching.ai_guidance && (
+        <div className="space-y-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-3">
+          <div>
+            <h5 className="flex items-center gap-1.5 text-xs font-semibold text-violet-200">
+              <Sparkles size={14} /> Gemini coaching guidance
+            </h5>
+            <p className="mt-1 text-xs text-slate-200">{coaching.ai_guidance.summary}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Generated from CAPE’s measured findings; Gemini does not change measurements or severity.</p>
+          </div>
+          {coaching.ai_guidance.items.map(item => (
+            <div key={item.fault_code} className="rounded-lg border border-violet-400/20 bg-slate-950/40 p-3">
+              <p className="text-xs font-semibold text-violet-200">{item.title}</p>
+              <p className="mt-1 text-[11px] text-slate-300">{item.why_it_matters}</p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Coaching cues</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-slate-200">
+                {item.coaching_cues.map(cue => <li key={cue}>{cue}</li>)}
+              </ul>
+              <p className="mt-2 text-xs font-semibold text-emerald-300">Drill: {item.drill.name}</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5 text-[11px] text-slate-300">
+                {item.drill.instructions.map(step => <li key={step}>{step}</li>)}
+              </ol>
+              {item.drill.equipment.length > 0 && (
+                <p className="mt-1 text-[11px] text-slate-500">Equipment: {item.drill.equipment.join(', ')}</p>
+              )}
             </div>
           ))}
         </div>
