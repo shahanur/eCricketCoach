@@ -49,6 +49,14 @@ MOVE_FRACTION = 0.005  # of frame width per frame, to call a person "moving"
 NOSE_HEIGHT_M = 1.68  # assumed nose height; release height is a body-ratio estimate (approximate)
 DEFAULT_FPS = 30.0
 CRICKET_BALL_MASS_KG = 0.156
+BAT_FOREARM_RATIO = 3.0  # bat length / forearm length, for the pose-only bat estimate
+# Manual mode with no pre/post frames selected: scan this long before/after the contact candidates.
+AUTO_WINDOW_S = 1.0
+AUTO_WINDOW_MAX_FRAMES = 30
+# Hands-midpoint -> bat-toe length of a standard (SH) bat; sets the pixel scale for bat speed.
+BAT_HANDS_TO_TIP_M = 0.8
+SWING_SPEED_WINDOW_S = 0.2
+MAX_PLAUSIBLE_BAT_SPEED_KMH = 250.0
 log = logging.getLogger("cape")
 YOLO_POSE_NAMES = (
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -282,11 +290,16 @@ def _fmt(metric: str, value: float) -> str:
     return f"{label}: {text}"
 
 
-def _statuses(result: Coaching) -> dict[str, str]:
+def _statuses(result: Coaching, milestone: str | None = None) -> dict[str, str]:
     out: dict[str, str] = {}
     for f in result.faults:
-        out.setdefault(f.metric, "warn" if f.severity is Severity.low else "fault")
+        if milestone is None or f.milestone == milestone:
+            out.setdefault(f.metric, "warn" if f.severity is Severity.low else "fault")
     return out
+
+
+def _fault_lines(result: Coaching, milestone: str) -> list[str]:
+    return [f"! {f.code.replace('_', ' ').capitalize()}" for f in result.faults if f.milestone == milestone][:3]
 
 
 def _checked(req: AnalysisRequest, milestone: str) -> list[str]:
@@ -335,6 +348,45 @@ def _last_at(hist, frame_idx: int) -> Point | None:
     return pts[-1] if pts else None
 
 
+def swing_arc_deg(samples: list[tuple[Point | None, Point | None]]) -> float | None:
+    """Total image-plane rotation of the bat (hands -> tip) across samples, ignoring tracking
+    glitches; None if < 2 usable sightings or the result exceeds a full turn (implausible)."""
+    bats = render.unwrapped_bat_angles(samples)
+    if len(bats) < 2:
+        return None
+    total = abs(math.degrees(bats[-1][2] - bats[0][2]))
+    return round(total, 1) if total <= 360 else None
+
+
+def auto_window(start: int, end: int, keep_end: bool) -> list[int]:
+    """Frames start..end (inclusive), thinned to AUTO_WINDOW_MAX_FRAMES; `keep_end` anchors the stride at `end`."""
+    frames = list(range(max(0, start), end + 1))
+    step = max(1, math.ceil(len(frames) / AUTO_WINDOW_MAX_FRAMES))
+    return sorted(frames[::-1][::step]) if keep_end else frames[::step]
+
+
+def bat_swing_speed_kmh(
+    samples: list[tuple[int, Point | None, Point | None]], contact_frame: int, fps: float
+) -> float | None:
+    """Mean bat-tip speed over the last SWING_SPEED_WINDOW_S before contact, in km/h.
+
+    `samples` are (frame, hands, tip) for the swing and follow-through. The pixel scale comes from
+    the longest hands->tip length seen (least foreshortened) taken as BAT_HANDS_TO_TIP_M.
+    """
+    seen = [(f, h, t) for f, h, t in samples if h is not None and t is not None and _dist(h, t) > 1]
+    if not seen or fps <= 0:
+        return None
+    m_per_px = BAT_HANDS_TO_TIP_M / max(_dist(h, t) for _, h, t in seen)
+    swing = sorted((f, t) for f, _, t in seen if f <= contact_frame)
+    for window_s in (SWING_SPEED_WINDOW_S, SWING_SPEED_WINDOW_S * 2):
+        recent = [(f, t) for f, t in swing if contact_frame - f <= round(window_s * fps)]
+        if len(recent) >= 2 and recent[-1][0] > recent[0][0]:
+            path_px = sum(_dist(a, b) for (_, a), (_, b) in zip(recent, recent[1:]))
+            speed = path_px * m_per_px / ((recent[-1][0] - recent[0][0]) / fps) * 3.6
+            return round(speed, 1) if speed <= MAX_PLAUSIBLE_BAT_SPEED_KMH else None
+    return None
+
+
 # --- single decoding pass -----------------------------------------------------
 
 
@@ -363,6 +415,30 @@ class _Pass:
         self.best_bat_contact: tuple[float, int, np.ndarray] | None = None
         self.contact_selection = contact_selection
         self.visual_contact_point: Point | None = None
+        self.manual = req.manual_frames if self.batter else None
+        # frame idx -> (hands, bat tip) for manually selected frames (swing / follow-through strobe).
+        self.swing_samples: dict[int, tuple[Point | None, Point | None]] = {}
+        # Frames whose bat tip was estimated from the forearms because the bat wasn't segmented.
+        self.estimated_swing_frames: set[int] = set()
+        # (tier, score, idx, frame, box, ball): lower is better; see _manual_step.
+        self.best_manual_contact: tuple[int, float, int, np.ndarray, Box | None, Point | None] | None = None
+        # Frames scanned for the swing / follow-through; scanned automatically when the user picked none.
+        self.pre_frames: list[int] = []
+        self.post_frames: list[int] = []
+        self.pre_auto = self.post_auto = False
+        # milestone -> (height score, frame idx) of the best automatic snapshot (highest bat tip).
+        self.auto_snapshot: dict[str, tuple[float, int]] = {}
+        if self.manual is not None:
+            contact, window = self.manual.point_of_contact, round(fps * AUTO_WINDOW_S)
+            self.pre_auto, self.post_auto = not self.manual.pre_contact, not self.manual.post_contact
+            self.pre_frames = (
+                auto_window(contact[0] - window, contact[0] - 1, keep_end=True)
+                if self.pre_auto else list(self.manual.pre_contact)
+            )
+            self.post_frames = (
+                auto_window(contact[-1] + 1, contact[-1] + window, keep_end=False)
+                if self.post_auto else list(self.manual.post_contact)
+            )
         self.done = False
         ref = (0.0, 0.0) if self.batter else (0.0, PITCH_LENGTH_M - POPPING_CREASE_M)
         try:
@@ -412,6 +488,10 @@ class _Pass:
     def _batter_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
         if ball is not None:
             self.ball_track.append((idx, ball))
+        if self.manual is not None:
+            self.tracker.update(idx, ball)
+            self._manual_step(idx, frame, ball)
+            return
         if ball is not None and self.contact_selection is None:
             bat = self.det.bat.segment(frame)
             if bat is not None and len(bat) >= 3:
@@ -466,6 +546,83 @@ class _Pass:
             # Keep scanning so a bat-ball proximity minimum later in the clip can
             # replace an early velocity-inversion estimate.
 
+    def _hands_and_bat(self, frame: np.ndarray, ref: Point):
+        """(person box, hands midpoint, bat tip, bat polygon, tip estimated from forearms) for the batter nearest `ref`."""
+        person = _nearest(self.det.pose.detect(frame), ref, key=_center)
+        hands = None
+        forearms: list[tuple[Point, Point]] = []
+        if person is not None and len(person.keypoints) > 10:
+            kp = person.keypoints
+            wrists = [p for p in (kp[9], kp[10]) if p[0] > 0 and p[1] > 0]
+            if wrists:
+                hands = (float(np.mean([w[0] for w in wrists])), float(np.mean([w[1] for w in wrists])))
+            forearms = [(kp[e], kp[w]) for e, w in ((7, 9), (8, 10)) if min(*kp[e], *kp[w]) > 0 and _dist(kp[e], kp[w]) > 1]
+        bat = self.det.bat.segment(frame)
+        poly = np.asarray(bat, dtype=np.float32) if bat is not None and len(bat) >= 3 else None
+        tip = None
+        if poly is not None and hands is not None:
+            # Reject bat-like background lines that are nowhere near the batter's hands.
+            if abs(float(cv2.pointPolygonTest(poly, hands, True))) <= max(120.0, self.width * 0.16):
+                # Tip = centroid of the far end, so corner vertices of a thick mask don't make it jitter.
+                d = np.linalg.norm(poly - np.asarray(hands, dtype=np.float32), axis=1)
+                far = poly[d >= d.max() * 0.9].mean(axis=0)
+                tip = (float(far[0]), float(far[1]))
+            else:
+                poly = None
+        estimated = False
+        if tip is None and hands is not None and forearms:
+            # Bat not segmented: extend the forearms (elbow -> wrist) past the hands. A bat is ~3 forearms long.
+            ux = np.mean([(w[0] - e[0]) / _dist(e, w) for e, w in forearms])
+            uy = np.mean([(w[1] - e[1]) / _dist(e, w) for e, w in forearms])
+            norm = math.hypot(ux, uy)
+            if norm > 1e-3:
+                length = BAT_FOREARM_RATIO * float(np.mean([_dist(e, w) for e, w in forearms]))
+                tip = (hands[0] + ux / norm * length, hands[1] + uy / norm * length)
+                estimated = True
+        return (person.box if person else self.locked), hands, tip, poly, estimated
+
+    def _manual_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
+        m = self.manual
+        in_pre, in_contact, in_post = idx in self.pre_frames, idx in m.point_of_contact, idx in self.post_frames
+        if not (in_pre or in_contact or in_post):
+            return
+        ref = self.locked.center if self.locked else self.crease_px
+        box, hands, tip, poly, estimated = self._hands_and_bat(frame, ref)
+        self.swing_samples[idx] = (hands, tip)
+        if estimated:
+            self.estimated_swing_frames.add(idx)
+        for key, inside, auto, pick in (
+            ("pre_contact", in_pre, self.pre_auto, self.pre_frames[:1]),
+            ("post_contact", in_post, self.post_auto, self.post_frames[-1:]),
+        ):
+            if not inside:
+                continue
+            if auto:
+                # Top of the backswing / end of the follow-through: the frame with the highest bat tip.
+                top = tip or hands
+                if top is None:
+                    continue
+                if key not in self.auto_snapshot or top[1] < self.auto_snapshot[key][0]:
+                    self.auto_snapshot[key] = (top[1], idx)
+                    self._keep(key, idx, frame)
+                    self.boxes[key] = box
+            elif [idx] == pick:
+                self._keep(key, idx, frame)
+                self.boxes[key] = box
+        if not in_contact:
+            return
+        # Pick the best of the user's contact candidates: ball touching the bat near the hands
+        # beats ball near the hands, which beats no evidence (then the middle candidate wins).
+        if ball is not None and poly is not None and hands is not None:
+            tier, score = 0, abs(float(cv2.pointPolygonTest(poly, ball, True))) + 0.35 * _dist(ball, hands)
+        elif ball is not None and hands is not None:
+            tier, score = 1, _dist(ball, hands)
+        else:
+            middle = m.point_of_contact[(len(m.point_of_contact) - 1) // 2]
+            tier, score = 2, float(abs(idx - middle))
+        if self.best_manual_contact is None or (tier, score) < self.best_manual_contact[:2]:
+            self.best_manual_contact = (tier, score, idx, frame.copy(), box, ball)
+
     def _bowler_step(self, idx: int, frame: np.ndarray, ball: Point | None) -> None:
         if ball is None:
             return
@@ -479,6 +636,26 @@ class _Pass:
             self.done = True
 
     def finish(self) -> None:
+        if self.manual is not None:
+            if self.best_manual_contact is not None:
+                _, _, frame_idx, frame, box, ball = self.best_manual_contact
+                self._keep("point_of_contact", frame_idx, frame)
+                self.boxes["point_of_contact"] = box
+                self.tracker.contact_frame = frame_idx
+                hands, tip = self.swing_samples.get(frame_idx, (None, None))
+                if ball is not None:
+                    self.visual_contact_point = ball
+                elif hands is not None and tip is not None:
+                    # Ball not visible: assume contact near the bat's sweet spot.
+                    self.visual_contact_point = (hands[0] + (tip[0] - hands[0]) * 0.7, hands[1] + (tip[1] - hands[1]) * 0.7)
+                elif hands is not None:
+                    self.visual_contact_point = hands
+                # No usable swing / follow-through frame (clip edge or no batter found): fall back to contact.
+                for key in ("pre_contact", "post_contact"):
+                    if key not in self.frames:
+                        self._keep(key, frame_idx, frame)
+                        self.boxes[key] = box
+            return
         if self.batter and self.contact_selection is not None:
             self.tracker.contact_frame = self.contact_selection.frame_index
         elif self.batter and self.best_bat_contact is not None:
@@ -574,6 +751,40 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         metrics.update(front_foot_metrics(lm_c, h, contact_point, cal))
         alignment_metrics, back_foot_crease_line = batting_alignment_metrics(lm_c, h, contact_point, cal)
         metrics.update(alignment_metrics)
+    if lm_post:
+        metrics.update({f"post_contact.{k}": v for k, v in kinematics.pose_metrics(lm_post, h).items()})
+        if lm_c and (travel := kinematics.head_travel_pct(lm_c, lm_post)) is not None:
+            metrics["post_contact.head_travel_pct"] = travel
+    pf = p.frames["pre_contact"][0]
+    postf = p.frames["post_contact"][0]
+    swing_frames: list[int] = []
+    follow_frames: list[int] = []
+    swing_arc = follow_arc = swing_speed = None
+    swing_note = follow_note = ""
+    swing: list[tuple[Point | None, Point | None]] = []
+    follow: list[tuple[Point | None, Point | None]] = []
+    if req.manual_frames is not None:
+        # Auto-scanned windows trace the downswing from the top of the backswing, and the
+        # follow-through up to its highest finish; user-picked frames are all traced.
+        swing_frames = [*(f for f in p.pre_frames if not p.pre_auto or f >= pf), cf]
+        follow_frames = [cf, *(f for f in p.post_frames if not p.post_auto or f <= postf)]
+        swing = [p.swing_samples.get(f, (None, None)) for f in swing_frames]
+        follow = [p.swing_samples.get(f, (None, None)) for f in follow_frames]
+        swing_arc, follow_arc = swing_arc_deg(swing), swing_arc_deg(follow)
+        swing_speed = bat_swing_speed_kmh(
+            [(f, *p.swing_samples.get(f, (None, None))) for f in dict.fromkeys([*swing_frames, *follow_frames])],
+            cf,
+            fps,
+        )
+        estimated = p.estimated_swing_frames
+        swing_note = " (est.)" if estimated.intersection(swing_frames) else ""
+        follow_note = " (est.)" if estimated.intersection(follow_frames) else ""
+        if swing_arc is not None:
+            metrics["pre_contact.bat_swing_arc_deg"] = swing_arc
+        if follow_arc is not None:
+            metrics["post_contact.follow_through_arc_deg"] = follow_arc
+        if swing_speed is not None:
+            metrics["pre_contact.bat_swing_speed_kmh"] = swing_speed
     result = coaching.evaluate(req, metrics, None)
     post_pts = post_hist[:POST_POINTS]
     exit_v = _speed(cal, post_pts, fps)
@@ -593,10 +804,9 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     except ValueError:
         pass
 
-    statuses = _statuses(result)
+    statuses = _statuses(result, "point_of_contact")
+    pre_statuses, post_statuses = _statuses(result, "pre_contact"), _statuses(result, "post_contact")
     checked = _checked(req, "point_of_contact")
-    pf = p.frames["pre_contact"][0]
-    postf = p.frames["post_contact"][0]
     post_lines = []
     if exit_v is not None:
         post_lines.append(f"Exit speed: {exit_v:.0f} km/h")
@@ -607,16 +817,43 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     post_angles = {k: round(v, 1) for k, v in kinematics.batter_angles(lm_post, h).items()} if lm_post else {}
     pre_ball = _last_at(pre_hist, pf)
     post_ball = _last_at(post_hist, postf)
+    swing_layers: list = []
+    follow_layers: list = []
+    pre_lines = [_fmt(k, v) for k, v in pre_angles.items()]
+    if req.manual_frames is not None:
+        swing_layers = [
+            partial(render.draw_swing_path, samples=swing, color=render.SWING_COLOR, label=f"Bat swing{swing_note}")
+        ]
+        follow_layers = [
+            partial(
+                render.draw_swing_path,
+                samples=follow,
+                color=render.FOLLOW_THROUGH_COLOR,
+                label=f"Follow-through{follow_note}",
+            )
+        ]
+        if swing_speed is not None:
+            pre_lines.insert(0, f"Bat speed: {swing_speed:.0f} km/h{swing_note}")
+        if swing_arc is not None:
+            pre_lines.insert(0, f"Bat swing arc: {swing_arc:.0f} deg{swing_note}")
+        if follow_arc is not None:
+            post_lines.insert(0, f"Follow-through arc: {follow_arc:.0f} deg{follow_note}")
+        if swing_note or follow_note:
+            (post_lines if follow_note else pre_lines).append("est. = bat line inferred from forearms")
+    # Faults found before / after contact lead their panels.
+    pre_lines[:0] = _fault_lines(result, "pre_contact")
+    post_lines[:0] = _fault_lines(result, "post_contact")
     landmark_points = {k: _xy(v) for k, v in lm_c.points.items()} if lm_c else {}
     incoming_start = pre_hist[max(0, len(pre_hist) - POST_POINTS)][1] if pre_hist else None
     outgoing_end = post_pts[-1][1] if post_pts else None
     overlays = {
         "pre_contact": [
             partial(render.draw_trail, pts=[pt for f, pt in pre_hist if f <= pf]),
-            *_body_layers(lm_p, h, {}, pre_ball),
-            *_angle_layers(lm_p, h, metrics, [m for m in _checked(req, "pre_contact") if m in pre_angles], {}),
+            *_body_layers(lm_p, h, pre_statuses, pre_ball),
+            *_angle_layers(lm_p, h, pre_angles, [m for m in _checked(req, "pre_contact") if m in pre_angles], pre_statuses),
+            *swing_layers,
             *_ball_layer(pre_ball),
-            _panel("Pre-contact", [_fmt(k, v) for k, v in pre_angles.items()]),
+            _panel("Pre-contact", pre_lines),
         ],
         "point_of_contact": [
             partial(render.draw_trail, pts=[pt for _, pt in pre_hist] + [contact_pt[1]]),
@@ -635,17 +872,31 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         ],
         "post_contact": [
             partial(render.draw_trail, pts=[contact_pt[1]] + [pt for f, pt in post_hist if f <= postf]),
-            *_body_layers(lm_post, h, {}, post_ball),
-            *_angle_layers(lm_post, h, post_angles, list(post_angles), {}),
+            *_body_layers(lm_post, h, post_statuses, post_ball),
+            *_angle_layers(lm_post, h, post_angles, list(post_angles), post_statuses),
+            *follow_layers,
             *_ball_layer(post_ball),
             _panel("Post-contact", post_lines),
         ],
     }
     payload = AnalyticsPayload(
-        pre_contact=PreContact(milestone_frame=pf, batter_joint_angles=pre_angles),
+        pre_contact=PreContact(
+            milestone_frame=pf,
+            batter_joint_angles=pre_angles,
+            swing_frames=swing_frames,
+            bat_swing_arc_degrees=swing_arc,
+            bat_swing_speed_kmh=swing_speed,
+            swing_frames_auto=p.pre_auto,
+            bat_swing_estimated=bool(swing_note),
+        ),
         point_of_contact=PointOfContact(
             milestone_frame=cf,
-            selection_source="gemini" if p.contact_selection is not None else "detector",
+            selection_source=(
+                "manual" if req.manual_frames is not None
+                else "gemini" if p.contact_selection is not None
+                else "detector"
+            ),
+            candidate_frames=list(req.manual_frames.point_of_contact) if req.manual_frames is not None else [],
             selection_confidence=p.contact_selection.confidence if p.contact_selection is not None else None,
             ball_velocity_kmh=ball_v,
             estimated_ball_momentum_kg_m_s=inbound_momentum,
@@ -677,6 +928,10 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
             estimated_ball_kinetic_energy_j=exit_energy,
             launch_angle_degrees=launch,
             batter_joint_angles=post_angles,
+            follow_through_frames=follow_frames,
+            follow_through_arc_degrees=follow_arc,
+            follow_through_estimated=bool(follow_note),
+            follow_through_frames_auto=p.post_auto,
         ),
     )
     return payload, None, result, overlays
@@ -755,7 +1010,7 @@ def analyze(
         raise CapeError(422, "calibration_invalid", f"Calibration points are invalid: {exc}") from None
 
     contact_selection = None
-    if req.target is Target.batter and settings and settings.gemini_contact:
+    if req.manual_frames is None and req.target is Target.batter and settings and settings.gemini_contact:
         if settings.gemini_api_key:
             try:
                 contact_selection = select_contact_frame(
@@ -793,6 +1048,12 @@ def analyze(
         cap.release()
     if idx == 0:
         raise CapeError(422, "unreadable_video", "Video contains no decodable frames")
+    if req.manual_frames is not None and req.manual_frames.last_frame >= idx:
+        raise CapeError(
+            422,
+            "manual_frames_out_of_range",
+            f"Selected frames must be within the video's {idx} frames",
+        )
 
     analyze_target = _analyze_batter if scan.batter else _analyze_bowler
     payload, delivery, result, overlays = analyze_target(scan, req, cal, fps)

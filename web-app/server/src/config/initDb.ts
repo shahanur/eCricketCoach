@@ -217,7 +217,26 @@ export async function initDb() {
       created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE INDEX IF NOT EXISTS cape_jobs_tenant_id_created_at_idx ON cape_jobs (tenant_id, created_at)`
+    `CREATE INDEX IF NOT EXISTS cape_jobs_tenant_id_created_at_idx ON cape_jobs (tenant_id, created_at)`,
+
+    `CREATE TABLE IF NOT EXISTS player_drill_assignments (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      player_id TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      drill_id TEXT NOT NULL,
+      system_drill_id TEXT,
+      cape_job_id TEXT,
+      fault_code TEXT,
+      title TEXT NOT NULL,
+      discipline TEXT NOT NULL,
+      details JSONB NOT NULL,
+      assigned_by_id TEXT NOT NULL,
+      assigned_by_name TEXT,
+      created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS player_drill_assignments_cape_job_id_fault_code_key ON player_drill_assignments (cape_job_id, fault_code)`,
+    `CREATE INDEX IF NOT EXISTS player_drill_assignments_tenant_id_player_id_created_at_idx ON player_drill_assignments (tenant_id, player_id, created_at)`
   ];
 
   // 1. Execute each DDL statement individually
@@ -245,6 +264,7 @@ export async function initDb() {
     `ALTER TABLE drills ADD COLUMN IF NOT EXISTS squad_id VARCHAR(100)`,
     `ALTER TABLE drills ADD COLUMN IF NOT EXISTS squad_name VARCHAR(255)`,
     `ALTER TABLE drills ADD COLUMN IF NOT EXISTS image_url TEXT`,
+    `ALTER TABLE cape_jobs ADD COLUMN IF NOT EXISTS gemini_request JSONB`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coach_id`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coach_name`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coordinator_coach_id`,

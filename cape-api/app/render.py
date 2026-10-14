@@ -377,6 +377,117 @@ def draw_ball(frame: np.ndarray, point: Point) -> np.ndarray:
     return out
 
 
+SWING_COLOR = (40, 190, 255)
+FOLLOW_THROUGH_COLOR = (255, 150, 60)
+
+
+def draw_swing_path(
+    frame: np.ndarray,
+    samples: Sequence[tuple[Point | None, Point | None]],
+    color=SWING_COLOR,
+    label: str = "Bat swing",
+) -> np.ndarray:
+    """Strobe of the bat (hands -> bat tip) across frames, oldest faintest, with the tip path arrowed.
+
+    `samples` are (hands, bat_tip) per frame in time order; either may be None. Falls back to the
+    hands path when the bat tip was not found in at least two frames.
+    """
+    out = frame.copy()
+    s = _ui_scale(out)
+    th = max(2, int(round(3 * s)))
+    n = len(samples)
+    for i, (hands, tip) in enumerate(samples):
+        if hands is None or tip is None:
+            continue
+        alpha = 0.25 + 0.45 * (i + 1) / n
+        layer = out.copy()
+        cv2.line(layer, _ipt(hands), _ipt(tip), color, max(1, th - 1), cv2.LINE_AA)
+        cv2.circle(layer, _ipt(tip), th + 1, color, -1, cv2.LINE_AA)
+        out[:] = cv2.addWeighted(layer, alpha, out, 1 - alpha, 0)
+    tips = [tip for hands, tip in samples if hands is not None and tip is not None]
+    hand_pts = [hands for hands, _ in samples if hands is not None]
+    for a, b in zip(hand_pts, hand_pts[1:]):
+        _dashed_line(out, a, b, WHITE, max(1, th // 2), dash=max(6, int(10 * s)))
+    arc = swing_arc_points(samples)
+    if arc is not None:
+        _arrowed_path(out, arc, color, max(3, int(round(5 * s))))
+        anchor = arc[len(arc) // 2]
+    else:
+        path = tips if len(tips) >= 2 else hand_pts
+        if len(path) >= 2:
+            out = draw_trail(out, path, color=color, base_thickness=max(3, int(round(5 * s))))
+            if math.dist(path[-2], path[-1]) > 2:
+                cv2.arrowedLine(out, _ipt(path[-2]), _ipt(path[-1]), color, th, cv2.LINE_AA, tipLength=0.35)
+        anchor = path[-1] if path else None
+    if anchor is not None:
+        _text(out, label, (int(anchor[0]) + 10, int(anchor[1]) - 10), 0.6 * s, color, max(1, th - 1))
+    return out
+
+
+MAX_BAT_STEP_RAD = math.radians(120)
+
+
+def unwrapped_bat_angles(
+    samples: Sequence[tuple[Point | None, Point | None]],
+) -> list[tuple[Point, Point, float]]:
+    """(hands, tip, unwrapped hands->tip angle) per bat sighting. A jump of more than
+    MAX_BAT_STEP_RAD from the previous kept sighting is a tracking glitch (e.g. a flipped
+    forearm estimate) and is dropped, so glitches cannot add false turns."""
+    out: list[tuple[Point, Point, float]] = []
+    for h, t in samples:
+        if h is None or t is None or math.dist(h, t) <= 1:
+            continue
+        a = math.atan2(t[1] - h[1], t[0] - h[0])
+        if out:
+            step = (a - out[-1][2] + math.pi) % (2 * math.pi) - math.pi
+            if abs(step) > MAX_BAT_STEP_RAD:
+                continue
+            a = out[-1][2] + step
+        out.append((h, t, a))
+    return out
+
+
+def swing_arc_points(
+    samples: Sequence[tuple[Point | None, Point | None]], steps_per_rad: float = 24.0
+) -> list[Point] | None:
+    """Points of the bat's swept arc: centred on the mean hands position, radius = median bat length,
+    following the bat's unwrapped angle frame by frame. None if the bat was seen in < 2 frames."""
+    bats = unwrapped_bat_angles(samples)
+    if len(bats) < 2:
+        return None
+    cx = sum(h[0] for h, _, _ in bats) / len(bats)
+    cy = sum(h[1] for h, _, _ in bats) / len(bats)
+    radius = sorted(math.dist(h, t) for h, t, _ in bats)[len(bats) // 2]
+    unwrapped = [a for _, _, a in bats]
+    if abs(unwrapped[-1] - unwrapped[0]) < math.radians(3):
+        return None
+    pts: list[Point] = []
+    for a, b in zip(unwrapped, unwrapped[1:]):
+        k = max(1, int(abs(b - a) * steps_per_rad))
+        pts.extend((cx + radius * math.cos(a + (b - a) * j / k), cy + radius * math.sin(a + (b - a) * j / k)) for j in range(k))
+    pts.append((cx + radius * math.cos(unwrapped[-1]), cy + radius * math.sin(unwrapped[-1])))
+    return pts
+
+
+def _arrowed_path(img: np.ndarray, pts: Sequence[Point], color, thickness: int) -> None:
+    """Bold outlined polyline with an arrowhead at its end (in place)."""
+    poly = np.asarray([_ipt(p) for p in pts], dtype=np.int32).reshape(-1, 1, 2)
+    cv2.polylines(img, [poly], False, (20, 20, 20), thickness + 4, cv2.LINE_AA)
+    cv2.polylines(img, [poly], False, color, thickness, cv2.LINE_AA)
+    tail = next((p for p in reversed(pts[:-1]) if math.dist(p, pts[-1]) > 2), None)
+    if tail is not None:
+        ex, ey = pts[-1]
+        d = math.dist(tail, pts[-1])
+        ux, uy = (ex - tail[0]) / d, (ey - tail[1]) / d
+        size = 4 * thickness
+        head = np.asarray([
+            (ex + ux * size * 0.5, ey + uy * size * 0.5),
+            (ex - ux * size - uy * size * 0.6, ey - uy * size + ux * size * 0.6),
+            (ex - ux * size + uy * size * 0.6, ey - uy * size - ux * size * 0.6),
+        ], dtype=np.int32)
+        cv2.fillPoly(img, [head], color, cv2.LINE_AA)
+
+
 # --- pitch map ----------------------------------------------------------------
 
 _Y_MIN_M, _Y_MAX_M = -1.5, PITCH_LENGTH_M + 1.5

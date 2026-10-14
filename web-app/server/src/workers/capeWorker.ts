@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { Job, UnrecoverableError, Worker } from 'bullmq';
 import { Prisma } from '@prisma/client';
+import { SchemaType, type ResponseSchema } from '@google/generative-ai';
 import { prisma } from '../config/prisma.js';
 import { CAPE_QUEUE_NAME, CapeQueueData, redisConnection } from '../queues/capeQueue.js';
 import { analyzeWithCape, CapeAiGuidance, CapeError, CapeRequest, CapeResponse, downloadCapeArtifact } from '../services/capeClient.js';
@@ -117,11 +118,25 @@ export async function geminiCoachingGuidance(
   if (process.env.CAPE_GEMINI_SUMMARY !== 'true' || !GeminiVideoAnalysisService.isConfigured()) return { guidance: null, audit: null };
   if (response.coaching.faults.length === 0) return { guidance: null, audit: null };
   const label = 'CAPE Gemini coaching guidance';
+  const meta = response.metadata as Record<string, unknown>;
+  // Only send the findings Gemini needs; the full metadata made models echo it back into the reply.
   const factsObj = {
-    metadata: response.metadata,
+    player: {
+      target: meta.target ?? meta.selected_target ?? null,
+      handedness: meta.handedness ?? null,
+      shot_type: meta.shot_type ?? null,
+      bowler_type: meta.bowler_type ?? null
+    },
     score: response.coaching.score,
     verdict: response.coaching.verdict,
-    faults: response.coaching.faults,
+    faults: response.coaching.faults.map(fault => ({
+      code: fault.code,
+      milestone: fault.milestone,
+      severity: fault.severity,
+      finding: fault.message,
+      recommendation: fault.recommendation,
+      suggested_drill: fault.drill ?? null
+    })),
     strengths: response.coaching.strengths
   };
   const facts = JSON.stringify(factsObj);
@@ -129,22 +144,50 @@ export async function geminiCoachingGuidance(
   const prompt = [
     'You are an elite cricket skills coach receiving verified CAPE measurements and deterministic findings.',
     'Do not reassess the video, change a measurement, change severity, change the score, or add/remove a finding.',
-    'For EACH supplied fault, provide practical correction cues and one safe, specific drill suitable for a training session.',
+    'For EACH supplied fault, provide up to 3 practical correction cues and one safe, specific drill (up to 4 steps) suitable for a training session.',
     'Do not introduce any new numeric measurements. Use concise language that a player and coach can apply immediately.',
-    'Return ONLY JSON in this exact shape:',
-    '{"summary":"brief overall coaching priority","items":[{"fault_code":"exact supplied fault code","title":"short correction title","why_it_matters":"cricket consequence grounded only in the supplied finding","coaching_cues":["cue"],"drill":{"name":"drill name","instructions":["step"],"equipment":["item"]}}]}',
+    'Reply with only the guidance object; do not repeat the input findings.',
+    'CAPE findings:',
     facts
   ].join('\n');
+  const responseSchema: ResponseSchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+      summary: { type: SchemaType.STRING, description: 'brief overall coaching priority' },
+      items: {
+        type: SchemaType.ARRAY,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            fault_code: { type: SchemaType.STRING, format: 'enum', enum: expectedCodes },
+            title: { type: SchemaType.STRING },
+            why_it_matters: { type: SchemaType.STRING },
+            coaching_cues: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            drill: {
+              type: SchemaType.OBJECT,
+              properties: {
+                name: { type: SchemaType.STRING },
+                instructions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+                equipment: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
+              },
+              required: ['name', 'instructions', 'equipment']
+            }
+          },
+          required: ['fault_code', 'title', 'why_it_matters', 'coaching_cues', 'drill']
+        }
+      }
+    },
+    required: ['summary', 'items']
+  };
   const requestedAt = new Date();
   const audit = (status: GeminiRequestAudit['status'], model: string | null, error: string | null): GeminiRequestAudit => ({
     label, requestedAt: requestedAt.toISOString(), durationMs: Date.now() - requestedAt.getTime(),
     model, status, error, prompt, facts: factsObj
   });
-  console.log(`${label} for CAPE job ${capeJobId}: sending ${expectedCodes.length} fault(s) [${expectedCodes.join(', ')}]; facts=${facts}`);
   try {
     const { data, model } = await GeminiVideoAnalysisService.generateJsonDetailed(
       [prompt],
-      (d: any): d is Omit<CapeAiGuidance, 'source' | 'model'> => {
+      (d: any): d is Omit<CapeAiGuidance, 'source'> => {
         if (typeof d?.summary !== 'string' || !Array.isArray(d?.items) || d.items.length !== expectedCodes.length) return false;
         const returnedCodes = d.items.map((item: any) => item?.fault_code);
         if (new Set(returnedCodes).size !== expectedCodes.length || expectedCodes.some(code => !returnedCodes.includes(code))) return false;
@@ -163,11 +206,10 @@ export async function geminiCoachingGuidance(
         );
       },
       label,
-      { jsonMode: true }
+      { responseSchema, timeoutMs: 90000 }
     );
-    console.log(`${label} for CAPE job ${capeJobId} succeeded (model ${model}, ${Date.now() - requestedAt.getTime()}ms)`);
     return {
-      guidance: { source: 'gemini', model, summary: data.summary.trim(), items: data.items },
+      guidance: { source: 'gemini', summary: data.summary.trim(), items: data.items },
       audit: audit('SUCCEEDED', model, null)
     };
   } catch (err) {

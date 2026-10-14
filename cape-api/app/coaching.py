@@ -24,6 +24,7 @@ from app.schemas import (
 RULES_PATH = Path(__file__).parent / "rules" / "coaching_rules.yaml"
 _SEVERITY_ORDER = {Severity.high: 0, Severity.medium: 1, Severity.low: 2}
 _TEXT_KEYS = ("code", "message", "recommendation", "drill", "verdict")
+_PHASE_MILESTONES = frozenset({"pre_contact", "post_contact"})
 
 
 def _validate_check(check: dict[str, Any], where: str) -> None:
@@ -53,7 +54,9 @@ def load_rules(path: Path = RULES_PATH) -> dict[str, Any]:
 
 
 def _lookup(metrics: dict[str, float], milestone: str, metric: str) -> float | None:
-    for key in (f"{milestone}.{metric}", metric):
+    # Pre/post-contact checks must not fall back to the contact-frame value of the same metric.
+    keys = (f"{milestone}.{metric}",) if milestone in _PHASE_MILESTONES else (f"{milestone}.{metric}", metric)
+    for key in keys:
         value = metrics.get(key)
         if value is not None:
             return float(value)
@@ -174,7 +177,7 @@ def evaluate(req: AnalysisRequest, metrics: dict[str, float], delivery: Delivery
     for check in pose_checks:
         value = _lookup(metrics, check["milestone"], check["metric"])
         if value is None:
-            if check["metric"] not in unavailable:
+            if not check.get("optional") and check["metric"] not in unavailable:
                 unavailable.append(check["metric"])
             continue
         record(*_pose_check(check, value, bands))

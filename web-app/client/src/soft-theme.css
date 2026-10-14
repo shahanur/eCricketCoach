@@ -81,6 +81,8 @@ html.light #root .bg-slate-950\/80 { background-color: rgb(var(--soft-overlay) /
 html.light #root :is(.text-amber-300, .text-amber-400) { color: #92400e; }
 html.light #root :is(.text-rose-200, .text-rose-300, .text-rose-400) { color: #9f1239; }
 html.light #root :is(.text-red-300, .text-red-400) { color: #b91c1c; }
+html.light #root :is(.text-violet-200, .text-violet-300) { color: #5b21b6; }
+html.light #root .border-violet-500\/30 { border-color: #ddd6fe; }
 html.light #root .bg-amber-500\/20 { background-color: #fef3c7; border-color: #fde68a; }
 html.light #root .bg-rose-500\/20 { background-color: #ffe4e6; border-color: #fecdd3; }
 

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '../../services/api';
 import {
   AuthUser,
   ViewMode,
@@ -9,7 +10,8 @@ import {
   Certificate,
   CustomerTenant,
   ClubApproval,
-  SupportTicket
+  SupportTicket,
+  PlayerDrillAssignment
 } from '../../types';
 import {
   Users,
@@ -22,6 +24,7 @@ import {
   ArrowRight,
   ShieldCheck,
   CheckCircle2,
+  ClipboardCheck,
   DollarSign,
   AlertTriangle,
   LifeBuoy,
@@ -61,6 +64,17 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
   const hasClubPortal = isClubAdmin || isClubCoach;
   const isPlayer = currentUser.roles.includes('PLAYER');
   const playerCertificates = certificates.filter(certificate => certificate.playerId === currentUser.id);
+  const [assignedDrills, setAssignedDrills] = useState<PlayerDrillAssignment[]>([]);
+  const [assignedDrillsError, setAssignedDrillsError] = useState('');
+
+  useEffect(() => {
+    if (!isPlayer) return;
+    let cancelled = false;
+    api.getAssignedDrills()
+      .then(found => { if (!cancelled) setAssignedDrills(found); })
+      .catch(() => { if (!cancelled) setAssignedDrillsError('Assigned drills could not be loaded.'); });
+    return () => { cancelled = true; };
+  }, [isPlayer, currentUser.id]);
 
   // Club context metrics
   const activeMembersCount = clubMembers.length;
@@ -272,6 +286,53 @@ export const UserHomeDashboard: React.FC<UserHomeDashboardProps> = ({
           </>
         )}
       </div>
+
+      {isPlayer && (
+        <section className="rounded-xl border border-emerald-500/30 bg-slate-900 p-5 space-y-3" aria-live="polite">
+          <div className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-emerald-300" />
+            <h2 className="text-base font-bold text-white">Assigned drills</h2>
+            {assignedDrills.length > 0 && (
+              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                {assignedDrills.length}
+              </span>
+            )}
+          </div>
+          {assignedDrillsError
+            ? <p className="text-xs text-rose-300">{assignedDrillsError}</p>
+            : assignedDrills.length === 0
+            ? <p className="text-xs text-slate-400">Drills your coach assigns from your video analyses will appear here.</p>
+            : <div className="space-y-2">
+                {assignedDrills.map(assignment => (
+                  <details key={assignment.id} className="rounded-lg border border-slate-700 bg-slate-950/70 p-3">
+                    <summary className="cursor-pointer list-none">
+                      <p className="text-sm font-semibold text-white">{assignment.title}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {assignment.discipline === 'BOWLING' ? 'Bowling' : 'Batting'}
+                        {assignment.details.correction ? ` · ${assignment.details.correction}` : ''}
+                        {` · Assigned ${new Date(assignment.createdAt).toLocaleDateString()}`}
+                        {assignment.assignedByName ? ` by ${assignment.assignedByName}` : ''}
+                      </p>
+                    </summary>
+                    <div className="mt-2 space-y-2 text-xs text-slate-300">
+                      {assignment.details.why_it_matters && <p>{assignment.details.why_it_matters}</p>}
+                      {(assignment.details.instructions?.length ?? 0) > 0 && (
+                        <ol className="list-decimal space-y-1 pl-5">
+                          {assignment.details.instructions!.map(step => <li key={step}>{step}</li>)}
+                        </ol>
+                      )}
+                      {(assignment.details.coaching_cues?.length ?? 0) > 0 && (
+                        <p className="text-[11px] text-slate-400">Cues: {assignment.details.coaching_cues!.join(' · ')}</p>
+                      )}
+                      {(assignment.details.equipment?.length ?? 0) > 0 && (
+                        <p className="text-[11px] text-slate-500">Equipment: {assignment.details.equipment!.join(', ')}</p>
+                      )}
+                    </div>
+                  </details>
+                ))}
+              </div>}
+        </section>
+      )}
 
       {isPlayer && (
         <section className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-slate-900 p-5 space-y-3" aria-live="polite">

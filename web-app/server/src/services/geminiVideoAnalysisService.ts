@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type ResponseSchema } from '@google/generative-ai';
 import { GoogleAIFileManager, FileState } from '@google/generative-ai/server';
 import { AiAnalysisResult } from './aiAnalysisService.js';
 import { withRetry, isRateLimitOrOverloadedError, isQuotaExceededError } from '../utils/retry.js';
@@ -177,19 +177,6 @@ function isValidResult(data: any): data is AiAnalysisResult {
   );
 }
 
-// Loggable view of request parts: text in full, media as type/size only (never base64 payloads).
-function describeParts(parts: any[]): unknown[] {
-  return parts.map(part => {
-    if (typeof part === 'string') return { text: part };
-    if (part?.text !== undefined) return { text: part.text };
-    if (part?.inlineData) {
-      return { inlineData: { mimeType: part.inlineData.mimeType, bytes: Math.floor((part.inlineData.data?.length ?? 0) * 3 / 4) } };
-    }
-    if (part?.fileData) return { fileData: part.fileData };
-    return { unknownPart: Object.keys(part ?? {}) };
-  });
-}
-
 export class GeminiVideoAnalysisService {
   static isConfigured(): boolean {
     return Boolean(GEMINI_API_KEY);
@@ -294,13 +281,14 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
 
   /**
    * Same as generateJson, but also reports which model answered. `jsonMode` asks Gemini to reply
-   * with application/json, which prevents most malformed-JSON replies for text-only prompts.
+   * with application/json; `responseSchema` (implies jsonMode) constrains the reply to that shape.
+   * `timeoutMs` overrides the per-request timeout, e.g. for background jobs.
    */
   static async generateJsonDetailed<T>(
     parts: any[],
     isValid: (data: any) => data is T,
     label: string,
-    options: { jsonMode?: boolean } = {}
+    options: { jsonMode?: boolean; responseSchema?: ResponseSchema; timeoutMs?: number } = {}
   ): Promise<{ data: T; model: string }> {
     if (!GEMINI_API_KEY) {
       throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable AI analysis.');
@@ -308,13 +296,16 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const candidates = (await resolveModelCandidates()).slice(0, 4);
     let lastError: unknown = null;
-    console.log(`${label} request: candidates=[${candidates.join(', ')}] parts=${JSON.stringify(describeParts(parts))}`);
+    const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
+    const generationConfig = options.responseSchema
+      ? { responseMimeType: 'application/json', responseSchema: options.responseSchema }
+      : options.jsonMode ? { responseMimeType: 'application/json' } : undefined;
 
     for (let i = 0; i < candidates.length; i++) {
       const modelName = candidates[i];
       const model = genAI.getGenerativeModel({
         model: modelName,
-        ...(options.jsonMode ? { generationConfig: { responseMimeType: 'application/json' } } : {})
+        ...(generationConfig ? { generationConfig } : {})
       });
 
       try {
@@ -322,21 +313,16 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
           async attempt => {
             // The SDK's own `timeout` option makes requests hang in this runtime, so race against a timer instead.
             let timer: NodeJS.Timeout | undefined;
-            const startedAt = Date.now();
-            console.log(`${label} call: model=${modelName} attempt=${attempt}/${MAX_RETRIES}`);
             const result = await Promise.race([
               model.generateContent(parts),
               new Promise<never>((_, reject) => {
-                timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${REQUEST_TIMEOUT_MS}ms`)), REQUEST_TIMEOUT_MS);
+                timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${timeoutMs}ms`)), timeoutMs);
               })
             ]).finally(() => clearTimeout(timer));
-            const text = result.response.text();
-            console.log(`${label} response: model=${modelName} attempt=${attempt} durationMs=${Date.now() - startedAt} chars=${text.length}`);
-            const data = extractJson(text);
+            const data = extractJson(result.response.text());
             if (!isValid(data)) {
               throw new MalformedGeminiResponseError(`Gemini returned a response that did not match the expected ${label} shape.`);
             }
-            console.log(`${label} succeeded (attempt ${attempt}/${MAX_RETRIES}, model ${modelName}):`, JSON.stringify(data));
             return data;
           },
           {

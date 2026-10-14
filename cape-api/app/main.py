@@ -18,9 +18,17 @@ from fastapi.security import APIKeyHeader
 from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import ingest, pipeline, workspace
+from . import candidates, ingest, pipeline, workspace
 from .config import Settings, get_settings
-from .schemas import ALL_ARTIFACT_NAMES, ZIP_NAME, AnalysisRequest, AnalysisResponse, CapeError, ErrorResponse
+from .schemas import (
+    ALL_ARTIFACT_NAMES,
+    ZIP_NAME,
+    AnalysisRequest,
+    AnalysisResponse,
+    CapeError,
+    ContactCandidatesResponse,
+    ErrorResponse,
+)
 
 log = logging.getLogger("cape")
 
@@ -70,6 +78,21 @@ def _parse_points(name: str, raw: str | None):
         ) from None
 
 
+def _parse_manual_frames(raw: str | None):
+    if raw is None or raw == "":
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        raise RequestValidationError(
+            [{
+                "loc": ("body", "manual_frames"),
+                "msg": "must be a JSON object with pre_contact, point_of_contact and post_contact",
+                "type": "json_invalid",
+            }]
+        ) from None
+
+
 def _build_request(**fields) -> AnalysisRequest:
     data = {k: v for k, v in fields.items() if v not in (None, "")}
     try:
@@ -94,6 +117,7 @@ async def analyze_cricket_video(
     shot_type: str | None = Form(None),
     bowler_type: str | None = Form(None),
     pitch_points_m: str | None = Form(None),
+    manual_frames: str | None = Form(None),
     settings: Settings = Depends(app_settings),
 ) -> AnalysisResponse:
     req = _build_request(
@@ -103,6 +127,7 @@ async def analyze_cricket_video(
         bowler_type=bowler_type,
         calibration_points=_parse_points("calibration_points", calibration_points),
         pitch_points_m=_parse_points("pitch_points_m", pitch_points_m),
+        manual_frames=_parse_manual_frames(manual_frames),
     )
     ext = ingest.validate_upload(file.filename, file.content_type)
 
@@ -121,6 +146,31 @@ async def analyze_cricket_video(
         await file.close()
     workspace.purge_input(session_id, settings)
     return result
+
+
+@router.post("/contact-candidates", response_model=ContactCandidatesResponse)
+async def contact_candidates(
+    request: Request,
+    file: UploadFile = File(...),
+    center_frame: int | None = Form(None, ge=0, le=1_000_000),
+    before: int = Form(candidates.DEFAULT_BEFORE, ge=0, le=candidates.MAX_WINDOW),
+    after: int = Form(candidates.DEFAULT_AFTER, ge=0, le=candidates.MAX_WINDOW),
+    settings: Settings = Depends(app_settings),
+) -> ContactCandidatesResponse:
+    """Frames around the suggested contact so a user can choose batting milestones manually."""
+    ext = ingest.validate_upload(file.filename, file.content_type)
+    session_id, session_dir = workspace.create_session(settings)
+    try:
+        video_path = session_dir / f"{workspace.INPUT_STEM}{ext}"
+        await run_in_threadpool(ingest.save_upload, file.file, video_path, settings.max_upload_bytes)
+        detectors = getattr(request.app.state, "detectors", None)
+        pose = getattr(detectors, "pose", None)
+        return await run_in_threadpool(
+            candidates.contact_candidates, video_path, settings, pose, center_frame, before, after
+        )
+    finally:
+        await file.close()
+        workspace.purge(session_id, settings)
 
 
 def _ensure_zip(session_dir: Path) -> Path:
@@ -159,8 +209,23 @@ async def get_artifact(session_id: str, name: str, settings: Settings = Depends(
     return FileResponse(path, media_type=media_type, filename=name, content_disposition_type="attachment")
 
 
+class _HealthCheckFilter(logging.Filter):
+    """Drop uvicorn access-log lines for the container HEALTHCHECK probe (every 30 s)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        return not (isinstance(args, tuple) and len(args) >= 3 and str(args[2]).split("?", 1)[0] == "/health")
+
+
+def _quiet_health_access_log() -> None:
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _HealthCheckFilter) for f in access.filters):
+        access.addFilter(_HealthCheckFilter())
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    _quiet_health_access_log()
 
     @asynccontextmanager
     async def lifespan(app_: FastAPI):

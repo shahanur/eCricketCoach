@@ -711,7 +711,12 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                 </div>
               )}
 
-              <CapeAnalysisPanel assessmentId={selectedAssessment.id} discipline={selectedAssessment.discipline} canSubmit={selectedAssessment.status !== 'COMPLETED'} />
+              <CapeAnalysisPanel
+                assessmentId={selectedAssessment.id}
+                discipline={selectedAssessment.discipline}
+                canSubmit={selectedAssessment.status !== 'COMPLETED'}
+                canAssignDrills={currentUser.roles.some(role => role === 'CLUB_ADMIN' || role === 'COACH')}
+              />
 
               {selectedAssessment.status !== 'SCHEDULED' && (
                 <>

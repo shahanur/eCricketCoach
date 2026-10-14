@@ -2,9 +2,9 @@
 
 import math
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Point = tuple[float, float]
 Point3 = tuple[float, float, float]
@@ -126,6 +126,54 @@ class CapeError(Exception):
         self.message = message
 
 
+MAX_MANUAL_FRAMES_PER_ROLE = 20
+FrameIndex = Annotated[int, Field(ge=0, le=1_000_000)]
+ManualFrameList = Annotated[list[FrameIndex], Field(min_length=1, max_length=MAX_MANUAL_FRAMES_PER_ROLE)]
+OptionalFrameList = Annotated[list[FrameIndex], Field(max_length=MAX_MANUAL_FRAMES_PER_ROLE)]
+
+
+class ManualFrames(BaseModel):
+    """User-chosen batting frames (0-based decoded frame indices) for poor-quality clips.
+
+    Several pre/post frames trace the swing and follow-through; several contact frames
+    are candidates from which CAPE picks the best one. A single int is accepted per role.
+    pre_contact / post_contact may be empty: CAPE then scans every frame in the second
+    before the first / after the last contact candidate instead.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    pre_contact: OptionalFrameList = Field(default_factory=list)
+    point_of_contact: ManualFrameList
+    post_contact: OptionalFrameList = Field(default_factory=list)
+
+    @field_validator("pre_contact", "point_of_contact", "post_contact", mode="before")
+    @classmethod
+    def _listify(cls, value: Any) -> Any:
+        return [value] if isinstance(value, int) and not isinstance(value, bool) else value
+
+    @field_validator("pre_contact", "point_of_contact", "post_contact")
+    @classmethod
+    def _sorted_unique(cls, value: list[int]) -> list[int]:
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def _ordered(self) -> "ManualFrames":
+        contact = self.point_of_contact
+        pre_ok = not self.pre_contact or max(self.pre_contact) < min(contact)
+        post_ok = not self.post_contact or max(contact) < min(self.post_contact)
+        if not (pre_ok and post_ok):
+            raise ValueError(
+                "manual_frames must be in time order: every pre_contact frame before every "
+                "point_of_contact frame, and every point_of_contact frame before every post_contact frame"
+            )
+        return self
+
+    @property
+    def last_frame(self) -> int:
+        return (self.post_contact or self.point_of_contact)[-1]
+
+
 class AnalysisRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -135,6 +183,7 @@ class AnalysisRequest(BaseModel):
     bowler_type: BowlerType | None = None
     calibration_points: QuadPoints
     pitch_points_m: QuadPoints | None = None
+    manual_frames: ManualFrames | None = None
 
     @property
     def pitch_points(self) -> list[Point]:
@@ -151,6 +200,8 @@ class AnalysisRequest(BaseModel):
                 raise ValueError("bowler_type is required when target is 'bowler'")
             if self.shot_type is not None:
                 raise ValueError("shot_type is only allowed when target is 'batter'")
+            if self.manual_frames is not None:
+                raise ValueError("manual_frames is only allowed when target is 'batter'")
         for name in ("calibration_points", "pitch_points_m"):
             pts = getattr(self, name) or []
             if any(not math.isfinite(v) for p in pts for v in p):
@@ -175,12 +226,23 @@ class Metadata(BaseModel):
 class PreContact(BaseModel):
     milestone_frame: int
     batter_joint_angles: dict[str, float] = Field(default_factory=dict)
+    # Manual frame selection only: frames traced for the bat swing up to contact.
+    swing_frames: list[int] = Field(default_factory=list)
+    bat_swing_arc_degrees: float | None = None
+    # Peak bat-tip speed just before contact; the pixel scale assumes a standard bat length.
+    bat_swing_speed_kmh: float | None = None
+    # True when the swing frames were scanned automatically because none were selected.
+    swing_frames_auto: bool = False
+    # True when some bat positions were inferred from the forearms because the bat wasn't segmented.
+    bat_swing_estimated: bool = False
 
 
 class PointOfContact(BaseModel):
     milestone_frame: int
-    selection_source: Literal["gemini", "detector"] = "detector"
+    selection_source: Literal["gemini", "detector", "manual"] = "detector"
     selection_confidence: float | None = Field(default=None, ge=0, le=1)
+    # Manual frame selection only: the user's contact candidates CAPE chose from.
+    candidate_frames: list[int] = Field(default_factory=list)
     ball_velocity_kmh: float | None = None
     estimated_ball_momentum_kg_m_s: float | None = None
     estimated_ball_kinetic_energy_j: float | None = None
@@ -205,6 +267,12 @@ class PostContact(BaseModel):
     estimated_ball_kinetic_energy_j: float | None = None
     launch_angle_degrees: float | None = None
     batter_joint_angles: dict[str, float] = Field(default_factory=dict)
+    # Manual frame selection only: frames traced for the follow-through after contact.
+    follow_through_frames: list[int] = Field(default_factory=list)
+    follow_through_arc_degrees: float | None = None
+    follow_through_estimated: bool = False
+    follow_through_frames_auto: bool = False
+    follow_through_frames_auto: bool = False
 
 
 class Release(BaseModel):
@@ -286,3 +354,20 @@ class ErrorResponse(BaseModel):
     error: str
     message: str
     details: list[dict] | None = None
+
+
+class CandidateFrame(BaseModel):
+    index: int
+    time_s: float
+    image_base64: str
+
+
+class ContactCandidatesResponse(BaseModel):
+    """Thumbnails around the suggested contact frame so a user can pick milestones manually."""
+
+    framerate_fps: float
+    frame_count: int
+    suggested_frame: int | None = None
+    suggestion_source: Literal["gemini", "none"] = "none"
+    suggestion_note: str | None = None
+    frames: list[CandidateFrame]

@@ -15,6 +15,8 @@ import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
 
+const SHOW_AIHUB = false;
+
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
   if (session.executionLog?.status === 'IN_PROGRESS') return 'IN_PROGRESS';
@@ -3220,14 +3222,17 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </button>
             </div>
 
-            {/* Two computer-vision engines on the same selected video, compared below */}
-            <div className="engine-comparison rounded-xl border border-sky-200 p-3 space-y-3">
+            {/* AIHub is hidden for now; set SHOW_AIHUB to restore it and the AIHub vs CAPE comparison. */}
+            <div className={SHOW_AIHUB ? 'engine-comparison rounded-xl border border-sky-200 p-3 space-y-3' : 'space-y-3'}>
+              {SHOW_AIHUB && (
               <div>
                 <h4 className="text-xs font-bold text-slate-800">Compare computer-vision engines</h4>
                 <p className="text-[11px] text-slate-500">Run both on the same video to see how AIHub and CAPE differ.</p>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+              )}
+              <div className={`grid grid-cols-1 ${SHOW_AIHUB ? 'lg:grid-cols-2' : ''} gap-3 items-start`}>
             {/* Detailed computer-vision analysis (AIHub) of the same selected video */}
+            {SHOW_AIHUB && (
             <AihubAnalysisPanel
               discipline={analysisDiscipline}
               startLabel="Analyse with AIHub"
@@ -3239,12 +3244,14 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
                 : (selectedDriveVideo ? { name: driveVideoFiles.find(f => f.id === selectedDriveVideo)?.name || 'Drive video', driveFileId: selectedDriveVideo } : null)}
             />
+            )}
 
             {/* Detailed computer-vision analysis (CAPE) of the same selected video */}
             <CapeAnalysisPanel
               playerId={selectedAnalysisPlayer}
               discipline={analysisDiscipline}
               canSubmit
+              canAssignDrills
               startLabel="Analyse with CAPE"
               onJobChange={setComparisonCapeJob}
               source={videoSourceMode === 'LOCAL_UPLOAD'
@@ -3253,9 +3260,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             />
               </div>
               {analysisDiscipline !== 'BATTING' && analysisDiscipline !== 'BOWLING' && (
-                <p className="text-[11px] text-amber-300">CAPE supports batting and bowling only; choose one of those to compare.</p>
+                <p className="text-[11px] text-amber-300">CAPE supports batting and bowling only; choose one of those{SHOW_AIHUB ? ' to compare' : ''}.</p>
               )}
-              <AnalysisComparison aihub={kinematicsResult} aihubDurationMs={aihubDurationMs} capeJob={comparisonCapeJob} />
+              {SHOW_AIHUB && <AnalysisComparison aihub={kinematicsResult} aihubDurationMs={aihubDurationMs} capeJob={comparisonCapeJob} />}
             </div>
           </div>
 

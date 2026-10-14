@@ -12,6 +12,13 @@
 #   message, recommendation, drill   fault text; `below:` / `above:` override any of these
 #   verdict                          one-line verdict when this is the top fault
 #   strength                         shown when in range; may use {value}
+#   optional                         true = skip silently (not listed as unavailable) when the metric is missing
+#
+# pre_contact / post_contact checks read only "<milestone>.<metric>" (never the contact-frame value).
+# Bat swing / follow-through arcs and bat swing speed are measured only when frames are chosen manually.
+# Phase metrics: pose angles, head_front_knee_offset_pct, hands_height_pct / front_elbow_height_pct
+# (% of torso, + = above the front shoulder), pre_contact.bat_swing_arc_deg / bat_swing_speed_kmh,
+# post_contact.follow_through_arc_deg and post_contact.head_travel_pct (head movement after contact).
 
 scoring:
   penalties: {high: 20, medium: 10, low: 5}
@@ -142,6 +149,94 @@ batting:
       drill: Stride-to-the-marker drill
       verdict: Drive played without getting to the pitch of the ball
       strength: "Good stride to the pitch of the ball ({value:.2f} m)"
+    - code: short_backswing
+      milestone: pre_contact
+      metric: bat_swing_arc_deg
+      optional: true
+      min: 45
+      scale: 45
+      message: The bat travels through only a small arc before contact, so the drive lacks swing and timing.
+      recommendation: Take a fuller, controlled backlift and swing the bat through a longer arc into the ball.
+      drill: Backlift-to-contact shadow swings with a pause at the top
+      verdict: Short backswing into the drive
+      strength: "Full swing into the ball ({value:.0f}°)"
+    - code: checked_follow_through
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      min: 60
+      scale: 60
+      message: The bat stops soon after contact, so power is lost and the drive is checked.
+      recommendation: Keep swinging through the line of the ball and hold a high, balanced finish.
+      drill: Swing-through drives holding the finish for two seconds
+      verdict: Checked follow-through on the drive
+      strength: "Full follow-through ({value:.0f}°)"
+    - code: falling_away_after_contact
+      milestone: post_contact
+      metric: head_front_knee_offset_pct
+      optional: true
+      min: -15
+      scale: 20
+      message: The head falls behind the front knee after contact, so the finish is off balance.
+      recommendation: Keep the head over the front knee through the follow-through.
+      drill: Hold-the-finish drives with the head over a cone
+      verdict: Off-balance finish after the drive
+      strength: "Balanced finish over the front knee"
+    - code: low_backlift
+      milestone: pre_contact
+      metric: hands_height_pct
+      optional: true
+      min: -50
+      scale: 40
+      message: The hands stay low at the top of the backlift, so the bat has little time and distance to build speed into the drive.
+      recommendation: Lift the hands to around shoulder height with a high front elbow before starting the downswing.
+      drill: Backlift-and-hold drill with a one-second pause at the top of the backlift for one second
+      verdict: Low backlift before the drive
+      strength: "Hands lifted high in the backlift ({value:.0f}%)"
+    - code: slow_bat_swing
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      min: 35
+      scale: 35
+      message: The bat is travelling slowly just before contact, so the drive lacks power and is easy to mistime.
+      recommendation: Accelerate the bat through the ball with a free swing of the arms, led by the top hand.
+      drill: Underarm throwdowns hitting through a target gate at full speed
+      verdict: Slow bat swing into the drive
+      strength: "Good bat speed into the ball ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 15
+      scale: 15
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the drive.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the drive
+      strength: "Head stays still through contact"
+    - code: low_finish
+      milestone: post_contact
+      metric: front_elbow_height_pct
+      optional: true
+      min: -10
+      scale: 30
+      message: The front elbow stays low in the follow-through, so the bat face closes and the drive goes in the air or squirts square.
+      recommendation: Finish with a high front elbow and the bat over the front shoulder.
+      drill: High-finish shadow drives holding the end position
+      verdict: Low finish on the drive
+      strength: "High front-elbow finish ({value:.0f}%)"
+    - code: front_leg_collapses_in_finish
+      milestone: post_contact
+      metric: front_knee
+      optional: true
+      min: 100
+      scale: 30
+      message: The front knee keeps bending after contact, so weight goes down instead of through the line of the ball.
+      recommendation: Brace the front knee softly over the front foot as you follow through.
+      drill: Front-foot hold drill freezing the finish over a cone
+      verdict: Front leg collapses in the finish
+      strength: "Stable front leg through the finish ({value:.0f} deg)"
 
   back_foot_drive:
     - code: back_knee_collapsed
@@ -171,6 +266,72 @@ batting:
       drill: High-elbow punch drill off a tee
       verdict: Back-foot drive played with an angled bat
       strength: "Straight bat at contact ({value:.0f}°)"
+    - code: short_backswing
+      milestone: pre_contact
+      metric: bat_swing_arc_deg
+      optional: true
+      min: 45
+      scale: 45
+      message: The bat travels through only a small arc before contact, so the drive lacks swing and timing.
+      recommendation: Take a fuller, controlled backlift and swing the bat through a longer arc into the ball.
+      drill: Backlift-to-contact shadow swings with a pause at the top
+      verdict: Short backswing into the drive
+      strength: "Full swing into the ball ({value:.0f}°)"
+    - code: checked_follow_through
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      min: 60
+      scale: 60
+      message: The bat stops soon after contact, so power is lost and the drive is checked.
+      recommendation: Keep swinging through the line of the ball and hold a high, balanced finish.
+      drill: Swing-through drives holding the finish for two seconds
+      verdict: Checked follow-through on the drive
+      strength: "Full follow-through ({value:.0f}°)"
+    - code: low_backlift
+      milestone: pre_contact
+      metric: hands_height_pct
+      optional: true
+      min: -50
+      scale: 40
+      message: The hands stay low at the top of the backlift, so the bat has little time and distance to build speed into the drive.
+      recommendation: Lift the hands to around shoulder height with a high front elbow before starting the downswing.
+      drill: Backlift-and-hold drill with a one-second pause at the top of the backlift for one second
+      verdict: Low backlift before the drive
+      strength: "Hands lifted high in the backlift ({value:.0f}%)"
+    - code: slow_bat_swing
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      min: 35
+      scale: 35
+      message: The bat is travelling slowly just before contact, so the drive lacks power and is easy to mistime.
+      recommendation: Accelerate the bat through the ball with a free swing of the arms, led by the top hand.
+      drill: Underarm throwdowns hitting through a target gate at full speed
+      verdict: Slow bat swing into the drive
+      strength: "Good bat speed into the ball ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 15
+      scale: 15
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the drive.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the drive
+      strength: "Head stays still through contact"
+    - code: sinking_after_contact
+      milestone: post_contact
+      metric: back_knee
+      optional: true
+      min: 130
+      scale: 30
+      message: The back knee collapses after contact, so you sink instead of staying tall over the ball.
+      recommendation: Stay tall on a firm back leg until the follow-through is complete.
+      drill: Back-foot punch drill holding a tall finish
+      verdict: Sinks after contact on the back-foot drive
+      strength: "Tall back leg through the finish ({value:.0f} deg)"
 
   forward_defence:
     - code: bat_pad_gap
@@ -229,6 +390,50 @@ batting:
       drill: Stride-to-the-marker drill
       verdict: Defence played without getting forward
       strength: "Well forward in defence ({value:.2f} m)"
+    - code: follow_through_in_defence
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      max: 45
+      scale: 45
+      message: The bat keeps travelling after contact, so the defensive stroke is played with hard hands.
+      recommendation: Let the ball come to you and stop the bat at contact with soft hands.
+      drill: Soft-hands defence dropping the ball at your feet
+      verdict: Defence played with hard hands
+      strength: "Bat stopped softly at contact"
+    - code: big_swing_in_defence
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      max: 40
+      scale: 40
+      message: The bat is coming down quickly before contact, so the defensive push turns into a hard-handed jab.
+      recommendation: Use a short backlift and let the bat meet the ball softly, angled down.
+      drill: Soft-hands defence dropping the ball at your feet
+      verdict: Swinging hard in defence
+      strength: "Controlled bat speed in defence ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 10
+      scale: 10
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the defence.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the defence
+      strength: "Head stays still through contact"
+    - code: falling_away_after_contact
+      milestone: post_contact
+      metric: head_front_knee_offset_pct
+      optional: true
+      min: -5
+      scale: 20
+      message: The head drops back behind the front knee after contact, so the weight is not held forward over the ball.
+      recommendation: Hold the defensive position with the head over the front knee until the ball is dead.
+      drill: Hold-the-pose defence, freezing for two seconds after contact
+      verdict: Falls away after the defensive stroke
+      strength: "Weight held forward after contact"
 
   backward_defence:
     - code: angled_bat
@@ -258,6 +463,39 @@ batting:
       drill: Back-and-across step drill against a wall
       verdict: Back-foot defence played without standing tall
       strength: "Tall on the back leg ({value:.0f}°)"
+    - code: follow_through_in_defence
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      max: 45
+      scale: 45
+      message: The bat keeps travelling after contact, so the defensive stroke is played with hard hands.
+      recommendation: Let the ball come to you and stop the bat at contact with soft hands.
+      drill: Soft-hands defence dropping the ball at your feet
+      verdict: Defence played with hard hands
+      strength: "Bat stopped softly at contact"
+    - code: big_swing_in_defence
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      max: 40
+      scale: 40
+      message: The bat is coming down quickly before contact, so the defence is played with hard hands.
+      recommendation: Use a short backlift and let the ball come to a soft, straight bat.
+      drill: Soft-hands defence dropping the ball at your feet
+      verdict: Swinging hard in back-foot defence
+      strength: "Controlled bat speed in defence ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 10
+      scale: 10
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the defence.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the defence
+      strength: "Head stays still through contact"
 
   pull:
     - code: bat_plane
@@ -297,6 +535,61 @@ batting:
       drill: Pivot-and-pull shadow drill
       verdict: Pull played off balance
       strength: "Balanced on the back leg ({value:.0f}°)"
+    - code: short_backswing
+      milestone: pre_contact
+      metric: bat_swing_arc_deg
+      optional: true
+      min: 45
+      scale: 45
+      message: The bat travels through only a small arc before contact, so the pull lacks swing and timing.
+      recommendation: Take a fuller, controlled backlift and swing the bat through a longer arc into the ball.
+      drill: Backlift-to-contact shadow swings with a pause at the top
+      verdict: Short backswing into the pull
+      strength: "Full swing into the ball ({value:.0f}°)"
+    - code: checked_follow_through
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      min: 60
+      scale: 60
+      message: The bat stops soon after contact, so power is lost and the pull is checked.
+      recommendation: Keep swinging through the line of the ball and hold a high, balanced finish.
+      drill: Swing-through drives holding the finish for two seconds
+      verdict: Checked follow-through on the pull
+      strength: "Full follow-through ({value:.0f}°)"
+    - code: low_backlift
+      milestone: pre_contact
+      metric: hands_height_pct
+      optional: true
+      min: -50
+      scale: 40
+      message: The hands stay low at the top of the backlift, so the bat has little time and distance to build speed into the pull.
+      recommendation: Lift the hands to around shoulder height with a high front elbow before starting the downswing.
+      drill: Backlift-and-hold drill with a one-second pause at the top of the backlift for one second
+      verdict: Low backlift before the pull
+      strength: "Hands lifted high in the backlift ({value:.0f}%)"
+    - code: slow_bat_swing
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      min: 40
+      scale: 40
+      message: The bat is travelling slowly just before contact, so the pull lacks power and is easy to mistime.
+      recommendation: Accelerate the bat through the ball with a free swing of the arms, led by the top hand.
+      drill: Underarm throwdowns hitting through a target gate at full speed
+      verdict: Slow bat swing into the pull
+      strength: "Good bat speed into the ball ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 20
+      scale: 20
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the pull.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the pull
+      strength: "Head stays still through contact"
 
   cut:
     - code: bat_plane
@@ -336,6 +629,61 @@ batting:
       drill: Back-and-across step drill against a wall
       verdict: Cut played falling away
       strength: "Stable base for the cut ({value:.0f}°)"
+    - code: short_backswing
+      milestone: pre_contact
+      metric: bat_swing_arc_deg
+      optional: true
+      min: 45
+      scale: 45
+      message: The bat travels through only a small arc before contact, so the cut lacks swing and timing.
+      recommendation: Take a fuller, controlled backlift and swing the bat through a longer arc into the ball.
+      drill: Backlift-to-contact shadow swings with a pause at the top
+      verdict: Short backswing into the cut
+      strength: "Full swing into the ball ({value:.0f}°)"
+    - code: checked_follow_through
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      min: 60
+      scale: 60
+      message: The bat stops soon after contact, so power is lost and the cut is checked.
+      recommendation: Keep swinging through the line of the ball and hold a high, balanced finish.
+      drill: Swing-through drives holding the finish for two seconds
+      verdict: Checked follow-through on the cut
+      strength: "Full follow-through ({value:.0f}°)"
+    - code: low_backlift
+      milestone: pre_contact
+      metric: hands_height_pct
+      optional: true
+      min: -50
+      scale: 40
+      message: The hands stay low at the top of the backlift, so the bat has little time and distance to build speed into the cut.
+      recommendation: Lift the hands to around shoulder height with a high front elbow before starting the downswing.
+      drill: Backlift-and-hold drill with a one-second pause at the top of the backlift for one second
+      verdict: Low backlift before the cut
+      strength: "Hands lifted high in the backlift ({value:.0f}%)"
+    - code: slow_bat_swing
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      min: 35
+      scale: 35
+      message: The bat is travelling slowly just before contact, so the cut lacks power and is easy to mistime.
+      recommendation: Accelerate the bat through the ball with a free swing of the arms, led by the top hand.
+      drill: Underarm throwdowns hitting through a target gate at full speed
+      verdict: Slow bat swing into the cut
+      strength: "Good bat speed into the ball ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 15
+      scale: 15
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the cut.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the cut
+      strength: "Head stays still through contact"
 
   sweep:
     - code: front_knee_not_low
@@ -376,6 +724,61 @@ batting:
       drill: Kneeling sweep drill
       verdict: Sweep played with a moving head
       strength: "Head still into the sweep"
+    - code: short_backswing
+      milestone: pre_contact
+      metric: bat_swing_arc_deg
+      optional: true
+      min: 45
+      scale: 45
+      message: The bat travels through only a small arc before contact, so the sweep lacks swing and timing.
+      recommendation: Take a fuller, controlled backlift and swing the bat through a longer arc into the ball.
+      drill: Backlift-to-contact shadow swings with a pause at the top
+      verdict: Short backswing into the sweep
+      strength: "Full swing into the ball ({value:.0f}°)"
+    - code: checked_follow_through
+      milestone: post_contact
+      metric: follow_through_arc_deg
+      optional: true
+      min: 60
+      scale: 60
+      message: The bat stops soon after contact, so power is lost and the sweep is checked.
+      recommendation: Keep swinging through the line of the ball and hold a high, balanced finish.
+      drill: Swing-through drives holding the finish for two seconds
+      verdict: Checked follow-through on the sweep
+      strength: "Full follow-through ({value:.0f}°)"
+    - code: slow_bat_swing
+      milestone: pre_contact
+      metric: bat_swing_speed_kmh
+      optional: true
+      min: 30
+      scale: 30
+      message: The bat is travelling slowly just before contact, so the sweep lacks power and is easy to mistime.
+      recommendation: Accelerate the bat through the ball with a free swing of the arms, led by the top hand.
+      drill: Underarm throwdowns hitting through a target gate at full speed
+      verdict: Slow bat swing into the sweep
+      strength: "Good bat speed into the ball ({value:.0f} km/h est.)"
+    - code: head_up_after_contact
+      milestone: post_contact
+      metric: head_travel_pct
+      optional: true
+      max: 15
+      scale: 15
+      message: The head moves away soon after contact, which pulls the shoulders and bat off line on the sweep.
+      recommendation: Keep the head still and watch the point of contact until the ball has left the bat.
+      drill: Watch-the-contact drill holding the eyes on a marker for a count of two after each hit
+      verdict: Head lifts after contact on the sweep
+      strength: "Head stays still through contact"
+    - code: standing_up_early
+      milestone: post_contact
+      metric: front_knee
+      optional: true
+      max: 120
+      scale: 30
+      message: The front knee straightens soon after contact, so the body lifts and the ball is hit in the air.
+      recommendation: Stay down on a bent front knee until the follow-through is complete.
+      drill: Kneeling sweep drill holding the low finish
+      verdict: Stands up too early out of the sweep
+      strength: "Stays low through the sweep ({value:.0f} deg)"
 
 bowling:
   pace:

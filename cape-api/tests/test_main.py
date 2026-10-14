@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends
 from fastapi.testclient import TestClient
 
@@ -24,6 +26,22 @@ def test_health_and_lifespan_creates_workspace(tmp_path):
     with client(tmp_path) as c:
         assert c.get("/health").json() == {"status": "ok"}
         assert (tmp_path / "ws").is_dir()
+
+
+def test_health_access_log_is_suppressed(tmp_path):
+    create_app(Settings(workspace_dir=tmp_path / "ws"))
+    access = logging.getLogger("uvicorn.access")
+
+    def passes(path: str) -> bool:
+        record = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 0,
+                                   '%s - "%s %s HTTP/%s" %d', ("127.0.0.1:1", "GET", path, "1.1", 200), None)
+        return access.filter(record)
+
+    assert not passes("/health")
+    assert not passes("/health?x=1")
+    assert passes("/api/v1/analyze-cricket-video")
+    create_app(Settings(workspace_dir=tmp_path / "ws"))
+    assert sum(type(f).__name__ == "_HealthCheckFilter" for f in access.filters) == 1
 
 
 def test_api_key(tmp_path):

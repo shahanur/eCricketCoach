@@ -15,9 +15,11 @@ import {
   PlayerAssessment,
   AssessmentMetric,
   CapeAnalysisInput,
+  CapeContactCandidates,
   CapeJob,
   CapeJobStatus,
-  CapeTarget
+  CapeTarget,
+  PlayerDrillAssignment
 } from '../types';
 
 const API_BASE = '/api';
@@ -276,6 +278,7 @@ export const api = {
     if (input.shot_type) form.append('shot_type', input.shot_type);
     if (input.bowler_type) form.append('bowler_type', input.bowler_type);
     form.append('calibration_points', JSON.stringify(input.calibration_points));
+    if (input.manual_frames) form.append('manual_frames', JSON.stringify(input.manual_frames));
     form.append('file', file);
     const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}/video`, {
       method: 'POST',
@@ -308,6 +311,7 @@ export const api = {
       if (input.shot_type) form.append('shot_type', input.shot_type);
       if (input.bowler_type) form.append('bowler_type', input.bowler_type);
       form.append('calibration_points', JSON.stringify(input.calibration_points));
+      if (input.manual_frames) form.append('manual_frames', JSON.stringify(input.manual_frames));
       form.append('file', source.file);
       res = await fetch(`${API_BASE}/club/cape-jobs`, { method: 'POST', headers: bearerHeader(), body: form });
     } else {
@@ -324,6 +328,31 @@ export const api = {
     return res.json();
   },
 
+  // Thumbnails around the suggested bat-ball contact (or around `centerFrame`) for manual frame selection.
+  async getCapeContactCandidates(
+    source: { file?: File; driveFileId?: string },
+    options: { centerFrame?: number } = {}
+  ): Promise<CapeContactCandidates> {
+    let res: Response;
+    if (source.file) {
+      const form = new FormData();
+      if (options.centerFrame !== undefined) form.append('centerFrame', String(options.centerFrame));
+      form.append('file', source.file);
+      res = await fetch(`${API_BASE}/club/cape-jobs/contact-candidates`, { method: 'POST', headers: bearerHeader(), body: form });
+    } else {
+      res = await fetch(`${API_BASE}/club/cape-jobs/contact-candidates`, {
+        method: 'POST',
+        headers: authenticatedHeaders(),
+        body: JSON.stringify({ driveFileId: source.driveFileId, centerFrame: options.centerFrame })
+      });
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : 'The video frames could not be loaded');
+    }
+    return res.json();
+  },
+
   async fetchDriveVideo(fileId: string): Promise<Blob> {
     const res = await fetch(`${API_BASE}/google-drive/videos/${encodeURIComponent(fileId)}/content`, { headers: bearerHeader() });
     if (!res.ok) throw await responseError(res, 'Failed to load the video from Google Drive');
@@ -335,6 +364,34 @@ export const api = {
     if (!res.ok) throw await responseError(res, 'Failed to load the video analysis');
     const data = await res.json();
     return data.job;
+  },
+
+  async getCapeJobDrillAssignments(jobId: string): Promise<PlayerDrillAssignment[]> {
+    const res = await fetch(`${API_BASE}/club/cape-jobs/${encodeURIComponent(jobId)}/drills`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load assigned drills');
+    const data = await res.json();
+    return data.assignments ?? [];
+  },
+
+  // Assigns the suggested drill for one finding to the analysed player and adds it to the drill catalogues.
+  async assignCapeGuidanceDrill(jobId: string, faultCode: string): Promise<PlayerDrillAssignment> {
+    const res = await fetch(`${API_BASE}/club/cape-jobs/${encodeURIComponent(jobId)}/drills`, {
+      method: 'POST',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify({ faultCode })
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to assign the drill');
+    const data = await res.json();
+    return data.assignment;
+  },
+
+  // Players get their own assignments; club staff pass the player's id.
+  async getAssignedDrills(playerId?: string): Promise<PlayerDrillAssignment[]> {
+    const query = playerId ? `?${new URLSearchParams({ playerId })}` : '';
+    const res = await fetch(`${API_BASE}/club/cape-jobs/assigned-drills${query}`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Failed to load assigned drills');
+    const data = await res.json();
+    return data.assignments ?? [];
   },
 
   // Fetches an analysis image or ZIP through the authenticated Node route (never the CAPE service directly).

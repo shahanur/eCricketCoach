@@ -120,6 +120,15 @@ def pose_metrics(lm: Landmarks, handedness: Handedness | str) -> dict[str, float
     sign = _forward_sign(lm, front, back)
     if torso is not None and nose is not None and knee is not None and sign is not None:
         out["head_front_knee_offset_pct"] = (nose[0] - knee[0]) * sign / torso * 100
+
+    # Image y grows downwards, so positive = hands / elbow above the front shoulder.
+    shoulder = pts.get(f"{front}_shoulder")
+    wrists = [pts[f"{s}_wrist"] for s in (front, back) if f"{s}_wrist" in pts]
+    if torso is not None and shoulder is not None:
+        if wrists:
+            out["hands_height_pct"] = (shoulder[1] - float(np.mean([w[1] for w in wrists]))) / torso * 100
+        if (elbow := pts.get(f"{front}_elbow")) is not None:
+            out["front_elbow_height_pct"] = (shoulder[1] - elbow[1]) / torso * 100
     return out
 
 

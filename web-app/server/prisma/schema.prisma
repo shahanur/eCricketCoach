@@ -285,3 +285,27 @@ model CapeJob {
   @@index([tenantId, createdAt])
   @@map("cape_jobs")
 }
+
+// A drill a coach assigned to one player, e.g. from a CAPE analysis's coaching guidance.
+// `drillId` is the club catalogue copy; `systemDrillId` the shared SYSTEM_PREDEFINED copy.
+model PlayerDrillAssignment {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  playerId       String   @map("player_id")
+  playerName     String   @map("player_name")
+  drillId        String   @map("drill_id")
+  systemDrillId  String?  @map("system_drill_id")
+  capeJobId      String?  @map("cape_job_id")
+  faultCode      String?  @map("fault_code")
+  title          String
+  discipline     String
+  // { why_it_matters, coaching_cues, instructions, equipment }
+  details        Json
+  assignedById   String   @map("assigned_by_id")
+  assignedByName String?  @map("assigned_by_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([capeJobId, faultCode])
+  @@index([tenantId, playerId, createdAt])
+  @@map("player_drill_assignments")
+}

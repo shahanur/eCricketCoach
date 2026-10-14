@@ -1,12 +1,16 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { Router, Request, Response, NextFunction } from 'express';
 import { ZipArchive } from 'archiver';
 import multer from 'multer';
 import { prisma } from '../config/prisma.js';
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
 import { capeQueuePosition, createCapeJob, stageCapeUpload } from '../queues/capeQueue.js';
-import { isCapeConfigured, type CapeRequest } from '../services/capeClient.js';
-import { downloadDriveFile, DriveUploadError } from './googleDrive.js';
+import { CapeError, fetchContactCandidates, isCapeConfigured, type CapeManualFrames, type CapeRequest } from '../services/capeClient.js';
+import { assignCapeGuidanceDrill, DrillAssignmentError, playerDrillAssignmentView } from '../services/playerDrillService.js';
+import { downloadDriveFile, downloadDriveFileToPath, DriveUploadError } from './googleDrive.js';
 
 export const capeJobsRouter = Router();
 
@@ -33,6 +37,7 @@ const FRIENDLY_ERRORS: Record<string, string> = {
   cape_unreachable: 'The video analysis engine could not be reached. Please try again later.',
   drive_not_connected: 'Connect Google Drive to analyse videos stored there.',
   upload_missing: 'The uploaded video is no longer available. Please upload it again.',
+  manual_frames_out_of_range: 'The selected frames are beyond the end of the video. Choose the frames again.',
   queue_unavailable: 'The analysis queue is unavailable right now. Please try again later.'
 };
 
@@ -68,6 +73,16 @@ export function parseCapeRequest(body: Record<string, unknown>): { request: Cape
   if (!isPoints(calibration)) return { error: 'calibration_points must be four [x, y] pixel points.' };
   const pitchRaw = body.pitch_points_m === undefined || body.pitch_points_m === '' ? null : parseJsonField(body.pitch_points_m);
   if (pitchRaw !== null && !isPoints(pitchRaw)) return { error: 'pitch_points_m must be four [x, y] points in metres.' };
+  const manualRaw = body.manual_frames === undefined || body.manual_frames === null || body.manual_frames === '' ? null : parseJsonField(body.manual_frames);
+  let manualFrames: CapeManualFrames | null = null;
+  if (manualRaw !== null) {
+    if (target !== 'batter') return { error: 'manual_frames is only allowed for batting analysis.' };
+    const normalised = normaliseManualFrames(manualRaw);
+    if (!normalised) {
+      return { error: `manual_frames must give 1-${MAX_MANUAL_FRAMES_PER_ROLE} frame numbers per role, with every pre_contact frame before every point_of_contact frame and every point_of_contact frame before every post_contact frame.` };
+    }
+    manualFrames = normalised;
+  }
   return {
     request: {
       target: target as CapeRequest['target'],
@@ -75,9 +90,34 @@ export function parseCapeRequest(body: Record<string, unknown>): { request: Cape
       shot_type: target === 'batter' ? shotType : null,
       bowler_type: target === 'bowler' ? bowlerType : null,
       calibration_points: calibration,
-      pitch_points_m: pitchRaw as [number, number][] | null
+      pitch_points_m: pitchRaw as [number, number][] | null,
+      ...(manualFrames ? { manual_frames: manualFrames } : {})
     }
   };
+}
+
+const isFrameIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 1_000_000;
+
+const MAX_MANUAL_FRAMES_PER_ROLE = 20;
+const MANUAL_ROLES = ['pre_contact', 'point_of_contact', 'post_contact'] as const;
+
+// Accepts a single frame or a list per role; returns sorted, de-duplicated lists in time order.
+// Pre/post may be omitted or empty: CAPE then scans the frames around contact automatically.
+function normaliseManualFrames(value: unknown): CapeManualFrames | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).some(key => !(MANUAL_ROLES as readonly string[]).includes(key))) return null;
+  const lists: number[][] = [];
+  for (const role of MANUAL_ROLES) {
+    const optional = role !== 'point_of_contact';
+    const raw = Array.isArray(v[role]) ? v[role] as unknown[] : v[role] == null && optional ? [] : [v[role]];
+    if ((raw.length === 0 && !optional) || raw.length > MAX_MANUAL_FRAMES_PER_ROLE || !raw.every(isFrameIndex)) return null;
+    lists.push([...new Set(raw as number[])].sort((a, b) => a - b));
+  }
+  const [pre, contact, post] = lists;
+  if (pre.length && pre[pre.length - 1] >= contact[0]) return null;
+  if (post.length && contact[contact.length - 1] >= post[0]) return null;
+  return { pre_contact: pre, point_of_contact: contact, post_contact: post };
 }
 
 type CapeJobRecord = NonNullable<Awaited<ReturnType<typeof prisma.capeJob.findFirst>>>;
@@ -88,6 +128,7 @@ export async function capeJobView(job: CapeJobRecord) {
     status: job.status,
     queuePosition: job.status === 'QUEUED' ? await capeQueuePosition(job.id).catch(() => null) : null,
     attempts: job.attempts,
+    playerName: job.playerName,
     error: job.status === 'FAILED' ? job.error : null,
     errorMessage: job.status === 'FAILED' ? friendlyCapeError(job.error) : null,
     request: job.request,
@@ -170,6 +211,33 @@ capeJobsRouter.get('/latest', requireRole(['CLUB_ADMIN', 'COACH']), async (req: 
   }
 });
 
+// Drills assigned to a player. Players see their own; club staff pass ?playerId= within their tenant.
+capeJobsRouter.get('/assigned-drills', async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const playerId = user.role === 'PLAYER'
+    ? user.userId
+    : typeof req.query.playerId === 'string' ? req.query.playerId.slice(0, 100) : '';
+  if (!playerId) {
+    res.status(400).json({ error: 'playerId is required.' });
+    return;
+  }
+  try {
+    if (!(await isActiveClubCoach(req))) {
+      res.status(403).json({ error: 'Active club coach membership required.' });
+      return;
+    }
+    const records = await prisma.playerDrillAssignment.findMany({
+      where: { tenantId: user.tenantId, playerId },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    res.json({ assignments: records.map(playerDrillAssignmentView) });
+  } catch (error) {
+    console.error('Assigned drills lookup failed:', error);
+    res.status(500).json({ error: 'Unable to load assigned drills.' });
+  }
+});
+
 // Queues a standalone analysis for a club player from a device upload (multipart `file`) or a Drive video (`driveFileId`).
 capeJobsRouter.post(
   '/',
@@ -244,6 +312,84 @@ capeJobsRouter.post(
   }
 );
 
+const optionalInt = (value: unknown, max: number): number | undefined | null => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= max ? n : null;
+};
+
+// Synchronous helper for poor-quality clips: thumbnails around the suggested bat-ball contact so the
+// coach can pick the pre-contact, contact and post-contact frames before queueing the analysis.
+// Nothing is persisted; the staged video is deleted once CAPE responds.
+capeJobsRouter.post(
+  '/contact-candidates',
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  (req: Request, res: Response, next: NextFunction) => {
+    videoUpload.single('file')(req, res, error => {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({ error: 'Choose a video smaller than 500 MB.' });
+      } else if (error) {
+        res.status(400).json({ error: 'The video upload could not be read.' });
+      } else {
+        next();
+      }
+    });
+  },
+  async (req: AuthenticatedRequest, res: Response) => {
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    let stagedPath: string | null = null;
+    try {
+      if (!(await isActiveClubCoach(req))) {
+        res.status(403).json({ error: 'Active club coach membership required.' });
+        return;
+      }
+      if (!isCapeConfigured()) {
+        res.status(503).json({ error: 'cape_unavailable', message: 'Detailed video analysis is not available on this server right now.' });
+        return;
+      }
+      const centerFrame = optionalInt(req.body?.centerFrame, 1_000_000);
+      const before = optionalInt(req.body?.before, 40);
+      const after = optionalInt(req.body?.after, 40);
+      if (centerFrame === null || before === null || after === null) {
+        res.status(400).json({ error: 'centerFrame, before and after must be non-negative whole numbers.' });
+        return;
+      }
+      const driveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
+      if (file && !/^video\/[A-Za-z0-9.+-]+$/.test(file.mimetype)) {
+        res.status(400).json({ error: 'Only video files can be analysed.' });
+        return;
+      }
+      if (!file && !DRIVE_FILE_ID.test(driveFileId)) {
+        res.status(400).json({ error: 'Upload a video or choose one from Google Drive.' });
+        return;
+      }
+      if (file) {
+        stagedPath = await stageCapeUpload(file.buffer, file.originalname);
+      } else {
+        stagedPath = path.join(os.tmpdir(), `cape-candidates-${crypto.randomUUID()}.mp4`);
+        await downloadDriveFileToPath(req.user!.userId, driveFileId, stagedPath);
+      }
+      const candidates = await fetchContactCandidates(stagedPath, { centerFrame, before, after });
+      res.json(candidates);
+    } catch (error) {
+      if (error instanceof DriveUploadError) {
+        res.status(error.status).json({ error: error.message });
+      } else if (error instanceof CapeError) {
+        console.error('CAPE contact candidates failed:', error.code, error.message);
+        res.status(error.status >= 400 && error.status < 500 ? 422 : 502).json({
+          error: error.code,
+          message: friendlyCapeError(error.code) || 'The video frames could not be loaded. Please try again.'
+        });
+      } else {
+        console.error('CAPE contact candidates failed:', error);
+        res.status(500).json({ error: 'The video frames could not be loaded.' });
+      }
+    } finally {
+      if (stagedPath) await fs.rm(stagedPath, { force: true }).catch(() => undefined);
+    }
+  }
+);
+
 capeJobsRouter.get('/:jobId', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const job = await findAccessibleJob(req, req.params.jobId);
@@ -255,6 +401,53 @@ capeJobsRouter.get('/:jobId', async (req: AuthenticatedRequest, res: Response) =
   } catch (error) {
     console.error('CAPE job lookup failed:', error);
     res.status(500).json({ error: 'Unable to load the analysis.' });
+  }
+});
+
+capeJobsRouter.get('/:jobId/drills', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const job = await findAccessibleJob(req, req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Analysis not found.' });
+      return;
+    }
+    const records = await prisma.playerDrillAssignment.findMany({
+      where: { tenantId: job.tenantId, capeJobId: job.id },
+      orderBy: { createdAt: 'asc' }
+    });
+    res.json({ assignments: records.map(playerDrillAssignmentView) });
+  } catch (error) {
+    console.error('CAPE drill assignments lookup failed:', error);
+    res.status(500).json({ error: 'Unable to load assigned drills.' });
+  }
+});
+
+// Assigns a coaching-guidance drill to the analysed player and adds it to the club and system drill catalogues.
+capeJobsRouter.post('/:jobId/drills', requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
+  const faultCode = typeof req.body?.faultCode === 'string' ? req.body.faultCode.trim().slice(0, 100) : '';
+  if (!faultCode) {
+    res.status(400).json({ error: 'faultCode is required.' });
+    return;
+  }
+  try {
+    if (!(await isActiveClubCoach(req))) {
+      res.status(403).json({ error: 'Active club coach membership required.' });
+      return;
+    }
+    const job = await findAccessibleJob(req, req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Analysis not found.' });
+      return;
+    }
+    const { assignment, created } = await assignCapeGuidanceDrill(job, faultCode, req.user!.userId);
+    res.status(created ? 201 : 200).json({ assignment });
+  } catch (error) {
+    if (error instanceof DrillAssignmentError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    console.error('CAPE drill assignment failed:', error);
+    res.status(500).json({ error: 'Unable to assign the drill.' });
   }
 });
 

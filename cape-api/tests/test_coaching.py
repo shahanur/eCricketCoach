@@ -150,3 +150,37 @@ def test_rules_zone_tables_match_schemas():
     assert {z.value: (lo, hi) for z, lo, hi in LINE_ZONES_M} == {
         z: (inf(lo, -1), inf(hi, 1)) for z, (lo, hi) in rules["line_zones"].items()
     }
+
+def test_phase_metrics_do_not_fall_back_and_optional_checks_skip():
+    # A contact-frame value must not stand in for a post-contact metric.
+    metrics = {**GOOD_DRIVE, "head_front_knee_offset_pct": -40.0}
+    c = evaluate(bat_req(), metrics, None)
+    codes = {f.code for f in c.faults}
+    assert "falling_away_after_contact" not in codes
+    assert not any(u.startswith(("pre_contact.", "post_contact.")) or u in ("bat_swing_arc_deg", "follow_through_arc_deg") for u in c.unavailable)
+    c = evaluate(bat_req(), {**metrics, "pre_contact.bat_swing_arc_deg": 20.0, "post_contact.follow_through_arc_deg": 20.0,
+                             "post_contact.head_front_knee_offset_pct": -40.0}, None)
+    phases = {f.code: f.milestone for f in c.faults}
+    assert phases["short_backswing"] == "pre_contact"
+    assert phases["checked_follow_through"] == "post_contact"
+    assert phases["falling_away_after_contact"] == "post_contact"
+
+
+@pytest.mark.parametrize(
+    ("shot", "metrics", "expected"),
+    [
+        ("front_foot_drive", {"pre_contact.hands_height_pct": -90.0, "pre_contact.bat_swing_speed_kmh": 15.0,
+                              "post_contact.head_travel_pct": 40.0, "post_contact.front_elbow_height_pct": -50.0,
+                              "post_contact.front_knee": 70.0},
+         {"low_backlift", "slow_bat_swing", "head_up_after_contact", "low_finish", "front_leg_collapses_in_finish"}),
+        ("forward_defence", {"pre_contact.bat_swing_speed_kmh": 80.0, "post_contact.head_travel_pct": 30.0,
+                             "post_contact.head_front_knee_offset_pct": -30.0},
+         {"big_swing_in_defence", "head_up_after_contact", "falling_away_after_contact"}),
+        ("sweep", {"post_contact.front_knee": 170.0}, {"standing_up_early"}),
+    ],
+)
+def test_phase_rules_flag_faults_before_and_after_contact(shot, metrics, expected):
+    c = evaluate(bat_req(shot), metrics, None)
+    assert expected <= {f.code for f in c.faults}
+    assert all(f.milestone in ("pre_contact", "post_contact") for f in c.faults if f.code in expected)
+    assert not any(m.startswith(("pre_contact", "post_contact")) for m in c.unavailable)

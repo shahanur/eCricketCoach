@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Download, Loader2, RotateCcw, Sparkles, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Download, Images, Loader2, RotateCcw, Sparkles, Upload, UserPlus, XCircle } from 'lucide-react';
 import { api } from '../../services/api';
-import { CapeFault, CapeJob, CapeResult, CapeTarget } from '../../types';
+import { CapeContactCandidates, CapeFault, CapeJob, CapeResult, CapeTarget, PlayerDrillAssignment } from '../../types';
 
 const SHOT_TYPES = ['front_foot_drive', 'back_foot_drive', 'forward_defence', 'backward_defence', 'pull', 'cut', 'sweep'];
 const BOWLER_TYPES = ['pace', 'spin'];
@@ -58,9 +58,11 @@ interface CapeAnalysisPanelProps {
   source?: CapeVideoSource | null;
   startLabel?: string;
   onJobChange?: (job: CapeJob | null) => void;
+  // Club staff can assign suggested drills to the analysed player.
+  canAssignDrills?: boolean;
 }
 
-export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange }) => {
+export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange, canAssignDrills = false }) => {
   const target: CapeTarget | null = discipline === 'BATTING' ? 'batter' : discipline === 'BOWLING' ? 'bowler' : null;
   const isStandalone = !assessmentId;
   const [job, setJob] = useState<CapeJob | null>(null);
@@ -75,6 +77,8 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   const [frameReady, setFrameReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [manualMode, setManualMode] = useState(false);
+  const [manualFrames, setManualFrames] = useState<ManualSelection>(EMPTY_SELECTION);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sourceKey = source ? `${source.driveFileId || ''}|${source.name}|${source.file?.size ?? ''}` : '';
@@ -85,6 +89,8 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
     setFrameReady(false);
     setFile(null);
     setVideoUrl('');
+    setManualMode(false);
+    setManualFrames(EMPTY_SELECTION);
   };
 
   useEffect(() => {
@@ -132,6 +138,35 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   const onJobChangeRef = useRef(onJobChange);
   onJobChangeRef.current = onJobChange;
   useEffect(() => { onJobChangeRef.current?.(job); }, [job]);
+
+  const [assignments, setAssignments] = useState<PlayerDrillAssignment[]>([]);
+  const [assigningCode, setAssigningCode] = useState('');
+  const [assignError, setAssignError] = useState('');
+  const succeededJobId = job?.status === 'SUCCEEDED' ? job.jobId : null;
+  useEffect(() => {
+    setAssignments([]);
+    setAssignError('');
+    if (!succeededJobId) return;
+    let cancelled = false;
+    api.getCapeJobDrillAssignments(succeededJobId)
+      .then(found => { if (!cancelled) setAssignments(found); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [succeededJobId]);
+
+  const assignDrill = async (faultCode: string) => {
+    if (!succeededJobId) return;
+    setAssigningCode(faultCode);
+    setAssignError('');
+    try {
+      const assignment = await api.assignCapeGuidanceDrill(succeededJobId, faultCode);
+      setAssignments(current => current.some(a => a.id === assignment.id) ? current : [...current, assignment]);
+    } catch (assignFailure) {
+      setAssignError(assignFailure instanceof Error ? assignFailure.message : 'Failed to assign the drill');
+    } finally {
+      setAssigningCode('');
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -208,7 +243,14 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
     setPoints(current => [...current, [x, y]]);
   };
 
-  const canAnalyse = points.length === 4 && (isStandalone ? Boolean(videoUrl && (source?.file || source?.driveFileId)) : Boolean(file));
+  const manualSource = isStandalone
+    ? (source?.file ? { file: source.file } : source?.driveFileId ? { driveFileId: source.driveFileId } : null)
+    : (file ? { file } : null);
+  const useManualFrames = target === 'batter' && manualMode;
+  const manualComplete = isManualSelectionValid(manualFrames);
+  const canAnalyse = points.length === 4
+    && (isStandalone ? Boolean(videoUrl && (source?.file || source?.driveFileId)) : Boolean(file))
+    && (!useManualFrames || manualComplete);
 
   const submit = async () => {
     if (!canAnalyse) return;
@@ -220,7 +262,8 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
         handedness,
         shot_type: target === 'batter' ? shotType : undefined,
         bowler_type: target === 'bowler' ? bowlerType : undefined,
-        calibration_points: points
+        calibration_points: points,
+        manual_frames: useManualFrames && manualComplete ? manualFrames : undefined
       };
       const created = assessmentId
         ? await api.analyzeAssessmentVideoWithCape(assessmentId, file!, input)
@@ -300,12 +343,27 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
 
           {isLoadingVideo && <p className="inline-flex items-center gap-2 text-xs text-slate-300"><Loader2 size={13} className="animate-spin" />Loading the video from Google Drive…</p>}
 
+          {target === 'batter' && (
+            <div className="space-y-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                <input type="checkbox" checked={manualMode} onChange={event => { setManualMode(event.target.checked); setManualFrames(EMPTY_SELECTION); }} className="h-3.5 w-3.5 accent-emerald-500" />
+                Select the contact frames manually (for poor-quality video)
+              </label>
+              {manualMode && (
+                manualSource
+                  ? <ManualFramePicker key={sourceKey || file?.name || ''} source={manualSource} selection={manualFrames} onChange={setManualFrames} />
+                  : <p className="text-xs text-amber-300">Choose a video first to load its frames.</p>
+              )}
+            </div>
+          )}
+
           {error && <p className="text-xs text-rose-300">{error}</p>}
           {!canAnalyse && !error && !isLoadingVideo && (
             <p className="text-xs text-amber-300">
               {!videoUrl ? (isStandalone ? 'Choose a video above first.' : 'Choose a video to analyse.')
                 : !frameReady ? 'Waiting for the first frame of the video…'
-                  : `Click ${4 - points.length} more pitch corner${4 - points.length === 1 ? '' : 's'} on the frame to enable Analyse.`}
+                  : points.length < 4 ? `Click ${4 - points.length} more pitch corner${4 - points.length === 1 ? '' : 's'} on the frame to enable Analyse.`
+                    : 'Tag at least one contact frame (pre- and post-contact frames are optional, in time order) to enable Analyse.'}
             </p>
           )}
           <div className="flex gap-2">
@@ -336,22 +394,174 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
         <p className="mt-2 flex items-start gap-2 text-xs text-rose-300"><XCircle size={14} className="mt-0.5 shrink-0" />{job.errorMessage || 'The analysis failed.'}</p>
       )}
 
-      {!isSetup && job?.status === 'SUCCEEDED' && job.result && <CapeResultView result={job.result} />}
+      {!isSetup && job?.status === 'SUCCEEDED' && job.result && (
+        <CapeResultView
+          result={job.result}
+          drillAssignment={{
+            playerName: job.playerName || 'player',
+            assignments,
+            assigningCode,
+            error: assignError,
+            onAssign: canAssignDrills ? assignDrill : undefined
+          }}
+        />
+      )}
     </div>
   );
 };
 
-const GeminiBadge: React.FC<{ model?: string }> = ({ model }) => (
-  <span
-    title={model ? `Generated by Google Gemini (${model})` : 'Generated by Google Gemini'}
-    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-400/40 bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200"
-  >
-    <Sparkles size={11} /> Gemini{model ? <span className="font-normal normal-case opacity-80">· {model}</span> : null}
-  </span>
-);
+type FrameRole = 'pre_contact' | 'point_of_contact' | 'post_contact';
+type ManualSelection = Record<FrameRole, number[]>;
 
-const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
+const EMPTY_SELECTION: ManualSelection = { pre_contact: [], point_of_contact: [], post_contact: [] };
+const MAX_FRAMES_PER_ROLE = 20;
+
+const FRAME_ROLES: { role: FrameRole; label: string; short: string; tone: string }[] = [
+  { role: 'pre_contact', label: 'Pre-contact', short: 'PRE', tone: 'border-sky-400 bg-sky-500 text-slate-950' },
+  { role: 'point_of_contact', label: 'Contact', short: 'CONTACT', tone: 'border-emerald-400 bg-emerald-500 text-slate-950' },
+  { role: 'post_contact', label: 'Post-contact', short: 'POST', tone: 'border-violet-400 bg-violet-500 text-slate-950' }
+];
+
+// Only contact is required; empty pre/post sides are scanned automatically by CAPE.
+const isManualSelectionComplete = (selection: ManualSelection) => selection.point_of_contact.length > 0;
+
+const isManualSelectionValid = (selection: ManualSelection) => {
+  const { pre_contact: pre, point_of_contact: contact, post_contact: post } = selection;
+  return isManualSelectionComplete(selection)
+    && (pre.length === 0 || Math.max(...pre) < Math.min(...contact))
+    && (post.length === 0 || Math.max(...contact) < Math.min(...post));
+};
+
+const ManualFramePicker: React.FC<{
+  source: { file?: File; driveFileId?: string };
+  selection: ManualSelection;
+  onChange: (selection: ManualSelection) => void;
+}> = ({ source, selection, onChange }) => {
+  const [candidates, setCandidates] = useState<CapeContactCandidates | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [activeRole, setActiveRole] = useState<FrameRole>('pre_contact');
+
+  const load = async (centerFrame?: number) => {
+    setIsLoading(true);
+    setLoadError('');
+    try {
+      setCandidates(await api.getCapeContactCandidates(source, { centerFrame }));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'The video frames could not be loaded.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const roleOf = (index: number) => FRAME_ROLES.find(({ role }) => selection[role].includes(index))?.role;
+
+  // Clicking toggles the frame in the active role; a frame can belong to only one role.
+  const pickFrame = (index: number) => {
+    if (selection[activeRole].includes(index)) {
+      onChange({ ...selection, [activeRole]: selection[activeRole].filter(frame => frame !== index) });
+      return;
+    }
+    if (selection[activeRole].length >= MAX_FRAMES_PER_ROLE) return;
+    const next = { ...selection };
+    FRAME_ROLES.forEach(({ role }) => { next[role] = next[role].filter(frame => frame !== index); });
+    next[activeRole] = [...next[activeRole], index].sort((a, b) => a - b);
+    onChange(next);
+  };
+
+  const frames = candidates?.frames || [];
+  const first = frames[0]?.index;
+  const last = frames[frames.length - 1]?.index;
+  const span = frames.length;
+  const hasOrderProblem = isManualSelectionComplete(selection) && !isManualSelectionValid(selection);
+  const hasSelection = FRAME_ROLES.some(({ role }) => selection[role].length > 0);
+
+  if (!candidates) {
+    return (
+      <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
+        <p className="text-xs text-slate-400">Load frames around the bat-ball contact suggested by Gemini, then tag one or more contact frames, and optionally pre- and post-contact frames. This can take up to a couple of minutes.</p>
+        <button type="button" disabled={isLoading} onClick={() => load()} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50">
+          {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Images size={13} />}
+          {isLoading ? 'Finding the contact frame…' : 'Load frames'}
+        </button>
+        {loadError && <p className="mt-2 text-xs text-rose-300">{loadError}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-950/40 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-slate-400">Tag as:</span>
+        {FRAME_ROLES.map(({ role, label: roleLabel, tone }) => (
+          <button
+            key={role}
+            type="button"
+            onClick={() => setActiveRole(role)}
+            title={selection[role].length ? `Frames ${selection[role].map(frame => `#${frame}`).join(', ')}` : undefined}
+            className={`rounded-full border px-2.5 py-0.5 font-semibold ${activeRole === role ? tone : 'border-slate-600 text-slate-300 hover:bg-slate-800'}`}
+          >
+            {roleLabel} · {selection[role].length}
+          </button>
+        ))}
+        {hasSelection && (
+          <button type="button" onClick={() => { onChange(EMPTY_SELECTION); setActiveRole('pre_contact'); }} className="text-slate-400 underline">Clear</button>
+        )}
+      </div>
+      <p className="text-xs text-slate-400">
+        {candidates.suggestion_source === 'gemini' && candidates.suggested_frame !== null
+          ? <>Gemini suggests frame <strong className="text-emerald-200">#{candidates.suggested_frame}</strong> as the point of contact. </>
+          : candidates.suggestion_note ? <>{candidates.suggestion_note} </> : null}
+        Showing frames {first}–{last} of {candidates.frame_count} ({formatNumber(candidates.framerate_fps, 1)} fps).
+      </p>
+      <p className="text-xs text-slate-500">Only a contact frame is required. Pick several pre-contact frames to trace the bat swing and several post-contact frames to trace the follow-through; any side left empty is scanned automatically (about one second around contact). If you tag more than one contact frame, CAPE uses the clearest one.</p>
+      <div className="flex items-stretch gap-2">
+        <button type="button" disabled={isLoading || first === undefined || first <= 0} onClick={() => load(Math.max(0, first! - Math.ceil(span / 2)))} title="Earlier frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+          <ChevronLeft size={16} />
+        </button>
+        <div className={`flex flex-1 gap-2 overflow-x-auto pb-2 ${isLoading ? 'opacity-50' : ''}`}>
+          {frames.map(frame => {
+            const role = roleOf(frame.index);
+            const roleInfo = FRAME_ROLES.find(item => item.role === role);
+            const isSuggested = frame.index === candidates.suggested_frame;
+            return (
+              <button
+                key={frame.index}
+                type="button"
+                disabled={isLoading}
+                onClick={() => pickFrame(frame.index)}
+                className={`relative w-28 shrink-0 overflow-hidden rounded-lg border-2 text-left ${roleInfo ? roleInfo.tone.split(' ')[0] : isSuggested ? 'border-amber-400/70' : 'border-slate-700 hover:border-slate-500'}`}
+              >
+                <img src={`data:image/jpeg;base64,${frame.image_base64}`} alt={`Frame ${frame.index}`} className="block h-auto w-full" />
+                {roleInfo && <span className={`absolute left-1 top-1 rounded px-1 text-[10px] font-bold ${roleInfo.tone}`}>{roleInfo.short}</span>}
+                {isSuggested && <span className="absolute right-1 top-1 rounded bg-amber-400 px-1 text-[10px] font-bold text-slate-950">AI</span>}
+                <span className="block bg-slate-900 px-1 py-0.5 text-[10px] text-slate-300">#{frame.index} · {frame.time_s.toFixed(2)}s</span>
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" disabled={isLoading || last === undefined || last >= candidates.frame_count - 1} onClick={() => load(Math.min(candidates.frame_count - 1, last! + Math.ceil(span / 2)))} title="Later frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      {isLoading && <p className="inline-flex items-center gap-2 text-xs text-slate-300"><Loader2 size={13} className="animate-spin" />Loading frames…</p>}
+      {loadError && <p className="text-xs text-rose-300">{loadError}</p>}
+      {hasOrderProblem && <p className="text-xs text-rose-300">The frames must be in time order: pre-contact before contact, and contact before post-contact.</p>}
+    </div>
+  );
+};
+
+interface DrillAssignmentState {
+  playerName: string;
+  assignments: PlayerDrillAssignment[];
+  assigningCode: string;
+  error: string;
+  onAssign?: (faultCode: string) => void;
+}
+
+const CapeResultView: React.FC<{ result: CapeResult; drillAssignment: DrillAssignmentState }> = ({ result, drillAssignment }) => {
   const { coaching, delivery, analytics_payload: payload } = result;
+  const assignedByFault = new Map(drillAssignment.assignments.map(assignment => [assignment.faultCode, assignment]));
   const [images, setImages] = useState<Record<string, string>>({});
   const [downloadError, setDownloadError] = useState('');
   const contact = payload.point_of_contact;
@@ -388,8 +598,12 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
     { name: 'Exit speed', value: postContact?.exit_velocity_kmh, unit: ' km/h' },
     { name: 'Exit momentum', value: postContact?.estimated_ball_momentum_kg_m_s, unit: ' kg m/s' },
     { name: 'Exit kinetic energy', value: postContact?.estimated_ball_kinetic_energy_j, unit: ' J' },
-    { name: 'Launch angle', value: postContact?.launch_angle_degrees, unit: '°' }
+    { name: 'Launch angle', value: postContact?.launch_angle_degrees, unit: '°' },
+    { name: 'Bat swing speed before contact (est.)', value: payload.pre_contact?.bat_swing_speed_kmh, unit: ' km/h' },
+    { name: `Bat swing arc${payload.pre_contact?.bat_swing_estimated ? ' (est. from forearms)' : ''}${payload.pre_contact?.swing_frames_auto ? ' · auto-detected frames' : ''}`, value: payload.pre_contact?.bat_swing_arc_degrees, unit: '°' },
+    { name: `Follow-through arc${postContact?.follow_through_estimated ? ' (est. from forearms)' : ''}${postContact?.follow_through_frames_auto ? ' · auto-detected frames' : ''}`, value: postContact?.follow_through_arc_degrees, unit: '°' }
   ].filter((row): row is { name: string; value: number; unit: string } => row.value !== null && row.value !== undefined);
+  const contactCandidates = contact?.candidate_frames || [];
 
   useEffect(() => {
     let cancelled = false;
@@ -427,6 +641,11 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
         <div>
           <p className="text-sm font-semibold text-white">{coaching.verdict}</p>
           <p className="text-[11px] text-slate-400">{label(result.metadata.shot_type || result.metadata.bowler_type || result.metadata.target)} · {result.metadata.handedness}-handed</p>
+          {contact?.selection_source === 'manual' && (
+            <p className="text-[11px] text-slate-400">
+              Contact frame #{contact.milestone_frame}{contactCandidates.length > 1 ? ` chosen from ${contactCandidates.length} selected frames` : ' selected manually'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -522,21 +741,15 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
       {coaching.ai_guidance && (
         <div className="space-y-3 rounded-lg border border-violet-500/30 bg-violet-500/10 p-3">
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h5 className="flex items-center gap-1.5 text-xs font-semibold text-violet-200">
-                <Sparkles size={14} /> Coaching guidance
-              </h5>
-              <GeminiBadge model={coaching.ai_guidance.model} />
-            </div>
+            <h5 className="flex items-center gap-1.5 text-xs font-semibold text-violet-200">
+              <Sparkles size={14} /> Coaching guidance
+            </h5>
             <p className="mt-1 text-xs text-slate-200">{coaching.ai_guidance.summary}</p>
             <p className="mt-1 text-[11px] text-slate-500">Generated by Gemini from CAPE’s measured findings; Gemini does not change measurements or severity.</p>
           </div>
           {coaching.ai_guidance.items.map(item => (
             <div key={item.fault_code} className="rounded-lg border border-violet-400/20 bg-slate-950/40 p-3">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs font-semibold text-violet-200">{item.title}</p>
-                <GeminiBadge />
-              </div>
+              <p className="text-xs font-semibold text-violet-200">{item.title}</p>
               <p className="mt-1 text-[11px] text-slate-300">{item.why_it_matters}</p>
               <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Coaching cues</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-slate-200">
@@ -549,8 +762,40 @@ const CapeResultView: React.FC<{ result: CapeResult }> = ({ result }) => {
               {item.drill.equipment.length > 0 && (
                 <p className="mt-1 text-[11px] text-slate-500">Equipment: {item.drill.equipment.join(', ')}</p>
               )}
+              {assignedByFault.has(item.fault_code) ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                  <CheckCircle2 size={13} /> Assigned to {assignedByFault.get(item.fault_code)!.playerName}
+                </p>
+              ) : drillAssignment.onAssign && (
+                <button
+                  type="button"
+                  disabled={Boolean(drillAssignment.assigningCode)}
+                  onClick={() => drillAssignment.onAssign!(item.fault_code)}
+                  title="Assigns this drill to the player and adds it to the club and system drill catalogues"
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-400 px-2.5 py-1 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50"
+                >
+                  {drillAssignment.assigningCode === item.fault_code ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />}
+                  Assign to {drillAssignment.playerName}
+                </button>
+              )}
             </div>
           ))}
+          {drillAssignment.error && <p role="alert" className="text-xs text-rose-300">{drillAssignment.error}</p>}
+          {drillAssignment.assignments.length > 0 && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <h5 className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+                <ClipboardCheck size={14} /> Assigned drills
+              </h5>
+              <ul className="mt-1 space-y-1 text-xs text-slate-200">
+                {drillAssignment.assignments.map(assignment => (
+                  <li key={assignment.id}>
+                    {assignment.title} <span className="text-[11px] text-slate-400">· {assignment.details.correction || label(assignment.faultCode || '')} · {new Date(assignment.createdAt).toLocaleDateString()}{assignment.assignedByName ? ` · by ${assignment.assignedByName}` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-[11px] text-slate-500">Also added to the club and system drill catalogues.</p>
+            </div>
+          )}
         </div>
       )}
 

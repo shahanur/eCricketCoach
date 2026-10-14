@@ -338,7 +338,6 @@ export interface CapeFault {
 
 export interface CapeAiGuidance {
   source: 'gemini';
-  model?: string;
   summary: string;
   items: Array<{
     fault_code: string;
@@ -353,13 +352,34 @@ export interface CapeAiGuidance {
   }>;
 }
 
+export interface PlayerDrillAssignment {
+  id: string;
+  playerId: string;
+  playerName: string;
+  drillId: string;
+  systemDrillId: string | null;
+  capeJobId: string | null;
+  faultCode: string | null;
+  title: string;
+  discipline: string;
+  details: {
+    correction?: string;
+    why_it_matters?: string;
+    coaching_cues?: string[];
+    instructions?: string[];
+    equipment?: string[];
+  };
+  assignedByName: string | null;
+  createdAt: string;
+}
+
 export interface CapeResult {
   session_id: string;
   metadata: { resolution: string; framerate_fps: number; target: CapeTarget; handedness: 'right' | 'left'; shot_type: string | null; bowler_type: string | null };
   analytics_payload: {
-    pre_contact?: { milestone_frame: number; batter_joint_angles: Record<string, number> } | null;
-    point_of_contact?: { milestone_frame: number; selection_source?: 'gemini' | 'detector'; selection_confidence?: number | null; ball_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; bat_angle_degrees: number | null; head_front_knee_offset_pct?: number | null; stride_m?: number | null; front_foot_to_contact_angle_degrees?: number | null; front_toe_contact_distance_cm?: number | null; chin_front_toe_offset_pct?: number | null; front_shoulder_target_angle_degrees?: number | null; back_foot_crease_angle_degrees?: number | null; front_elbow_height_pct?: number | null; ball_line?: string | null; batter_joint_angles?: Record<string, number>; batter_3d_landmarks?: Record<string, [number, number, number]> } | null;
-    post_contact?: { milestone_frame: number; exit_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; launch_angle_degrees: number | null; batter_joint_angles?: Record<string, number> } | null;
+    pre_contact?: { milestone_frame: number; batter_joint_angles: Record<string, number>; swing_frames?: number[]; bat_swing_arc_degrees?: number | null; bat_swing_estimated?: boolean; bat_swing_speed_kmh?: number | null; swing_frames_auto?: boolean } | null;
+    point_of_contact?: { milestone_frame: number; selection_source?: 'gemini' | 'detector' | 'manual'; selection_confidence?: number | null; candidate_frames?: number[]; ball_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; bat_angle_degrees: number | null; head_front_knee_offset_pct?: number | null; stride_m?: number | null; front_foot_to_contact_angle_degrees?: number | null; front_toe_contact_distance_cm?: number | null; chin_front_toe_offset_pct?: number | null; front_shoulder_target_angle_degrees?: number | null; back_foot_crease_angle_degrees?: number | null; front_elbow_height_pct?: number | null; ball_line?: string | null; batter_joint_angles?: Record<string, number>; batter_3d_landmarks?: Record<string, [number, number, number]> } | null;
+    post_contact?: { milestone_frame: number; follow_through_frames?: number[]; follow_through_arc_degrees?: number | null; follow_through_estimated?: boolean; follow_through_frames_auto?: boolean; exit_velocity_kmh: number | null; estimated_ball_momentum_kg_m_s?: number | null; estimated_ball_kinetic_energy_j?: number | null; launch_angle_degrees: number | null; batter_joint_angles?: Record<string, number> } | null;
     release?: { milestone_frame: number; bowler_joint_angles: Record<string, number>; release_height_m: number | null } | null;
   };
   delivery: {
@@ -380,11 +400,18 @@ export interface CapeJob {
   status: CapeJobStatus;
   queuePosition: number | null;
   attempts: number;
+  playerName?: string | null;
   error: string | null;
   errorMessage: string | null;
   result: CapeResult | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CapeManualFrames {
+  pre_contact: number[];
+  point_of_contact: number[];
+  post_contact: number[];
 }
 
 export interface CapeAnalysisInput {
@@ -393,4 +420,14 @@ export interface CapeAnalysisInput {
   shot_type?: string;
   bowler_type?: string;
   calibration_points: [number, number][];
+  manual_frames?: CapeManualFrames;
+}
+
+export interface CapeContactCandidates {
+  framerate_fps: number;
+  frame_count: number;
+  suggested_frame: number | null;
+  suggestion_source: 'gemini' | 'none';
+  suggestion_note: string | null;
+  frames: Array<{ index: number; time_s: number; image_base64: string }>;
 }
