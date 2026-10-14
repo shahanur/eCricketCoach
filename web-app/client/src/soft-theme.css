@@ -146,7 +146,7 @@ html.light #root .portal-navbar .bg-white svg.lucide {
 html.light #root.logged-in-shell {
   background: #f8f9fa;
   color: #202124;
-  font-family: "Google Sans", "Aptos", "Segoe UI", sans-serif;
+  font-family: var(--app-font-sans);
 }
 
 html.light #root.logged-in-shell main {

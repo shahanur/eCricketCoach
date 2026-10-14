@@ -1,4 +1,4 @@
-.public-site { --public-bg: #101010; --public-panel: #1b1b1b; --public-line: #353535; --public-lime: #7075e2; --public-muted: #a5a5a5; background: var(--public-bg); color: #f5f5f5; font-family: Inter, sans-serif; }
+.public-site { --public-bg: #101010; --public-panel: #1b1b1b; --public-line: #353535; --public-lime: #7075e2; --public-muted: #a5a5a5; background: var(--public-bg); color: #f5f5f5; font-family: var(--app-font-sans); }
 .public-site button, .public-site a { cursor: pointer; }
 .public-site a { text-decoration: none; color: inherit; }
 .public-site button:focus-visible, .public-site a:focus-visible { outline: 2px solid var(--public-lime); outline-offset: 5px; }
