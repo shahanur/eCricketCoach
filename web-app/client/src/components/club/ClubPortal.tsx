@@ -1469,7 +1469,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             clubTab === 'ROSTER' ? 'bg-sky-500 text-slate-950 font-bold shadow' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
           }`}
         >
-          <span>Roster & Invites</span>
+          <span>Members</span>
           <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-extrabold ${
             clubTab === 'ROSTER' ? 'bg-sky-950 text-sky-200' : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
           }`}>
@@ -1560,7 +1560,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold text-base text-white">Club Roster (Coaches & Players)</h3>
+              <h3 className="font-semibold text-base text-white">Coaches & Players</h3>
               <p className="text-xs text-slate-400">
                 {isClubCoach
                   ? 'View and manage your club coaches and players.'
