@@ -16,6 +16,7 @@ import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
 
 const SHOW_AIHUB = false;
+const SHOW_BIOMECHANICAL_AI_BUTTON = false;
 
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
@@ -3171,7 +3172,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               )}
             </div>
 
-            {/* Run Analysis Action Button */}
+            {/* Gemini "Run Biomechanical AI Analysis" is hidden for now; set SHOW_BIOMECHANICAL_AI_BUTTON to restore it. */}
+            {SHOW_BIOMECHANICAL_AI_BUTTON && (
             <div className="pt-2">
               <button
                 type="button"
@@ -3214,6 +3216,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <span>{isAnalyzingVideo ? 'Running Biomechanical Analysis...' : 'Run Biomechanical AI Analysis'}</span>
               </button>
             </div>
+            )}
 
             {/* AIHub is hidden for now; set SHOW_AIHUB to restore it and the AIHub vs CAPE comparison. */}
             <div className={SHOW_AIHUB ? 'engine-comparison rounded-xl border border-sky-200 p-3 space-y-3' : 'space-y-3'}>
