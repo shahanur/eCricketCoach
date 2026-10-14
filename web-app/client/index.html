@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eCricketCoach - Cricket Training & AI Analysis</title>
     <meta name="theme-color" content="#0e1a0e" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
-      /* Apple support site typography (San Francisco system font with Helvetica Neue fallbacks) */
+      /* Apple support site typography: San Francisco on Apple devices, Inter elsewhere (SF cannot be licensed for web delivery) */
       :root {
-        --app-font-sans: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        --app-font-sans: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
         --app-font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       }
       html, body, button, input, select, textarea {
@@ -58,7 +61,7 @@
               })
             },
             fontFamily: {
-              sans: ['"SF Pro Text"', '"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+              sans: ['"SF Pro Text"', '"SF Pro Display"', '-apple-system', 'BlinkMacSystemFont', 'Inter', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
               mono: ['"SF Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
             },
           },

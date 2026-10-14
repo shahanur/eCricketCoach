@@ -2906,25 +2906,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 Analyse batting & bowling actions across {clubName} athletes to detect flaws and prescribe corrective drills.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Sync with Athlete Vault:</span>
-              <button
-                onClick={async () => {
-                  if (!isDriveConnected) {
-                    setIsDriveModalOpen(true);
-                    return;
-                  }
-                  setIsSyncingDriveTab(true);
-                  await fetchDriveVideos('TAB');
-                  setIsSyncingDriveTab(false);
-                }}
-                disabled={isSyncingDriveTab}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center gap-2 cursor-pointer transition disabled:opacity-50"
-              >
-                <Cloud className="w-4 h-4 text-sky-400" />
-                <span>{isDriveConnected ? 'Sync with Google Drive' : 'Connect Google Drive'}</span>
-              </button>
-            </div>
           </div>
 
           {/* Athlete, Discipline, and Video Source Configuration */}
@@ -3135,15 +3116,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <button
                       type="button"
                       onClick={async () => {
-                        setIsSyncingDriveModal(true);
-                        await fetchDriveVideos('MODAL');
-                        setIsSyncingDriveModal(false);
+                        setIsSyncingDriveTab(true);
+                        await fetchDriveVideos('TAB');
+                        setIsSyncingDriveTab(false);
                       }}
-                      disabled={isSyncingDriveModal}
+                      disabled={isSyncingDriveTab}
                       className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition shrink-0"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveModal ? 'animate-spin' : ''}`} />
-                      <span>{isSyncingDriveModal ? 'Syncing...' : 'Sync Latest Clips from Vault'}</span>
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDriveTab ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingDriveTab ? 'Syncing...' : 'Sync Latest Clips from Vault'}</span>
                     </button>
                     <button
                       type="button"
@@ -3170,7 +3151,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     </label>
                     {driveVideoFiles.length === 0 && !driveVideosError ? (
                       <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-xs text-slate-400">
-                        No video files loaded yet. Click "Sync Vault" to fetch videos from your Google Drive.
+                        No video files loaded yet. Click "Sync Latest Clips from Vault" to fetch videos from your Google Drive.
                       </div>
                     ) : (
                       <select
