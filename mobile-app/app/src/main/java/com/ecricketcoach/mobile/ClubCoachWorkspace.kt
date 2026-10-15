@@ -873,31 +873,7 @@ internal fun ClubCoachWorkspace(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                if (tab != "Overview") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isEkotaStyledPage) {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.padding(end = 4.dp)) {
-                                Icon(Icons.Outlined.Menu, contentDescription = "Open menu", tint = EkotaOverviewColors.primary)
-                            }
-                        }
-                        Column(Modifier.weight(1f)) {
-                            if (isEkotaStyledPage) Text("Welcome back,", color = EkotaOverviewColors.onSurface.copy(alpha = 0.7f), fontSize = 14.sp)
-                            Text(if (isEkotaStyledPage) "${user.name} 👋" else "Welcome, ${user.name}", color = if (isEkotaStyledPage) EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.onSurface, fontSize = if (isEkotaStyledPage) 20.sp else 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = if (isEkotaStyledPage) EkotaOverviewColors.onSurfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
-                        }
-                        IconButton(onClick = onToggleTheme) {
-                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = if (isEkotaStyledPage) EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = onSignOut) {
-                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = if (isEkotaStyledPage) EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.error)
-                        }
-                    }
-                    HorizontalDivider(color = (if (isEkotaStyledPage) EkotaOverviewColors.outline else MaterialTheme.colorScheme.outline).copy(alpha = 0.8f))
-                }
+                EkotaWorkspaceHeader(user, isDark, onToggleTheme, onSignOut)
                 if (!isTablet && sectionTab != tab) {
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 2.dp),
@@ -966,9 +942,6 @@ internal fun ClubCoachWorkspace(
         when (tab) {
             "Overview" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
                 OverviewPanel(
-                    coachName = user.name,
-                    clubName = user.clubName ?: "Club",
-                    isDark = isDark,
                     userId = user.id,
                     isClubAdmin = isClubAdmin,
                     members = members,
@@ -979,8 +952,6 @@ internal fun ClubCoachWorkspace(
                     loading = loading,
                     onOpen = { tab = it },
                     onExecute = onExecuteSession,
-                    onToggleTheme = onToggleTheme,
-                    onSignOut = onSignOut,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1630,7 +1601,7 @@ internal fun ClubCoachWorkspace(
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            if (!isEkotaStyledPage) IconButton(onClick = { scope.launch { drawerState.open() } }) {
+            IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Outlined.Menu, contentDescription = "Open navigation", tint = MaterialTheme.colorScheme.primary)
             }
             WorkspaceAction(
@@ -1997,6 +1968,55 @@ private fun ClubWorkspaceSidebar(
     }
 }
 
+@Composable
+private fun EkotaWorkspaceHeader(
+    user: CoachUser,
+    isDark: Boolean,
+    onToggleTheme: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    MaterialTheme(colorScheme = EkotaOverviewColors) {
+        val greeting = when (LocalTime.now().hour) {
+            in 5..11 -> "Good morning,"
+            in 12..16 -> "Good afternoon,"
+            else -> "Good evening,"
+        }
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(greeting, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
+                    Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = EkotaOverviewColors.primary)
+                }
+                IconButton(onClick = onSignOut, modifier = Modifier.size(38.dp)) {
+                    Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = EkotaOverviewColors.onSurface)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(user.name, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(" 👋", fontSize = 24.sp)
+                    }
+                    Text("Let’s plan, coach and grow together.", color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = EkotaOverviewColors.surface,
+                    border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = EkotaOverviewColors.primary, modifier = Modifier.size(18.dp))
+                        Text(user.clubName ?: "Ekota Academy", color = EkotaOverviewColors.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = EkotaOverviewColors.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
+                    }
+                }
+            }
+        }
+        HorizontalDivider(color = EkotaOverviewColors.outline.copy(alpha = 0.8f))
+    }
+}
+
 private fun workspaceSectionFor(tab: String): String = when (tab) {
     "Delivered sessions", "Participants" -> "Overview"
     "Edit squad" -> "Squads"
@@ -2054,9 +2074,6 @@ private fun WorkspaceTab(label: String, selected: Boolean, onClick: () -> Unit) 
 
 @Composable
 private fun OverviewPanel(
-    coachName: String,
-    clubName: String,
-    isDark: Boolean,
     userId: String,
     isClubAdmin: Boolean,
     members: List<ClubMember>,
@@ -2067,16 +2084,9 @@ private fun OverviewPanel(
     loading: Boolean,
     onOpen: (String) -> Unit,
     onExecute: (ClubTrainingSession) -> Unit,
-    onToggleTheme: () -> Unit,
-    onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = LocalDate.now().toString()
-    val greeting = when (LocalTime.now().hour) {
-        in 5..11 -> "Good morning,"
-        in 12..16 -> "Good afternoon,"
-        else -> "Good evening,"
-    }
     // Matches the web app's CoachOperations dashboard: "upcoming" means not yet executed,
     // with no date restriction (overdue, undelivered sessions still count as upcoming).
     val upcomingSessions = sessions
@@ -2098,40 +2108,6 @@ private fun OverviewPanel(
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item {
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(greeting, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
-                        IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
-                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = onSignOut, modifier = Modifier.size(38.dp)) {
-                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(coachName, color = MaterialTheme.colorScheme.onSurface, fontSize = if (isTablet) 32.sp else 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(" 👋", fontSize = 24.sp)
-                            }
-                            Text("Let’s plan, coach and grow together.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-                            modifier = Modifier.padding(start = 8.dp)
-                        ) {
-                            Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                Text(clubName, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                                Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
-                            }
-                        }
-                    }
-                }
-            }
         if (isTablet) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
