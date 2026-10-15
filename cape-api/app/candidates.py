@@ -18,6 +18,7 @@ import numpy as np
 
 from .config import Settings
 from .gemini_contact import GeminiContactError, select_contact_frame
+from .ingest import read_frames
 from .schemas import CandidateFrame, CapeError, ContactCandidatesResponse
 
 log = logging.getLogger("cape")
@@ -59,9 +60,8 @@ def _read_window(video_path: Path, start: int, stop: int) -> dict[int, np.ndarra
     frames: dict[int, np.ndarray] = {}
     idx = 0
     try:
-        while idx <= stop:
-            ok, frame = cap.read()
-            if not ok:
+        for frame in read_frames(cap):
+            if idx > stop:
                 break
             if idx >= start:
                 frames[idx] = frame

@@ -1,15 +1,36 @@
 """Upload persistence and video probing (spec §3.1)."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import BinaryIO
 
 import cv2
+import numpy as np
 
 from .schemas import CapeError
 
 CHUNK_SIZE = 1024 * 1024
 ALLOWED_EXTENSIONS = frozenset({".mp4", ".mov", ".m4v", ".avi", ".mkv"})
 _GENERIC_CONTENT_TYPES = frozenset({"", "application/octet-stream"})
+# Trimmed/re-muxed clips can start with access units that hold no picture; players skip
+# them, so tolerate a few failed reads before treating the stream as ended.
+MAX_CONSECUTIVE_READ_FAILURES = 8
+
+
+def read_frames(cap: "cv2.VideoCapture") -> Iterator[np.ndarray]:
+    """Yield decodable frames in order, skipping isolated undecodable packets.
+
+    Frame indices used across CAPE (manual frames, thumbnails, milestones) count only
+    the frames yielded here, so every reader must go through this helper.
+    """
+    failures = 0
+    while failures < MAX_CONSECUTIVE_READ_FAILURES:
+        ok, frame = cap.read()
+        if ok and frame is not None:
+            failures = 0
+            yield frame
+        else:
+            failures += 1
 
 
 def validate_upload(filename: str | None, content_type: str | None) -> str:
@@ -51,7 +72,7 @@ def probe(path: Path) -> dict:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        ok, _ = cap.read()
+        ok = next(read_frames(cap), None) is not None
     finally:
         cap.release()
     if not ok or width <= 0 or height <= 0:

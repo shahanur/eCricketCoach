@@ -21,6 +21,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from .ingest import read_frames
+
 log = logging.getLogger("cape")
 
 MAX_COARSE_FRAMES = 48
@@ -67,9 +69,8 @@ def _read_frames(path: Path, indices: list[int]) -> tuple[dict[int, np.ndarray],
     count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     wanted, frames, cursor = set(indices), {}, 0
     try:
-        while wanted:
-            ok, frame = cap.read()
-            if not ok:
+        for frame in read_frames(cap):
+            if not wanted:
                 break
             if cursor in wanted:
                 frames[cursor] = frame

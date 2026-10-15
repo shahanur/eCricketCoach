@@ -17,6 +17,7 @@ from .config import Settings
 from .gemini_contact import ContactSelection, GeminiContactError, select_contact_frame
 from .bowling import bounce_index, delivery_metrics, line_zone
 from .calibration import Calibrator
+from .ingest import read_frames
 from .models.base import Box, Landmarks, PoseResult
 from .schemas import (
     ARTIFACT_NAMES,
@@ -1035,9 +1036,8 @@ def analyze(
         width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         scan = _Pass(req, cal, detectors, fps, width, contact_selection)
         idx = 0
-        while not scan.done:
-            ok, frame = cap.read()
-            if not ok:
+        for frame in read_frames(cap):
+            if scan.done:
                 break
             if not width:
                 height, width = frame.shape[:2]
