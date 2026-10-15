@@ -58,6 +58,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -90,6 +91,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.LibraryBooks
@@ -781,7 +783,10 @@ internal fun ClubCoachWorkspace(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
-        val isEkotaStyledPage = tab == "Overview" || tab == "Squads"
+        val isEkotaStyledPage = tab in setOf(
+            "Overview", "Squads", "Sessions", "Edit session", "Schedule session",
+            "Assessments", "Edit assessment", "Assessment"
+        )
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
@@ -874,24 +879,24 @@ internal fun ClubCoachWorkspace(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (tab == "Squads") {
+                        if (isEkotaStyledPage) {
                             IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.padding(end = 4.dp)) {
                                 Icon(Icons.Outlined.Menu, contentDescription = "Open menu", tint = EkotaOverviewColors.primary)
                             }
                         }
                         Column(Modifier.weight(1f)) {
-                            if (tab == "Squads") Text("Welcome back,", color = EkotaOverviewColors.onSurface.copy(alpha = 0.7f), fontSize = 14.sp)
-                            Text(if (tab == "Squads") "${user.name} 👋" else "Welcome, ${user.name}", color = if (tab == "Squads") EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.onSurface, fontSize = if (tab == "Squads") 20.sp else 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = if (tab == "Squads") EkotaOverviewColors.onSurfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
+                            if (isEkotaStyledPage) Text("Welcome back,", color = EkotaOverviewColors.onSurface.copy(alpha = 0.7f), fontSize = 14.sp)
+                            Text(if (isEkotaStyledPage) "${user.name} 👋" else "Welcome, ${user.name}", color = if (isEkotaStyledPage) EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.onSurface, fontSize = if (isEkotaStyledPage) 20.sp else 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = if (isEkotaStyledPage) EkotaOverviewColors.onSurfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
                         }
                         IconButton(onClick = onToggleTheme) {
-                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = if (tab == "Squads") EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
+                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = if (isEkotaStyledPage) EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
                         }
                         IconButton(onClick = onSignOut) {
-                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = if (tab == "Squads") EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.error)
+                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = if (isEkotaStyledPage) EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.error)
                         }
                     }
-                    HorizontalDivider(color = (if (tab == "Squads") EkotaOverviewColors.outline else MaterialTheme.colorScheme.outline).copy(alpha = 0.8f))
+                    HorizontalDivider(color = (if (isEkotaStyledPage) EkotaOverviewColors.outline else MaterialTheme.colorScheme.outline).copy(alpha = 0.8f))
                 }
                 if (!isTablet && sectionTab != tab) {
                     Row(
@@ -1088,7 +1093,8 @@ internal fun ClubCoachWorkspace(
                     modifier = Modifier.weight(1f)
                 )
             }
-            "Sessions" -> SessionsPanel(
+            "Sessions" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+                SessionsPanel(
                 sessions = sessions,
                 userId = user.id,
                 canDeleteAny = isClubAdmin,
@@ -1146,11 +1152,12 @@ internal fun ClubCoachWorkspace(
                         }
                     }
                 },
-                modifier = Modifier.weight(1f)
-            )
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Edit session" -> editingSession?.let { originalSession ->
                 val session = sessions.find { it.id == originalSession.id } ?: originalSession
-                EditSessionPanel(
+                MaterialTheme(colorScheme = EkotaOverviewColors) { EditSessionPanel(
                     session = session,
                     squads = squads,
                     coaches = members.filter { it.role == "COACH" && it.invitationStatus == "ACTIVE" },
@@ -1225,9 +1232,9 @@ internal fun ClubCoachWorkspace(
                     },
                     onBack = { editingSession = null; tab = "Sessions" },
                     modifier = Modifier.weight(1f)
-                )
+                ) }
             }
-            "Schedule session" -> ScheduleSessionPanel(
+            "Schedule session" -> MaterialTheme(colorScheme = EkotaOverviewColors) { ScheduleSessionPanel(
                 squads = squads,
                 players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 coaches = members.filter { it.role == "COACH" && it.invitationStatus == "ACTIVE" },
@@ -1253,8 +1260,8 @@ internal fun ClubCoachWorkspace(
                         }
                     }
                 }
-            )
-            "Assessments" -> AssessmentsPanel(
+            ) }
+            "Assessments" -> MaterialTheme(colorScheme = EkotaOverviewColors) { AssessmentsPanel(
                 assessments,
                 members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 onSchedule = { showScheduleAssessment = true },
@@ -1297,9 +1304,9 @@ internal fun ClubCoachWorkspace(
                     }
                 },
                 modifier = Modifier.weight(1f)
-            )
+            ) }
             "Edit assessment" -> editingAssessment?.let { assessment ->
-                EditAssessmentPanel(
+                MaterialTheme(colorScheme = EkotaOverviewColors) { EditAssessmentPanel(
                     assessment = assessment,
                     isSaving = assessmentEditSaving,
                     saveError = assessmentEditError,
@@ -1345,10 +1352,10 @@ internal fun ClubCoachWorkspace(
                     },
                     onBack = { editingAssessment = null; tab = "Assessments" },
                     modifier = Modifier.weight(1f)
-                )
+                ) }
             }
             "Assessment" -> activeAssessment?.let { assessment ->
-                AssessmentRunPanel(
+                MaterialTheme(colorScheme = EkotaOverviewColors) { AssessmentRunPanel(
                     assessment = assessment,
                     isSaving = assessmentRunSaving,
                     isGeneratingInsights = assessmentInsightsBusy,
@@ -1445,6 +1452,7 @@ internal fun ClubCoachWorkspace(
                         )
                     }
                 )
+                }
             }
             "Reports" -> ClubReportsPanel(
                 clubName = user.clubName ?: "Club",
@@ -1622,8 +1630,8 @@ internal fun ClubCoachWorkspace(
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            if (tab != "Squads") IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                Icon(Icons.Outlined.Menu, contentDescription = "Open navigation", tint = if (tab == "Overview") EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
+            if (!isEkotaStyledPage) IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                Icon(Icons.Outlined.Menu, contentDescription = "Open navigation", tint = MaterialTheme.colorScheme.primary)
             }
             WorkspaceAction(
                 label = if (loading) "Syncing…" else "Sync",
@@ -3028,6 +3036,21 @@ private fun SquadSortMenu(
 }
 
 @Composable
+private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        color = if (selected) accent else Color.White.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, if (selected) accent else accent.copy(alpha = 0.12f))
+    ) {
+        Row(Modifier.padding(horizontal = 13.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Box(Modifier.size(9.dp).background(if (selected) Color.White else accent, CircleShape))
+            Text(label, color = if (selected) Color.White else EkotaOverviewColors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val accents = listOf(Color(0xFF7448EF), Color(0xFF248AF2), Color(0xFF12A875), Color(0xFFF1842D))
@@ -3317,21 +3340,23 @@ private fun SessionsPanel(
     var fromDate by remember { mutableStateOf("") }
     var throughDate by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("ALL") }
-    var statusMenuOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ClubTrainingSession?>(null) }
     val validRange = (fromDate.isBlank() || isIsoDate(fromDate)) &&
         (throughDate.isBlank() || isIsoDate(throughDate)) &&
         (fromDate.isBlank() || throughDate.isBlank() || fromDate <= throughDate)
     val filteredSessions = sessions.filter { session ->
-        val sessionStatus = when {
-            session.isExecuted -> "DELIVERED"
-            session.isPublished -> "PUBLISHED"
-            else -> "DRAFT"
+        val executionStatus = session.executionLog?.optString("status").orEmpty()
+        val matchesStatus = when (status) {
+            "UPCOMING" -> !session.isExecuted && session.sessionDate >= LocalDate.now().toString()
+            "IN_PROGRESS" -> executionStatus == "IN_PROGRESS" || executionStatus == "PREPARING"
+            "COMPLETED" -> session.isExecuted
+            "CANCELLED" -> executionStatus == "CANCELLED"
+            else -> true
         }
         session.title.contains(search.trim(), ignoreCase = true) &&
             (fromDate.isBlank() || session.sessionDate >= fromDate) &&
             (throughDate.isBlank() || session.sessionDate <= throughDate) &&
-            (status == "ALL" || status == sessionStatus)
+            matchesStatus
     }
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
@@ -3339,20 +3364,46 @@ private fun SessionsPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Training sessions", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    if (canSchedule) WorkspaceAction("Schedule", Icons.Outlined.Add, onSchedule, primary = true, trailingIcon = Icons.Outlined.CalendarMonth)
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFF7448EF), modifier = Modifier.size(52.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp)) }
+                        }
+                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
+                            Text("Training sessions", color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            Text("Plan, deliver and track all coaching sessions.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f), fontSize = 12.sp)
+                        }
+                    }
+                    if (canSchedule) Button(onClick = onSchedule, shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text("  Schedule session", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                    }
                 }
-                WorkspaceField(search, { search = it }, "Filter session title", Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                    DateField(throughDate, { throughDate = it }, "Through date", Modifier.weight(1f))
+                if (isTablet) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        WorkspaceField(search, { search = it }, "Search sessions…", Modifier.weight(1.4f))
+                        DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                        DateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        WorkspaceField(search, { search = it }, "Search sessions…", Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                            DateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                        }
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Status: ")
-                    TextButton(onClick = { statusMenuOpen = true }) { Text(status) }
-                    DropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
-                        listOf("ALL", "DRAFT", "PUBLISHED", "DELIVERED").forEach { value ->
-                            DropdownMenuItem(text = { Text(value) }, onClick = { status = value; statusMenuOpen = false })
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "ALL" to ("All" to Color(0xFF7448EF)),
+                        "UPCOMING" to ("Upcoming" to Color(0xFF7448EF)),
+                        "IN_PROGRESS" to ("In progress" to Color(0xFF18B982)),
+                        "COMPLETED" to ("Completed" to Color(0xFF3D6FE8)),
+                        "CANCELLED" to ("Cancelled" to Color(0xFFEF6672))
+                    ).forEach { (value, chip) ->
+                        EkotaFilterChip(chip.first, status == value, chip.second) {
+                            status = value
                         }
                     }
                 }
@@ -3376,8 +3427,7 @@ private fun SessionsPanel(
                                 onExecute = onExecute,
                                 onReview = onReview,
                                 modifier = Modifier.weight(1f)
-                            )
-                        }
+                            ) }
                         if (pair.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
@@ -3447,28 +3497,62 @@ private fun SessionCard(
 ) {
     var safetyExpanded by remember(session.id) { mutableStateOf(false) }
     val statusColor = sessionStatusColor(session)
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Text(session.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(end = 6.dp))
-                Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.15f)) {
-                    Text(
-                        sessionStatusLabel(session),
-                        color = statusColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+    val thumbnailDrill = allDrills.firstOrNull { drill -> drill.id in session.drillIds && !drill.imageUrl.isNullOrBlank() }
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.size(width = 86.dp, height = 94.dp).clip(RoundedCornerShape(9.dp))) {
+                    val imageUrl = thumbnailDrill?.imageUrl
+                    if (!imageUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = overviewDrillImageSource(imageUrl),
+                            contentDescription = thumbnailDrill.title,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF18223B), Color(0xFF435171)))), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = Color.White, modifier = Modifier.size(39.dp))
+                        }
+                    }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
+                            Text(
+                                if (session.isExecuted) "Completed" else if (session.isPublished) "Published" else "Draft",
+                                color = statusColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
+                        Text(session.squadName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 5.dp).size(17.dp))
+                        Text("${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                        Text(" Led by ${session.coachName ?: session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Surface(color = Color(0xFFE8EEFF), shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+                        Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color(0xFF3159D8), modifier = Modifier.size(18.dp))
+                            Text("  ${session.sessionDate}", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
-            Text("Squad: ${session.squadName}", fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-            if (!session.coachName.isNullOrBlank()) Text("Head Coach: ${session.coachName}", fontSize = 12.sp)
-            Text(
-                "Date: ${session.sessionDate} · Duration: ${session.durationMinutes} min",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
-            )
             if (session.safety.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().clickable { safetyExpanded = !safetyExpanded }.padding(vertical = 2.dp),
@@ -3502,7 +3586,7 @@ private fun SessionCard(
                 }
             }
             val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("${session.drillIds.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 Row(
@@ -3523,6 +3607,39 @@ private fun SessionCard(
 }
 
 @Composable
+private fun EkotaDropdownFilter(
+    label: String,
+    selected: String,
+    options: List<Pair<String, String>>,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember(label) { mutableStateOf(false) }
+    Box(modifier) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("  $label: ${options.firstOrNull { it.first == selected }?.second ?: selected}", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
+            Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (value, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun AssessmentsPanel(
     assessments: List<PlayerAssessment>,
     players: List<ClubMember>,
@@ -3535,9 +3652,7 @@ private fun AssessmentsPanel(
 ) {
     var search by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("ALL") }
-    var statusMenuOpen by remember { mutableStateOf(false) }
     var discipline by remember { mutableStateOf("ALL") }
-    var disciplineMenuOpen by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<PlayerAssessment?>(null) }
     val filteredAssessments = assessments.filter { assessment ->
         (assessment.title.contains(search.trim(), ignoreCase = true) || assessment.playerName.contains(search.trim(), ignoreCase = true)) &&
@@ -3549,25 +3664,32 @@ private fun AssessmentsPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Player assessments", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    WorkspaceAction("Schedule", Icons.Outlined.Add, onSchedule, enabled = players.isNotEmpty(), primary = true, trailingIcon = Icons.Outlined.CalendarMonth)
-                }
-                WorkspaceField(search, { search = it }, "Filter by player or title", Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Status: ")
-                    TextButton(onClick = { statusMenuOpen = true }) { Text(status) }
-                    DropdownMenu(expanded = statusMenuOpen, onDismissRequest = { statusMenuOpen = false }) {
-                        listOf("ALL", "SCHEDULED", "IN_PROGRESS", "COMPLETED").forEach { value ->
-                            DropdownMenuItem(text = { Text(value) }, onClick = { status = value; statusMenuOpen = false })
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF7448EF), modifier = Modifier.size(52.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Assignment, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp)) }
+                        }
+                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
+                            Text("Player assessments", color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            Text("Track player progress and development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f), fontSize = 12.sp)
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Text("Discipline: ")
-                    TextButton(onClick = { disciplineMenuOpen = true }) { Text(discipline) }
-                    DropdownMenu(expanded = disciplineMenuOpen, onDismissRequest = { disciplineMenuOpen = false }) {
-                        (listOf("ALL") + ClubDisciplines).forEach { value ->
-                            DropdownMenuItem(text = { Text(value) }, onClick = { discipline = value; disciplineMenuOpen = false })
-                        }
+                    Button(onClick = onSchedule, enabled = players.isNotEmpty(), shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text("  Schedule assessment", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                    }
+                }
+                if (isTablet) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        WorkspaceField(search, { search = it }, "Search by player or title…", Modifier.weight(1.4f))
+                        EkotaDropdownFilter("Status", status, listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), Modifier.weight(1f)) { status = it }
+                        EkotaDropdownFilter("Discipline", discipline, (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), Modifier.weight(1f)) { discipline = it }
+                    }
+                } else {
+                    WorkspaceField(search, { search = it }, "Search by player or title…", Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EkotaDropdownFilter("Status", status, listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), Modifier.weight(1f)) { status = it }
+                        EkotaDropdownFilter("Discipline", discipline, (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), Modifier.weight(1f)) { discipline = it }
                     }
                 }
             }
@@ -3628,40 +3750,85 @@ private fun AssessmentCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var menuOpen by remember(assessment.id) { mutableStateOf(false) }
+    val disciplineColor = when (assessment.discipline.uppercase()) {
+        "BATTING" -> Color(0xFF2679F4)
+        "BOWLING" -> Color(0xFF7541E8)
+        "FIELDING" -> Color(0xFFE59A12)
+        "KEEPING" -> Color(0xFF13A875)
+        else -> EkotaOverviewColors.primary
+    }
+    val statusColor = when (assessment.status) {
+        "COMPLETED" -> Color(0xFF12A875)
+        "IN_PROGRESS" -> Color(0xFFE59A12)
+        else -> Color(0xFF2679F4)
+    }
+    val initials = assessment.playerName.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "?" }
+    val avatarColors = listOf(Color(0xFFBFD8FF), Color(0xFFDAD0FF), Color(0xFFC6F0DE), Color(0xFFFFDFC4), Color(0xFFFFD5E5))
+    val avatarColor = avatarColors[Math.floorMod(assessment.playerName.hashCode(), avatarColors.size)]
     Card(
         modifier = modifier.clickable(enabled = assessment.status != "SCHEDULED") { onOpen(assessment) },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Text(assessment.playerName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Text(assessment.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
-            Text(
-                "${assessment.discipline} · ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 1.dp)
-            )
-            Text(
-                assessment.status.replace('_', ' '),
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 3.dp, bottom = 6.dp)
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(bottom = 4.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)
-            ) {
-                WorkspaceAction("Edit", Icons.Outlined.Edit, { onEdit(assessment) })
-                when (assessment.status) {
-                    "SCHEDULED" -> {
-                        WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
-                        WorkspaceAction("Start", Icons.Outlined.PlayArrow, { onStart(assessment) }, primary = true)
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Surface(shape = CircleShape, color = avatarColor, modifier = Modifier.size(42.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(initials, color = Color(0xFF29385D), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
-                    "IN_PROGRESS" -> WorkspaceAction("Continue", Icons.Outlined.PlayArrow, { onOpen(assessment) }, primary = true)
-                    "COMPLETED" -> WorkspaceAction("View", Icons.Outlined.Visibility, { onOpen(assessment) }, primary = true)
+                }
+                Column(Modifier.weight(1f).padding(start = 9.dp)) {
+                    Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(assessment.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "Assessment options", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }, onClick = { menuOpen = false; onEdit(assessment) })
+                        if (assessment.status == "SCHEDULED") DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; onDelete() })
+                    }
                 }
             }
+            Surface(shape = RoundedCornerShape(50), color = disciplineColor.copy(alpha = 0.11f), modifier = Modifier.align(Alignment.Start)) {
+                Text(assessment.discipline, color = disciplineColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
+                Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
+                    Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.End)) {
+                AssessmentActionButton("Edit", Icons.Outlined.Edit, Color(0xFF2679F4), onClick = { onEdit(assessment) })
+                when (assessment.status) {
+                    "SCHEDULED" -> AssessmentActionButton("Start", Icons.Outlined.PlayArrow, Color(0xFF7541E8), onClick = { onStart(assessment) }, primary = true)
+                    "IN_PROGRESS" -> AssessmentActionButton("Continue", Icons.Outlined.PlayArrow, Color(0xFF7541E8), onClick = { onOpen(assessment) }, primary = true)
+                    "COMPLETED" -> AssessmentActionButton("View", Icons.Outlined.Visibility, Color(0xFF7541E8), onClick = { onOpen(assessment) }, primary = true)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssessmentActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    primary: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = if (primary) accent else accent.copy(alpha = 0.1f)) {
+        Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = if (primary) Color.White else accent, modifier = Modifier.size(16.dp))
+            Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
     }
 }
