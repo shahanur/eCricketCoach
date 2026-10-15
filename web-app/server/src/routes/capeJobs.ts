@@ -448,6 +448,35 @@ capeJobsRouter.get('/:jobId', async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
+capeJobsRouter.delete('/:jobId', requireRole(['CLUB_ADMIN', 'COACH']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!(await isActiveClubCoach(req))) {
+      res.status(403).json({ error: 'Active club coach membership required.' });
+      return;
+    }
+    const job = await findAccessibleJob(req, req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Analysis not found.' });
+      return;
+    }
+    if (job.status === 'QUEUED' || job.status === 'RUNNING') {
+      res.status(409).json({ error: 'An analysis cannot be deleted while it is running.' });
+      return;
+    }
+    const deleted = await prisma.capeJob.deleteMany({
+      where: { id: job.id, tenantId: req.user!.tenantId }
+    });
+    if (deleted.count === 0) {
+      res.status(404).json({ error: 'Analysis not found.' });
+      return;
+    }
+    res.json({ status: 'OK' });
+  } catch (error) {
+    console.error('CAPE job deletion failed:', error);
+    res.status(500).json({ error: 'Unable to delete the analysis.' });
+  }
+});
+
 capeJobsRouter.get('/:jobId/drills', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const job = await findAccessibleJob(req, req.params.jobId);

@@ -485,7 +485,6 @@ private data class ClubWorkspaceSnapshot(
     val drills: List<Drill>,
     val catalogueDrills: List<Drill>,
     val certificates: List<ClubCertificate>,
-    val videoHistory: List<VideoAnalysisEntry>,
     val logo: String?
 )
 
@@ -515,7 +514,6 @@ internal fun ClubCoachWorkspace(
     var clubDrills by remember { mutableStateOf(drills.filter { it.id.startsWith("drill-club-") }) }
     var catalogueDrills by remember { mutableStateOf(drills) }
     var certificates by remember { mutableStateOf<List<ClubCertificate>>(emptyList()) }
-    var videoHistory by remember { mutableStateOf<List<VideoAnalysisEntry>>(emptyList()) }
     var driveConnected by remember { mutableStateOf(false) }
     var driveEmail by remember { mutableStateOf("") }
     var driveVideos by remember { mutableStateOf<List<DriveVideoFile>>(emptyList()) }
@@ -667,7 +665,6 @@ internal fun ClubCoachWorkspace(
                 val drillsRequest = async { api.getClubDrills(token, clubId) }
                 val catalogueRequest = async { api.getDrills(token, clubId) }
                 val certificatesRequest = async { api.getCertificates(token) }
-                val videoHistoryRequest = async { api.getVideoAnalysisHistory(token) }
                 val logoRequest = async { api.getClubBranding(token) }
                 ClubWorkspaceSnapshot(
                     members = membersRequest.await(),
@@ -676,7 +673,6 @@ internal fun ClubCoachWorkspace(
                     drills = drillsRequest.await(),
                     catalogueDrills = catalogueRequest.await(),
                     certificates = certificatesRequest.await(),
-                    videoHistory = videoHistoryRequest.await(),
                     logo = logoRequest.await()
                 )
             }
@@ -686,7 +682,6 @@ internal fun ClubCoachWorkspace(
             clubDrills = snapshot.drills
             catalogueDrills = snapshot.catalogueDrills
             certificates = snapshot.certificates
-            videoHistory = snapshot.videoHistory
             clubLogo = snapshot.logo
             try {
                 val (scopedMembers, scopedSessions) = api.getClubSessionReportData(token)
@@ -785,7 +780,7 @@ internal fun ClubCoachWorkspace(
         val isTablet = maxWidth >= 600.dp
         val isEkotaStyledPage = tab in setOf(
             "Overview", "Squads", "Sessions", "Edit session", "Schedule session",
-            "Assessments", "Edit assessment", "Assessment"
+            "Assessments", "Edit assessment", "Assessment", "Video Analysis"
         )
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
@@ -1535,11 +1530,10 @@ internal fun ClubCoachWorkspace(
                 onPromote = { selectedPromotionPlayer = it },
                 modifier = Modifier.weight(1f)
             )
-            "Video Analysis" -> VideoAnalysisPanel(
+            "Video Analysis" -> MaterialTheme(colorScheme = EkotaOverviewColors) { VideoAnalysisPanel(
                 api = api,
                 token = token,
                 players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
-                history = videoHistory,
                 onRefreshDrive = {
                     scope.launch {
                         try {
@@ -1571,17 +1565,8 @@ internal fun ClubCoachWorkspace(
                         }
                     }
                 },
-                onDriveAnalyzed = { driveFileId, discipline, player ->
-                    val result = api.analyzeDriveVideo(token, driveFileId, discipline, player)
-                    videoHistory = listOf(result) + videoHistory
-                    notice = "Google Drive video analysis completed."
-                },
-                onAnalyzed = { result ->
-                    videoHistory = listOf(result) + videoHistory
-                    notice = "Video analysis completed."
-                },
                 modifier = Modifier.weight(1f)
-            )
+            ) }
             "Settings" -> ClubSettingsPanel(
                 logoUrl = clubLogo,
                 onSave = { logoData ->

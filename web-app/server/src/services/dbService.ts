@@ -1337,6 +1337,11 @@ export class DbService {
     };
   }
 
+  static async deleteVideoAnalysis(id: string, userId: string) {
+    const deleted = await prisma.videoAnalysis.deleteMany({ where: { id, userId } });
+    return deleted.count > 0;
+  }
+
   static async markVideoAnalysisDrillAdopted(id: string) {
     try {
       const updated = await prisma.videoAnalysis.update({

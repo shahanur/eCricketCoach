@@ -139,7 +139,10 @@ internal fun StandaloneCapeAnalysisPanel(
             try {
                 val next = api.getCapeJob(token, id)
                 job = next
-                if (!next.isPending) break
+                if (!next.isPending) {
+                    onJobQueued()
+                    break
+                }
             } catch (failure: CancellationException) {
                 throw failure
             } catch (_: Exception) {
@@ -233,8 +236,6 @@ internal fun StandaloneCapeAnalysisPanel(
                 Text(if (job?.status == "RUNNING") "Analysing video…" else "Queued for analysis…", fontSize = 12.sp)
             }
             if (job?.status == "FAILED") Text(job?.errorMessage ?: "The detailed analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-            job?.result?.let { result -> CapeResultPanel(api, token, result, job?.jobId, player?.name, canAssign = true) }
-
             if (setupOpen && player != null && target != null) {
                 HorizontalDivider()
                 Text("Video: ${sourceLabel ?: "No video selected"}", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -403,5 +404,6 @@ internal fun StandaloneCapeAnalysisPanel(
             }
         }
     }
+
 }
 

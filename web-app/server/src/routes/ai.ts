@@ -154,6 +154,33 @@ aiRouter.get('/analyze/history', async (req: Request, res: Response) => {
   }
 });
 
+// Delete only an analysis owned by the authenticated user.
+aiRouter.delete('/analyze/:id', async (req: Request, res: Response) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+
+  let userId: string;
+  try {
+    const decoded = jwt.verify(token, jwtSecret) as { userId?: string };
+    if (!decoded.userId) return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+    userId = decoded.userId;
+  } catch {
+    return res.status(401).json({ error: 'Your session has expired. Please sign in again.' });
+  }
+
+  try {
+    const deleted = await DbService.deleteVideoAnalysis(req.params.id, userId);
+    if (!deleted) return res.status(404).json({ error: 'Analysis not found.' });
+    return res.json({ status: 'OK' });
+  } catch (err: any) {
+    console.error('Failed to delete video analysis:', err);
+    return res.status(500).json({ error: 'Failed to delete the analysis.' });
+  }
+});
+
 // Fetch a single saved analysis result in full detail (for the detail view).
 aiRouter.get('/analyze/:id', async (req: Request, res: Response) => {
   const authHeader = req.headers['authorization'];

@@ -833,6 +833,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
     }
 
+    suspend fun deleteVideoAnalysis(token: String, analysisId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/videos/analyze/${URLEncoder.encode(analysisId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
     suspend fun analyzeVideo(
         context: Context,
         token: String,
@@ -1025,6 +1033,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
 
     suspend fun getCapeJob(token: String, jobId: String): CapeJob = withContext(Dispatchers.IO) {
         JSONObject(request("/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}", token)).getJSONObject("job").toCapeJob()
+    }
+
+    suspend fun deleteCapeJob(token: String, jobId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
     }
 
     suspend fun getPlayerCapeJobs(token: String, playerId: String): List<CapeJobSummary> = withContext(Dispatchers.IO) {
