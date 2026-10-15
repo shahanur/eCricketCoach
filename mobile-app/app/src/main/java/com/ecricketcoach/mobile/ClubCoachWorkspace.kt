@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,8 +43,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -77,6 +77,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
@@ -110,6 +111,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -121,17 +123,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -139,9 +148,79 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.io.IOException
+import java.util.Locale
 
 private val ClubDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
+private data class OverviewQuickAction(
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: Color,
+    val endColor: Color,
+    val destination: String
+)
+private val EkotaOverviewColors = lightColorScheme(
+    primary = Color(0xFF5134D8),
+    onPrimary = Color.White,
+    secondary = Color(0xFF2589F3),
+    background = Color(0xFFF7F8FD),
+    surface = Color.White,
+    surfaceVariant = Color(0xFFF0EEFF),
+    onSurface = Color(0xFF151B35),
+    onSurfaceVariant = Color(0xFF5B6782),
+    outline = Color(0xFFDDE2F1),
+    outlineVariant = Color(0xFFE8EAF3),
+    error = Color(0xFFD94A66)
+)
+
+private fun Modifier.ekotaOverviewBackdrop(): Modifier = drawBehind {
+    val w = size.width
+    val h = size.height
+    drawRect(
+        Brush.linearGradient(
+            colors = listOf(Color(0xFFF9FAFF), Color(0xFFF5F6FD), Color(0xFFF2F0FF)),
+            start = Offset.Zero,
+            end = Offset(w, h)
+        )
+    )
+    val upperWash = Path().apply {
+        moveTo(w * 0.72f, 0f)
+        cubicTo(w * 0.84f, h * 0.04f, w * 0.82f, h * 0.15f, w * 0.75f, h * 0.27f)
+        cubicTo(w * 0.67f, h * 0.39f, w * 0.65f, h * 0.48f, w * 0.72f, h * 0.55f)
+        cubicTo(w * 0.8f, h * 0.63f, w * 0.88f, h * 0.47f, w * 0.94f, h * 0.35f)
+        cubicTo(w * 0.99f, h * 0.24f, w, h * 0.11f, w, 0f)
+        close()
+    }
+    drawPath(
+        upperWash,
+        Brush.linearGradient(listOf(Color(0x407F68F5), Color(0x147C6AF1)), start = Offset(w * 0.7f, 0f), end = Offset(w * 0.95f, h * 0.58f))
+    )
+    val lowerWash = Path().apply {
+        moveTo(0f, h * 0.75f)
+        cubicTo(w * 0.12f, h * 0.76f, w * 0.18f, h * 0.95f, w * 0.34f, h * 0.96f)
+        cubicTo(w * 0.5f, h * 0.98f, w * 0.58f, h * 0.86f, w * 0.72f, h * 0.94f)
+        cubicTo(w * 0.84f, h, w * 0.93f, h * 0.88f, w, h * 0.83f)
+        lineTo(w, h)
+        lineTo(0f, h)
+        close()
+    }
+    drawPath(
+        lowerWash,
+        Brush.linearGradient(listOf(Color(0x4D8873F5), Color(0x1A9D9FF3), Color(0x0DFFFFFF)), start = Offset(0f, h * 0.78f), end = Offset(w, h))
+    )
+    val lowerHighlight = Path().apply {
+        moveTo(0f, h * 0.85f)
+        cubicTo(w * 0.17f, h * 0.84f, w * 0.21f, h * 0.97f, w * 0.4f, h * 0.98f)
+        cubicTo(w * 0.58f, h, w * 0.72f, h * 0.91f, w, h * 0.94f)
+        lineTo(w, h)
+        lineTo(0f, h)
+        close()
+    }
+    drawPath(lowerHighlight, Color(0x20FFFFFF))
+}
+
 // Material has no wicket-keeping gloves, so draw an outlined mirrored pair in the same 24dp style.
 private fun androidx.compose.ui.graphics.vector.PathBuilder.keepingGlove(originX: Float, originY: Float, scale: Float, mirrored: Boolean) {
     // Source glove spans x 5.3..17, y 4.5..21.2; mirrored copies flip horizontally around originX.
@@ -195,6 +274,7 @@ private val KeepingGloveIcon: androidx.compose.ui.graphics.vector.ImageVector by
         keepingGlove(originX = 22.7f, originY = 5.2f, scale = 0.8f, mirrored = true)
     }.build()
 }
+
 private fun disciplineIcon(discipline: String) = when (discipline.uppercase()) {
     "BATTING" -> Icons.Outlined.SportsCricket
     "BOWLING" -> Icons.Outlined.SportsBaseball
@@ -706,119 +786,100 @@ internal fun ClubCoachWorkspace(
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val sectionTab = workspaceSectionFor(tab)
         val bottomTabs = listOf("Overview", "Squads", "Sessions", "Assessments", "Video Analysis")
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         ModalNavigationDrawer(
-            drawerState = drawerState,
-            gesturesEnabled = !isTablet && drawerState.isOpen,
-            drawerContent = {
-                if (!isTablet) {
-                    ModalDrawerSheet(Modifier.widthIn(max = 300.dp)) {
-                        Column(Modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 12.dp)) {
-                            Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    painterResource(R.drawable.ic_launcher),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column {
-                                    Text("eCricketCoach", fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = MaterialTheme.colorScheme.primary)
-                                    Text(
-                                        user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                        maxLines = 1
-                                    )
+                drawerState = drawerState,
+                gesturesEnabled = true,
+                drawerContent = {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                ModalDrawerSheet(
+                    modifier = Modifier.width(210.dp),
+                    drawerContainerColor = Color(0xFF111A35),
+                    drawerContentColor = Color.White
+                ) {
+                    Column(Modifier.fillMaxSize().padding(vertical = 14.dp)) {
+                        Row(Modifier.padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF5631DC), modifier = Modifier.size(42.dp)) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                                 }
                             }
-                            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                            Spacer(Modifier.width(11.dp))
+                            Column {
+                                Text("Ekota", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color.White)
+                                Text("Academy", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFFD2D8EB))
+                            }
+                        }
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = Color.White.copy(alpha = 0.14f))
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
                             workspaceTabs.forEach { item ->
-                                NavigationDrawerItem(
-                                    label = { Text(item, fontWeight = FontWeight.SemiBold) },
-                                    icon = { Icon(workspaceTabIcon(item), contentDescription = null) },
-                                    selected = sectionTab == item,
-                                    onClick = {
-                                        tab = item
-                                        scope.launch { drawerState.close() }
-                                    },
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp)
-                                )
+                                val selected = sectionTab == item
+                                Box(
+                                    Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(24.dp))
+                                        .background(if (selected) Brush.horizontalGradient(listOf(Color(0xFF7527F5), Color(0xFF3448DF))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                                        .clickable {
+                                            tab = item
+                                            scope.launch { drawerState.close() }
+                                        }
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(workspaceTabIcon(item), contentDescription = null, tint = if (selected) Color.White else Color(0xFFD2D8EB), modifier = Modifier.size(21.dp))
+                                        Text(item, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
+                                    }
+                                }
+                                Spacer(Modifier.height(5.dp))
+                            }
+                        }
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = Color.White.copy(alpha = 0.14f))
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val initials = user.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "U" }
+                            Surface(shape = CircleShape, color = Color(0xFF8A65F5), modifier = Modifier.size(38.dp)) {
+                                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                            }
+                            Column(Modifier.weight(1f).padding(start = 9.dp)) {
+                                Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = 12.sp)
                             }
                         }
                     }
                 }
-            }
-        ) {
-        Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().weight(1f)) {
-            if (isTablet) {
-                NavigationRail(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    workspaceTabs.forEach { item ->
-                        NavigationRailItem(
-                            selected = sectionTab == item,
-                            onClick = { tab = item },
-                            icon = { Icon(workspaceTabIcon(item), contentDescription = item) },
-                            label = { Text(item, fontSize = 10.sp, maxLines = 1) },
-                            colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                indicatorColor = MaterialTheme.colorScheme.onPrimary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                                unselectedTextColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                            )
-                        )
                     }
                 }
-            }
+            ) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().weight(1f)) {
             Column(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
+                    .then(
+                        if (tab == "Overview") Modifier.ekotaOverviewBackdrop()
+                        else Modifier.background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
+                    )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (!isTablet) {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.padding(end = 4.dp)) {
-                            Icon(Icons.Outlined.Menu, contentDescription = "Open menu", tint = MaterialTheme.colorScheme.primary)
+                if (tab != "Overview") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Welcome, ${user.name}", fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 1)
+                        }
+                        IconButton(onClick = onToggleTheme) {
+                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = onSignOut) {
+                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = MaterialTheme.colorScheme.error)
                         }
                     }
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Welcome, ${user.name}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                        Text(
-                            user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            fontSize = 11.sp,
-                            maxLines = 1
-                        )
-                    }
-                    IconButton(onClick = onToggleTheme) {
-                        Icon(
-                            if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                            contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(onClick = onSignOut) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.Logout,
-                            contentDescription = "Sign out",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f))
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                 if (!isTablet && sectionTab != tab) {
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 2.dp),
@@ -885,20 +946,26 @@ internal fun ClubCoachWorkspace(
             }
         }
         when (tab) {
-            "Overview" -> OverviewPanel(
-                coachName = user.name,
-                clubName = user.clubName ?: "Club",
-                userId = user.id,
-                isClubAdmin = isClubAdmin,
-                members = members,
-                squads = squads,
-                sessions = sessions,
-                assessments = assessments,
-                loading = loading,
-                onOpen = { tab = it },
-                onExecute = onExecuteSession,
-                modifier = Modifier.weight(1f)
-            )
+            "Overview" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+                OverviewPanel(
+                    coachName = user.name,
+                    clubName = user.clubName ?: "Club",
+                    isDark = isDark,
+                    userId = user.id,
+                    isClubAdmin = isClubAdmin,
+                    members = members,
+                    squads = squads,
+                    sessions = sessions,
+                    drills = drills + clubDrills,
+                    assessments = assessments,
+                    loading = loading,
+                    onOpen = { tab = it },
+                    onExecute = onExecuteSession,
+                    onToggleTheme = onToggleTheme,
+                    onSignOut = onSignOut,
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Delivered sessions" -> DeliveredSessionsPanel(
                 clubName = user.clubName ?: "Club",
                 members = members,
@@ -1539,7 +1606,10 @@ internal fun ClubCoachWorkspace(
             )
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                Icon(Icons.Outlined.Menu, contentDescription = "Open navigation", tint = if (tab == "Overview") EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
+            }
             WorkspaceAction(
                 label = if (loading) "Syncing…" else "Sync",
                 icon = Icons.Outlined.Sync,
@@ -1576,6 +1646,8 @@ internal fun ClubCoachWorkspace(
                     )
                 }
             }
+        }
+        }
         }
         }
         }
@@ -1812,6 +1884,97 @@ internal fun ClubCoachWorkspace(
     }
 }
 
+@Composable
+private fun ClubWorkspaceSidebar(
+    user: CoachUser,
+    tabs: List<String>,
+    selectedTab: String,
+    collapsed: Boolean,
+    onToggleCollapsed: () -> Unit,
+    onSelectTab: (String) -> Unit
+) {
+    val sidebar = Color(0xFF111A35)
+    val width = if (collapsed) 76.dp else 224.dp
+    Column(
+        Modifier.fillMaxHeight().width(width).background(sidebar).padding(horizontal = if (collapsed) 8.dp else 12.dp, vertical = 12.dp)
+    ) {
+        if (collapsed) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.SportsCricket, contentDescription = "Ekota Academy", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+            IconButton(onClick = onToggleCollapsed, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp)) {
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Expand navigation", tint = Color.White)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("Ekota", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                    Text("Academy", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+                }
+                IconButton(onClick = onToggleCollapsed) {
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Collapse navigation", tint = Color.White, modifier = Modifier.graphicsLayer(scaleX = -1f))
+                }
+            }
+        }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Spacer(Modifier.height(22.dp))
+            tabs.forEach { tab ->
+                val selected = selectedTab == tab
+                val selectedBrush = Brush.horizontalGradient(listOf(Color(0xFF7527F5), Color(0xFF3448DF)))
+                Box(
+                    Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(24.dp))
+                        .background(if (selected) selectedBrush else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                        .clickable { onSelectTab(tab) }
+                        .padding(horizontal = if (collapsed) 0.dp else 14.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            workspaceTabIcon(tab),
+                            contentDescription = if (collapsed) tab else null,
+                            tint = if (selected) Color.White else Color(0xFFD2D8EB),
+                            modifier = Modifier.size(21.dp)
+                        )
+                        if (!collapsed) {
+                            Text(tab, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = if (collapsed) 4.dp else 6.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (collapsed) Arrangement.Center else Arrangement.Start
+        ) {
+            val initials = user.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "U" }
+            Surface(shape = CircleShape, color = Color(0xFF8A65F5), modifier = Modifier.size(38.dp)) {
+                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+            }
+            if (!collapsed) {
+                Column(Modifier.weight(1f).padding(start = 9.dp)) {
+                    Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
 private fun workspaceSectionFor(tab: String): String = when (tab) {
     "Delivered sessions", "Participants" -> "Overview"
     "Edit squad" -> "Squads"
@@ -1871,18 +2034,27 @@ private fun WorkspaceTab(label: String, selected: Boolean, onClick: () -> Unit) 
 private fun OverviewPanel(
     coachName: String,
     clubName: String,
+    isDark: Boolean,
     userId: String,
     isClubAdmin: Boolean,
     members: List<ClubMember>,
     squads: List<ClubSquad>,
     sessions: List<ClubTrainingSession>,
+    drills: List<Drill>,
     assessments: List<PlayerAssessment>,
     loading: Boolean,
     onOpen: (String) -> Unit,
     onExecute: (ClubTrainingSession) -> Unit,
+    onToggleTheme: () -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val today = LocalDate.now().toString()
+    val greeting = when (LocalTime.now().hour) {
+        in 5..11 -> "Good morning,"
+        in 12..16 -> "Good afternoon,"
+        else -> "Good evening,"
+    }
     // Matches the web app's CoachOperations dashboard: "upcoming" means not yet executed,
     // with no date restriction (overdue, undelivered sessions still count as upcoming).
     val upcomingSessions = sessions
@@ -1895,76 +2067,128 @@ private fun OverviewPanel(
         .filter { it.status != "COMPLETED" && it.scheduledDate >= today }
         .sortedBy { it.scheduledDate }
     val deliveredSessions = sessions.count { it.isExecuted }
+    val quickActions = buildList {
+        add(OverviewQuickAction("Create session", Icons.Outlined.CalendarMonth, Color(0xFF6124EB), Color(0xFF8961F2), "Schedule session"))
+        add(OverviewQuickAction("Add participant", Icons.Outlined.Group, Color(0xFF1485F1), Color(0xFF53A4FC), if (isClubAdmin) "Members" else "Participants"))
+        add(OverviewQuickAction("New assessment", Icons.Outlined.Assignment, Color(0xFF0FA675), Color(0xFF32C997), "Assessments"))
+        add(OverviewQuickAction("View reports", Icons.Outlined.BarChart, Color(0xFFF0762B), Color(0xFFFFA344), "Reports"))
+    }
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Text("COACH WORKSPACE", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("Plan sessions, monitor club events, and measure development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
-        }
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(greeting, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                        IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
+                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = onSignOut, modifier = Modifier.size(38.dp)) {
+                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(coachName, color = MaterialTheme.colorScheme.onSurface, fontSize = if (isTablet) 32.sp else 27.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(" 👋", fontSize = 24.sp)
+                            }
+                            Text("Let’s plan, coach and grow together.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
+                            Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Text(clubName, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                                Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
+                            }
+                        }
+                    }
+                }
+            }
         if (isTablet) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SummaryCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Modifier.weight(1f), onClick = { onOpen("Sessions") })
-                    SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, Modifier.weight(1f), onClick = { onOpen("Assessments") })
+                    OverviewMetricCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Color(0xFF7448EF), Modifier.weight(1f)) { onOpen("Sessions") }
+                    OverviewMetricCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, Color(0xFF248AF2), Modifier.weight(1f)) { onOpen("Assessments") }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, Modifier.weight(1f), onClick = { onOpen("Delivered sessions") })
-                    SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, Modifier.weight(1f), onClick = { onOpen("Participants") })
+                    OverviewMetricCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, Color(0xFF12A875), Modifier.weight(1f)) { onOpen("Delivered sessions") }
+                    OverviewMetricCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, Color(0xFFF1842D), Modifier.weight(1f)) { onOpen("Participants") }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OverviewList("Next sessions and events", upcomingSessions.take(7), Modifier.weight(1f)) { session ->
-                        Text(session.title, fontWeight = FontWeight.SemiBold)
-                        Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+                    OverviewList("Next sessions and events", upcomingSessions.take(1), Modifier.weight(1f), headerIcon = Icons.Outlined.CalendarMonth, onRowClick = { onOpen("Sessions") }, onViewAll = { onOpen("Sessions") }) { session ->
+                        OverviewSessionContent(session, drills.firstOrNull { it.id in session.drillIds && !it.imageUrl.isNullOrBlank() })
                     }
-                    OverviewList("My upcoming sessions", myUpcomingSessions.take(7), Modifier.weight(1f), onRowClick = onExecute) { session ->
-                        Text(session.title, fontWeight = FontWeight.SemiBold)
-                        Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+                    OverviewList("My upcoming sessions", myUpcomingSessions.take(1), Modifier.weight(1f), headerIcon = Icons.Outlined.AccessTime, onRowClick = onExecute, onViewAll = { onOpen("Sessions") }) { session ->
+                        OverviewSessionContent(session, drills.firstOrNull { it.id in session.drillIds && !it.imageUrl.isNullOrBlank() })
                     }
                 }
             }
         } else {
-            item { SummaryCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, onClick = { onOpen("Sessions") }) }
-            item { SummaryCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, onClick = { onOpen("Assessments") }) }
-            item { SummaryCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, onClick = { onOpen("Delivered sessions") }) }
-            item { SummaryCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, onClick = { onOpen("Participants") }) }
-            item { OverviewList("Next sessions and events", upcomingSessions.take(7)) { session ->
-                Text(session.title, fontWeight = FontWeight.SemiBold)
-                Text("${session.squadName} · ${session.durationMinutes} min · Led by ${session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+            item { OverviewMetricCard("Sessions", sessionCount.toString(), "Scheduled or ready to deliver", Icons.Outlined.CalendarMonth, Color(0xFF7448EF)) { onOpen("Sessions") } }
+            item { OverviewMetricCard("Assessments", upcomingAssessments.size.toString(), "Due or in progress", Icons.Outlined.Assignment, Color(0xFF248AF2)) { onOpen("Assessments") } }
+            item { OverviewMetricCard("Delivered sessions", deliveredSessions.toString(), "Current coaching season", Icons.Outlined.CheckCircle, Color(0xFF12A875)) { onOpen("Delivered sessions") } }
+            item { OverviewMetricCard("Active participants", members.count { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" }.toString(), "Players in your club", Icons.Outlined.Group, Color(0xFFF1842D)) { onOpen("Participants") } }
+            item { OverviewList("Next sessions and events", upcomingSessions.take(1), headerIcon = Icons.Outlined.CalendarMonth, onRowClick = { onOpen("Sessions") }, onViewAll = { onOpen("Sessions") }) { session ->
+                OverviewSessionContent(session, drills.firstOrNull { it.id in session.drillIds && !it.imageUrl.isNullOrBlank() })
             } }
-            item { OverviewList("My upcoming sessions", myUpcomingSessions.take(7), onRowClick = onExecute) { session ->
-                Text(session.title, fontWeight = FontWeight.SemiBold)
-                Text("${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Text(session.sessionDate, fontSize = 12.sp, color = Color(0xFF8B88FF), fontWeight = FontWeight.SemiBold)
+            item { OverviewList("My upcoming sessions", myUpcomingSessions.take(1), headerIcon = Icons.Outlined.AccessTime, onRowClick = onExecute, onViewAll = { onOpen("Sessions") }) { session ->
+                OverviewSessionContent(session, drills.firstOrNull { it.id in session.drillIds && !it.imageUrl.isNullOrBlank() })
             } }
         }
-        item { Text("Assessments", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-        if (upcomingAssessments.isEmpty()) {
-            item { Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp)) }
-        } else if (isTablet) {
-            items(upcomingAssessments.take(6).chunked(2)) { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    pair.forEach { assessment -> AssessmentOverviewCard(assessment, Modifier.weight(1f)) { onOpen("Assessments") } }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFEDEBFF),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Bolt, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
+                        Text("  Quick actions", color = Color(0xFF171D37), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    if (isTablet) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            quickActions.forEach { action ->
+                                OverviewQuickActionCard(action, Modifier.weight(1f)) { onOpen(action.destination) }
+                            }
+                        }
+                    } else {
+                        quickActions.chunked(2).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                                row.forEach { action -> OverviewQuickActionCard(action, Modifier.weight(1f)) { onOpen(action.destination) } }
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
                 }
-            }
-        } else {
-            items(upcomingAssessments.take(6)) { assessment ->
-                AssessmentOverviewCard(assessment, Modifier.fillMaxWidth()) { onOpen("Assessments") }
             }
         }
         item {
-            Text("Coaching practice library", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LibraryLink("ECB coaching resources")
-                LibraryLink("ICC development guidance")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFEDEBFF),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.LibraryBooks, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
+                        Text("  Coaching practice library", color = Color(0xFF171D37), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LibraryLink("ECB coaching resources")
+                        LibraryLink("ICC development guidance")
+                    }
+                }
             }
         }
         if (loading && members.isEmpty() && sessions.isEmpty()) {
@@ -1975,58 +2199,194 @@ private fun OverviewPanel(
 }
 
 @Composable
-private fun AssessmentOverviewCard(assessment: PlayerAssessment, modifier: Modifier = Modifier, onView: () -> Unit) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) {
-            Text(assessment.playerName, fontWeight = FontWeight.SemiBold)
-            Text("${assessment.title} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(assessment.scheduledDate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
-                WorkspaceAction("View", Icons.Outlined.Visibility, onView)
+private fun OverviewMetricCard(
+    title: String,
+    value: String,
+    detail: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    BoxWithConstraints(modifier) {
+        val scale = (maxWidth.value / 356f).coerceIn(0.9f, 1.12f)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onClick,
+            colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.14f)),
+            shape = RoundedCornerShape(18.dp * scale),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 74.dp * scale)
+                    .padding(horizontal = 14.dp * scale, vertical = 11.dp * scale),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(color = accent, shape = RoundedCornerShape(12.dp * scale), modifier = Modifier.size(42.dp * scale)) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(21.dp * scale))
+                    }
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp * scale)) {
+                    Text(title, color = Color(0xFF17203B), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp * scale)
+                    Text(detail, color = Color(0xFF56617D), fontSize = 13.sp * scale, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(value, color = accent, fontSize = 29.sp * scale, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp * scale))
+                Box(
+                    Modifier.padding(start = 8.dp * scale).size(22.dp * scale).background(accent.copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp * scale))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun <T> OverviewList(title: String, rows: List<T>, modifier: Modifier = Modifier, onRowClick: ((T) -> Unit)? = null, content: @Composable (T) -> Unit) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        if (rows.isEmpty()) {
-            Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 12.dp))
-        } else {
-            rows.forEach { row ->
-                val cardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                val cardShape = RoundedCornerShape(16.dp)
-                val cardElevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                if (onRowClick != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onRowClick(row) },
-                        colors = cardColors,
-                        shape = cardShape,
-                        elevation = cardElevation
-                    ) {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+private fun OverviewQuickActionCard(action: OverviewQuickAction, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(15.dp),
+        color = Color.Transparent,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp)
+                .background(Brush.horizontalGradient(listOf(action.color, action.endColor)), RoundedCornerShape(15.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(27.dp)) {
+                Icon(action.icon, contentDescription = null, tint = Color.White, modifier = Modifier.fillMaxSize())
+                val badge = when (action.label) {
+                    "Create session", "Add participant" -> "+"
+                    "New assessment" -> "✓"
+                    else -> null
+                }
+                badge?.let {
+                    Surface(modifier = Modifier.align(Alignment.TopEnd).size(12.dp), color = Color.White, shape = CircleShape) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(it, color = action.color, fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold)
+                        }
                     }
-                } else {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = cardColors,
-                        shape = cardShape,
-                        elevation = cardElevation
-                    ) {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) { content(row) }
+                }
+            }
+            Text(action.label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Box(Modifier.size(23.dp).background(Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> OverviewList(
+    title: String,
+    rows: List<T>,
+    modifier: Modifier = Modifier,
+    onRowClick: ((T) -> Unit)? = null,
+    headerIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onViewAll: (() -> Unit)? = null,
+    content: @Composable (T) -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+        shadowElevation = 3.dp
+    ) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                headerIcon?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) }
+                Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f).padding(start = if (headerIcon != null) 7.dp else 0.dp))
+                if (onViewAll != null) Text("View all →", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onViewAll))
+            }
+            if (rows.isEmpty()) {
+                Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                rows.forEach { row ->
+                    val sessionCard = @Composable {
+                        Column(Modifier.fillMaxWidth().padding(3.dp)) { content(row) }
+                    }
+                    if (onRowClick != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onRowClick(row) },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(13.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) { sessionCard() }
+                    } else {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(13.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) { sessionCard() }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) {
+    val thumbnail = drill?.imageUrl?.let(::overviewDrillImageSource)
+    val sessionDate = runCatching { LocalDate.parse(session.sessionDate).format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy", Locale.getDefault())) }
+        .getOrDefault(session.sessionDate)
+    Row(
+        Modifier.fillMaxWidth().padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp)
+    ) {
+        Box(Modifier.size(width = 72.dp, height = 92.dp).clip(RoundedCornerShape(8.dp))) {
+            if (thumbnail != null) {
+                AsyncImage(
+                    model = thumbnail,
+                    contentDescription = drill?.title ?: "Session drill",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF18223B), Color(0xFF435171)))), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(36.dp))
+                }
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(Icons.Outlined.Group, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), modifier = Modifier.size(19.dp))
+                Text(session.squadName, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), modifier = Modifier.padding(start = 4.dp).size(16.dp))
+                Text("${session.durationMinutes} min", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
+                Text("  Led by ${session.coachName ?: session.coachId ?: "Coach"}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Surface(color = Color(0xFFE8EEFF), shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+                Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color(0xFF3159D8), modifier = Modifier.size(18.dp))
+                    Text("  $sessionDate", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
+        Box(Modifier.size(28.dp).background(Color(0xFFE8EEFF), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Open session", tint = Color(0xFF3159D8), modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+private fun overviewDrillImageSource(url: String): String = when {
+    url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:") -> url
+    else -> BuildConfig.API_BASE_URL.trimEnd('/') + "/" + url.trimStart('/')
 }
 
 @Composable
@@ -2036,7 +2396,7 @@ private fun LibraryLink(label: String) {
         shape = RoundedCornerShape(14.dp),
         tonalElevation = 3.dp
     ) {
-        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = 12.sp, modifier = Modifier.padding(12.dp))
+        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = 13.sp, modifier = Modifier.padding(12.dp))
     }
 }
 
