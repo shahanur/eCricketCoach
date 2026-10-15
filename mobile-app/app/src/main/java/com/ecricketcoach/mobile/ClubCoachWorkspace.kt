@@ -697,14 +697,15 @@ internal fun ClubCoachWorkspace(
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
+                add("Video Analysis")
                 if (isClubAdmin) add("Members")
-                addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Templates", "Progression", "Video analysis"))
+                addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Templates", "Progression"))
                 if (isClubAdmin) add("Settings")
             }
         }
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val sectionTab = workspaceSectionFor(tab)
-        val bottomTabs = listOf("Overview", "Squads", "Sessions", "Assessments")
+        val bottomTabs = listOf("Overview", "Squads", "Sessions", "Assessments", "Video Analysis")
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = !isTablet && drawerState.isOpen,
@@ -1473,7 +1474,7 @@ internal fun ClubCoachWorkspace(
                 onPromote = { selectedPromotionPlayer = it },
                 modifier = Modifier.weight(1f)
             )
-            "Video analysis" -> VideoAnalysisPanel(
+            "Video Analysis" -> VideoAnalysisPanel(
                 api = api,
                 token = token,
                 players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
@@ -1831,7 +1832,7 @@ private fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector
     "Club drills" -> Icons.Outlined.LibraryBooks
     "Templates" -> Icons.Outlined.Description
     "Progression" -> Icons.Outlined.TrendingUp
-    "Video analysis" -> Icons.Outlined.Videocam
+    "Video Analysis" -> Icons.Outlined.Videocam
     "Settings" -> Icons.Outlined.Settings
     else -> Icons.Outlined.Dashboard
 }

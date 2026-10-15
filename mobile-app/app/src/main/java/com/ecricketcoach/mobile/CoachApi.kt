@@ -8,9 +8,11 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.DataOutputStream
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.UUID
 
 data class KinematicsOverlay(
     val discipline: String,
@@ -228,7 +230,36 @@ data class CapeInput(
 ) {
     fun calibrationJson(): String =
         JSONArray(calibrationPoints.map { (x, y) -> JSONArray().put(x).put(y) }).toString()
+
+    fun calibrationArray(): JSONArray =
+        JSONArray(calibrationPoints.map { (x, y) -> JSONArray().put(x).put(y) })
 }
+
+data class CapeManualFrames(
+    val preContact: List<Int> = emptyList(),
+    val pointOfContact: List<Int> = emptyList(),
+    val postContact: List<Int> = emptyList()
+) {
+    fun toJson() = JSONObject()
+        .put("pre_contact", JSONArray(preContact))
+        .put("point_of_contact", JSONArray(pointOfContact))
+        .put("post_contact", JSONArray(postContact))
+
+    fun isValid(): Boolean = pointOfContact.isNotEmpty() &&
+        (preContact.isEmpty() || preContact.max() < pointOfContact.min()) &&
+        (postContact.isEmpty() || pointOfContact.max() < postContact.min())
+}
+
+data class CapeContactFrame(val index: Int, val timeSeconds: Double, val imageBase64: String)
+
+data class CapeContactCandidates(
+    val framerateFps: Double,
+    val frameCount: Int,
+    val suggestedFrame: Int?,
+    val suggestionSource: String,
+    val suggestionNote: String?,
+    val frames: List<CapeContactFrame>
+)
 
 internal fun sessionPlanUpdates(
     session: ClubTrainingSession,
@@ -899,6 +930,99 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         JSONObject(body).getString("jobId")
     }
 
+    suspend fun analyzePlayerVideoWithCape(
+        context: Context,
+        token: String,
+        playerId: String,
+        uri: Uri?,
+        driveFileId: String?,
+        input: CapeInput,
+        manualFrames: CapeManualFrames? = null
+    ): String = withContext(Dispatchers.IO) {
+        val fields = buildList {
+            add("playerId" to playerId)
+            add("target" to input.target)
+            add("handedness" to input.handedness)
+            input.shotType?.let { add("shot_type" to it) }
+            input.bowlerType?.let { add("bowler_type" to it) }
+            add("calibration_points" to input.calibrationJson())
+            manualFrames?.let { add("manual_frames" to it.toJson().toString()) }
+        }
+        val body = if (uri != null) {
+            postVideoMultipart(context, token, "/api/club/cape-jobs", uri, fields)
+        } else {
+            val json = JSONObject()
+                .put("playerId", playerId)
+                .put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
+                .put("target", input.target)
+                .put("handedness", input.handedness)
+                .put("calibration_points", input.calibrationArray())
+            input.shotType?.let { json.put("shot_type", it) }
+            input.bowlerType?.let { json.put("bowler_type", it) }
+            manualFrames?.let { json.put("manual_frames", it.toJson()) }
+            request("/api/club/cape-jobs", token, json, method = "POST", readTimeoutMs = 60_000)
+        }
+        JSONObject(body).getString("jobId")
+    }
+
+    suspend fun getLatestPlayerCapeJob(token: String, playerId: String, target: String): CapeJob? = withContext(Dispatchers.IO) {
+        val query = "playerId=${URLEncoder.encode(playerId, UTF_8)}&target=${URLEncoder.encode(target, UTF_8)}"
+        JSONObject(request("/api/club/cape-jobs/latest?$query", token)).optJSONObject("job")?.toCapeJob()
+    }
+
+    suspend fun getCapeContactCandidates(
+        context: Context,
+        token: String,
+        uri: Uri?,
+        driveFileId: String?,
+        centerFrame: Int? = null
+    ): CapeContactCandidates = withContext(Dispatchers.IO) {
+        val body = if (uri != null) {
+            val fields = centerFrame?.let { listOf("centerFrame" to it.toString()) }.orEmpty()
+            postVideoMultipart(context, token, "/api/club/cape-jobs/contact-candidates", uri, fields)
+        } else {
+            val json = JSONObject().put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
+            centerFrame?.let { json.put("centerFrame", it) }
+            request("/api/club/cape-jobs/contact-candidates", token, json, method = "POST", readTimeoutMs = 300_000)
+        }
+        JSONObject(body).toCapeContactCandidates()
+    }
+
+    suspend fun downloadDriveVideoToCache(context: Context, token: String, driveFileId: String): File = withContext(Dispatchers.IO) {
+        val path = "/api/google-drive/videos/${URLEncoder.encode(driveFileId, UTF_8)}/content"
+        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 300_000
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        val file = File(context.cacheDir, "cape-calibration-${UUID.randomUUID()}.mp4")
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val response = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw ApiException(status, apiErrorMessage(status, response, path))
+            }
+            connection.inputStream.use { input ->
+                file.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        require(total <= MAX_VIDEO_BYTES) { "Choose a video smaller than 500 MB." }
+                        output.write(buffer, 0, read)
+                    }
+                }
+            }
+            file
+        } catch (failure: Exception) {
+            file.delete()
+            throw failure
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     suspend fun getCapeJob(token: String, jobId: String): CapeJob = withContext(Dispatchers.IO) {
         JSONObject(request("/api/club/cape-jobs/${URLEncoder.encode(jobId, UTF_8)}", token)).getJSONObject("job").toCapeJob()
     }
@@ -1293,6 +1417,25 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         number(key)?.let { CapeMeasure(metric, label, it, unit) }
     private fun JSONObject.strings(key: String): List<String> =
         optJSONArray(key)?.let { rows -> (0 until rows.length()).map(rows::getString) } ?: emptyList()
+
+    private fun JSONObject.toCapeContactCandidates(): CapeContactCandidates {
+        val rows = optJSONArray("frames") ?: JSONArray()
+        return CapeContactCandidates(
+            framerateFps = optDouble("framerate_fps"),
+            frameCount = optInt("frame_count"),
+            suggestedFrame = if (isNull("suggested_frame")) null else optInt("suggested_frame"),
+            suggestionSource = optString("suggestion_source", "none"),
+            suggestionNote = text("suggestion_note"),
+            frames = (0 until rows.length()).map { index ->
+                val frame = rows.getJSONObject(index)
+                CapeContactFrame(
+                    index = frame.optInt("index"),
+                    timeSeconds = frame.optDouble("time_s"),
+                    imageBase64 = frame.optString("image_base64")
+                )
+            }
+        )
+    }
 
     private fun JSONObject.toCapeJob() = CapeJob(
         jobId = getString("jobId"),

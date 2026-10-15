@@ -14,10 +14,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,8 +28,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +43,7 @@ import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -47,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,11 +83,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Base64
 import java.util.Locale
 
 private val SHOT_TYPES = listOf("front_foot_drive", "back_foot_drive", "forward_defence", "backward_defence", "pull", "cut", "sweep")
 private val BOWLER_TYPES = listOf("pace", "spin")
-private val CORNER_LABELS = listOf("Batter-end left", "Batter-end right", "Bowler-end right", "Bowler-end left")
+internal val CORNER_LABELS = listOf("Batter-end left", "Batter-end right", "Bowler-end right", "Bowler-end left")
 private val SNAPSHOT_LABELS = mapOf(
     "pre_contact_snapshot" to "Pre-contact",
     "impact_snapshot" to "Point of contact",
@@ -115,23 +123,37 @@ private fun expectedRange(fault: CapeFault) = when {
 }
 
 /** First frame (downscaled for display) plus the video's native pixel size, which CAPE calibrates against. */
-private class CalibrationFrame(val bitmap: Bitmap, val nativeWidth: Int, val nativeHeight: Int)
+internal class CalibrationFrame(val bitmap: Bitmap, val nativeWidth: Int, val nativeHeight: Int)
 
-private suspend fun loadFirstFrame(context: Context, uri: Uri): CalibrationFrame = withContext(Dispatchers.IO) {
+internal suspend fun loadFirstFrame(context: Context, uri: Uri): CalibrationFrame = withContext(Dispatchers.IO) {
     val retriever = MediaMetadataRetriever()
     try {
         retriever.setDataSource(context, uri)
-        val frame = retriever.getFrameAtTime(50_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            ?: error("The first frame of this video could not be read.")
-        val scale = minOf(1f, MAX_PREVIEW_PX.toFloat() / maxOf(frame.width, frame.height))
-        val preview = if (scale < 1f) {
-            Bitmap.createScaledBitmap(frame, (frame.width * scale).toInt(), (frame.height * scale).toInt(), true).also { frame.recycle() }
-        } else frame
-        // The retriever returns the frame already rotated, so its unscaled size matches what CAPE decodes.
-        CalibrationFrame(preview, (preview.width / scale).toInt(), (preview.height / scale).toInt())
+        calibrationFrame(retriever)
     } finally {
         retriever.release()
     }
+}
+
+internal suspend fun loadFirstFrame(file: File): CalibrationFrame = withContext(Dispatchers.IO) {
+    val retriever = MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(file.absolutePath)
+        calibrationFrame(retriever)
+    } finally {
+        retriever.release()
+    }
+}
+
+private fun calibrationFrame(retriever: MediaMetadataRetriever): CalibrationFrame {
+    val frame = retriever.getFrameAtTime(50_000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        ?: error("The first frame of this video could not be read.")
+    val scale = minOf(1f, MAX_PREVIEW_PX.toFloat() / maxOf(frame.width, frame.height))
+    val preview = if (scale < 1f) {
+        Bitmap.createScaledBitmap(frame, (frame.width * scale).toInt(), (frame.height * scale).toInt(), true).also { frame.recycle() }
+    } else frame
+    // The retriever returns the frame already rotated, so its unscaled size matches what CAPE decodes.
+    return CalibrationFrame(preview, (preview.width / scale).toInt(), (preview.height / scale).toInt())
 }
 
 private fun decodeSampled(bytes: ByteArray): Bitmap? {
@@ -366,7 +388,7 @@ internal fun CapeAnalysisSection(api: CoachApi, token: String, assessment: Playe
 }
 
 @Composable
-private fun CalibrationOverlay(frame: CalibrationFrame, points: List<Pair<Int, Int>>, onTap: (Pair<Int, Int>) -> Unit) {
+internal fun CalibrationOverlay(frame: CalibrationFrame, points: List<Pair<Int, Int>>, onTap: (Pair<Int, Int>) -> Unit) {
     val accent = GOOD
     Box(Modifier.fillMaxWidth().aspectRatio(frame.bitmap.width.toFloat() / frame.bitmap.height)) {
         Image(frame.bitmap.asImageBitmap(), contentDescription = "First video frame", contentScale = ContentScale.FillBounds, modifier = Modifier.fillMaxSize())

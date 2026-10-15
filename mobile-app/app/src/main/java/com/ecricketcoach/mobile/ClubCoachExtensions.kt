@@ -477,8 +477,8 @@ internal fun VideoAnalysisPanel(
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedUri = it }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Text("AI video analysis", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("Select a training clip to analyze with the club's video-analysis workflow.", fontSize = 12.sp)
+            Text("Video Analysis", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Run Gemini analysis, inspect kinematics, or queue detailed CAPE pose and ball tracking.", fontSize = 12.sp)
         }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -604,6 +604,29 @@ internal fun VideoAnalysisPanel(
                     }
                     if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
+            }
+        }
+        selectedPlayer?.let { player ->
+            item {
+                StandaloneCapeAnalysisPanel(
+                    api = api,
+                    token = token,
+                    player = player,
+                    discipline = discipline,
+                    videoUri = selectedUri.takeIf { source == "DEVICE" },
+                    driveFileId = selectedDriveVideo?.id.takeIf { source == "DRIVE" },
+                    videoName = if (source == "DRIVE") selectedDriveVideo?.name else selectedUri?.lastPathSegment,
+                    onJobQueued = {
+                        scope.launch {
+                            try {
+                                capeJobs = api.getPlayerCapeJobs(token, player.id)
+                                capeError = ""
+                            } catch (failure: Exception) {
+                                capeError = failure.message ?: "Unable to refresh detailed analyses."
+                            }
+                        }
+                    }
+                )
             }
         }
         latest?.let { result ->
