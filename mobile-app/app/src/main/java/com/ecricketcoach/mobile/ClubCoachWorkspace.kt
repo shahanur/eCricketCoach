@@ -786,7 +786,6 @@ internal fun ClubCoachWorkspace(
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val sectionTab = workspaceSectionFor(tab)
         val bottomTabs = listOf("Overview", "Squads", "Sessions", "Assessments", "Video Analysis")
-        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         ModalNavigationDrawer(
                 drawerState = drawerState,
                 gesturesEnabled = true,
@@ -1646,7 +1645,6 @@ internal fun ClubCoachWorkspace(
                     )
                 }
             }
-        }
         }
         }
         }
