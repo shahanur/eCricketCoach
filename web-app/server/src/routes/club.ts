@@ -207,6 +207,18 @@ clubRouter.patch('/members/:id', authenticateToken, requireRole(['CLUB_ADMIN', '
   }
 });
 
+clubRouter.delete('/members/:id', authenticateToken, requireRole(['CLUB_ADMIN']), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const clubId = req.user!.tenantId;
+    if (!clubId) return res.status(403).json({ error: 'Club admin access required.' });
+    const deleted = await DbService.deleteClubMember(req.params.id, clubId);
+    if (!deleted) return res.status(404).json({ error: 'Member not found' });
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // 2. Coaches: Squads Management
 clubRouter.get('/squads', async (req: Request, res: Response) => {
   try {

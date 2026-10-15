@@ -718,6 +718,11 @@ export class DbService {
     }
   }
 
+  static async deleteClubMember(id: string, clubId: string) {
+    const result = await prisma.clubMember.deleteMany({ where: { id, clubId } });
+    return result.count > 0;
+  }
+
   // Keeps member squad lists in step when a squad is renamed (newName) or deleted (newName = null).
   private static async renameSquadForMembers(clubId: string | null, oldName: string, newName: string | null) {
     const members = await prisma.clubMember.findMany({

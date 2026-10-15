@@ -444,6 +444,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             json.getJSONObject("member").toClubMember()
         }
 
+    suspend fun deleteClubMember(token: String, memberId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/club/members/${URLEncoder.encode(memberId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
     suspend fun getSquads(token: String, clubId: String): List<ClubSquad> = withContext(Dispatchers.IO) {
         val rows = JSONArray(request("/api/club/squads?clubId=${URLEncoder.encode(clubId, UTF_8)}", token))
         (0 until rows.length()).map { index -> rows.getJSONObject(index).toClubSquad() }

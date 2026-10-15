@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -47,6 +48,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.DrawerValue
@@ -63,6 +66,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Add
@@ -98,6 +102,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sports
 import androidx.compose.material.icons.outlined.SportsBaseball
 import androidx.compose.material.icons.outlined.SportsCricket
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Videocam
@@ -125,6 +130,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -690,7 +697,7 @@ internal fun ClubCoachWorkspace(
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
-                if (isClubAdmin) add("Roster")
+                if (isClubAdmin) add("Members")
                 addAll(listOf("Squads", "Sessions", "Assessments", "Reports", "Certificates", "Drills", "Templates", "Progression", "Video analysis"))
                 if (isClubAdmin) add("Settings")
             }
@@ -903,12 +910,22 @@ internal fun ClubCoachWorkspace(
                 onBack = { tab = "Overview" },
                 modifier = Modifier.weight(1f)
             )
-            "Roster" -> RosterPanel(
+            "Members" -> MembersPanel(
                 members = members,
-                squads = squads,
                 canInvite = isClubAdmin,
                 onInvite = { showInvite = true },
-                onAssignSquad = { member, squad, inSquad -> assignMemberToSquad(member, squad, inSquad) },
+                onEditMember = { member, updates ->
+                    val updated = api.updateClubMember(token, member.id, updates)
+                    members = members.map { if (it.id == updated.id) updated else it }
+                    refresh()
+                    notice = "${member.name} updated."
+                },
+                onDeleteMember = { member ->
+                    api.deleteClubMember(token, member.id)
+                    members = members.filterNot { it.id == member.id }
+                    refresh()
+                    notice = "${member.name} removed from this club."
+                },
                 modifier = Modifier.weight(1f)
             )
             "Squads" -> SquadPanel(
@@ -1804,7 +1821,7 @@ private fun workspaceSectionFor(tab: String): String = when (tab) {
 
 private fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when (label) {
     "Overview" -> Icons.Outlined.Dashboard
-    "Roster" -> Icons.Outlined.Group
+    "Members" -> Icons.Outlined.Group
     "Squads" -> Icons.Outlined.Groups
     "Sessions" -> Icons.Outlined.CalendarMonth
     "Assessments" -> Icons.Outlined.Assignment
@@ -2071,51 +2088,408 @@ private fun SummaryCard(
 }
 
 @Composable
-private fun RosterPanel(
+private fun MembersPanel(
     members: List<ClubMember>,
-    squads: List<ClubSquad>,
     canInvite: Boolean,
     onInvite: () -> Unit,
-    onAssignSquad: (ClubMember, String, Boolean) -> Unit,
+    onEditMember: suspend (ClubMember, JSONObject) -> Unit,
+    onDeleteMember: suspend (ClubMember) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var memberTab by remember { mutableStateOf("Club Staff") }
+    var staffSearch by remember { mutableStateOf("") }
+    var playerSearch by remember { mutableStateOf("") }
+    var editingMember by remember { mutableStateOf<ClubMember?>(null) }
+    var deletingMember by remember { mutableStateOf<ClubMember?>(null) }
+    var editSaving by remember { mutableStateOf(false) }
+    var deleteSaving by remember { mutableStateOf(false) }
+    var memberActionError by remember { mutableStateOf("") }
+    var editName by remember(editingMember?.id) { mutableStateOf(editingMember?.name.orEmpty()) }
+    var editEmail by remember(editingMember?.id) { mutableStateOf(editingMember?.email.orEmpty()) }
+    var editRole by remember(editingMember?.id) { mutableStateOf(editingMember?.role.orEmpty()) }
+    var editAgeGroup by remember(editingMember?.id) { mutableStateOf(editingMember?.ageGroup.orEmpty()) }
+    var editDisciplines by remember(editingMember?.id) {
+        mutableStateOf(
+            editingMember?.discipline.orEmpty().split(',').map { it.trim().uppercase() }
+                .filter { it in ClubDisciplines }.toSet().ifEmpty { setOf("BATTING") }
+        )
+    }
+    var editLevel by remember(editingMember?.id) { mutableStateOf(editingMember?.currentLevel.orEmpty()) }
+    val scope = rememberCoroutineScope()
+    val showingPlayers = memberTab == "Players"
+    val search = if (showingPlayers) playerSearch else staffSearch
+    val visibleMembers = members.filter { member ->
+        (member.role == "PLAYER") == showingPlayers &&
+            (search.isBlank() || listOf(member.name, member.email, member.squad)
+                .any { it.contains(search.trim(), ignoreCase = true) })
+    }
+
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Club roster", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Members", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Manage club staff and players", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                }
                 if (canInvite) WorkspaceAction("Invite", Icons.Outlined.Send, onInvite, primary = true)
             }
         }
-        if (members.isEmpty()) item { EmptyMessage("No members found for this club.") }
-        items(members, key = ClubMember::id) { member ->
-            var menuOpen by remember(member.id) { mutableStateOf(false) }
+        item {
+            TabRow(selectedTabIndex = if (showingPlayers) 1 else 0) {
+                Tab(
+                    selected = !showingPlayers,
+                    onClick = { memberTab = "Club Staff" },
+                    text = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Club Staffs", fontSize = 13.sp)
+                        }
+                    },
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+                Tab(
+                    selected = showingPlayers,
+                    onClick = { memberTab = "Players" },
+                    text = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.DirectionsRun, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Players", fontSize = 13.sp)
+                        }
+                    },
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+        }
+        item {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { if (showingPlayers) playerSearch = it else staffSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text(if (showingPlayers) "Search players" else "Search club staff") },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) }
+            )
+        }
+        if (memberActionError.isNotBlank()) {
+            item { Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+        }
+        if (visibleMembers.isEmpty()) {
+            item {
+                EmptyMessage(
+                    if (search.isBlank()) "No ${if (showingPlayers) "players" else "club staff"} found for this club."
+                    else "No ${if (showingPlayers) "players" else "club staff"} match your search."
+                )
+            }
+        }
+        items(visibleMembers, key = ClubMember::id) { member ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text(member.name, fontWeight = FontWeight.SemiBold)
-                    Text("${member.role} · ${member.email}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
-                    Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        WorkspaceAction("Assign", Icons.Outlined.Group, { menuOpen = true })
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            if (squads.isEmpty()) {
-                                DropdownMenuItem(text = { Text("No squads yet") }, onClick = { menuOpen = false }, enabled = false)
+                        Column(Modifier.weight(1f)) {
+                            Text(member.name, fontWeight = FontWeight.SemiBold)
+                            Text("${member.role} · ${member.email}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
+                        }
+                        if (canInvite) {
+                            IconButton(onClick = {
+                                memberActionError = ""
+                                editingMember = member
+                            }) {
+                                Icon(Icons.Outlined.Edit, contentDescription = "Edit ${member.name}", tint = MaterialTheme.colorScheme.primary)
                             }
-                            squads.map(ClubSquad::name).distinct().forEach { squad ->
-                                val inSquad = member.isInSquad(squad)
-                                DropdownMenuItem(
-                                    text = { Text(squad) },
-                                    leadingIcon = {
-                                        Checkbox(checked = inSquad, onCheckedChange = null)
-                                    },
-                                    onClick = {
-                                        menuOpen = false
-                                        onAssignSquad(member, squad, !inSquad)
-                                    }
-                                )
+                            IconButton(onClick = {
+                                memberActionError = ""
+                                deletingMember = member
+                            }) {
+                                Icon(Icons.Outlined.Delete, contentDescription = "Delete ${member.name}", tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
+                    Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
+                    Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+
+    editingMember?.let { member ->
+        Dialog(
+            onDismissRequest = { if (!editSaving) editingMember = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                val dialogMaxHeight = maxHeight * 0.94f
+                Surface(
+                    modifier = Modifier.fillMaxWidth(0.96f).widthIn(max = 500.dp).heightIn(max = dialogMaxHeight),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 18.dp
+                ) {
+                    Column(Modifier.fillMaxWidth().heightIn(max = dialogMaxHeight)) {
+                        Column(
+                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+                                .padding(horizontal = 20.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Edit ${if (member.role == "PLAYER") "Player" else "Coach"} Details",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                }
+                                IconButton(onClick = { editingMember = null }, enabled = !editSaving) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Close editor")
+                                }
+                            }
+                            Text(
+                                "Update roster details for ${member.name}.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("Full Name *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(editName, { editName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("Email Address *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(editEmail, { editEmail = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+                            }
+                            if (editRole == "PLAYER") {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    MemberEditSelect(
+                                        label = "Role",
+                                        value = editRole,
+                                        options = listOf("PLAYER" to "Player", "COACH" to "Coach"),
+                                        modifier = Modifier.weight(1f),
+                                        onSelect = { role ->
+                                            editRole = role
+                                            val levels = if (role == "PLAYER") setOf("FOUNDATION", "DEVELOPING", "INTERMEDIATE", "ADVANCED", "ELITE")
+                                                else setOf("SUPPORT_COACH", "FOUNDATION_COACH", "CORE_COACH", "ADVANCED_COACH", "SPECIALIST_COACH")
+                                            if (editLevel !in levels) editLevel = if (role == "PLAYER") "FOUNDATION" else "SUPPORT_COACH"
+                                        }
+                                    )
+                                    MemberEditSelect(
+                                        label = "Age Group",
+                                        value = editAgeGroup,
+                                        options = listOf(
+                                            "U9" to "Under-9", "U11" to "Under-11", "U13" to "Under-13",
+                                            "U15" to "Under-15", "U19" to "Under-19", "Senior" to "Senior"
+                                        ),
+                                        modifier = Modifier.weight(1f),
+                                        onSelect = { editAgeGroup = it }
+                                    )
+                                }
+                            } else {
+                                Row(Modifier.fillMaxWidth()) {
+                                    MemberEditSelect(
+                                        label = "Role",
+                                        value = editRole,
+                                        options = listOf("PLAYER" to "Player", "COACH" to "Coach"),
+                                        modifier = Modifier.weight(1f),
+                                        onSelect = { role ->
+                                            editRole = role
+                                            val levels = if (role == "PLAYER") setOf("FOUNDATION", "DEVELOPING", "INTERMEDIATE", "ADVANCED", "ELITE")
+                                                else setOf("SUPPORT_COACH", "FOUNDATION_COACH", "CORE_COACH", "ADVANCED_COACH", "SPECIALIST_COACH")
+                                            if (editLevel !in levels) editLevel = if (role == "PLAYER") "FOUNDATION" else "SUPPORT_COACH"
+                                        }
+                                    )
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Disciplines *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("(Select one or multiple)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                }
+                                Row(
+                                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(
+                                        "BATTING" to ("🏏" to "Batting"),
+                                        "BOWLING" to ("⚡" to "Bowling"),
+                                        "KEEPING" to ("🧤" to "Keeping"),
+                                        "FIELDING" to ("🎯" to "Fielding")
+                                    ).forEach { (discipline, content) ->
+                                        val checked = discipline in editDisciplines
+                                        Surface(
+                                            onClick = {
+                                                if (checked && editDisciplines.size == 1) return@Surface
+                                                editDisciplines = if (checked) editDisciplines - discipline else editDisciplines + discipline
+                                            },
+                                            modifier = Modifier.width(90.dp).height(68.dp),
+                                            color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Row(
+                                                Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.Center,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Checkbox(
+                                                    checked = checked,
+                                                    enabled = checked || editDisciplines.size > 1,
+                                                    onCheckedChange = { selected ->
+                                                        editDisciplines = if (selected) editDisciplines + discipline else editDisciplines - discipline
+                                                    },
+                                                    colors = CheckboxDefaults.colors(
+                                                        checkedColor = MaterialTheme.colorScheme.onPrimary,
+                                                        checkmarkColor = MaterialTheme.colorScheme.primary,
+                                                        uncheckedColor = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline
+                                                    )
+                                                )
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(content.first, fontSize = 13.sp)
+                                                    Text(
+                                                        content.second,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            MemberEditSelect(
+                                label = "Current Level",
+                                value = editLevel,
+                                options = if (editRole == "PLAYER") listOf(
+                                    "FOUNDATION" to "Foundation", "DEVELOPING" to "Developing", "INTERMEDIATE" to "Intermediate",
+                                    "ADVANCED" to "Advanced", "ELITE" to "Elite"
+                                ) else listOf(
+                                    "SUPPORT_COACH" to "Support Coach", "FOUNDATION_COACH" to "Foundation Coach",
+                                    "CORE_COACH" to "Core Coach", "ADVANCED_COACH" to "Advanced Coach", "SPECIALIST_COACH" to "Specialist Coach"
+                                ),
+                                onSelect = { editLevel = it }
+                            )
+                            if (memberActionError.isNotBlank()) {
+                                Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            }
+                        }
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { editingMember = null }, enabled = !editSaving) { Text("Cancel") }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                enabled = !editSaving && editName.isNotBlank() && editEmail.isNotBlank() &&
+                                    editRole in setOf("COACH", "PLAYER") && editDisciplines.isNotEmpty(),
+                                onClick = {
+                                    scope.launch {
+                                        editSaving = true
+                                        memberActionError = ""
+                                        try {
+                                            onEditMember(member, JSONObject()
+                                                .put("name", editName.trim())
+                                                .put("email", editEmail.trim())
+                                                .put("role", editRole)
+                                                .put("ageGroup", if (editRole == "PLAYER") editAgeGroup.trim() else "")
+                                                .put("discipline", ClubDisciplines.filter(editDisciplines::contains).joinToString(", "))
+                                                .put("currentLevel", editLevel.trim()))
+                                            editingMember = null
+                                        } catch (failure: Exception) {
+                                            memberActionError = failure.message ?: "Unable to update this member."
+                                        } finally {
+                                            editSaving = false
+                                        }
+                                    }
+                                }
+                            ) { Text(if (editSaving) "Saving…" else "Save Changes") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    deletingMember?.let { member ->
+        AlertDialog(
+            onDismissRequest = { if (!deleteSaving) deletingMember = null },
+            title = { Text("Delete member?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Remove ${member.name} from this club? This removes the club membership and cannot be undone.")
+                    if (memberActionError.isNotBlank()) {
+                        Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !deleteSaving,
+                    onClick = {
+                        scope.launch {
+                            deleteSaving = true
+                            memberActionError = ""
+                            try {
+                                onDeleteMember(member)
+                                deletingMember = null
+                            } catch (failure: Exception) {
+                                memberActionError = failure.message ?: "Unable to delete this member."
+                            } finally {
+                                deleteSaving = false
+                            }
+                        }
+                    }
+                ) { Text(if (deleteSaving) "Deleting…" else "Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deletingMember = null }, enabled = !deleteSaving) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
+private fun MemberEditSelect(
+    label: String,
+    value: String,
+    options: List<Pair<String, String>>,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Box {
+            Surface(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f))
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(selectedLabel, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Outlined.ExpandMore, contentDescription = "Choose $label")
+                }
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { (optionValue, optionLabel) ->
+                    DropdownMenuItem(
+                        text = { Text(optionLabel) },
+                        onClick = {
+                            expanded = false
+                            onSelect(optionValue)
+                        }
+                    )
                 }
             }
         }
