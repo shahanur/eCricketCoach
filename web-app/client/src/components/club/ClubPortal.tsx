@@ -3756,7 +3756,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <Pencil size={18} className="text-sky-400" />
                 <span>Edit {editingMember.role === 'COACH' ? 'Coach' : 'Player'} Details</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1">Update roster details for {editingMember.name}.</p>
+              <p className="text-xs text-slate-400 mt-1">Update details for {editingMember.name}.</p>
             </div>
             <form
               onSubmit={e => { e.preventDefault(); handleSubmitEditMember(); }}
