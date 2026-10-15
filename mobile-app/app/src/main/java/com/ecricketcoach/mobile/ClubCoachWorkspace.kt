@@ -286,20 +286,27 @@ private fun disciplineIcon(discipline: String) = when (discipline.uppercase()) {
 @Composable
 private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    val accent = when (discipline.uppercase()) {
+        "BOWLING" -> Color(0xFF2679F4)
+        "BATTING" -> Color(0xFF13A875)
+        "FIELDING" -> Color(0xFFE59A12)
+        "KEEPING" -> Color(0xFF7541E8)
+        else -> scheme.primary
+    }
     Surface(
         shape = RoundedCornerShape(50),
-        color = scheme.primary.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.22f)),
+        color = accent.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.14f)),
         modifier = modifier
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)) {
-            Icon(disciplineIcon(discipline), contentDescription = null, tint = scheme.primary, modifier = Modifier.size(13.dp))
-            Spacer(Modifier.width(5.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+            Icon(disciplineIcon(discipline), contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 discipline.lowercase().replaceFirstChar { it.uppercase() },
-                fontSize = 11.sp,
-                color = scheme.onSurface.copy(alpha = 0.85f),
-                fontWeight = FontWeight.Medium
+                fontSize = 13.sp,
+                color = accent,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -774,6 +781,7 @@ internal fun ClubCoachWorkspace(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
+        val isEkotaStyledPage = tab == "Overview" || tab == "Squads"
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
@@ -855,7 +863,7 @@ internal fun ClubCoachWorkspace(
                     .weight(1f)
                     .fillMaxSize()
                     .then(
-                        if (tab == "Overview") Modifier.ekotaOverviewBackdrop()
+                        if (isEkotaStyledPage) Modifier.ekotaOverviewBackdrop()
                         else Modifier.background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -866,18 +874,24 @@ internal fun ClubCoachWorkspace(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (tab == "Squads") {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.padding(end = 4.dp)) {
+                                Icon(Icons.Outlined.Menu, contentDescription = "Open menu", tint = EkotaOverviewColors.primary)
+                            }
+                        }
                         Column(Modifier.weight(1f)) {
-                            Text("Welcome, ${user.name}", fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 1)
+                            if (tab == "Squads") Text("Welcome back,", color = EkotaOverviewColors.onSurface.copy(alpha = 0.7f), fontSize = 14.sp)
+                            Text(if (tab == "Squads") "${user.name} 👋" else "Welcome, ${user.name}", color = if (tab == "Squads") EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.onSurface, fontSize = if (tab == "Squads") 20.sp else 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(user.clubName?.takeIf(String::isNotBlank) ?: "Club workspace", color = if (tab == "Squads") EkotaOverviewColors.onSurfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
                         }
                         IconButton(onClick = onToggleTheme) {
-                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = MaterialTheme.colorScheme.primary)
+                            Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = if (tab == "Squads") EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
                         }
                         IconButton(onClick = onSignOut) {
-                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = if (tab == "Squads") EkotaOverviewColors.onSurface else MaterialTheme.colorScheme.error)
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f))
+                    HorizontalDivider(color = (if (tab == "Squads") EkotaOverviewColors.outline else MaterialTheme.colorScheme.outline).copy(alpha = 0.8f))
                 }
                 if (!isTablet && sectionTab != tab) {
                     Row(
@@ -995,30 +1009,32 @@ internal fun ClubCoachWorkspace(
                 },
                 modifier = Modifier.weight(1f)
             )
-            "Squads" -> SquadPanel(
-                squads,
-                members = members,
-                onCreate = { showCreateSquad = true },
-                onEdit = { squad ->
-                    squadEditError = ""
-                    editingSquad = squad
-                    tab = "Edit squad"
-                },
-                onDelete = { squad ->
-                    scope.launch {
-                        error = ""
-                        notice = ""
-                        try {
-                            api.deleteSquad(token, squad.id)
-                            refresh()
-                            notice = "Squad deleted."
-                        } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to delete this squad."
+            "Squads" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+                SquadPanel(
+                    squads,
+                    members = members,
+                    onCreate = { showCreateSquad = true },
+                    onEdit = { squad ->
+                        squadEditError = ""
+                        editingSquad = squad
+                        tab = "Edit squad"
+                    },
+                    onDelete = { squad ->
+                        scope.launch {
+                            error = ""
+                            notice = ""
+                            try {
+                                api.deleteSquad(token, squad.id)
+                                refresh()
+                                notice = "Squad deleted."
+                            } catch (failure: Exception) {
+                                error = failure.message ?: "Unable to delete this squad."
+                            }
                         }
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
             "Edit squad" -> editingSquad?.let { originalSquad ->
                 val squad = squads.find { it.id == originalSquad.id } ?: originalSquad
                 EditSquadPanel(
@@ -1606,7 +1622,7 @@ internal fun ClubCoachWorkspace(
             else -> ReadOnlyTemplates(templates, Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+            if (tab != "Squads") IconButton(onClick = { scope.launch { drawerState.open() } }) {
                 Icon(Icons.Outlined.Menu, contentDescription = "Open navigation", tint = if (tab == "Overview") EkotaOverviewColors.primary else MaterialTheme.colorScheme.primary)
             }
             WorkspaceAction(
@@ -2865,19 +2881,59 @@ private fun SquadPanel(
     modifier: Modifier = Modifier
 ) {
     var deleteTarget by remember { mutableStateOf<ClubSquad?>(null) }
+    var search by remember { mutableStateOf("") }
+    var sortOption by remember { mutableStateOf("Age (U15 → U18)") }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val sortOptions = listOf("Age (U15 → U18)", "Age (U18 → U15)", "Name (A → Z)", "Name (Z → A)")
+    val searchText = search.trim()
+    val filteredSquads = squads.filter { squad ->
+        searchText.isBlank() || squad.name.contains(searchText, ignoreCase = true) ||
+            squad.ageGroup.contains(searchText, ignoreCase = true) || squad.disciplines.any { it.contains(searchText, ignoreCase = true) }
+    }
+    fun ageRank(squad: ClubSquad) = Regex("\\d+").find(squad.ageGroup)?.value?.toIntOrNull() ?: Int.MAX_VALUE
+    val sortedSquads = when (sortOption) {
+        "Age (U18 → U15)" -> filteredSquads.sortedWith(compareByDescending<ClubSquad> { ageRank(it) }.thenBy { it.name })
+        "Name (A → Z)" -> filteredSquads.sortedBy { it.name.lowercase() }
+        "Name (Z → A)" -> filteredSquads.sortedByDescending { it.name.lowercase() }
+        else -> filteredSquads.sortedWith(compareBy<ClubSquad> { ageRank(it) }.thenBy { it.name })
+    }
     BoxWithConstraints(modifier) {
-        val isTablet = maxWidth >= 600.dp
+        val isWide = maxWidth >= 900.dp
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Squads", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    WorkspaceAction("New squad", Icons.Outlined.Add, onCreate, primary = true, trailingIcon = Icons.Outlined.Groups)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (isWide) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SquadPageTitle(Modifier.weight(1f))
+                            SquadSearchField(search, { search = it }, Modifier.width(190.dp))
+                            SquadSortMenu(sortOption, sortOptions, sortMenuOpen, { sortMenuOpen = it }, { sortOption = it })
+                            Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Text("  New squad", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Icon(Icons.Outlined.Groups, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
+                            }
+                        }
+                    } else {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            SquadPageTitle(Modifier.weight(1f))
+                            Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
+                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(19.dp))
+                                Text(" New squad", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SquadSearchField(search, { search = it }, Modifier.weight(1f))
+                            SquadSortMenu(sortOption, sortOptions, sortMenuOpen, { sortMenuOpen = it }, { sortOption = it })
+                        }
+                    }
                 }
             }
             if (squads.isEmpty()) {
                 item { EmptyMessage("Create a squad to organize your players.") }
-            } else if (isTablet) {
-                items(squads.chunked(2)) { pair ->
+            } else if (sortedSquads.isEmpty()) {
+                item { EmptyMessage("No squads match your search.") }
+            } else if (isWide) {
+                items(sortedSquads.chunked(2)) { pair ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         pair.forEach { squad ->
                             SquadCard(squad, members.count { it.isInSquad(squad.name) }, Modifier.weight(1f), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
@@ -2886,7 +2942,7 @@ private fun SquadPanel(
                     }
                 }
             } else {
-                items(squads, key = ClubSquad::id) { squad ->
+                items(sortedSquads, key = ClubSquad::id) { squad ->
                     SquadCard(squad, members.count { it.isInSquad(squad.name) }, Modifier.fillMaxWidth(), onEdit = { onEdit(squad) }, onDelete = { deleteTarget = squad })
                 }
             }
@@ -2909,43 +2965,132 @@ private fun SquadPanel(
 }
 
 @Composable
+private fun SquadPageTitle(modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF7448EF), modifier = Modifier.size(54.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp))
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text("Squads", color = MaterialTheme.colorScheme.onSurface, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Manage your squads, view players and track development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f), fontSize = 12.sp, maxLines = 2)
+        }
+    }
+}
+
+@Composable
+private fun SquadSearchField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        singleLine = true,
+        placeholder = { Text("Search squads…", fontSize = 13.sp) },
+        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(19.dp)) },
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface
+        )
+    )
+}
+
+@Composable
+private fun SquadSortMenu(
+    selected: String,
+    options: List<String>,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelect: (String) -> Unit
+) {
+    Box {
+        OutlinedButton(
+            onClick = { onExpandedChange(true) },
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.widthIn(min = 164.dp, max = 210.dp)
+        ) {
+            Text("Sort: ${selected.substringAfter(": ")}", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.Outlined.ExpandMore, contentDescription = "Sort squads", modifier = Modifier.size(19.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option, fontSize = 13.sp) },
+                    onClick = {
+                        onSelect(option)
+                        onExpandedChange(false)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val accents = listOf(Color(0xFF7448EF), Color(0xFF248AF2), Color(0xFF12A875), Color(0xFFF1842D))
+    val accent = accents[Math.floorMod(squad.id.hashCode(), accents.size)]
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = scheme.surface),
-        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.12f))
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.8f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(12.dp), color = scheme.primary.copy(alpha = 0.12f), modifier = Modifier.size(40.dp)) {
+                Surface(shape = RoundedCornerShape(14.dp), color = accent, modifier = Modifier.size(58.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
                     }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(squad.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         "${squad.ageGroup.ifBlank { "All ages" }} · $memberCount ${if (memberCount == 1) "member" else "members"}",
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         color = scheme.onSurface.copy(alpha = 0.65f)
                     )
+                }
+                Box(Modifier.size(38.dp).background(accent.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
                 }
             }
             if (squad.disciplines.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 10.dp, bottom = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     squad.disciplines.forEach { discipline -> DisciplineChip(discipline) }
                 }
             }
-            HorizontalDivider(color = scheme.outline.copy(alpha = 0.2f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
-                WorkspaceAction("Edit", Icons.Outlined.Edit, onEdit)
-                WorkspaceAction("Delete", Icons.Outlined.Delete, onDelete)
+            HorizontalDivider(color = scheme.outline.copy(alpha = 0.35f), modifier = Modifier.padding(vertical = 8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                SquadCardAction("Edit", Icons.Outlined.Edit, Color(0xFF2679F4), onEdit)
+                SquadCardAction("Delete", Icons.Outlined.Delete, Color(0xFFED4D5A), onDelete)
             }
+        }
+    }
+}
+
+@Composable
+private fun SquadCardAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        color = accent.copy(alpha = 0.09f)
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
+            Text(label, color = accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
