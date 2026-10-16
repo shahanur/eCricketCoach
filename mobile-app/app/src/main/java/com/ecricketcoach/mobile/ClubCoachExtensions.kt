@@ -482,15 +482,6 @@ internal fun VideoAnalysisPanel(
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (isWide) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Row(Modifier.weight(1.3f), verticalAlignment = Alignment.CenterVertically) {
-                                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp)) {
-                                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(28.dp)) }
-                                    }
-                                    Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                        Text("Video Analysis", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-                                        Text("Review technique with detailed CAPE pose, ball and speed measurements.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
                                 VideoAnalysisDropdown(
                                     label = "Discipline",
                                     value = discipline,
@@ -510,15 +501,6 @@ internal fun VideoAnalysisPanel(
                                 )
                             }
                         } else {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp)) {
-                                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(26.dp)) }
-                                }
-                                Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                    Text("Video Analysis", color = MaterialTheme.colorScheme.onSurface, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
-                                    Text("Review technique with detailed CAPE measurements.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                                }
-                            }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 VideoAnalysisDropdown("Discipline", discipline, ExtensionDisciplines.map { it to it }, Icons.Outlined.AutoAwesome, Modifier.weight(1f)) { discipline = it }
                                 VideoAnalysisDropdown("Player", selectedPlayer?.id.orEmpty(), playerOptions, Icons.Outlined.Group, Modifier.weight(1f), selectedPlayer?.name ?: "Select player") { id -> selectedPlayer = players.firstOrNull { it.id == id } }

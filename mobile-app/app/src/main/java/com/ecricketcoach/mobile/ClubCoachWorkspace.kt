@@ -868,7 +868,7 @@ internal fun ClubCoachWorkspace(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                EkotaWorkspaceHeader(user, isDark, onToggleTheme, onSignOut)
+                EkotaWorkspaceHeader(tab, user, isDark, onToggleTheme, onSignOut)
                 if (!isTablet && sectionTab != tab) {
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 2.dp),
@@ -1955,12 +1955,48 @@ private fun ClubWorkspaceSidebar(
 
 @Composable
 private fun EkotaWorkspaceHeader(
+    tab: String,
     user: CoachUser,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
     onSignOut: () -> Unit
 ) {
     MaterialTheme(colorScheme = EkotaOverviewColors) {
+        val isOverview = tab == "Overview"
+        val pageTitle = when (tab) {
+            "Sessions", "Edit session", "Schedule session" -> "Training Sessions"
+            "Assessments", "Edit assessment", "Assessment" -> "Player Assessments"
+            "Edit squad" -> "Squads"
+            "Delivered sessions" -> "Delivered Sessions"
+            else -> tab
+        }
+        val pageIconLabel = when (tab) {
+            "Sessions", "Edit session", "Schedule session", "Delivered sessions" -> "Sessions"
+            "Assessments", "Edit assessment", "Assessment" -> "Assessments"
+            "Edit squad" -> "Squads"
+            "Participants" -> "Members"
+            else -> tab
+        }
+        val pageDescription = when (tab) {
+            "Video Analysis" -> "Review technique with detailed CAPE pose, ball and speed measurements."
+            "Members" -> "Manage club staff and players."
+            "Squads", "Edit squad" -> "Organize players into squads and track their development."
+            "Sessions" -> "Plan, deliver and track coaching sessions."
+            "Edit session" -> "Update session details, drills and squad assignments."
+            "Schedule session" -> "Plan a training session for your squad."
+            "Assessments" -> "Track player progress and development."
+            "Edit assessment" -> "Update assessment details and evaluation criteria."
+            "Assessment" -> "Review and complete this player assessment."
+            "Reports" -> "Review club activity, participation and player progress."
+            "Certificates" -> "Manage player achievements and certificates."
+            "Drills", "Club drills" -> "Browse and manage coaching drills."
+            "Templates" -> "Create and manage reusable training plans."
+            "Progression" -> "Review player development and progression."
+            "Settings" -> "Manage your club settings and branding."
+            "Delivered sessions" -> "Review completed sessions and coaching outcomes."
+            "Participants" -> "Review participants in the selected session."
+            else -> "Manage your club workspace."
+        }
         val greeting = when (LocalTime.now().hour) {
             in 5..11 -> "Good morning,"
             in 12..16 -> "Good afternoon,"
@@ -1968,7 +2004,11 @@ private fun EkotaWorkspaceHeader(
         }
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(greeting, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                if (isOverview) {
+                    Text(greeting, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
                 IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
                     Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = EkotaOverviewColors.primary)
                 }
@@ -1978,11 +2018,21 @@ private fun EkotaWorkspaceHeader(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(user.name, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(" 👋", fontSize = 24.sp)
+                    if (isOverview) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(user.name, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(" 👋", fontSize = 24.sp)
+                        }
+                        Text("Let’s plan, coach and grow together.", color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(workspaceTabIcon(pageIconLabel), contentDescription = null, tint = EkotaOverviewColors.primary, modifier = Modifier.size(29.dp))
+                                Text(pageTitle, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(pageDescription, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                    Text("Let’s plan, coach and grow together.", color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Surface(
                     shape = RoundedCornerShape(24.dp),
@@ -2472,7 +2522,6 @@ private fun MembersPanel(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Members", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("Manage club staff and players", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 }
                 if (canInvite) WorkspaceAction("Invite", Icons.Outlined.Send, onInvite, primary = true)
@@ -2873,7 +2922,6 @@ private fun SquadPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (isWide) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SquadPageTitle(Modifier.weight(1f))
                             SquadSearchField(search, { search = it }, Modifier.width(190.dp))
                             SquadSortMenu(sortOption, sortOptions, sortMenuOpen, { sortMenuOpen = it }, { sortOption = it })
                             Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
@@ -2883,8 +2931,7 @@ private fun SquadPanel(
                             }
                         }
                     } else {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            SquadPageTitle(Modifier.weight(1f))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                             Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(19.dp))
                                 Text(" New squad", fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -2930,21 +2977,6 @@ private fun SquadPanel(
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep squad") } }
         )
-    }
-}
-
-@Composable
-private fun SquadPageTitle(modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF7448EF), modifier = Modifier.size(54.dp)) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp))
-            }
-        }
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text("Squads", color = MaterialTheme.colorScheme.onSurface, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-            Text("Manage your squads, view players and track development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f), fontSize = 12.sp, maxLines = 2)
-        }
     }
 }
 
@@ -3324,16 +3356,7 @@ private fun SessionsPanel(
         val sortedSessions = filteredSessions.sortedByDescending(ClubTrainingSession::sessionDate)
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFF7448EF), modifier = Modifier.size(52.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp)) }
-                        }
-                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                            Text("Training sessions", color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                            Text("Plan, deliver and track all coaching sessions.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f), fontSize = 12.sp)
-                        }
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     if (canSchedule) Button(onClick = onSchedule, shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         Text("  Schedule session", fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -3624,16 +3647,7 @@ private fun AssessmentsPanel(
         val isTablet = maxWidth >= 600.dp
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(15.dp), color = Color(0xFF7448EF), modifier = Modifier.size(52.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Assignment, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp)) }
-                        }
-                        Column(Modifier.weight(1f).padding(start = 11.dp)) {
-                            Text("Player assessments", color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                            Text("Track player progress and development.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f), fontSize = 12.sp)
-                        }
-                    }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = onSchedule, enabled = players.isNotEmpty(), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         Text("  Schedule assessment", fontWeight = FontWeight.Bold, fontSize = 12.sp)
