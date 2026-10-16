@@ -13,6 +13,7 @@ from app.models.bat import YoloBatSegmenter
 from app.models.base import BallDetector, BatSegmenter, Box, LandmarkEstimator, PoseDetector
 from app.models.landmarks import LANDMARK_NAMES, MediaPipeLandmarks, crop_roi, remap_landmarks
 from app.models.pose import YoloPoseDetector
+from app.models._yolo import LazyYolo
 
 FRAME = np.zeros((100, 200, 3), np.uint8)
 
@@ -95,6 +96,29 @@ def fake_ultralytics(monkeypatch):
     FakeYOLO.calls = []
     monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FakeYOLO))
     return FakeYOLO
+
+
+def test_lazy_yolo_retries_on_cpu_after_cuda_runtime_failure(monkeypatch, tmp_path):
+    calls = []
+    result = object()
+
+    class FlakyCudaYOLO:
+        def __init__(self, path):
+            self.path = path
+
+        def predict(self, frame, device, verbose):
+            calls.append(device)
+            if device == "cuda":
+                raise RuntimeError("CUDA error: unknown error")
+            return [result]
+
+    monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FlakyCudaYOLO))
+    model = LazyYolo(tmp_path / "pose.pt", "cuda")
+
+    assert model.predict(FRAME) is result
+    assert model.device == "cpu"
+    assert model.predict(FRAME) is result
+    assert calls == ["cuda", "cpu", "cpu"]
 
 
 class Boxes:
