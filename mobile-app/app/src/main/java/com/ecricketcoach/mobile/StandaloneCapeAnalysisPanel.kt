@@ -7,11 +7,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,6 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ZoomIn
+import androidx.compose.material.icons.outlined.ZoomOut
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,12 +37,14 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,12 +57,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -67,6 +78,8 @@ private val StandaloneShotTypes = listOf(
 private val StandaloneBowlerTypes = listOf("pace", "spin")
 private val ManualFrameRoles = listOf("pre_contact", "point_of_contact", "post_contact")
 private const val MaxManualFramesPerRole = 20
+private const val ContactFramePageSize = 40
+private const val ContactFramesBeforeCenter = 20
 
 @Composable
 internal fun StandaloneCapeAnalysisPanel(
@@ -104,6 +117,7 @@ internal fun StandaloneCapeAnalysisPanel(
     var activeFrameRole by remember(player?.id) { mutableStateOf("point_of_contact") }
     var manualFrames by remember(player?.id) { mutableStateOf(CapeManualFrames()) }
     var contactCandidates by remember(player?.id) { mutableStateOf<CapeContactCandidates?>(null) }
+    var previewingContactFrame by remember(player?.id) { mutableStateOf<CapeContactFrame?>(null) }
     val calibrationPoints = remember(player?.id, videoUri, driveFileId) { mutableStateListOf<Pair<Int, Int>>() }
     val sourceLabel = videoName ?: videoUri?.lastPathSegment ?: driveFileId?.let { "Google Drive video" }
     val pendingJobId = job?.takeIf { it.isPending }?.jobId
@@ -214,6 +228,34 @@ internal fun StandaloneCapeAnalysisPanel(
         candidatesError = ""
     }
 
+    fun loadCandidatePage(startFrame: Int, frameCount: Int? = null) {
+        scope.launch {
+            loadingCandidates = true
+            candidatesError = ""
+            try {
+                val start = startFrame.coerceAtLeast(0)
+                val before = frameCount?.let { minOf(ContactFramesBeforeCenter, (it - 1 - start).coerceAtLeast(0)) }
+                    ?: ContactFramesBeforeCenter
+                val after = ContactFramePageSize - 1 - before
+                contactCandidates = api.getCapeContactCandidates(
+                    context,
+                    token,
+                    videoUri,
+                    driveFileId,
+                    centerFrame = start + before,
+                    before = before,
+                    after = after
+                )
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                candidatesError = failure.message ?: "Unable to load contact frames."
+            } finally {
+                loadingCandidates = false
+            }
+        }
+    }
+
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -284,31 +326,15 @@ internal fun StandaloneCapeAnalysisPanel(
                     if (manualMode) {
                         if (contactCandidates == null) {
                             OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        loadingCandidates = true
-                                        candidatesError = ""
-                                        try {
-                                            contactCandidates = api.getCapeContactCandidates(context, token, videoUri, driveFileId)
-                                        } catch (failure: CancellationException) {
-                                            throw failure
-                                        } catch (failure: Exception) {
-                                            candidatesError = failure.message ?: "Unable to load contact frames."
-                                        } finally {
-                                            loadingCandidates = false
-                                        }
-                                    }
-                                },
+                                onClick = { loadCandidatePage(0) },
                                 enabled = !loadingCandidates && sourceLabel != null
                             ) {
                                 if (loadingCandidates) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 else Icon(Icons.Outlined.VideoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text(if (loadingCandidates) "  Finding contact frames…" else "  Load contact frames")
+                                Text(if (loadingCandidates) "  Loading frames…" else "  Browse all video frames")
                             }
                         }
                         contactCandidates?.let { data ->
-                            if (data.suggestedFrame != null) Text("${if (data.suggestionSource == "gemini") "Gemini suggests" else "Suggested contact"} frame #${data.suggestedFrame}.", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                            data.suggestionNote?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 ManualFrameRoles.forEach { role ->
                                     val count = selectedFrames(role).size
@@ -320,6 +346,27 @@ internal fun StandaloneCapeAnalysisPanel(
                                 }
                             }
                             Text("Choose at least one contact frame. Pre/post-contact frames are optional and must be in time order.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val firstFrame = data.frames.firstOrNull()?.index
+                            val lastFrame = data.frames.lastOrNull()?.index
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    if (firstFrame != null && lastFrame != null) "Frames #$firstFrame–#$lastFrame of ${data.frameCount} · browse all frames"
+                                    else "No frames available",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Row {
+                                    TextButton(
+                                        onClick = { if (firstFrame != null) loadCandidatePage((firstFrame - ContactFramePageSize).coerceAtLeast(0), data.frameCount) },
+                                        enabled = !loadingCandidates && firstFrame != null && firstFrame > 0
+                                    ) { Text("Earlier") }
+                                    TextButton(
+                                        onClick = { if (lastFrame != null) loadCandidatePage(lastFrame + 1, data.frameCount) },
+                                        enabled = !loadingCandidates && lastFrame != null && lastFrame < data.frameCount - 1
+                                    ) { Text("Later") }
+                                }
+                            }
+                            if (loadingCandidates) LinearProgressIndicator(Modifier.fillMaxWidth())
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(data.frames, key = CapeContactFrame::index) { candidate ->
                                     val image = remember(candidate.imageBase64) {
@@ -354,6 +401,9 @@ internal fun StandaloneCapeAnalysisPanel(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                        TextButton(onClick = { previewingContactFrame = candidate }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                                            Text("Enlarge", fontSize = 10.sp)
+                                        }
                                     }
                                 }
                             }
@@ -404,6 +454,62 @@ internal fun StandaloneCapeAnalysisPanel(
             }
         }
     }
+    previewingContactFrame?.let { selectedFrame ->
+        ContactFramePreviewDialog(selectedFrame) { previewingContactFrame = null }
+    }
+}
 
+@Composable
+private fun ContactFramePreviewDialog(frame: CapeContactFrame, onDismiss: () -> Unit) {
+    var zoom by remember(frame.index) { mutableStateOf(1f) }
+    val zoomState = rememberTransformableState { zoomChange, _, _ ->
+        zoom = (zoom * zoomChange).coerceIn(1f, 4f)
+    }
+    val image = remember(frame.imageBase64) {
+        runCatching {
+            val encoded = frame.imageBase64.substringAfter("base64,", frame.imageBase64)
+            val bytes = Base64.getDecoder().decode(encoded)
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        }.getOrNull()
+    }
+    DisposableEffect(image) { onDispose { image?.recycle() } }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Frame #${frame.index} · ${String.format(java.util.Locale.getDefault(), "%.2f", frame.timeSeconds)}s",
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    IconButton(onClick = { zoom = (zoom / 1.4f).coerceAtLeast(1f) }, enabled = zoom > 1f) {
+                        Icon(Icons.Outlined.ZoomOut, contentDescription = "Zoom out")
+                    }
+                    Text("${(zoom * 100).toInt()}%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    IconButton(onClick = { zoom = (zoom * 1.4f).coerceAtMost(4f) }, enabled = zoom < 4f) {
+                        Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Text(" Close")
+                    }
+                }
+                HorizontalDivider()
+                if (image != null) {
+                    Image(
+                        bitmap = image.asImageBitmap(),
+                        contentDescription = "Enlarged video frame ${frame.index}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(12.dp).graphicsLayer(scaleX = zoom, scaleY = zoom).transformable(zoomState)
+                    )
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Frame preview is unavailable.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
 }
 

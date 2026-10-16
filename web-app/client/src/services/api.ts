@@ -329,22 +329,29 @@ export const api = {
     return res.json();
   },
 
-  // Thumbnails around the suggested bat-ball contact (or around `centerFrame`) for manual frame selection.
+  // A page of video frames for manual contact selection. Pass centerFrame/before/after to page the clip without Gemini.
   async getCapeContactCandidates(
     source: { file?: File; driveFileId?: string },
-    options: { centerFrame?: number } = {}
+    options: { centerFrame?: number; before?: number; after?: number } = {}
   ): Promise<CapeContactCandidates> {
     let res: Response;
     if (source.file) {
       const form = new FormData();
       if (options.centerFrame !== undefined) form.append('centerFrame', String(options.centerFrame));
+      if (options.before !== undefined) form.append('before', String(options.before));
+      if (options.after !== undefined) form.append('after', String(options.after));
       form.append('file', source.file);
       res = await fetch(`${API_BASE}/club/cape-jobs/contact-candidates`, { method: 'POST', headers: bearerHeader(), body: form });
     } else {
       res = await fetch(`${API_BASE}/club/cape-jobs/contact-candidates`, {
         method: 'POST',
         headers: authenticatedHeaders(),
-        body: JSON.stringify({ driveFileId: source.driveFileId, centerFrame: options.centerFrame })
+        body: JSON.stringify({
+          driveFileId: source.driveFileId,
+          centerFrame: options.centerFrame,
+          before: options.before,
+          after: options.after
+        })
       });
     }
     if (!res.ok) {

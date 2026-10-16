@@ -40,11 +40,14 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-# CAPE uses CUDA on NVIDIA Linux hosts and the CPU image on macOS/ARM or when NVIDIA is unavailable.
+# CAPE uses CUDA on native NVIDIA Linux hosts. Windows shells default to CPU because
+# Windows `nvidia-smi` visibility does not guarantee an NVIDIA adapter is exposed to Docker's WSL VM.
 # CAPE_API_URL in .env points the API at the selected internal service.
 CAPE_MODE_EFFECTIVE="${CAPE_MODE:-auto}"
 if [[ "$CAPE_MODE_EFFECTIVE" == "auto" ]]; then
-  if [[ "$(uname -s)" == "Darwin" || "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]]; then
+  HOST_OS="$(uname -s)"
+  HOST_ARCH="$(uname -m)"
+  if [[ "$HOST_OS" == "Darwin" || "$HOST_OS" == MINGW* || "$HOST_OS" == MSYS* || "$HOST_OS" == CYGWIN* || "$HOST_ARCH" == "arm64" || "$HOST_ARCH" == "aarch64" ]]; then
     CAPE_MODE_EFFECTIVE="cpu"
   elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     CAPE_MODE_EFFECTIVE="gpu"

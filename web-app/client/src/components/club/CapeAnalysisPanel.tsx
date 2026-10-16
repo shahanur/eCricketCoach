@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Download, Images, Loader2, RotateCcw, Sparkles, Upload, UserPlus, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Download, Images, Loader2, RotateCcw, Sparkles, Upload, UserPlus, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { api } from '../../services/api';
 import { CapeContactCandidates, CapeFault, CapeJob, CapeResult, CapeTarget, PlayerDrillAssignment } from '../../types';
 
@@ -16,6 +16,8 @@ const SNAPSHOT_LABELS: Record<string, string> = {
 };
 const POLL_MS = 3000;
 const MAX_POLL_MS = 15000;
+const CONTACT_FRAME_PAGE_SIZE = 40;
+const CONTACT_FRAME_PAGE_BEFORE = 20;
 
 const label = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 const formatNumber = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '—' : value.toFixed(digits));
@@ -444,12 +446,23 @@ const ManualFramePicker: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [activeRole, setActiveRole] = useState<FrameRole>('pre_contact');
+  const [previewFrame, setPreviewFrame] = useState<CapeContactCandidates['frames'][number] | null>(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
 
-  const load = async (centerFrame?: number) => {
+  const load = async (startFrame = 0, frameCount?: number) => {
     setIsLoading(true);
     setLoadError('');
     try {
-      setCandidates(await api.getCapeContactCandidates(source, { centerFrame }));
+      const start = Math.max(0, startFrame);
+      const before = frameCount === undefined
+        ? CONTACT_FRAME_PAGE_BEFORE
+        : Math.min(CONTACT_FRAME_PAGE_BEFORE, Math.max(0, frameCount - 1 - start));
+      const after = CONTACT_FRAME_PAGE_SIZE - 1 - before;
+      setCandidates(await api.getCapeContactCandidates(source, {
+        centerFrame: start + before,
+        before,
+        after
+      }));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'The video frames could not be loaded.');
     } finally {
@@ -475,17 +488,16 @@ const ManualFramePicker: React.FC<{
   const frames = candidates?.frames || [];
   const first = frames[0]?.index;
   const last = frames[frames.length - 1]?.index;
-  const span = frames.length;
   const hasOrderProblem = isManualSelectionComplete(selection) && !isManualSelectionValid(selection);
   const hasSelection = FRAME_ROLES.some(({ role }) => selection[role].length > 0);
 
   if (!candidates) {
     return (
       <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
-        <p className="text-xs text-slate-400">Load frames around the bat-ball contact suggested by Gemini, then tag one or more contact frames, and optionally pre- and post-contact frames. This can take up to a couple of minutes.</p>
-        <button type="button" disabled={isLoading} onClick={() => load()} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50">
+        <p className="text-xs text-slate-400">Browse the video from the beginning and page through every frame. Tag one or more contact frames, and optionally pre- and post-contact frames.</p>
+        <button type="button" disabled={isLoading} onClick={() => load(0)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-50">
           {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Images size={13} />}
-          {isLoading ? 'Finding the contact frame…' : 'Load frames'}
+          {isLoading ? 'Loading frames…' : 'Browse all frames'}
         </button>
         {loadError && <p className="mt-2 text-xs text-rose-300">{loadError}</p>}
       </div>
@@ -493,6 +505,7 @@ const ManualFramePicker: React.FC<{
   }
 
   return (
+    <>
     <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-950/40 p-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="text-slate-400">Tag as:</span>
@@ -511,39 +524,44 @@ const ManualFramePicker: React.FC<{
           <button type="button" onClick={() => { onChange(EMPTY_SELECTION); setActiveRole('pre_contact'); }} className="text-slate-400 underline">Clear</button>
         )}
       </div>
-      <p className="text-xs text-slate-400">
-        {candidates.suggestion_source === 'gemini' && candidates.suggested_frame !== null
-          ? <>Gemini suggests frame <strong className="text-emerald-200">#{candidates.suggested_frame}</strong> as the point of contact. </>
-          : candidates.suggestion_note ? <>{candidates.suggestion_note} </> : null}
-        Showing frames {first}–{last} of {candidates.frame_count} ({formatNumber(candidates.framerate_fps, 1)} fps).
-      </p>
+      <p className="text-xs text-slate-400">Showing frames {first}–{last} of {candidates.frame_count} ({formatNumber(candidates.framerate_fps, 1)} fps). Browse all pages and choose contact frames yourself.</p>
       <p className="text-xs text-slate-500">Only a contact frame is required. Pick several pre-contact frames to trace the bat swing and several post-contact frames to trace the follow-through; any side left empty is scanned automatically (about one second around contact). If you tag more than one contact frame, CAPE uses the clearest one.</p>
       <div className="flex items-stretch gap-2">
-        <button type="button" disabled={isLoading || first === undefined || first <= 0} onClick={() => load(Math.max(0, first! - Math.ceil(span / 2)))} title="Earlier frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+        <button type="button" disabled={isLoading || first === undefined || first <= 0} onClick={() => load(Math.max(0, first! - CONTACT_FRAME_PAGE_SIZE), candidates.frame_count)} title="Earlier frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
           <ChevronLeft size={16} />
         </button>
         <div className={`flex flex-1 gap-2 overflow-x-auto pb-2 ${isLoading ? 'opacity-50' : ''}`}>
           {frames.map(frame => {
             const role = roleOf(frame.index);
             const roleInfo = FRAME_ROLES.find(item => item.role === role);
-            const isSuggested = frame.index === candidates.suggested_frame;
             return (
-              <button
+              <div
                 key={frame.index}
-                type="button"
-                disabled={isLoading}
-                onClick={() => pickFrame(frame.index)}
-                className={`relative w-28 shrink-0 overflow-hidden rounded-lg border-2 text-left ${roleInfo ? roleInfo.tone.split(' ')[0] : isSuggested ? 'border-amber-400/70' : 'border-slate-700 hover:border-slate-500'}`}
+                className={`w-28 shrink-0 overflow-hidden rounded-lg border-2 text-left ${roleInfo ? roleInfo.tone.split(' ')[0] : 'border-slate-700'}`}
               >
-                <img src={`data:image/jpeg;base64,${frame.image_base64}`} alt={`Frame ${frame.index}`} className="block h-auto w-full" />
-                {roleInfo && <span className={`absolute left-1 top-1 rounded px-1 text-[10px] font-bold ${roleInfo.tone}`}>{roleInfo.short}</span>}
-                {isSuggested && <span className="absolute right-1 top-1 rounded bg-amber-400 px-1 text-[10px] font-bold text-slate-950">AI</span>}
-                <span className="block bg-slate-900 px-1 py-0.5 text-[10px] text-slate-300">#{frame.index} · {frame.time_s.toFixed(2)}s</span>
-              </button>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => { setPreviewFrame(frame); setPreviewZoom(1); }}
+                  aria-label={`Enlarge frame ${frame.index}`}
+                  className="relative block w-full hover:brightness-110 disabled:cursor-wait"
+                >
+                  <img src={`data:image/jpeg;base64,${frame.image_base64}`} alt={`Frame ${frame.index}`} className="block h-auto w-full" />
+                  {roleInfo && <span className={`absolute left-1 top-1 rounded px-1 text-[10px] font-bold ${roleInfo.tone}`}>{roleInfo.short}</span>}
+                </button>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => pickFrame(frame.index)}
+                  className="block w-full bg-slate-900 px-1 py-1 text-left text-[10px] text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  #{frame.index} · {frame.time_s.toFixed(2)}s{roleInfo ? ` · ${roleInfo.short}` : ' · Select'}
+                </button>
+              </div>
             );
           })}
         </div>
-        <button type="button" disabled={isLoading || last === undefined || last >= candidates.frame_count - 1} onClick={() => load(Math.min(candidates.frame_count - 1, last! + Math.ceil(span / 2)))} title="Later frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
+        <button type="button" disabled={isLoading || last === undefined || last >= candidates.frame_count - 1} onClick={() => load(last! + 1, candidates.frame_count)} title="Later frames" className="shrink-0 rounded-lg border border-slate-700 px-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-40">
           <ChevronRight size={16} />
         </button>
       </div>
@@ -551,6 +569,44 @@ const ManualFramePicker: React.FC<{
       {loadError && <p className="text-xs text-rose-300">{loadError}</p>}
       {hasOrderProblem && <p className="text-xs text-rose-300">The frames must be in time order: pre-contact before contact, and contact before post-contact.</p>}
     </div>
+    {previewFrame && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Enlarged frame ${previewFrame.index}`}
+        onClick={() => setPreviewFrame(null)}
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+      >
+        <div className="flex h-full w-full max-w-6xl flex-col" onClick={event => event.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3 py-2 text-sm text-white">
+            <span>Frame #{previewFrame.index} · {previewFrame.time_s.toFixed(2)}s</span>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setPreviewZoom(value => Math.max(1, value / 1.4))} disabled={previewZoom <= 1} aria-label="Zoom out" className="rounded-lg border border-white/30 p-2 hover:bg-white/10 disabled:opacity-40">
+                <ZoomOut size={18} />
+              </button>
+              <span className="min-w-12 text-center text-xs">{Math.round(previewZoom * 100)}%</span>
+              <button type="button" onClick={() => setPreviewZoom(value => Math.min(4, value * 1.4))} disabled={previewZoom >= 4} aria-label="Zoom in" className="rounded-lg border border-white/30 p-2 hover:bg-white/10 disabled:opacity-40">
+                <ZoomIn size={18} />
+              </button>
+              <button type="button" onClick={() => setPreviewZoom(1)} disabled={previewZoom === 1} aria-label="Reset zoom" className="rounded-lg border border-white/30 p-2 hover:bg-white/10 disabled:opacity-40">
+                <RotateCcw size={16} />
+              </button>
+              <button type="button" onClick={() => setPreviewFrame(null)} className="rounded-lg border border-white/30 px-3 py-1.5 font-semibold hover:bg-white/10">Close</button>
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+            <img
+              src={`data:image/jpeg;base64,${previewFrame.image_base64}`}
+              alt={`Enlarged frame ${previewFrame.index}`}
+              className="max-h-full max-w-full object-contain transition-transform duration-150"
+              style={{ transform: `scale(${previewZoom})` }}
+            />
+          </div>
+          <p className="py-2 text-center text-xs text-slate-300">Tap outside the image or Close to return to frame selection.</p>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

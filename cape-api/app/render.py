@@ -9,6 +9,7 @@ import math
 import os
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -59,7 +60,7 @@ def _ui_scale(img: np.ndarray) -> float:
 
 
 def _text(img, text, org, scale, color=WHITE, thickness=1) -> None:
-    cv2.putText(img, text, org, FONT, scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+    cv2.putText(img, text, org, FONT, scale, (0, 0, 0), thickness + 1, cv2.LINE_AA)
     cv2.putText(img, text, org, FONT, scale, color, thickness, cv2.LINE_AA)
 
 
@@ -257,7 +258,7 @@ def draw_batting_guides(
         (f"{front}_foot_index", "FRONT TOE", TOE_COLOR),
     )
     s = _ui_scale(out)
-    thickness = max(2, round(3 * s))
+    thickness = max(1, round(2 * s))
     radius = max(7, round(11 * s))
     for name, label, color in joints:
         if name not in pts:
@@ -587,20 +588,102 @@ def _write_jpeg(path: Path, img: np.ndarray) -> None:
     os.replace(tmp, path)
 
 
+def _crop_bounds(
+    img: np.ndarray,
+    box: tuple[float, float, float, float],
+    horizontal_padding: float = 1.2,
+    vertical_padding: float = 0.8,
+) -> tuple[int, int, int, int]:
+    x0, y0, x1, y1 = map(float, box)
+    if not all(math.isfinite(value) for value in (x0, y0, x1, y1)) or x1 <= x0 or y1 <= y0:
+        return (0, 0, img.shape[1], img.shape[0])
+
+    height, width = img.shape[:2]
+    pad_x = max((x1 - x0) * horizontal_padding, 48.0)
+    pad_y = max((y1 - y0) * vertical_padding, 64.0)
+    left = max(0, math.floor(x0 - pad_x))
+    top = max(0, math.floor(y0 - pad_y))
+    right = min(width, math.ceil(x1 + pad_x))
+    bottom = min(height, math.ceil(y1 + pad_y))
+    if right <= left or bottom <= top:
+        return (0, 0, width, height)
+    return left, top, right, bottom
+
+
+def crop_to_box(
+    img: np.ndarray,
+    box: tuple[float, float, float, float],
+    horizontal_padding: float = 1.2,
+    vertical_padding: float = 0.8,
+) -> np.ndarray:
+    """Crop around a detected player, keeping the full box plus room for bat and annotations."""
+    left, top, right, bottom = _crop_bounds(img, box, horizontal_padding, vertical_padding)
+    return img[top:bottom, left:right].copy()
+
+
+def _shift_point(point: Point | None, dx: int, dy: int) -> Point | None:
+    return None if point is None else (float(point[0]) - dx, float(point[1]) - dy)
+
+
+def _shift_points(points: Sequence[Point], dx: int, dy: int) -> list[Point]:
+    return [(_shift_point(point, dx, dy)) for point in points]  # type: ignore[misc]
+
+
+def _translate_overlay(layer: Overlay, dx: int, dy: int) -> Overlay:
+    """Translate the full-frame point arguments used by pipeline overlay partials."""
+    if not isinstance(layer, partial):
+        return layer
+    kwargs = dict(layer.keywords or {})
+    func = layer.func
+
+    if func is draw_trail:
+        kwargs["pts"] = _shift_points(kwargs["pts"], dx, dy)
+    elif func in (draw_contact, draw_ball):
+        kwargs["point"] = _shift_point(kwargs["point"], dx, dy)
+    elif func is draw_angle:
+        for key in ("a", "b", "c"):
+            kwargs[key] = _shift_point(kwargs[key], dx, dy)
+    elif func is draw_skeleton:
+        kwargs["points"] = {key: _shift_point(point, dx, dy) for key, point in kwargs["points"].items()}
+    elif func is draw_alignment:
+        for key in ("head", "knee", "ball"):
+            if key in kwargs:
+                kwargs[key] = _shift_point(kwargs[key], dx, dy)
+    elif func is draw_batting_guides:
+        kwargs["points"] = {key: _shift_point(point, dx, dy) for key, point in kwargs["points"].items()}
+        for key in ("contact", "incoming_start", "outgoing_end"):
+            if key in kwargs:
+                kwargs[key] = _shift_point(kwargs[key], dx, dy)
+        crease = kwargs.get("back_foot_crease_line")
+        if crease is not None:
+            kwargs["back_foot_crease_line"] = tuple(_shift_point(point, dx, dy) for point in crease)
+    elif func is draw_swing_path:
+        kwargs["samples"] = [
+            (_shift_point(hands, dx, dy), _shift_point(tip, dx, dy))
+            for hands, tip in kwargs["samples"]
+        ]
+
+    return partial(func, *layer.args, **kwargs)
+
+
 def export_artifacts(
     session_dir: Path,
     target: Target | str,
     frames: Mapping[str, np.ndarray],
     overlays: Mapping[str, Sequence[Overlay]] | None = None,
+    crop_boxes: Mapping[str, tuple[float, float, float, float]] | None = None,
 ) -> dict[str, Path]:
     """Apply each milestone's overlays (in order, bottom layer first) and write the §11.7 JPEGs.
 
     Keys are milestone keys from `ARTIFACT_KEYS[target]` (e.g. "point_of_contact", "pitch_map").
+    When a milestone has a detected person box, the source frame is cropped first and geometric
+    overlays are translated into crop coordinates before drawing. This keeps the full player in
+    frame and renders annotation text at a size appropriate for the crop.
     Missing frames are skipped. Returns {artifact file name: path} for the files written.
     """
     target = Target(target)
     keys = ARTIFACT_KEYS[target]
-    unknown = (set(frames) | set(overlays or {})) - set(keys)
+    unknown = (set(frames) | set(overlays or {}) | set(crop_boxes or {})) - set(keys)
     if unknown:
         raise ValueError(f"unknown milestone(s) for {target}: {sorted(unknown)}")
     written: dict[str, Path] = {}
@@ -608,7 +691,13 @@ def export_artifacts(
         if key not in frames:
             continue
         img = frames[key]
-        for layer in (overlays or {}).get(key, ()):
+        layers = (overlays or {}).get(key, ())
+        crop_box = (crop_boxes or {}).get(key)
+        if crop_box is not None:
+            left, top, right, bottom = _crop_bounds(img, crop_box)
+            img = img[top:bottom, left:right].copy()
+            layers = tuple(_translate_overlay(layer, left, top) for layer in layers)
+        for layer in layers:
             img = layer(img)
         path = Path(session_dir) / name
         _write_jpeg(path, img)

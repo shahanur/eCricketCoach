@@ -983,14 +983,22 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         token: String,
         uri: Uri?,
         driveFileId: String?,
-        centerFrame: Int? = null
+        centerFrame: Int? = null,
+        before: Int? = null,
+        after: Int? = null
     ): CapeContactCandidates = withContext(Dispatchers.IO) {
         val body = if (uri != null) {
-            val fields = centerFrame?.let { listOf("centerFrame" to it.toString()) }.orEmpty()
+            val fields = buildList {
+                centerFrame?.let { add("centerFrame" to it.toString()) }
+                before?.let { add("before" to it.toString()) }
+                after?.let { add("after" to it.toString()) }
+            }
             postVideoMultipart(context, token, "/api/club/cape-jobs/contact-candidates", uri, fields)
         } else {
             val json = JSONObject().put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
             centerFrame?.let { json.put("centerFrame", it) }
+            before?.let { json.put("before", it) }
+            after?.let { json.put("after", it) }
             request("/api/club/cape-jobs/contact-candidates", token, json, method = "POST", readTimeoutMs = 300_000)
         }
         JSONObject(body).toCapeContactCandidates()

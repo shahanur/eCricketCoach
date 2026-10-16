@@ -88,6 +88,24 @@ def _center(box: Box) -> Point:
     return box.center
 
 
+def _detect_ball_near_player(frame: np.ndarray, box: Box, detector: Any) -> Point | None:
+    """Retry a missed full-frame ball detection on a padded player crop, returning full-frame pixels."""
+    height, width = frame.shape[:2]
+    box_width, box_height = max(1.0, box.x2 - box.x1), max(1.0, box.y2 - box.y1)
+    pad_x, pad_y = max(1.5 * box_width, 64.0), max(0.35 * box_height, 48.0)
+    left = max(0, math.floor(box.x1 - pad_x))
+    top = max(0, math.floor(box.y1 - pad_y))
+    right = min(width, math.ceil(box.x2 + pad_x))
+    bottom = min(height, math.ceil(box.y2 + pad_y))
+    if right <= left or bottom <= top:
+        return None
+    hit = detector.detect(frame[top:bottom, left:right].copy())
+    if hit is None:
+        return None
+    x, y = hit.center
+    return (x + left, y + top)
+
+
 def _nearest(persons: list[PoseResult], ref: Point, key=_foot) -> PoseResult | None:
     return min(persons, key=lambda p: _dist(key(p.box), ref), default=None)
 
@@ -544,6 +562,8 @@ class _Pass:
             self.post_target = c + max(POST_POINTS, round(self.fps * POST_CONTACT_S))
         if self.post_target is not None and idx >= self.post_target and "post_contact" not in self.frames:
             self._keep("post_contact", idx, frame)
+            ref = self.locked.center if self.locked else self.crease_px
+            self.boxes["post_contact"] = self._person_box(frame, ref)
             # Keep scanning so a bat-ball proximity minimum later in the clip can
             # replace an early velocity-inversion estimate.
 
@@ -589,6 +609,10 @@ class _Pass:
             return
         ref = self.locked.center if self.locked else self.crease_px
         box, hands, tip, poly, estimated = self._hands_and_bat(frame, ref)
+        if ball is None and box is not None:
+            ball = _detect_ball_near_player(frame, box, self.det.ball)
+            if ball is not None:
+                self.ball_track.append((idx, ball))
         self.swing_samples[idx] = (hands, tip)
         if estimated:
             self.estimated_swing_frames.add(idx)
@@ -618,6 +642,10 @@ class _Pass:
             tier, score = 0, abs(float(cv2.pointPolygonTest(poly, ball, True))) + 0.35 * _dist(ball, hands)
         elif ball is not None and hands is not None:
             tier, score = 1, _dist(ball, hands)
+        elif ball is not None:
+            # A visible ball is stronger contact evidence than an unverified middle-frame fallback,
+            # even when the pose model did not return usable wrists for this candidate.
+            tier, score = 1, _dist(ball, box.center) if box is not None else 0.0
         else:
             middle = m.point_of_contact[(len(m.point_of_contact) - 1) // 2]
             tier, score = 2, float(abs(idx - middle))
@@ -667,6 +695,8 @@ class _Pass:
             self.tracker.contact_frame = frame_idx
         if self.batter and self.post_target is not None and "post_contact" not in self.frames and self.buffer:
             self._keep("post_contact", *self.buffer[-1])
+            ref = self.locked.center if self.locked else self.crease_px
+            self.boxes["post_contact"] = self._person_box(self.buffer[-1][1], ref)
         if self.batter and self.contact_selection is not None and "post_contact" not in self.frames and self.buffer:
             self._keep("post_contact", *self.buffer[-1])
             ref = self.locked.center if self.locked else self.crease_px
@@ -744,11 +774,11 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     post_hist = [(f, pt) for f, pt in all_track if f >= cf]
     nearest = min(all_track, key=lambda item: abs(item[0] - cf), default=None)
     contact_point = p.visual_contact_point or (nearest[1] if nearest else None)
-    if contact_point is None:
+    if contact_point is None and req.manual_frames is None:
         raise CapeError(422, "no_contact_point_detected", "The impact frame was found but the contact point was not visible")
-    contact_pt = (cf, contact_point)
+    contact_pt = (cf, contact_point) if contact_point is not None else None
     back_foot_crease_line = None
-    if lm_c:
+    if lm_c and contact_point is not None:
         metrics.update(front_foot_metrics(lm_c, h, contact_point, cal))
         alignment_metrics, back_foot_crease_line = batting_alignment_metrics(lm_c, h, contact_point, cal)
         metrics.update(alignment_metrics)
@@ -787,23 +817,28 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
         if swing_speed is not None:
             metrics["pre_contact.bat_swing_speed_kmh"] = swing_speed
     result = coaching.evaluate(req, metrics, None)
+    if contact_point is None:
+        note = "Manual contact frame selected; the ball/bat contact point was not visible, so contact-location and ball-speed measurements are unavailable."
+        result.summary = f"{result.summary} {note}".strip() if result.summary else note
+        result.unavailable.append("contact_point")
     post_pts = post_hist[:POST_POINTS]
     exit_v = _speed(cal, post_pts, fps)
     launch = None
     if len(post_pts) >= 2:
         dx, dy = np.subtract(post_pts[-1][1], post_pts[0][1])
         launch = round(math.degrees(math.atan2(-dy, abs(dx))), 1)
-    ball_v = _speed(cal, [*pre_hist[-POST_POINTS:], contact_pt], fps)
+    ball_v = _speed(cal, [*pre_hist[-POST_POINTS:], contact_pt], fps) if contact_pt is not None else None
     inbound_momentum = round(CRICKET_BALL_MASS_KG * ball_v / 3.6, 2) if ball_v is not None else None
     inbound_energy = round(0.5 * CRICKET_BALL_MASS_KG * (ball_v / 3.6) ** 2, 1) if ball_v is not None else None
     exit_momentum = round(CRICKET_BALL_MASS_KG * exit_v / 3.6, 2) if exit_v is not None else None
     exit_energy = round(0.5 * CRICKET_BALL_MASS_KG * (exit_v / 3.6) ** 2, 1) if exit_v is not None else None
     ball_line = None
-    try:
-        contact_x, _ = cal.to_metres(contact_pt[1])
-        ball_line = line_zone(line_offset_m(contact_x, h))
-    except ValueError:
-        pass
+    if contact_pt is not None:
+        try:
+            contact_x, _ = cal.to_metres(contact_pt[1])
+            ball_line = line_zone(line_offset_m(contact_x, h))
+        except ValueError:
+            pass
 
     statuses = _statuses(result, "point_of_contact")
     pre_statuses, post_statuses = _statuses(result, "pre_contact"), _statuses(result, "post_contact")
@@ -847,6 +882,7 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
     landmark_points = {k: _xy(v) for k, v in lm_c.points.items()} if lm_c else {}
     incoming_start = pre_hist[max(0, len(pre_hist) - POST_POINTS)][1] if pre_hist else None
     outgoing_end = post_pts[-1][1] if post_pts else None
+    contact_point_overlay = contact_point
     overlays = {
         "pre_contact": [
             partial(render.draw_trail, pts=[pt for f, pt in pre_hist if f <= pf]),
@@ -857,22 +893,23 @@ def _analyze_batter(p: _Pass, req: AnalysisRequest, cal: Calibrator, fps: float)
             _panel("Pre-contact", pre_lines),
         ],
         "point_of_contact": [
-            partial(render.draw_trail, pts=[pt for _, pt in pre_hist] + [contact_pt[1]]),
-            *_body_layers(lm_c, h, statuses, contact_pt[1]),
+            partial(render.draw_trail, pts=[pt for _, pt in pre_hist] + ([contact_point] if contact_point is not None else [])),
+            *_body_layers(lm_c, h, statuses, contact_point_overlay),
             *_angle_layers(lm_c, h, metrics, checked, statuses),
             partial(
                 render.draw_batting_guides,
                 points=landmark_points,
                 handedness=h,
-                contact=contact_pt[1],
-                incoming_start=incoming_start,
-                outgoing_end=outgoing_end,
+                contact=contact_point_overlay,
+                incoming_start=incoming_start if contact_point is not None else None,
+                outgoing_end=outgoing_end if contact_point is not None else None,
                 back_foot_crease_line=back_foot_crease_line,
             ),
-            partial(render.draw_contact, point=contact_pt[1]),
+            *([partial(render.draw_contact, point=contact_point)] if contact_point is not None else []),
+            *([_panel("Manual contact", ["Point not visible", "Contact-location metrics unavailable"])] if contact_point is None else []),
         ],
         "post_contact": [
-            partial(render.draw_trail, pts=[contact_pt[1]] + [pt for f, pt in post_hist if f <= postf]),
+            partial(render.draw_trail, pts=([contact_point] if contact_point is not None else []) + [pt for f, pt in post_hist if f <= postf]),
             *_body_layers(lm_post, h, post_statuses, post_ball),
             *_angle_layers(lm_post, h, post_angles, list(post_angles), post_statuses),
             *follow_layers,
@@ -1061,7 +1098,12 @@ def analyze(
     frames = {k: img for k, (_, img) in scan.frames.items()}
     if delivery is not None:
         frames["pitch_map"] = render.draw_pitch_map(delivery, bowler_type=req.bowler_type, handedness=req.handedness)
-    written = render.export_artifacts(session_dir, req.target, frames, overlays)
+    crop_boxes = {
+        key: (box.x1, box.y1, box.x2, box.y2)
+        for key, box in scan.boxes.items()
+        if box is not None and key in frames
+    }
+    written = render.export_artifacts(session_dir, req.target, frames, overlays, crop_boxes)
 
     session_id = Path(session_dir).name
     missing = {

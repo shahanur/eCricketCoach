@@ -1,4 +1,5 @@
 import math
+from functools import partial
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ from app.render import (
     draw_metrics,
     draw_pitch_map,
     draw_trail,
+    crop_to_box,
     export_artifacts,
     pitch_to_map_px,
 )
@@ -150,6 +152,38 @@ def test_export_bowler_partial(tmp_path, frame):
 def test_export_rejects_wrong_milestone(tmp_path, frame):
     with pytest.raises(ValueError):
         export_artifacts(tmp_path, "batter", {"release": frame})
+
+
+def test_crop_to_box_adds_context_and_clamps_to_frame():
+    frame = np.zeros((600, 800, 3), np.uint8)
+    frame[250:450, 350:430] = 255
+    before = frame.copy()
+
+    cropped = crop_to_box(frame, (350, 250, 430, 450))
+
+    assert cropped.shape == (510, 272, 3)
+    assert cropped[250 - 90, 350 - 254].tolist() == [255, 255, 255]
+    assert np.array_equal(frame, before)
+
+
+def test_export_artifact_crops_around_detected_player(tmp_path):
+    frame = np.full((600, 800, 3), 40, np.uint8)
+    out = export_artifacts(
+        tmp_path,
+        "batter",
+        {"point_of_contact": frame},
+        {"point_of_contact": [partial(draw_contact, point=(390, 350))]},
+        crop_boxes={"point_of_contact": (350, 250, 430, 450)},
+    )
+
+    cropped = cv2.imread(str(out["2_point_of_contact.jpg"]))
+    assert cropped.shape == (510, 272, 3)
+    # The marker is translated to crop coordinates and drawn at crop scale, not full-frame scale.
+    marker = cropped[248:272, 124:148]
+    red = (marker[..., 2] > marker[..., 1] + 60) & (marker[..., 2] > marker[..., 0] + 60)
+    ys, xs = np.where(red)
+    assert len(xs) > 0
+    assert max(abs(xs - 12).max(), abs(ys - 12).max()) < 12
 
 
 def test_pose_overlays_draw_without_mutating():

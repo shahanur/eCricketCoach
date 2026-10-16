@@ -261,12 +261,58 @@ def test_manual_contact_without_ball_uses_middle_candidate_and_sweet_spot(video,
     assert a.pre_contact.bat_swing_arc_degrees == pytest.approx(57, abs=1)
 
 
-def test_manual_contact_without_any_evidence_is_rejected(video, tmp_path):
+def test_manual_contact_without_spatial_evidence_returns_pose_analysis(video, tmp_path):
     det = batter_detectors()
     det.ball = Ball(lambda i: None)
-    with pytest.raises(CapeError) as e:
-        pipeline.analyze(video, manual_req([5], [20, 24, 28], [40]), tmp_path, det)
-    assert e.value.code == "no_contact_point_detected"
+    result = pipeline.analyze(video, manual_req([5], [20, 24, 28], [40]), tmp_path, det)
+
+    assert result.analytics_payload.point_of_contact.milestone_frame == 24
+    assert result.analytics_payload.point_of_contact.selection_source == "manual"
+    assert result.analytics_payload.point_of_contact.ball_velocity_kmh is None
+    assert "contact_point" in result.coaching.unavailable
+    assert "contact point was not visible" in result.coaching.summary
+    assert result.analytics_payload.point_of_contact.batter_joint_angles
+
+
+def test_manual_frames_detect_ball_in_player_crop_for_full_kinetics(video, tmp_path):
+    class CropOnlyBall:
+        def detect(self, frame):
+            if frame.shape[:2] == (H, W):
+                return None
+            index = frame_index(frame)
+            return box(30 + (index - 16) * 0.5, 118)
+
+    detectors = swing_detectors()
+    detectors.ball = CropOnlyBall()
+    session = tmp_path / "manual_crop_ball"
+    session.mkdir()
+    request = manual_req([16, 18], [20, 24, 26], [30, 32])
+
+    result = pipeline.analyze(video, request, session, detectors)
+
+    contact = result.analytics_payload.point_of_contact
+    assert contact.selection_source == "manual"
+    assert contact.milestone_frame in request.manual_frames.point_of_contact
+    assert contact.ball_velocity_kmh is not None and contact.ball_velocity_kmh > 0
+    assert contact.estimated_ball_momentum_kg_m_s is not None
+    assert contact.batter_joint_angles
+
+
+def test_manual_contact_prefers_ball_evidence_to_middle_candidate(video, tmp_path):
+    detectors = batter_detectors()
+
+    class BallAtFrame:
+        def detect(self, frame):
+            return box(40, 130) if frame_index(frame) == 26 else None
+
+    detectors.ball = BallAtFrame()
+    session = tmp_path / "manual_contact_evidence"
+    session.mkdir()
+
+    result = pipeline.analyze(video, manual_req([18], [20, 24, 26, 28], [40]), session, detectors)
+
+    assert result.analytics_payload.point_of_contact.milestone_frame == 26
+    assert result.analytics_payload.point_of_contact.ball_velocity_kmh is None
 
 
 def test_manual_swing_falls_back_to_forearms_without_bat(video, tmp_path):
