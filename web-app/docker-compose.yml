@@ -57,6 +57,8 @@ services:
       APPLE_CLIENT_SECRET: ${APPLE_CLIENT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_VIDEO_ANALYSIS_MODEL: ${OPENAI_VIDEO_ANALYSIS_MODEL:-gpt-4.1-mini}
       AI_HUB_URL: http://aihub:8100
       # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).
       CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}

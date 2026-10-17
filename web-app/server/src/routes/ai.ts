@@ -5,12 +5,16 @@ import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisServi
 import { getValidAccessToken } from './googleDrive.js';
 import { DbService } from '../services/dbService.js';
 import { fetchWithRetry } from '../utils/retry.js';
+import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
+import { prisma } from '../config/prisma.js';
+import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
 
 export const aiRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
 const GOOGLE_DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
+const GOOGLE_DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,200}$/;
 
 type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 
@@ -125,6 +129,94 @@ aiRouter.post('/analyze', upload.single('file'), async (req: Request, res: Respo
     });
   }
 });
+
+// OpenAI-assisted batting review using timestamped sampled frames and a focused contact window.
+aiRouter.post(
+  '/analyze/openai-batting',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  (req: Request, res: Response, next) => {
+    upload.single('file')(req, res, error => {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+      } else if (error) {
+        res.status(400).json({ error: 'invalid_upload', message: 'The video upload could not be read.' });
+      } else {
+        next();
+      }
+    });
+  },
+  async (req: AuthenticatedRequest, res: Response) => {
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    const driveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
+    const playerId = typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : '';
+
+    if (file && driveFileId) {
+      return res.status(400).json({ error: 'invalid_source', message: 'Upload a video or select a Google Drive video, not both.' });
+    }
+    if (!file && !driveFileId) {
+      return res.status(400).json({ error: 'video_required', message: 'Upload a video or select one from Google Drive.' });
+    }
+    if (file && !/^video\/[A-Za-z0-9.+-]+$/.test(file.mimetype)) {
+      return res.status(400).json({ error: 'invalid_video', message: 'Only video files can be analysed.' });
+    }
+    if (!file && !GOOGLE_DRIVE_FILE_ID.test(driveFileId)) {
+      return res.status(400).json({ error: 'invalid_drive_file', message: 'The selected Google Drive file ID is invalid.' });
+    }
+
+    const user = req.user!;
+    let playerName: string | null = null;
+    try {
+      if (user.role === 'COACH') {
+        if (user.coachContext !== 'CLUB') {
+          return res.status(403).json({ error: 'club_coach_required', message: 'An active club coach account is required.' });
+        }
+        const coach = await prisma.clubMember.findFirst({
+          where: { id: user.userId, clubId: user.tenantId, role: 'COACH', invitationStatus: 'ACTIVE' }
+        });
+        if (!coach) return res.status(403).json({ error: 'club_coach_required', message: 'An active club coach account is required.' });
+      }
+      if (playerId) {
+        const player = await prisma.clubMember.findFirst({
+          where: { id: playerId, clubId: user.tenantId, role: 'PLAYER', invitationStatus: 'ACTIVE' }
+        });
+        if (!player) return res.status(404).json({ error: 'player_not_found', message: 'The selected player is not active in this club.' });
+        playerName = player.name;
+      }
+
+      let videoBuffer: Buffer;
+      if (file) {
+        videoBuffer = file.buffer;
+      } else {
+        const driveAccess = await getValidAccessToken(user.userId);
+        if (!driveAccess) return res.status(404).json({ error: 'drive_not_connected', message: 'Google Drive is not connected for this account.' });
+        const download = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${encodeURIComponent(driveFileId)}?alt=media`, {
+          headers: { Authorization: `Bearer ${driveAccess.accessToken}` }
+        }, { label: 'Google Drive video download for OpenAI analysis' });
+        if (!download.ok) return res.status(download.status).json({ error: 'drive_download_failed', message: 'The selected Drive video could not be downloaded.' });
+        const contentLength = Number(download.headers.get('content-length') || 0);
+        if (contentLength > 500 * 1024 * 1024) return res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+        videoBuffer = Buffer.from(await download.arrayBuffer());
+        if (videoBuffer.length > 500 * 1024 * 1024) return res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+      }
+
+      const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer);
+      return res.json({
+        status: 'COMPLETED',
+        discipline: 'BATTING',
+        playerId: playerId || null,
+        playerName,
+        analysis
+      });
+    } catch (error) {
+      if (error instanceof OpenAiBattingAnalysisError) {
+        return res.status(error.status).json({ error: error.code, message: error.message });
+      }
+      console.error('OpenAI batting video analysis failed:', error);
+      return res.status(502).json({ error: 'openai_analysis_failed', message: 'The batting video could not be analysed. Please try again.' });
+    }
+  }
+);
 
 // Fetch previously saved video analysis results (most recent first) for the authenticated user,
 // optionally filtered to a specific player via ?playerId=.

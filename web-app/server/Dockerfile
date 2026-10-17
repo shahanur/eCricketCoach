@@ -14,7 +14,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl ffmpeg
 COPY package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 COPY prisma ./prisma
