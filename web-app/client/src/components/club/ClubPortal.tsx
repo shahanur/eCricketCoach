@@ -3589,95 +3589,12 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </figure>
               </div>
 
-              <CroppedPoseOverlayPanel imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl} />
+              <CroppedPoseOverlayPanel
+                imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
+                analysis={openAiBattingAnalysis}
+                sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
+              />
 
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-200">{openAiBattingAnalysis.summary}</p>
-                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                    <p className="text-xs font-semibold text-violet-200">Contact frame</p>
-                    <p className="mt-1 text-xs text-slate-300">
-                      {openAiBattingAnalysis.contact.frameIndex === null
-                        ? 'No contact frame could be selected with confidence.'
-                        : `Frame #${openAiBattingAnalysis.contact.frameIndex} · approximately ${openAiBattingAnalysis.contact.timestampSeconds?.toFixed(3)}s`}
-                    </p>
-                    {openAiBattingAnalysis.contact.selectedTimestampSeconds !== null && (
-                      <p className="mt-1 text-[11px] text-violet-200">
-                        {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Coach-selected' : 'AI-selected'} review reference: approximately {openAiBattingAnalysis.contact.selectedTimestampSeconds.toFixed(3)}s
-                      </p>
-                    )}
-                    <p className="mt-1 text-xs text-slate-400">{openAiBattingAnalysis.contact.evidence}</p>
-                  </div>
-                  {openAiBattingAnalysis.observations.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Visible observations</p>
-                      {openAiBattingAnalysis.observations.map((item, index) => (
-                        <div key={`${item.title}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-bold text-white">{item.title}</p>
-                            <span className="text-[10px] uppercase text-slate-500">{item.confidence}</span>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
-                          <p className="mt-1 text-xs text-violet-200">{item.coachingImplication}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.errors.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">Potential errors to review</p>
-                      {openAiBattingAnalysis.errors.map((item, index) => (
-                        <div key={`${item.title}-${index}`} className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
-                          <p className="text-xs font-bold text-white">{item.title} <span className="font-normal text-slate-500">· {item.confidence}</span></p>
-                          <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
-                          <p className="mt-1 text-xs text-amber-100">{item.coachingImplication}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  {openAiBattingAnalysis.contact.imageDataUrl && (
-                    <img
-                      src={openAiBattingAnalysis.contact.imageDataUrl}
-                      alt={`OpenAI contact candidate frame ${openAiBattingAnalysis.contact.frameIndex ?? ''}`}
-                      className="max-h-[520px] w-full rounded-lg border border-slate-800 bg-black object-contain"
-                    />
-                  )}
-                  {openAiBattingAnalysis.priorityCue && (
-                    <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Priority coaching cue</p>
-                      <p className="mt-1 text-sm font-semibold text-white">{openAiBattingAnalysis.priorityCue}</p>
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.drill.title && (
-                    <div className="rounded-lg border border-sky-400/20 bg-sky-400/5 p-3">
-                      <p className="text-xs font-bold text-sky-200">{openAiBattingAnalysis.drill.title}</p>
-                      {openAiBattingAnalysis.drill.rationale && <p className="mt-1 text-xs text-slate-300">{openAiBattingAnalysis.drill.rationale}</p>}
-                      <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-300">
-                        {openAiBattingAnalysis.drill.instructions.map((instruction, index) => <li key={index}>{instruction}</li>)}
-                      </ol>
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.strengths.length > 0 && (
-                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <p className="text-xs font-semibold text-emerald-200">Visible strengths</p>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">
-                        {openAiBattingAnalysis.strengths.map((strength, index) => <li key={index}>{strength}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.limitations.length > 0 && (
-                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                      <p className="text-xs font-semibold text-slate-300">Limitations</p>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
-                        {openAiBattingAnalysis.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           )}
 

@@ -6,12 +6,13 @@ import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisServi
 import { prisma } from '../config/prisma.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
-const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024, files: 10 } });
 const aihubUrl = () => (process.env.AI_HUB_URL || 'http://localhost:8100').replace(/\/$/, '');
 const poseOverlayUrl = () => (process.env.POSE_OVERLAY_API_URL || 'http://pose-overlay-api:8200').replace(/\/$/, '');
 // Stay under nginx's 300 s proxy_read_timeout so the client gets a JSON error instead of a gateway timeout.
 const aihubTimeoutMs = () => Number(process.env.AI_HUB_TIMEOUT_MS) || 280_000;
 const disciplines = new Set(['BATTING', 'BOWLING', 'KEEPING', 'FIELDING']);
+const battingShotTypes = new Set(['front_foot_drive', 'back_foot_drive', 'forward_defence', 'backward_defence', 'pull', 'cut', 'sweep']);
 
 async function requestAihub(video: Buffer, mimeType: string, filename: string, discipline: string, timestampMs: number, forceTimestamp: boolean) {
   const body = new FormData();
@@ -38,11 +39,14 @@ kinematicsRouter.post(
   '/analyze-image',
   authenticateToken,
   requireRole(['CLUB_ADMIN', 'COACH']),
-  imageUpload.single('image'),
+  imageUpload.fields([{ name: 'image', maxCount: 1 }, { name: 'sequenceImages', maxCount: 9 }]),
   async (req: Request, res: Response) => {
     const user = (req as AuthenticatedRequest).user!;
-    const image = (req as Request & { file?: Express.Multer.File }).file;
+    const files = (req as Request & { files?: Record<string, Express.Multer.File[]> }).files;
+    const image = files?.image?.[0];
+    const sequenceImages = files?.sequenceImages || [];
     const handedness = req.body?.handedness;
+    const shotType = req.body?.shotType;
     if (user.role === 'COACH') {
       if (user.coachContext !== 'CLUB') {
         res.status(403).json({ error: 'club_coach_required', message: 'An active club coach account is required.' });
@@ -60,6 +64,23 @@ kinematicsRouter.post(
       res.status(400).json({ error: 'image_required', message: 'Upload the cropped contact image.' });
       return;
     }
+    let sequenceMetadata: Array<{ frameIndex: number; timestampSeconds: number; phase: 'PRE_CONTACT' | 'CONTACT' | 'POST_CONTACT' }> = [];
+    if (typeof req.body?.sequenceMetadata === 'string') {
+      try {
+        sequenceMetadata = JSON.parse(req.body.sequenceMetadata);
+      } catch {
+        res.status(400).json({ error: 'invalid_sequence_metadata', message: 'The contact-sequence metadata is invalid.' });
+        return;
+      }
+    }
+    if (!Array.isArray(sequenceMetadata) || sequenceMetadata.length !== sequenceImages.length || sequenceMetadata.length > 9 ||
+      sequenceMetadata.some((frame, index) => !frame || !Number.isInteger(frame.frameIndex) || frame.frameIndex < 0 ||
+        !Number.isFinite(frame.timestampSeconds) || frame.timestampSeconds < 0 ||
+        !['PRE_CONTACT', 'CONTACT', 'POST_CONTACT'].includes(frame.phase) ||
+        !/^image\/(jpeg|png|webp)$/.test(sequenceImages[index]?.mimetype || ''))) {
+      res.status(400).json({ error: 'invalid_contact_sequence', message: 'The contact sequence must contain up to nine valid timestamped image frames.' });
+      return;
+    }
     if (!/^image\/(jpeg|png|webp)$/.test(image.mimetype)) {
       res.status(415).json({ error: 'unsupported_image', message: 'Upload a JPEG, PNG, or WebP image.' });
       return;
@@ -68,11 +89,24 @@ kinematicsRouter.post(
       res.status(400).json({ error: 'invalid_handedness', message: 'Choose right- or left-handed batting.' });
       return;
     }
+    if (typeof shotType !== 'string' || !battingShotTypes.has(shotType)) {
+      res.status(400).json({ error: 'invalid_shot_type', message: 'Choose a supported batting shot type for CAPE rule comparison.' });
+      return;
+    }
 
     try {
       const body = new FormData();
       body.append('image', new Blob([new Uint8Array(image.buffer)], { type: image.mimetype }), image.originalname || 'contact-crop.jpg');
       body.append('handedness', handedness);
+      const openAiLandmarks = typeof req.body?.openAiLandmarks === 'string' ? req.body.openAiLandmarks : '{}';
+      const openAiContactPoint = typeof req.body?.openAiContactPoint === 'string' ? req.body.openAiContactPoint : 'null';
+      body.append('openai_landmarks', openAiLandmarks);
+      body.append('openai_contact_point', openAiContactPoint);
+      body.append('shot_type', shotType);
+      for (const sequenceImage of sequenceImages) {
+        body.append('sequence_images', new Blob([new Uint8Array(sequenceImage.buffer)], { type: sequenceImage.mimetype }), sequenceImage.originalname || 'contact-sequence.jpg');
+      }
+      body.append('sequence_metadata', JSON.stringify(sequenceMetadata));
       const headers: Record<string, string> = {};
       if (process.env.POSE_OVERLAY_API_KEY) headers['X-API-Key'] = process.env.POSE_OVERLAY_API_KEY;
       const response = await fetch(`${poseOverlayUrl()}/v1/pose-overlay`, {

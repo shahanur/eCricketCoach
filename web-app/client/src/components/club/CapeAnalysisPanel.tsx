@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Download, Images, Loader2, RotateCcw, Sparkles, Upload, UserPlus, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Download, Images, Loader2, RotateCcw, Sparkles, Upload, UserPlus, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { api } from '../../services/api';
 import { CapeContactCandidates, CapeFault, CapeJob, CapeResult, CapeTarget, PlayerDrillAssignment } from '../../types';
 
@@ -72,6 +72,8 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   const target: CapeTarget | null = discipline === 'BATTING' ? 'batter' : discipline === 'BOWLING' ? 'bowler' : null;
   const isStandalone = !assessmentId;
   const [job, setJob] = useState<CapeJob | null>(null);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(true);
+  const [isResultExpanded, setIsResultExpanded] = useState(true);
   const [isSetup, setIsSetup] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
@@ -150,6 +152,12 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   const [assigningCode, setAssigningCode] = useState('');
   const [assignError, setAssignError] = useState('');
   const succeededJobId = job?.status === 'SUCCEEDED' ? job.jobId : null;
+  useEffect(() => {
+    if (succeededJobId) {
+      setIsResultExpanded(true);
+      setIsPanelExpanded(true);
+    }
+  }, [succeededJobId]);
   useEffect(() => {
     setAssignments([]);
     setAssignError('');
@@ -297,7 +305,15 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   return (
     <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold text-emerald-200">Detailed {target === 'batter' ? 'batting' : 'bowling'} analysis{isStandalone ? ' (pose, ball & speed)' : ''}</h4>
+        <button
+          type="button"
+          aria-expanded={isPanelExpanded}
+          onClick={() => setIsPanelExpanded(expanded => !expanded)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md py-1 text-left hover:text-white"
+        >
+          <span className="text-xs font-semibold text-emerald-200">Detailed {target === 'batter' ? 'batting' : 'bowling'} analysis{isStandalone ? ' (pose, ball & speed)' : ''}</span>
+          <ChevronDown size={15} className={`shrink-0 text-emerald-200 transition-transform ${isPanelExpanded ? 'rotate-180' : ''}`} />
+        </button>
         {canSubmit && !isSetup && !isPending && (
           <button type="button" disabled={isStandalone && !source} onClick={startSetup} className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50">
             {job ? <RotateCcw size={13} /> : <Upload size={13} />}
@@ -308,6 +324,8 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
         )}
       </div>
 
+      {isPanelExpanded && (
+      <div className="mt-3 space-y-3">
       {isSetup && (
         <div className="mt-3 space-y-3">
           <div className="grid gap-2 sm:grid-cols-3">
@@ -415,16 +433,34 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
       )}
 
       {!isSetup && job?.status === 'SUCCEEDED' && job.result && (
-        <CapeResultView
-          result={job.result}
-          drillAssignment={{
-            playerName: job.playerName || 'player',
-            assignments,
-            assigningCode,
-            error: assignError,
-            onAssign: canAssignDrills ? assignDrill : undefined
-          }}
-        />
+        <div className="mt-2 space-y-2">
+          <button
+            type="button"
+            aria-expanded={isResultExpanded}
+            onClick={() => setIsResultExpanded(expanded => !expanded)}
+            className="flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-500/25 bg-slate-950/60 px-3 py-2 text-left hover:border-emerald-400/50"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-emerald-100">CAPE analysis result · {job.result.coaching.score}/100</span>
+              <span className="mt-0.5 block truncate text-[11px] text-slate-400">{job.result.coaching.verdict}</span>
+            </span>
+            <ChevronDown size={16} className={`shrink-0 text-emerald-200 transition-transform ${isResultExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {isResultExpanded && (
+            <CapeResultView
+              result={job.result}
+              drillAssignment={{
+                playerName: job.playerName || 'player',
+                assignments,
+                assigningCode,
+                error: assignError,
+                onAssign: canAssignDrills ? assignDrill : undefined
+              }}
+            />
+          )}
+        </div>
+      )}
+      </div>
       )}
     </div>
   );

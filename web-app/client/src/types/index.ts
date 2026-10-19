@@ -328,6 +328,14 @@ export interface OpenAiBattingAnalysis {
     pointNorm: { x: number; y: number } | null;
   };
   croppedContactImageDataUrl: string | null;
+  croppedContactLandmarksNorm: Record<string, { x: number; y: number } | null>;
+  croppedContactPointNorm: { x: number; y: number } | null;
+  poseSequenceFrames: Array<{
+    frameIndex: number;
+    timestampSeconds: number;
+    phase: 'PRE_CONTACT' | 'CONTACT' | 'POST_CONTACT';
+    imageDataUrl: string;
+  }>;
   visualOutputs: {
     movementSequenceImageDataUrl: string;
     jointAlignmentImageDataUrl: string;
@@ -347,12 +355,78 @@ export interface PoseOverlayAnalysis {
   width: number;
   height: number;
   handedness: 'right' | 'left';
+  landmark_source: 'openai' | 'mediapipe' | 'openai+mediapipe-fallback';
+  landmark_sources: Record<string, 'openai' | 'mediapipe_fallback' | 'unavailable'>;
+  metric_sources: Record<string, string>;
+  temporal_angle_estimates: Record<string, {
+    value: number;
+    frame_index: number;
+    timestamp_seconds: number;
+    offset_ms: number;
+    source: string;
+  }>;
+  shot_type: string;
   person_detection: { confidence: number; box_px: [number, number, number, number]; box_norm: [number, number, number, number] } | null;
   landmarks: Record<string, { x: number; y: number; visibility: number } | null>;
   metrics: Record<string, number | null>;
+  mediapipe_metrics: Record<string, number | null>;
+  openai_landmarks: Record<string, { x: number; y: number }>;
+  openai_contact_point: { x: number; y: number } | null;
+  openai_metrics: Record<string, number | null>;
+  landmark_disagreement_pct: Record<string, number | null>;
+  coaching_rules: {
+    source: string;
+    shot_type: string;
+    score: number;
+    score_scope: string;
+    metric_basis: string;
+    verdict: string;
+    checks_applicable: number;
+    checks_evaluated: number;
+    checks: Array<{
+      group: 'alignment' | 'shot';
+      code: string;
+      milestone: string;
+      metric: string;
+      value: number | null;
+      expected: [number | null, number | null];
+      status: 'measured' | 'fault' | 'unavailable';
+      severity: 'low' | 'medium' | 'high' | null;
+      message: string | null;
+      recommendation: string | null;
+      drill: string | null;
+    }>;
+    faults: Array<{
+      code: string;
+      milestone: string;
+      metric: string;
+      value: number;
+      expected: [number | null, number | null];
+      severity: 'low' | 'medium' | 'high';
+      message: string;
+      recommendation: string;
+      drill: string | null;
+      verdict: string | null;
+    }>;
+    strengths: string[];
+    unavailable: string[];
+  };
   limitations: string[];
   overlay_image_base64: string;
   overlay_mime_type: string;
+  sequence: Array<{
+    frame_index: number;
+    timestamp_seconds: number;
+    phase: 'PRE_CONTACT' | 'CONTACT' | 'POST_CONTACT';
+    status: 'success' | 'unavailable';
+    error?: string;
+    width?: number;
+    height?: number;
+    metrics?: Record<string, number | null>;
+    mediapipe_world_metrics?: Record<string, number>;
+    overlay_image_base64?: string;
+    overlay_mime_type?: string;
+  }>;
 }
 
 export interface DriveVideoFile {

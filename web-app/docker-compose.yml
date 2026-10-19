@@ -86,10 +86,12 @@ services:
     environment:
       POSE_OVERLAY_API_KEY: ${CAPE_API_KEY:-}
       POSE_OVERLAY_YOLO_MODEL: /weights/yolo11n-pose.pt
+      CAPE_COACHING_RULES_PATH: /rules/coaching_rules.yaml
     expose:
       - "8200"
     volumes:
       - ../cape-api/weights:/weights:ro
+      - ../cape-api/app/rules/coaching_rules.yaml:/rules/coaching_rules.yaml:ro
 
   cape-api:
     profiles: [cape]

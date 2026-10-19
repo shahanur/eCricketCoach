@@ -878,14 +878,31 @@ export const api = {
     return res.json();
   },
 
-  async analyzePoseOverlayImage(imageDataUrl: string, handedness: 'right' | 'left'): Promise<PoseOverlayAnalysis> {
-    const match = imageDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!match) throw new Error('The cropped contact image is not a supported base64 image.');
-    const binary = atob(match[2]);
-    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+  async analyzePoseOverlayImage(
+    imageDataUrl: string,
+    handedness: 'right' | 'left',
+    shotType: string,
+    openAiLandmarks: Record<string, { x: number; y: number } | null>,
+    openAiContactPoint: { x: number; y: number } | null,
+    sequenceFrames: Array<{ frameIndex: number; timestampSeconds: number; phase: string; imageDataUrl: string }> = []
+  ): Promise<PoseOverlayAnalysis> {
     const formData = new FormData();
-    formData.append('image', new Blob([bytes], { type: match[1] }), 'openai-contact-crop.jpg');
+    const appendImage = (field: string, dataUrl: string, filename: string) => {
+      const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) throw new Error('A contact-sequence frame is not a supported base64 image.');
+      const binary = atob(match[2]);
+      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+      formData.append(field, new Blob([bytes], { type: match[1] }), filename);
+    };
+    appendImage('image', imageDataUrl, 'openai-contact-crop.jpg');
     formData.append('handedness', handedness);
+    formData.append('shotType', shotType);
+    formData.append('openAiLandmarks', JSON.stringify(openAiLandmarks));
+    formData.append('openAiContactPoint', JSON.stringify(openAiContactPoint));
+    sequenceFrames.forEach((frame, index) => {
+      appendImage('sequenceImages', frame.imageDataUrl, `contact-sequence-${index}.jpg`);
+    });
+    formData.append('sequenceMetadata', JSON.stringify(sequenceFrames.map(({ frameIndex, timestampSeconds, phase }) => ({ frameIndex, timestampSeconds, phase }))));
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${API_BASE}/videos/kinematics/analyze-image`, {
       method: 'POST',

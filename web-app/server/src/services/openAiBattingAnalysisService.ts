@@ -91,6 +91,14 @@ export interface OpenAiBattingAnalysis {
     pointNorm: NormalizedPoint | null;
   };
   croppedContactImageDataUrl: string | null;
+  croppedContactLandmarksNorm: Record<string, NormalizedPoint | null>;
+  croppedContactPointNorm: NormalizedPoint | null;
+  poseSequenceFrames: Array<{
+    frameIndex: number;
+    timestampSeconds: number;
+    phase: 'PRE_CONTACT' | 'CONTACT' | 'POST_CONTACT';
+    imageDataUrl: string;
+  }>;
   visualOutputs: {
     movementSequenceImageDataUrl: string;
     jointAlignmentImageDataUrl: string;
@@ -268,7 +276,7 @@ async function createContactPlayerCrop(
   frame: SampledFrame,
   playerBox: NormalizedBox | null,
   directory: string
-): Promise<string | null> {
+): Promise<{ imageDataUrl: string; bounds: { left: number; top: number; width: number; height: number } } | null> {
   if (!playerBox) return null;
   const { width, height } = frame;
   const boxLeft = playerBox.left * width;
@@ -290,7 +298,36 @@ async function createContactPlayerCrop(
     '-frames:v', '1', '-q:v', '2', outputPath
   ], 20_000);
   const bytes = await fs.readFile(outputPath);
-  return `data:image/jpeg;base64,${bytes.toString('base64')}`;
+  return {
+    imageDataUrl: `data:image/jpeg;base64,${bytes.toString('base64')}`,
+    bounds: { left, top, width: cropWidth, height: cropHeight }
+  };
+}
+
+function normalizeLandmarksInCrop(
+  landmarks: EstimatedLandmarks,
+  frame: SampledFrame,
+  bounds: { left: number; top: number; width: number; height: number }
+): Record<string, NormalizedPoint | null> {
+  const targetNames: Record<string, string> = {
+    head: 'head', leftShoulder: 'left_shoulder', rightShoulder: 'right_shoulder',
+    leftElbow: 'left_elbow', rightElbow: 'right_elbow', leftWrist: 'left_wrist',
+    rightWrist: 'right_wrist', leftHip: 'left_hip', rightHip: 'right_hip',
+    leftKnee: 'left_knee', rightKnee: 'right_knee', leftAnkle: 'left_ankle',
+    rightAnkle: 'right_ankle', frontToe: 'front_toe'
+  };
+  const normalized: Record<string, NormalizedPoint | null> = {};
+  for (const [sourceName, targetName] of Object.entries(targetNames)) {
+    const point = landmarks[sourceName as keyof EstimatedLandmarks];
+    if (!point) {
+      normalized[targetName] = null;
+      continue;
+    }
+    const x = (point.x * frame.width - bounds.left) / bounds.width;
+    const y = (point.y * frame.height - bounds.top) / bounds.height;
+    normalized[targetName] = x < 0 || x > 1 || y < 0 || y > 1 ? null : { x, y };
+  }
+  return normalized;
 }
 
 function isConfidence(value: unknown): value is Confidence {
@@ -510,6 +547,7 @@ For each phase, estimate the full visible batter box normalized to the image (0.
       : overview.phases.find(phase => phase.phase === 'near_contact')?.playerBoxNorm ?? null;
     let contactLandmarksNorm: EstimatedLandmarks = {};
     let detailContactFrame: SampledFrame | null = null;
+    let poseSequenceFrames: OpenAiBattingAnalysis['poseSequenceFrames'] = [];
     let summary = overview.summary;
     let observations = overview.observations;
     let errors: Observation[] = [];
@@ -588,12 +626,47 @@ Coordinates are normalized to the full detail image (0..1, origin at top-left); 
         contactTimestampSeconds = null;
         contactImageDataUrl = null;
       }
+
+      if (detailContactFrame) {
+        const centerSeconds = detailContactFrame.timestampSeconds;
+        const offsetsSeconds = [-0.3, -0.225, -0.15, -0.075, 0.075, 0.15, 0.225, 0.3];
+        const selectedFrames = new Map<number, SampledFrame>([[detailContactFrame.frameIndex, detailContactFrame]]);
+        for (const offset of offsetsSeconds) {
+          const targetSeconds = centerSeconds + offset;
+          const candidates = detailFrames.filter(frame => offset < 0
+            ? frame.timestampSeconds < centerSeconds
+            : frame.timestampSeconds > centerSeconds);
+          if (!candidates.length) continue;
+          const closest = candidates.reduce((best, frame) =>
+            Math.abs(frame.timestampSeconds - targetSeconds) < Math.abs(best.timestampSeconds - targetSeconds) ? frame : best
+          );
+          selectedFrames.set(closest.frameIndex, closest);
+        }
+        poseSequenceFrames = [...selectedFrames.values()]
+          .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
+          .map(frame => ({
+            frameIndex: frame.frameIndex,
+            timestampSeconds: frame.timestampSeconds,
+            phase: frame.timestampSeconds < centerSeconds ? 'PRE_CONTACT' as const
+              : frame.timestampSeconds > centerSeconds ? 'POST_CONTACT' as const : 'CONTACT' as const,
+            imageDataUrl: frame.imageDataUrl
+          }));
+      }
     }
 
     let croppedContactImageDataUrl: string | null = null;
+    let croppedContactLandmarksNorm: Record<string, NormalizedPoint | null> = {};
+    let croppedContactPointNorm: NormalizedPoint | null = null;
     if (detailContactFrame && contactPlayerBoxNorm) {
       try {
-        croppedContactImageDataUrl = await createContactPlayerCrop(detailContactFrame, contactPlayerBoxNorm, workDir);
+        const crop = await createContactPlayerCrop(detailContactFrame, contactPlayerBoxNorm, workDir);
+        if (crop) {
+          croppedContactImageDataUrl = crop.imageDataUrl;
+          croppedContactLandmarksNorm = normalizeLandmarksInCrop(contactLandmarksNorm, detailContactFrame, crop.bounds);
+          croppedContactPointNorm = contactPointNorm
+            ? normalizeLandmarksInCrop({ head: contactPointNorm }, detailContactFrame, crop.bounds).head ?? null
+            : null;
+        }
       } catch (error) {
         console.warn('Could not crop the OpenAI contact frame for pose overlay:', error);
       }
@@ -651,6 +724,9 @@ Coordinates are normalized to the full detail image (0..1, origin at top-left); 
         pointNorm: contactPointNorm
       },
       croppedContactImageDataUrl,
+      croppedContactLandmarksNorm,
+      croppedContactPointNorm,
+      poseSequenceFrames,
       phases,
       visualOutputs,
       summary,
