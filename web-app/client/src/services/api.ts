@@ -20,7 +20,9 @@ import {
   CapeJobSummary,
   CapeJobStatus,
   CapeTarget,
-  PlayerDrillAssignment
+  PlayerDrillAssignment,
+  OpenAiBattingAnalysis,
+  PoseOverlayAnalysis
 } from '../types';
 
 const API_BASE = '/api';
@@ -780,6 +782,46 @@ export const api = {
     return res.json();
   },
 
+  async analyzeOpenAiBatting(payload: {
+    videoFile?: File;
+    driveFileId?: string;
+    playerId?: string;
+    contactTimestampSeconds?: number;
+  }): Promise<{
+    status: 'COMPLETED';
+    discipline: 'BATTING';
+    playerId: string | null;
+    playerName: string | null;
+    analysis: OpenAiBattingAnalysis;
+  }> {
+    const token = localStorage.getItem('auth_token');
+    const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    let res: Response;
+    if (payload.videoFile) {
+      const formData = new FormData();
+      formData.append('file', payload.videoFile, payload.videoFile.name);
+      if (payload.playerId) formData.append('playerId', payload.playerId);
+      if (payload.contactTimestampSeconds !== undefined) formData.append('contactTimestampSeconds', String(payload.contactTimestampSeconds));
+      res = await fetch(`${API_BASE}/videos/analyze/openai-batting`, {
+        method: 'POST',
+        headers: authHeader,
+        body: formData
+      });
+    } else {
+      res = await fetch(`${API_BASE}/videos/analyze/openai-batting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({
+          driveFileId: payload.driveFileId,
+          playerId: payload.playerId,
+          contactTimestampSeconds: payload.contactTimestampSeconds
+        })
+      });
+    }
+    if (!res.ok) throw await responseError(res, 'Failed to analyze batting video with OpenAI');
+    return res.json();
+  },
+
   async analyzeKinematicsOverlay(payload: {
     discipline: string;
     videoFile?: File;
@@ -832,6 +874,27 @@ export const api = {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body?.error || 'Failed to create the kinematic overlay');
+    }
+    return res.json();
+  },
+
+  async analyzePoseOverlayImage(imageDataUrl: string, handedness: 'right' | 'left'): Promise<PoseOverlayAnalysis> {
+    const match = imageDataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) throw new Error('The cropped contact image is not a supported base64 image.');
+    const binary = atob(match[2]);
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    const formData = new FormData();
+    formData.append('image', new Blob([bytes], { type: match[1] }), 'openai-contact-crop.jpg');
+    formData.append('handedness', handedness);
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${API_BASE}/videos/kinematics/analyze-image`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : 'The cropped image pose analysis failed');
     }
     return res.json();
   },

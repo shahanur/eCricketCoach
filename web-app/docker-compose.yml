@@ -58,12 +58,15 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_VIDEO_ANALYSIS_MODEL: ${OPENAI_VIDEO_ANALYSIS_MODEL:-gpt-4.1-mini}
+      OPENAI_VIDEO_ANALYSIS_MODEL: ${OPENAI_VIDEO_ANALYSIS_MODEL:-gpt-6.1-sol}
       AI_HUB_URL: http://aihub:8100
       # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).
       CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}
       CAPE_API_KEY: ${CAPE_API_KEY:-}
       CAPE_UPLOAD_DIR: /var/cape-uploads
+      POSE_OVERLAY_API_URL: http://pose-overlay-api:8200
+      POSE_OVERLAY_API_KEY: ${CAPE_API_KEY:-}
+      POSE_OVERLAY_TIMEOUT_MS: ${POSE_OVERLAY_TIMEOUT_MS:-90000}
     volumes:
       - cape-uploads:/var/cape-uploads
     ports:
@@ -72,6 +75,21 @@ services:
       - postgres
       - redis
       - aihub
+      - pose-overlay-api
+
+  pose-overlay-api:
+    build:
+      context: ./pose-overlay-api
+      dockerfile: Dockerfile
+    container_name: ecricket_pose_overlay_api
+    restart: unless-stopped
+    environment:
+      POSE_OVERLAY_API_KEY: ${CAPE_API_KEY:-}
+      POSE_OVERLAY_YOLO_MODEL: /weights/yolo11n-pose.pt
+    expose:
+      - "8200"
+    volumes:
+      - ../cape-api/weights:/weights:ro
 
   cape-api:
     profiles: [cape]

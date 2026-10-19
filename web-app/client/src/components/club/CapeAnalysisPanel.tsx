@@ -58,6 +58,8 @@ interface CapeAnalysisPanelProps {
   // Standalone mode: analyses `source` (chosen elsewhere on the page) for this club player.
   playerId?: string;
   source?: CapeVideoSource | null;
+  // Optional frame selected by a preceding OpenAI review; CAPE still verifies it and runs the full analysis.
+  initialContactFrame?: number | null;
   startLabel?: string;
   onJobChange?: (job: CapeJob | null) => void;
   // Club staff can assign suggested drills to the analysed player.
@@ -66,7 +68,7 @@ interface CapeAnalysisPanelProps {
   jobId?: string;
 }
 
-export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, startLabel, onJobChange, canAssignDrills = false, jobId }) => {
+export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessmentId, playerId, source, discipline, canSubmit, initialContactFrame = null, startLabel, onJobChange, canAssignDrills = false, jobId }) => {
   const target: CapeTarget | null = discipline === 'BATTING' ? 'batter' : discipline === 'BOWLING' ? 'bowler' : null;
   const isStandalone = !assessmentId;
   const [job, setJob] = useState<CapeJob | null>(null);
@@ -212,12 +214,19 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
   const startSetup = async () => {
     setIsSetup(true);
     if (!isStandalone || !source) return;
+    const seedContactFrame = () => {
+      if (initialContactFrame === null || !Number.isInteger(initialContactFrame) || initialContactFrame < 0) return;
+      setManualMode(true);
+      setManualFrames({ ...EMPTY_SELECTION, point_of_contact: [initialContactFrame] });
+    };
     if (source.file) {
       chooseFile(source.file);
+      seedContactFrame();
       return;
     }
     if (!source.driveFileId) return;
     resetFrame();
+    seedContactFrame();
     setIsLoadingVideo(true);
     try {
       const blob = await api.fetchDriveVideo(source.driveFileId);
@@ -356,7 +365,13 @@ export const CapeAnalysisPanel: React.FC<CapeAnalysisPanelProps> = ({ assessment
               </label>
               {manualMode && (
                 manualSource
-                  ? <ManualFramePicker key={sourceKey || file?.name || ''} source={manualSource} selection={manualFrames} onChange={setManualFrames} />
+                  ? <ManualFramePicker
+                      key={sourceKey || file?.name || ''}
+                      source={manualSource}
+                      selection={manualFrames}
+                      initialCenterFrame={initialContactFrame}
+                      onChange={setManualFrames}
+                    />
                   : <p className="text-xs text-amber-300">Choose a video first to load its frames.</p>
               )}
             </div>
@@ -440,26 +455,29 @@ const isManualSelectionValid = (selection: ManualSelection) => {
 const ManualFramePicker: React.FC<{
   source: { file?: File; driveFileId?: string };
   selection: ManualSelection;
+  initialCenterFrame?: number | null;
   onChange: (selection: ManualSelection) => void;
-}> = ({ source, selection, onChange }) => {
+}> = ({ source, selection, initialCenterFrame, onChange }) => {
   const [candidates, setCandidates] = useState<CapeContactCandidates | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [activeRole, setActiveRole] = useState<FrameRole>('pre_contact');
+  const [activeRole, setActiveRole] = useState<FrameRole>(initialCenterFrame === null || initialCenterFrame === undefined ? 'pre_contact' : 'point_of_contact');
   const [previewFrame, setPreviewFrame] = useState<CapeContactCandidates['frames'][number] | null>(null);
   const [previewZoom, setPreviewZoom] = useState(1);
 
-  const load = async (startFrame = 0, frameCount?: number) => {
+  const load = async (startFrame = 0, frameCount?: number, requestedCenterFrame?: number) => {
     setIsLoading(true);
     setLoadError('');
     try {
       const start = Math.max(0, startFrame);
-      const before = frameCount === undefined
-        ? CONTACT_FRAME_PAGE_BEFORE
-        : Math.min(CONTACT_FRAME_PAGE_BEFORE, Math.max(0, frameCount - 1 - start));
+      const before = requestedCenterFrame !== undefined
+        ? Math.min(CONTACT_FRAME_PAGE_BEFORE, Math.max(0, requestedCenterFrame))
+        : frameCount === undefined
+          ? CONTACT_FRAME_PAGE_BEFORE
+          : Math.min(CONTACT_FRAME_PAGE_BEFORE, Math.max(0, frameCount - 1 - start));
       const after = CONTACT_FRAME_PAGE_SIZE - 1 - before;
       setCandidates(await api.getCapeContactCandidates(source, {
-        centerFrame: start + before,
+        centerFrame: requestedCenterFrame ?? start + before,
         before,
         after
       }));
@@ -469,6 +487,14 @@ const ManualFramePicker: React.FC<{
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialCenterFrame !== null && initialCenterFrame !== undefined && Number.isInteger(initialCenterFrame) && initialCenterFrame >= 0) {
+      void load(0, undefined, initialCenterFrame);
+    }
+    // Load once when the picker opens; paging is driven by the user's controls.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCenterFrame]);
 
   const roleOf = (index: number) => FRAME_ROLES.find(({ role }) => selection[role].includes(index))?.role;
 

@@ -150,6 +150,16 @@ aiRouter.post(
     const file = (req as Request & { file?: Express.Multer.File }).file;
     const driveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
     const playerId = typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : '';
+    const rawContactTimestamp = req.body?.contactTimestampSeconds;
+    const contactTimestampSeconds = rawContactTimestamp === undefined || rawContactTimestamp === ''
+      ? undefined
+      : typeof rawContactTimestamp === 'number' || typeof rawContactTimestamp === 'string'
+        ? Number(rawContactTimestamp)
+        : Number.NaN;
+
+    if (contactTimestampSeconds !== undefined && (!Number.isFinite(contactTimestampSeconds) || contactTimestampSeconds < 0)) {
+      return res.status(400).json({ error: 'invalid_contact_timestamp', message: 'The selected contact time must be a valid non-negative number of seconds.' });
+    }
 
     if (file && driveFileId) {
       return res.status(400).json({ error: 'invalid_source', message: 'Upload a video or select a Google Drive video, not both.' });
@@ -200,7 +210,7 @@ aiRouter.post(
         if (videoBuffer.length > 500 * 1024 * 1024) return res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
       }
 
-      const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer);
+      const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, { contactTimestampSeconds });
       return res.json({
         status: 'COMPLETED',
         discipline: 'BATTING',

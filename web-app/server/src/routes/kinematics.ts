@@ -1,11 +1,14 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticateToken, AuthenticatedRequest, requireRole } from '../middleware/auth.js';
 import { downloadVideoFromDrive } from './googleDrive.js';
 import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisService.js';
+import { prisma } from '../config/prisma.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 12 * 1024 * 1024 } });
 const aihubUrl = () => (process.env.AI_HUB_URL || 'http://localhost:8100').replace(/\/$/, '');
+const poseOverlayUrl = () => (process.env.POSE_OVERLAY_API_URL || 'http://pose-overlay-api:8200').replace(/\/$/, '');
 // Stay under nginx's 300 s proxy_read_timeout so the client gets a JSON error instead of a gateway timeout.
 const aihubTimeoutMs = () => Number(process.env.AI_HUB_TIMEOUT_MS) || 280_000;
 const disciplines = new Set(['BATTING', 'BOWLING', 'KEEPING', 'FIELDING']);
@@ -30,6 +33,67 @@ async function requestAihub(video: Buffer, mimeType: string, filename: string, d
 }
 
 export const kinematicsRouter = Router();
+
+kinematicsRouter.post(
+  '/analyze-image',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  imageUpload.single('image'),
+  async (req: Request, res: Response) => {
+    const user = (req as AuthenticatedRequest).user!;
+    const image = (req as Request & { file?: Express.Multer.File }).file;
+    const handedness = req.body?.handedness;
+    if (user.role === 'COACH') {
+      if (user.coachContext !== 'CLUB') {
+        res.status(403).json({ error: 'club_coach_required', message: 'An active club coach account is required.' });
+        return;
+      }
+      const coach = await prisma.clubMember.findFirst({
+        where: { id: user.userId, clubId: user.tenantId, role: 'COACH', invitationStatus: 'ACTIVE' }
+      });
+      if (!coach) {
+        res.status(403).json({ error: 'club_coach_required', message: 'An active club coach account is required.' });
+        return;
+      }
+    }
+    if (!image) {
+      res.status(400).json({ error: 'image_required', message: 'Upload the cropped contact image.' });
+      return;
+    }
+    if (!/^image\/(jpeg|png|webp)$/.test(image.mimetype)) {
+      res.status(415).json({ error: 'unsupported_image', message: 'Upload a JPEG, PNG, or WebP image.' });
+      return;
+    }
+    if (handedness !== 'right' && handedness !== 'left') {
+      res.status(400).json({ error: 'invalid_handedness', message: 'Choose right- or left-handed batting.' });
+      return;
+    }
+
+    try {
+      const body = new FormData();
+      body.append('image', new Blob([new Uint8Array(image.buffer)], { type: image.mimetype }), image.originalname || 'contact-crop.jpg');
+      body.append('handedness', handedness);
+      const headers: Record<string, string> = {};
+      if (process.env.POSE_OVERLAY_API_KEY) headers['X-API-Key'] = process.env.POSE_OVERLAY_API_KEY;
+      const response = await fetch(`${poseOverlayUrl()}/v1/pose-overlay`, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(Number(process.env.POSE_OVERLAY_TIMEOUT_MS) || 90_000)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = typeof result.detail === 'string' ? result.detail : 'The pose overlay service could not analyse this crop.';
+        res.status(response.status).json({ error: 'pose_overlay_failed', message });
+        return;
+      }
+      res.json(result);
+    } catch (error) {
+      console.error('Cropped pose overlay request failed:', error);
+      res.status(502).json({ error: 'pose_overlay_unavailable', message: 'The cropped image pose service is unavailable.' });
+    }
+  }
+);
 
 kinematicsRouter.post('/analyze', authenticateToken, upload.single('file'), async (req: Request, res: Response) => {
   const authenticated = req as AuthenticatedRequest;

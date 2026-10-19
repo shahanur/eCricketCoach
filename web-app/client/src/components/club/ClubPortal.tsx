@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile } from '../../types';
+import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile, OpenAiBattingAnalysis } from '../../types';
 import { isInSquad, memberSquads } from '../../utils/squads';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
@@ -9,6 +9,7 @@ import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
 import { AihubAnalysisPanel } from './AihubAnalysisPanel';
+import { CroppedPoseOverlayPanel } from './CroppedPoseOverlayPanel';
 import type { CapeJob } from '../../types';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
@@ -274,6 +275,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [analysisDiscipline, setAnalysisDiscipline] = useState<Discipline>('BATTING');
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false);
   const [clubAnalysisResult, setClubAnalysisResult] = useState<VideoAnalysisResult | null>(null);
+  const [isOpenAiBattingAnalysisRunning, setIsOpenAiBattingAnalysisRunning] = useState(false);
+  const [openAiBattingAnalysis, setOpenAiBattingAnalysis] = useState<OpenAiBattingAnalysis | null>(null);
+  const [openAiBattingAnalysisError, setOpenAiBattingAnalysisError] = useState<string | null>(null);
   const [kinematicsResult, setKinematicsResult] = useState<{
     discipline: string;
     timestampMs: number;
@@ -294,6 +298,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     cricketInterpretationError: string | null;
   } | null>(null);
   const analysisPlayers = clubMembers.filter(member => member.role === 'PLAYER' && member.invitationStatus === 'ACTIVE');
+  const openAiContactFrameForCape = openAiBattingAnalysis
+    ? openAiBattingAnalysis.contact.frameIndex ?? (openAiBattingAnalysis.contact.selectedTimestampSeconds === null
+      ? null
+      : Math.round(openAiBattingAnalysis.contact.selectedTimestampSeconds * openAiBattingAnalysis.video.fps))
+    : null;
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
   const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
@@ -321,6 +330,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [driveVideoFiles, setDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [modalDriveVideoFiles, setModalDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [selectedDriveVideo, setSelectedDriveVideo] = useState<string>('');
+  const [openAiContactSelectionMode, setOpenAiContactSelectionMode] = useState<'AI' | 'MANUAL'>('AI');
+  const [openAiVideoPreviewUrl, setOpenAiVideoPreviewUrl] = useState<string | null>(null);
+  const [openAiVideoPreviewLoading, setOpenAiVideoPreviewLoading] = useState(false);
+  const [openAiVideoPreviewError, setOpenAiVideoPreviewError] = useState<string | null>(null);
+  const [openAiVideoDuration, setOpenAiVideoDuration] = useState(0);
+  const [openAiSelectedContactTimestamp, setOpenAiSelectedContactTimestamp] = useState<number | null>(null);
+  const openAiVideoRef = useRef<HTMLVideoElement | null>(null);
   const [driveVideosError, setDriveVideosError] = useState<string | null>(null);
   const [modalDriveVideosError, setModalDriveVideosError] = useState<string | null>(null);
   const [isSyncingDriveTab, setIsSyncingDriveTab] = useState(false);
@@ -328,6 +344,47 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [driveEmail, setDriveEmail] = useState<string>('');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+
+  useEffect(() => {
+    setOpenAiVideoPreviewUrl(null);
+    setOpenAiVideoDuration(0);
+    setOpenAiSelectedContactTimestamp(null);
+    setOpenAiVideoPreviewError(null);
+    if (openAiContactSelectionMode !== 'MANUAL') {
+      setOpenAiVideoPreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    const setPreview = (blob: Blob) => {
+      if (cancelled) return;
+      objectUrl = URL.createObjectURL(blob);
+      setOpenAiVideoPreviewUrl(objectUrl);
+      setOpenAiVideoPreviewLoading(false);
+    };
+
+    setOpenAiVideoPreviewLoading(true);
+    if (videoSourceMode === 'LOCAL_UPLOAD' && uploadedVideoFile) {
+      setPreview(uploadedVideoFile);
+    } else if (videoSourceMode === 'GOOGLE_DRIVE' && selectedDriveVideo) {
+      api.fetchDriveVideo(selectedDriveVideo)
+        .then(setPreview)
+        .catch((error: any) => {
+          if (cancelled) return;
+          setOpenAiVideoPreviewError(error?.message || 'Could not load this Drive video preview.');
+          setOpenAiVideoPreviewLoading(false);
+        });
+    } else {
+      setOpenAiVideoPreviewLoading(false);
+    }
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [openAiContactSelectionMode, videoSourceMode, uploadedVideoFile, selectedDriveVideo]);
+
   const handleDisconnectDrive = async () => {
     try {
       await api.disconnectGoogleDrive();
@@ -2926,6 +2983,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setUploadError(null);
                     setDriveBackupStatus('IDLE');
                     setClubAnalysisResult(null);
+                    setOpenAiBattingAnalysis(null);
+                    setOpenAiBattingAnalysisError(null);
                     setKinematicsResult(null);
                     setLastAnalysisId(null);
                     setViewingAnalysisId(null);
@@ -2976,6 +3035,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       setVideoSourceMode('LOCAL_UPLOAD');
                       setUploadError(null);
                       setKinematicsResult(null);
+                      setOpenAiBattingAnalysis(null);
+                      setOpenAiBattingAnalysisError(null);
                     }}
                     className={`px-3 py-1 rounded text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                       videoSourceMode === 'LOCAL_UPLOAD'
@@ -2990,6 +3051,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     type="button"
                     onClick={() => {
                       setUploadError(null);
+                        setOpenAiBattingAnalysis(null);
+                        setOpenAiBattingAnalysisError(null);
                       if (!isDriveConnected) {
                         setIsDriveModalOpen(true);
                         return;
@@ -3029,6 +3092,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       setUploadError(null);
                       setUploadedVideoName(file.name);
                       setUploadedVideoFile(file);
+                      setOpenAiBattingAnalysis(null);
+                      setOpenAiBattingAnalysisError(null);
                       backupLocalVideoToDrive(file, 'TAB');
                     }}
                   />
@@ -3157,7 +3222,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     ) : (
                       <select
                         value={selectedDriveVideo}
-                        onChange={e => setSelectedDriveVideo(e.target.value)}
+                        onChange={e => {
+                          setSelectedDriveVideo(e.target.value);
+                          setOpenAiBattingAnalysis(null);
+                          setOpenAiBattingAnalysisError(null);
+                        }}
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-sky-500 cursor-pointer"
                       >
                         {driveVideoFiles.map(vf => (
@@ -3218,6 +3287,120 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
             )}
 
+            <div className="rounded-xl border border-violet-400/25 bg-violet-500/5 p-3 space-y-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-violet-200">OpenAI batting video review</h4>
+                  <p className="text-[11px] text-slate-400">Samples the video, identifies a likely contact frame, and reports visual evidence and uncertainty. Separate from CAPE.</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isOpenAiBattingAnalysisRunning || analysisDiscipline !== 'BATTING' ||
+                    (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoFile : !selectedDriveVideo) ||
+                    (openAiContactSelectionMode === 'MANUAL' &&
+                      (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 || openAiSelectedContactTimestamp === null))}
+                  onClick={async () => {
+                    setIsOpenAiBattingAnalysisRunning(true);
+                    setOpenAiBattingAnalysisError(null);
+                    setOpenAiBattingAnalysis(null);
+                    try {
+                      const result = await api.analyzeOpenAiBatting({
+                        videoFile: videoSourceMode === 'LOCAL_UPLOAD' ? uploadedVideoFile || undefined : undefined,
+                        driveFileId: videoSourceMode === 'GOOGLE_DRIVE' ? selectedDriveVideo || undefined : undefined,
+                        playerId: selectedAnalysisPlayer || undefined,
+                        contactTimestampSeconds: openAiContactSelectionMode === 'MANUAL'
+                          ? openAiSelectedContactTimestamp ?? undefined
+                          : undefined
+                      });
+                      setOpenAiBattingAnalysis(result.analysis);
+                    } catch (err: any) {
+                      setOpenAiBattingAnalysisError(err?.message || 'OpenAI batting analysis failed. Please try again.');
+                    } finally {
+                      setIsOpenAiBattingAnalysisRunning(false);
+                    }
+                  }}
+                  className="shrink-0 rounded-lg bg-violet-400 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isOpenAiBattingAnalysisRunning ? 'Analysing…' : 'Analyse batting with OpenAI'}
+                </button>
+              </div>
+              <div className="space-y-2 rounded-lg border border-violet-400/15 bg-slate-950/60 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold text-slate-300">Contact frame:</span>
+                  <button
+                    type="button"
+                    aria-pressed={openAiContactSelectionMode === 'AI'}
+                    onClick={() => setOpenAiContactSelectionMode('AI')}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${openAiContactSelectionMode === 'AI' ? 'bg-violet-400 text-slate-950' : 'border border-slate-700 text-slate-300 hover:text-white'}`}
+                  >
+                    Let AI suggest
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={openAiContactSelectionMode === 'MANUAL'}
+                    onClick={() => setOpenAiContactSelectionMode('MANUAL')}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${openAiContactSelectionMode === 'MANUAL' ? 'bg-violet-400 text-slate-950' : 'border border-slate-700 text-slate-300 hover:text-white'}`}
+                  >
+                    Choose manually
+                  </button>
+                </div>
+                {openAiContactSelectionMode === 'MANUAL' && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-400">Scrub to the moment you want reviewed. OpenAI will inspect nearby frames to verify contact.</p>
+                    {openAiVideoPreviewLoading && <p role="status" className="text-xs text-violet-200">Loading video preview…</p>}
+                    {openAiVideoPreviewError && <p role="alert" className="text-xs text-rose-300">{openAiVideoPreviewError}</p>}
+                    {openAiVideoPreviewUrl && (
+                      <>
+                        <video
+                          ref={openAiVideoRef}
+                          src={openAiVideoPreviewUrl}
+                          controls
+                          preload="metadata"
+                          className="max-h-72 w-full rounded-lg bg-black"
+                          onLoadedMetadata={event => {
+                            const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
+                            setOpenAiVideoDuration(duration);
+                            setOpenAiSelectedContactTimestamp(event.currentTarget.currentTime || 0);
+                          }}
+                          onTimeUpdate={event => setOpenAiSelectedContactTimestamp(event.currentTarget.currentTime)}
+                          onError={() => setOpenAiVideoPreviewError('This video format cannot be previewed in the browser. Try MP4 or WEBM.')}
+                        />
+                        {openAiVideoDuration > 0 && (
+                          <div>
+                            <label htmlFor="openai-contact-time" className="flex items-center justify-between text-[11px] text-slate-300">
+                              <span>Selected time</span>
+                              <span className="font-mono text-violet-200">
+                                {(() => {
+                                  const time = openAiSelectedContactTimestamp ?? 0;
+                                  return `${Math.floor(time / 60)}:${(time % 60).toFixed(2).padStart(5, '0')}`;
+                                })()}
+                              </span>
+                            </label>
+                            <input
+                              id="openai-contact-time"
+                              type="range"
+                              min="0"
+                              max={openAiVideoDuration}
+                              step="0.01"
+                              value={Math.min(openAiSelectedContactTimestamp ?? 0, openAiVideoDuration)}
+                              onChange={event => {
+                                const time = Number(event.target.value);
+                                if (openAiVideoRef.current) openAiVideoRef.current.currentTime = time;
+                                setOpenAiSelectedContactTimestamp(time);
+                              }}
+                              className="mt-1 w-full accent-violet-400"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              {analysisDiscipline !== 'BATTING' && <p className="text-[11px] text-amber-300">OpenAI visual review is currently available for batting videos.</p>}
+              {openAiBattingAnalysisError && <p role="alert" className="text-xs text-rose-300">{openAiBattingAnalysisError}</p>}
+            </div>
+
             {/* AIHub is hidden for now; set SHOW_AIHUB to restore it and the AIHub vs CAPE comparison. */}
             <div className={SHOW_AIHUB ? 'engine-comparison rounded-xl border border-sky-200 p-3 space-y-3' : 'space-y-3'}>
               {SHOW_AIHUB && (
@@ -3248,7 +3431,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               discipline={analysisDiscipline}
               canSubmit
               canAssignDrills
-              startLabel="Analyse with CAPE"
+              initialContactFrame={openAiContactFrameForCape}
+              startLabel={openAiContactFrameForCape === null
+                ? 'Analyse with CAPE'
+                : `Analyse OpenAI contact frame #${openAiContactFrameForCape} with CAPE`}
               onJobChange={setComparisonCapeJob}
               source={videoSourceMode === 'LOCAL_UPLOAD'
                 ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
@@ -3367,6 +3553,131 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {openAiBattingAnalysis && (
+            <div className="rounded-xl border border-violet-400/30 bg-slate-950 p-5 space-y-4">
+              <div className="flex flex-col gap-2 border-b border-slate-800 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-white">OpenAI batting review</h4>
+                  <p className="text-xs text-slate-400">
+                    {clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'} · {openAiBattingAnalysis.model}
+                  </p>
+                </div>
+                <span className="w-fit rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">
+                  {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Manual reference' : 'AI suggestion'} · {openAiBattingAnalysis.contact.status} · {Math.round(openAiBattingAnalysis.contact.confidence * 100)}% confidence
+                </span>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                  <img
+                    src={openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl}
+                    alt="Preparation, downswing, near-contact, and follow-through sequence with source frame timestamps"
+                    className="block h-auto w-full"
+                  />
+                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement sequence from sampled source frames. Phase labels are visual estimates.</figcaption>
+                </figure>
+                <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                  <img
+                    src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl}
+                    alt="Near-contact frame with approximate joint and alignment annotations and coaching observations"
+                    className="block h-auto w-full"
+                  />
+                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Landmarks are approximate visual estimates; force arrows are illustrative, not measured.</figcaption>
+                </figure>
+              </div>
+
+              <CroppedPoseOverlayPanel imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl} />
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.8fr)]">
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-200">{openAiBattingAnalysis.summary}</p>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                    <p className="text-xs font-semibold text-violet-200">Contact frame</p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      {openAiBattingAnalysis.contact.frameIndex === null
+                        ? 'No contact frame could be selected with confidence.'
+                        : `Frame #${openAiBattingAnalysis.contact.frameIndex} · approximately ${openAiBattingAnalysis.contact.timestampSeconds?.toFixed(3)}s`}
+                    </p>
+                    {openAiBattingAnalysis.contact.selectedTimestampSeconds !== null && (
+                      <p className="mt-1 text-[11px] text-violet-200">
+                        {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Coach-selected' : 'AI-selected'} review reference: approximately {openAiBattingAnalysis.contact.selectedTimestampSeconds.toFixed(3)}s
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-400">{openAiBattingAnalysis.contact.evidence}</p>
+                  </div>
+                  {openAiBattingAnalysis.observations.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Visible observations</p>
+                      {openAiBattingAnalysis.observations.map((item, index) => (
+                        <div key={`${item.title}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-white">{item.title}</p>
+                            <span className="text-[10px] uppercase text-slate-500">{item.confidence}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
+                          <p className="mt-1 text-xs text-violet-200">{item.coachingImplication}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.errors.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">Potential errors to review</p>
+                      {openAiBattingAnalysis.errors.map((item, index) => (
+                        <div key={`${item.title}-${index}`} className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
+                          <p className="text-xs font-bold text-white">{item.title} <span className="font-normal text-slate-500">· {item.confidence}</span></p>
+                          <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
+                          <p className="mt-1 text-xs text-amber-100">{item.coachingImplication}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {openAiBattingAnalysis.contact.imageDataUrl && (
+                    <img
+                      src={openAiBattingAnalysis.contact.imageDataUrl}
+                      alt={`OpenAI contact candidate frame ${openAiBattingAnalysis.contact.frameIndex ?? ''}`}
+                      className="max-h-[520px] w-full rounded-lg border border-slate-800 bg-black object-contain"
+                    />
+                  )}
+                  {openAiBattingAnalysis.priorityCue && (
+                    <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Priority coaching cue</p>
+                      <p className="mt-1 text-sm font-semibold text-white">{openAiBattingAnalysis.priorityCue}</p>
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.drill.title && (
+                    <div className="rounded-lg border border-sky-400/20 bg-sky-400/5 p-3">
+                      <p className="text-xs font-bold text-sky-200">{openAiBattingAnalysis.drill.title}</p>
+                      {openAiBattingAnalysis.drill.rationale && <p className="mt-1 text-xs text-slate-300">{openAiBattingAnalysis.drill.rationale}</p>}
+                      <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-300">
+                        {openAiBattingAnalysis.drill.instructions.map((instruction, index) => <li key={index}>{instruction}</li>)}
+                      </ol>
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.strengths.length > 0 && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-xs font-semibold text-emerald-200">Visible strengths</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">
+                        {openAiBattingAnalysis.strengths.map((strength, index) => <li key={index}>{strength}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.limitations.length > 0 && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="text-xs font-semibold text-slate-300">Limitations</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-400">
+                        {openAiBattingAnalysis.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

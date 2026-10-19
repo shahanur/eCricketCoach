@@ -302,6 +302,59 @@ export interface VideoAnalysisResult {
   }>;
 }
 
+export type OpenAiContactStatus = 'DETECTED' | 'LIKELY' | 'UNCERTAIN' | 'NOT_VISIBLE';
+export type OpenAiVisualConfidence = 'low' | 'moderate' | 'high';
+
+export interface OpenAiBattingObservation {
+  title: string;
+  observation: string;
+  coachingImplication: string;
+  confidence: OpenAiVisualConfidence;
+}
+
+export interface OpenAiBattingAnalysis {
+  provider: 'openai';
+  model: string;
+  video: { durationSeconds: number; width: number; height: number; fps: number; sampledOverviewFrames: number };
+  contact: {
+    status: OpenAiContactStatus;
+    selectionSource: 'AI' | 'MANUAL';
+    selectedTimestampSeconds: number | null;
+    frameIndex: number | null;
+    timestampSeconds: number | null;
+    confidence: number;
+    evidence: string;
+    imageDataUrl: string | null;
+    pointNorm: { x: number; y: number } | null;
+  };
+  croppedContactImageDataUrl: string | null;
+  visualOutputs: {
+    movementSequenceImageDataUrl: string;
+    jointAlignmentImageDataUrl: string;
+  };
+  phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; evidence: string; imageDataUrl: string | null }>;
+  summary: string;
+  observations: OpenAiBattingObservation[];
+  errors: OpenAiBattingObservation[];
+  strengths: string[];
+  priorityCue: string;
+  drill: { title: string; instructions: string[]; rationale: string };
+  limitations: string[];
+}
+
+export interface PoseOverlayAnalysis {
+  status: 'success';
+  width: number;
+  height: number;
+  handedness: 'right' | 'left';
+  person_detection: { confidence: number; box_px: [number, number, number, number]; box_norm: [number, number, number, number] } | null;
+  landmarks: Record<string, { x: number; y: number; visibility: number } | null>;
+  metrics: Record<string, number | null>;
+  limitations: string[];
+  overlay_image_base64: string;
+  overlay_mime_type: string;
+}
+
 export interface DriveVideoFile {
   id: string;
   name: string;
