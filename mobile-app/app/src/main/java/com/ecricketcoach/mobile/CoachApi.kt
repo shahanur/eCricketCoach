@@ -325,6 +325,54 @@ data class VideoRecommendedDrill(
     val isNew: Boolean
 )
 
+data class OpenAiBattingContact(
+    val status: String,
+    val frameIndex: Int?,
+    val timestampSeconds: Double?,
+    val confidence: Double,
+    val evidence: String,
+    val imageDataUrl: String?
+)
+
+data class OpenAiBattingObservation(
+    val title: String,
+    val observation: String,
+    val coachingImplication: String,
+    val confidence: String
+)
+
+data class OpenAiBattingPhase(
+    val phase: String,
+    val frameIndex: Int?,
+    val timestampSeconds: Double?,
+    val evidence: String
+)
+
+data class OpenAiBattingDrill(
+    val title: String,
+    val instructions: List<String>,
+    val rationale: String
+)
+
+data class OpenAiBattingAnalysis(
+    val provider: String,
+    val model: String,
+    val durationSeconds: Double,
+    val width: Int,
+    val height: Int,
+    val fps: Double,
+    val sampledOverviewFrames: Int,
+    val contact: OpenAiBattingContact,
+    val phases: List<OpenAiBattingPhase>,
+    val summary: String,
+    val observations: List<OpenAiBattingObservation>,
+    val errors: List<OpenAiBattingObservation>,
+    val strengths: List<String>,
+    val priorityCue: String,
+    val drill: OpenAiBattingDrill,
+    val limitations: List<String>
+)
+
 class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     suspend fun getGoogleSignInChallenge(): GoogleSignInChallenge = withContext(Dispatchers.IO) {
         val json = JSONObject(request("/api/auth/google/native"))
@@ -858,6 +906,85 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         }
         val responseBody = postVideoMultipart(context, token, "/api/videos/analyze", uri, fields)
         responseToVideoEntry(JSONObject(responseBody), discipline, player?.name)
+    }
+
+    suspend fun analyzeOpenAiBattingVideo(
+        context: Context,
+        token: String,
+        uri: Uri?,
+        driveFileId: String?,
+        player: ClubMember?
+    ): OpenAiBattingAnalysis = withContext(Dispatchers.IO) {
+        val body = if (uri != null) {
+            val fields = player?.let { listOf("playerId" to it.id) }.orEmpty()
+            postVideoMultipart(context, token, "/api/videos/analyze/openai-batting", uri, fields)
+        } else {
+            val json = JSONObject().put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
+            player?.let { json.put("playerId", it.id) }
+            request("/api/videos/analyze/openai-batting", token, json, method = "POST", readTimeoutMs = 300_000)
+        }
+        JSONObject(body).getJSONObject("analysis").toOpenAiBattingAnalysis()
+    }
+
+    private fun JSONObject.toOpenAiBattingAnalysis(): OpenAiBattingAnalysis {
+        val video = optJSONObject("video") ?: JSONObject()
+        val contactJson = optJSONObject("contact") ?: JSONObject()
+        val drillJson = optJSONObject("drill") ?: JSONObject()
+        fun strings(name: String): List<String> {
+            val array = optJSONArray(name) ?: JSONArray()
+            return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+        }
+        fun observations(name: String): List<OpenAiBattingObservation> {
+            val array = optJSONArray(name) ?: JSONArray()
+            return (0 until array.length()).mapNotNull { index ->
+                val row = array.optJSONObject(index) ?: return@mapNotNull null
+                OpenAiBattingObservation(
+                    title = row.optString("title"),
+                    observation = row.optString("observation"),
+                    coachingImplication = row.optString("coachingImplication"),
+                    confidence = row.optString("confidence", "low")
+                )
+            }
+        }
+        val phaseArray = optJSONArray("phases") ?: JSONArray()
+        val instructionArray = drillJson.optJSONArray("instructions") ?: JSONArray()
+        return OpenAiBattingAnalysis(
+            provider = optString("provider", "openai"),
+            model = optString("model"),
+            durationSeconds = video.optDouble("durationSeconds"),
+            width = video.optInt("width"),
+            height = video.optInt("height"),
+            fps = video.optDouble("fps"),
+            sampledOverviewFrames = video.optInt("sampledOverviewFrames"),
+            contact = OpenAiBattingContact(
+                status = contactJson.optString("status", "UNCERTAIN"),
+                frameIndex = if (contactJson.isNull("frameIndex")) null else contactJson.optInt("frameIndex"),
+                timestampSeconds = if (contactJson.isNull("timestampSeconds")) null else contactJson.optDouble("timestampSeconds"),
+                confidence = contactJson.optDouble("confidence"),
+                evidence = contactJson.optString("evidence"),
+                imageDataUrl = contactJson.optString("imageDataUrl").takeIf { it.startsWith("data:image/") }
+            ),
+            phases = (0 until phaseArray.length()).mapNotNull { index ->
+                val row = phaseArray.optJSONObject(index) ?: return@mapNotNull null
+                OpenAiBattingPhase(
+                    phase = row.optString("phase"),
+                    frameIndex = if (row.isNull("frameIndex")) null else row.optInt("frameIndex"),
+                    timestampSeconds = if (row.isNull("timestampSeconds")) null else row.optDouble("timestampSeconds"),
+                    evidence = row.optString("evidence")
+                )
+            },
+            summary = optString("summary"),
+            observations = observations("observations"),
+            errors = observations("errors"),
+            strengths = strings("strengths"),
+            priorityCue = optString("priorityCue"),
+            drill = OpenAiBattingDrill(
+                title = drillJson.optString("title"),
+                instructions = (0 until instructionArray.length()).map(instructionArray::optString),
+                rationale = drillJson.optString("rationale")
+            ),
+            limitations = strings("limitations")
+        )
     }
 
     suspend fun analyzeKinematicsVideo(

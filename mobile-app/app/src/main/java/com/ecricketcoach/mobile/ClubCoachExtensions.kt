@@ -30,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -441,6 +442,10 @@ internal fun VideoAnalysisPanel(
     var selectedPlayer by remember { mutableStateOf<ClubMember?>(null) }
     var discipline by remember { mutableStateOf("BATTING") }
     var error by remember { mutableStateOf("") }
+    var openAiBusy by remember { mutableStateOf(false) }
+    var openAiError by remember { mutableStateOf("") }
+    var openAiAnalysis by remember { mutableStateOf<OpenAiBattingAnalysis?>(null) }
+    var showOpenAiAnalysis by remember { mutableStateOf(false) }
     var capeJobs by remember { mutableStateOf<List<CapeJobSummary>>(emptyList()) }
     var capeLoading by remember { mutableStateOf(false) }
     var capeError by remember { mutableStateOf("") }
@@ -470,6 +475,41 @@ internal fun VideoAnalysisPanel(
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedUri = it }
     val playerOptions = listOf("" to "Select player") + players.map { it.id to it.name }
     val selectedVideoName = if (source == "DRIVE") selectedDriveVideo?.name else selectedUri?.lastPathSegment
+    val canAnalyzeWithOpenAi = discipline == "BATTING" && if (source == "DEVICE") {
+        selectedUri != null
+    } else {
+        driveConnected && selectedDriveVideo != null
+    }
+
+    LaunchedEffect(source, selectedUri, selectedDriveVideo?.id, selectedPlayer?.id) {
+        openAiAnalysis = null
+        openAiError = ""
+        showOpenAiAnalysis = false
+    }
+
+    fun analyzeWithOpenAi() {
+        scope.launch {
+            openAiBusy = true
+            openAiError = ""
+            try {
+                openAiAnalysis = api.analyzeOpenAiBattingVideo(
+                    context = context,
+                    token = token,
+                    uri = selectedUri.takeIf { source == "DEVICE" },
+                    driveFileId = selectedDriveVideo?.id.takeIf { source == "DRIVE" },
+                    player = selectedPlayer
+                )
+                showOpenAiAnalysis = true
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                openAiError = failure.message ?: "Unable to analyse this batting video with OpenAI."
+            } finally {
+                openAiBusy = false
+            }
+        }
+    }
+
     BoxWithConstraints(modifier) {
         val isWide = maxWidth >= 820.dp
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -582,7 +622,55 @@ internal fun VideoAnalysisPanel(
                         }
 
                         sourcePanel(Modifier.fillMaxWidth())
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("Find a likely contact frame and review visible technique with evidence and uncertainty.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                                Button(
+                                    onClick = { analyzeWithOpenAi() },
+                                    enabled = canAnalyzeWithOpenAi && !openAiBusy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (openAiBusy) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                    else Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(17.dp))
+                                    Text(if (openAiBusy) "  Analysing batting video…" else "  Analyse batting video", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                if (discipline != "BATTING") Text("OpenAI video analysis currently supports batting.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                                if (openAiError.isNotBlank()) Text(openAiError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            }
+                        }
                         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    }
+                }
+            }
+            openAiAnalysis?.let { analysis ->
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    ) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("OpenAI batting report", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(
+                                    "${analysis.contact.status.replace('_', ' ')} contact" +
+                                        (analysis.contact.timestampSeconds?.let { " · ${String.format(Locale.getDefault(), "%.2f", it)}s" } ?: " · time uncertain"),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = { showOpenAiAnalysis = true }) { Text("View report") }
+                        }
                     }
                 }
             }
@@ -666,6 +754,11 @@ internal fun VideoAnalysisPanel(
             },
             dismissButton = { TextButton(onClick = { pendingCapeDelete = null }, enabled = deletingCapeJobId == null) { Text("Cancel") } }
         )
+    }
+    if (showOpenAiAnalysis) {
+        openAiAnalysis?.let { analysis ->
+            OpenAiBattingAnalysisDialog(analysis) { showOpenAiAnalysis = false }
+        }
     }
 }
 
@@ -803,6 +896,7 @@ private fun VideoAnalysisDropdown(
                     Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                 }
             }
+
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { (optionValue, optionLabel) ->
@@ -811,6 +905,73 @@ private fun VideoAnalysisDropdown(
                     onClick = { onSelect(optionValue); expanded = false }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("${analysis.model} · ${String.format(Locale.getDefault(), "%.1f", analysis.durationSeconds)}s video", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, contentDescription = "Close analysis") }
+                }
+                HorizontalDivider()
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(analysis.summary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), shape = RoundedCornerShape(14.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text("Bat-ball contact · ${analysis.contact.status.replace('_', ' ')}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                buildString {
+                                    analysis.contact.timestampSeconds?.let { append("${String.format(Locale.getDefault(), "%.3f", it)}s") }
+                                    analysis.contact.frameIndex?.let { if (isNotEmpty()) append(" · "); append("frame #$it") }
+                                    if (isNotEmpty()) append(" · ")
+                                    append("${(analysis.contact.confidence * 100).toInt()}% confidence")
+                                },
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (analysis.contact.imageDataUrl != null) {
+                                AsyncImage(
+                                    model = analysis.contact.imageDataUrl,
+                                    contentDescription = "OpenAI selected contact candidate",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(10.dp))
+                                )
+                            }
+                            Text(analysis.contact.evidence, fontSize = 12.sp)
+                        }
+                    }
+                    OpenAiReportSection("Visible technique", analysis.observations.map { "${it.title}: ${it.observation} ${it.coachingImplication} (${it.confidence} confidence)" })
+                    OpenAiReportSection("Potential corrections", analysis.errors.map { "${it.title}: ${it.observation} ${it.coachingImplication} (${it.confidence} confidence)" })
+                    OpenAiReportSection("Strengths", analysis.strengths)
+                    if (analysis.priorityCue.isNotBlank()) OpenAiReportSection("Priority cue", listOf(analysis.priorityCue))
+                    if (analysis.drill.title.isNotBlank()) {
+                        OpenAiReportSection(
+                            analysis.drill.title,
+                            analysis.drill.instructions + analysis.drill.rationale.takeIf(String::isNotBlank).orEmpty()
+                        )
+                    }
+                    OpenAiReportSection("Limitations", analysis.limitations)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OpenAiReportSection(title: String, items: List<String>) {
+    if (items.isEmpty()) return
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            items.forEach { Text("• $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
