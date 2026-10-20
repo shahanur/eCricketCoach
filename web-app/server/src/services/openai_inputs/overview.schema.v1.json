@@ -1,6 +1,8 @@
 {
   "type": "object",
   "properties": {
+    "subjectStatus": { "type": "string", "enum": ["single_batter", "multiple_batters", "uncertain"] },
+    "subjectEvidence": { "type": "string" },
     "contactCandidateSampleIndex": { "type": ["integer", "null"] },
     "contactCandidateConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
     "contactCandidateEvidence": { "type": "string" },
@@ -14,12 +16,13 @@
       "items": {
         "type": "object",
         "properties": {
-          "phase": { "type": "string", "enum": ["preparation", "downswing", "near_contact", "follow_through"] },
+          "phase": { "type": "string", "enum": ["preparation", "foot_plant", "downswing", "contact", "extension", "finish"] },
           "sampleIndex": { "type": ["integer", "null"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
           "evidence": { "type": "string" },
           "playerBoxNorm": { "$ref": "#/$defs/boxOrNull" }
         },
-        "required": ["phase", "sampleIndex", "evidence", "playerBoxNorm"],
+        "required": ["phase", "sampleIndex", "confidence", "evidence", "playerBoxNorm"],
         "additionalProperties": false
       }
     },
@@ -34,14 +37,31 @@
           "sampleIndex": { "type": "integer" },
           "shotType": { "type": ["string", "null"] },
           "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-          "evidence": { "type": "string" }
+          "evidence": { "type": "string" },
+          "windowStartSeconds": { "type": ["number", "null"] },
+          "windowEndSeconds": { "type": ["number", "null"] },
+          "phases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "phase": { "type": "string", "enum": ["preparation", "foot_plant", "downswing", "contact", "extension", "finish"] },
+                "sampleIndex": { "type": ["integer", "null"] },
+                "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+                "evidence": { "type": "string" },
+                "playerBoxNorm": { "$ref": "#/$defs/boxOrNull" }
+              },
+              "required": ["phase", "sampleIndex", "confidence", "evidence", "playerBoxNorm"],
+              "additionalProperties": false
+            }
+          }
         },
-        "required": ["shotId", "sampleIndex", "shotType", "confidence", "evidence"],
+        "required": ["shotId", "sampleIndex", "shotType", "confidence", "evidence", "windowStartSeconds", "windowEndSeconds", "phases"],
         "additionalProperties": false
       }
     }
   },
-  "required": ["contactCandidateSampleIndex", "contactCandidateConfidence", "contactCandidateEvidence", "summary", "observations", "phases", "limitations", "shotCandidates"],
+  "required": ["subjectStatus", "subjectEvidence", "contactCandidateSampleIndex", "contactCandidateConfidence", "contactCandidateEvidence", "summary", "observations", "phases", "limitations", "shotCandidates"],
   "additionalProperties": false,
   "$defs": {
     "pointOrNull": {

@@ -43,7 +43,7 @@ function bearerHeader(): Record<string, string> {
 
 async function responseError(response: Response, fallback: string): Promise<Error> {
   const body = await response.json().catch(() => ({}));
-  return new Error(typeof body.error === 'string' ? body.error : fallback);
+  return new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : fallback);
 }
 
 export const api = {
@@ -787,6 +787,12 @@ export const api = {
     driveFileId?: string;
     playerId?: string;
     contactTimestampSeconds?: number;
+    shotType?: 'front_foot_drive' | 'front_foot_defence' | 'unknown';
+    batterHandedness?: 'right' | 'left' | 'unknown';
+    cameraView?: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
+    playbackSpeed?: 'real_time' | 'slow_motion' | 'unknown';
+    captureFps?: number | null;
+    priorities?: string[];
   }): Promise<{
     status: 'COMPLETED';
     discipline: 'BATTING';
@@ -804,6 +810,12 @@ export const api = {
       formData.append('file', payload.videoFile, payload.videoFile.name);
       if (payload.playerId) formData.append('playerId', payload.playerId);
       if (payload.contactTimestampSeconds !== undefined) formData.append('contactTimestampSeconds', String(payload.contactTimestampSeconds));
+      formData.append('shotType', payload.shotType ?? 'unknown');
+      formData.append('batterHandedness', payload.batterHandedness ?? 'unknown');
+      formData.append('cameraView', payload.cameraView ?? 'unknown');
+      formData.append('playbackSpeed', payload.playbackSpeed ?? 'unknown');
+      if (payload.captureFps !== undefined && payload.captureFps !== null) formData.append('captureFps', String(payload.captureFps));
+      formData.append('priorities', JSON.stringify(payload.priorities ?? []));
       res = await fetch(`${API_BASE}/videos/analyze/openai-batting`, {
         method: 'POST',
         headers: authHeader,
@@ -816,7 +828,13 @@ export const api = {
         body: JSON.stringify({
           driveFileId: payload.driveFileId,
           playerId: payload.playerId,
-          contactTimestampSeconds: payload.contactTimestampSeconds
+          contactTimestampSeconds: payload.contactTimestampSeconds,
+          shotType: payload.shotType ?? 'unknown',
+          batterHandedness: payload.batterHandedness ?? 'unknown',
+          cameraView: payload.cameraView ?? 'unknown',
+          playbackSpeed: payload.playbackSpeed ?? 'unknown',
+          captureFps: payload.captureFps ?? null,
+          priorities: payload.priorities ?? []
         })
       });
     }
@@ -840,6 +858,20 @@ export const api = {
     });
     if (!res.ok) throw await responseError(res, 'The report download failed');
     return { blob: await res.blob(), fileName: name };
+  },
+
+  async saveOpenAiBattingReview(
+    reportId: string,
+    review: { note: string; findings: Array<{ findingIndex: number; status: 'accepted' | 'revised' | 'not_applicable'; note: string }> }
+  ): Promise<{ artifactNames: string[] }> {
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) throw new Error('Invalid report identifier');
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/${encodeURIComponent(reportId)}/review`, {
+      method: 'PATCH',
+      headers: authenticatedHeaders(),
+      body: JSON.stringify(review)
+    });
+    if (!res.ok) throw await responseError(res, 'Failed to save coach review');
+    return res.json();
   },
 
   async analyzeKinematicsOverlay(payload: {

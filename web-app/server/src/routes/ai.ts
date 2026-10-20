@@ -10,8 +10,8 @@ import { DbService } from '../services/dbService.js';
 import { fetchWithRetry } from '../utils/retry.js';
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
 import { prisma } from '../config/prisma.js';
-import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
-import { createAndPersistBattingReport, isBattingReportArtifactName } from '../services/openAiBattingReportArtifacts.js';
+import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysis, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
+import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, StoredReportArtifact } from '../services/openAiBattingReportArtifacts.js';
 
 export const aiRouter = Router();
 
@@ -19,6 +19,32 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
 const GOOGLE_DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const GOOGLE_DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,200}$/;
+const BATTING_PRIORITIES = ['footwork', 'head_alignment', 'contact', 'joint_angles', 'bat_path', 'extension', 'follow_through'] as const;
+
+function getOpenAiMaxVideoBytes(): number {
+  const megabytes = Number(process.env.OPENAI_MAX_VIDEO_SIZE_MB);
+  const configured = Number.isFinite(megabytes) && megabytes >= 1 && megabytes <= 2048 ? megabytes : 500;
+  return Math.floor(configured * 1024 * 1024);
+}
+
+function readPromptEnum<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T | null {
+  if (value === undefined || value === null || value === '') return fallback;
+  return typeof value === 'string' && allowed.includes(value as T) ? value as T : null;
+}
+
+function readBodyAlias(body: Record<string, unknown>, camelName: string, snakeName: string): unknown {
+  return body[camelName] ?? body[snakeName];
+}
+
+function parsePriorities(value: unknown): Array<typeof BATTING_PRIORITIES[number]> | null {
+  if (value === undefined || value === null || value === '') return [...BATTING_PRIORITIES];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch { return null; }
+  }
+  if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string' || !BATTING_PRIORITIES.includes(item as typeof BATTING_PRIORITIES[number]))) return null;
+  return [...new Set(parsed as Array<typeof BATTING_PRIORITIES[number]>)];
+}
 
 type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
 
@@ -140,9 +166,9 @@ aiRouter.post(
   authenticateToken,
   requireRole(['CLUB_ADMIN', 'COACH']),
   (req: Request, res: Response, next) => {
-    upload.single('file')(req, res, error => {
+    multer({ storage: multer.memoryStorage(), limits: { fileSize: getOpenAiMaxVideoBytes() } }).single('file')(req, res, error => {
       if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-        res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+        res.status(413).json({ error: 'file_too_large', message: `Choose a video smaller than ${Math.round(getOpenAiMaxVideoBytes() / (1024 * 1024))} MB.` });
       } else if (error) {
         res.status(400).json({ error: 'invalid_upload', message: 'The video upload could not be read.' });
       } else {
@@ -154,6 +180,20 @@ aiRouter.post(
     const file = (req as Request & { file?: Express.Multer.File }).file;
     const driveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
     const playerId = typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : '';
+    const body = (req.body || {}) as Record<string, unknown>;
+    const shotType = readPromptEnum(readBodyAlias(body, 'shotType', 'shot_type'), ['front_foot_drive', 'front_foot_defence', 'unknown'] as const, 'unknown');
+    const batterHandedness = readPromptEnum(readBodyAlias(body, 'batterHandedness', 'batter_handedness'), ['right', 'left', 'unknown'] as const, 'unknown');
+    const cameraView = readPromptEnum(readBodyAlias(body, 'cameraView', 'camera_view'), ['front_on', 'side_on', 'three_quarter', 'unknown'] as const, 'unknown');
+    const playbackSpeed = readPromptEnum(readBodyAlias(body, 'playbackSpeed', 'playback_speed'), ['real_time', 'slow_motion', 'unknown'] as const, 'unknown');
+    const rawCaptureFps = readBodyAlias(body, 'captureFps', 'capture_fps');
+    const captureFps = rawCaptureFps === undefined || rawCaptureFps === null || rawCaptureFps === ''
+      ? null
+      : typeof rawCaptureFps === 'number' || typeof rawCaptureFps === 'string' ? Number(rawCaptureFps) : Number.NaN;
+    const priorities = parsePriorities(body.priorities);
+    if (!shotType || !batterHandedness || !cameraView || !playbackSpeed || priorities === null ||
+      (captureFps !== null && (!Number.isFinite(captureFps) || captureFps <= 0 || captureFps > 1000))) {
+      return res.status(400).json({ error: 'invalid_analysis_metadata', message: 'Shot, handedness, camera, timing, FPS, or priorities were invalid.' });
+    }
     const rawContactTimestamp = req.body?.contactTimestampSeconds;
     const contactTimestampSeconds = rawContactTimestamp === undefined || rawContactTimestamp === ''
       ? undefined
@@ -209,12 +249,21 @@ aiRouter.post(
         }, { label: 'Google Drive video download for OpenAI analysis' });
         if (!download.ok) return res.status(download.status).json({ error: 'drive_download_failed', message: 'The selected Drive video could not be downloaded.' });
         const contentLength = Number(download.headers.get('content-length') || 0);
-        if (contentLength > 500 * 1024 * 1024) return res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+        const maxVideoBytes = getOpenAiMaxVideoBytes();
+        if (contentLength > maxVideoBytes) return res.status(413).json({ error: 'file_too_large', message: `Choose a video smaller than ${Math.round(maxVideoBytes / (1024 * 1024))} MB.` });
         videoBuffer = Buffer.from(await download.arrayBuffer());
-        if (videoBuffer.length > 500 * 1024 * 1024) return res.status(413).json({ error: 'file_too_large', message: 'Choose a video smaller than 500 MB.' });
+        if (videoBuffer.length > maxVideoBytes) return res.status(413).json({ error: 'file_too_large', message: `Choose a video smaller than ${Math.round(maxVideoBytes / (1024 * 1024))} MB.` });
       }
 
-      const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, { contactTimestampSeconds });
+      const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, {
+        contactTimestampSeconds,
+        shotType,
+        batterHandedness,
+        cameraView,
+        playbackSpeed,
+        captureFps,
+        priorities
+      });
       const reportRoot = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
       const storedReport = await createAndPersistBattingReport(analysis, reportRoot);
       try {
@@ -238,6 +287,13 @@ aiRouter.post(
         await fs.rm(storedReport.directory, { recursive: true, force: true });
         throw error;
       }
+      const clientAnalysis: OpenAiBattingAnalysis = {
+        ...analysis,
+        contact: { ...analysis.contact, imageDataUrl: null },
+        phaseReviewFrames: [],
+        sourceFrameImages: [],
+        shotAssessments: analysis.shotAssessments.map(shot => ({ ...shot, phaseReviewFrames: [] }))
+      };
       return res.json({
         status: 'COMPLETED',
         discipline: 'BATTING',
@@ -245,7 +301,7 @@ aiRouter.post(
         playerName,
         reportId: storedReport.id,
         artifactNames: storedReport.artifacts.map(artifact => artifact.name),
-        analysis
+        analysis: clientAnalysis
       });
     } catch (error) {
       if (error instanceof OpenAiBattingAnalysisError) {
@@ -253,6 +309,89 @@ aiRouter.post(
       }
       console.error('OpenAI batting video analysis failed:', error);
       return res.status(502).json({ error: 'openai_analysis_failed', message: 'The batting video could not be analysed. Please try again.' });
+    }
+  }
+);
+
+aiRouter.get(
+  '/analyze/openai-batting/:reportId/review',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const reportId = req.params.reportId;
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(404).json({ error: 'report_not_found' });
+    try {
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: req.user!.tenantId },
+        select: { id: true, analysis: true, artifacts: true }
+      });
+      if (!report) return res.status(404).json({ error: 'report_not_found' });
+      const record = report.analysis as Record<string, unknown>;
+      return res.json({ review: record.coachReview ?? null });
+    } catch (error) {
+      console.error('OpenAI batting coach review fetch failed:', error);
+      return res.status(500).json({ error: 'review_fetch_failed' });
+    }
+  }
+);
+
+aiRouter.patch(
+  '/analyze/openai-batting/:reportId/review',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const reportId = req.params.reportId;
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(404).json({ error: 'report_not_found' });
+    const body = req.body as Record<string, unknown>;
+    const note = typeof body?.note === 'string' ? body.note.trim() : '';
+    const rawReviews = body?.findings === undefined ? [] : body.findings;
+    if (note.length > 3000 || !Array.isArray(rawReviews) || rawReviews.length > 30) {
+      return res.status(400).json({ error: 'invalid_review', message: 'Review notes or finding edits exceed the allowed limits.' });
+    }
+    const findings: Array<{ findingIndex: number; status: 'accepted' | 'revised' | 'not_applicable'; note: string }> = [];
+    for (const item of rawReviews) {
+      if (!item || typeof item !== 'object') return res.status(400).json({ error: 'invalid_review' });
+      const entry = item as Record<string, unknown>;
+      if (!Number.isInteger(entry.findingIndex) || Number(entry.findingIndex) < 0 ||
+        !['accepted', 'revised', 'not_applicable'].includes(String(entry.status)) ||
+        typeof entry.note !== 'string' || entry.note.length > 1000) {
+        return res.status(400).json({ error: 'invalid_review', message: 'Each finding review needs a valid index, status, and note up to 1000 characters.' });
+      }
+      findings.push({ findingIndex: Number(entry.findingIndex), status: entry.status as 'accepted' | 'revised' | 'not_applicable', note: entry.note.trim() });
+    }
+    try {
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: req.user!.tenantId },
+        select: { id: true, analysis: true, artifacts: true }
+      });
+      if (!report) return res.status(404).json({ error: 'report_not_found' });
+      const analysisRecord = report.analysis as Record<string, unknown>;
+      const findingCount = (Array.isArray(analysisRecord.errors) ? analysisRecord.errors.length : 0) +
+        (Array.isArray(analysisRecord.observations) ? analysisRecord.observations.length : 0);
+      if (findings.some(item => item.findingIndex >= findingCount)) return res.status(400).json({ error: 'invalid_review', message: 'A finding index does not exist in this report.' });
+      const rawArtifacts: unknown[] = Array.isArray(report.artifacts) ? report.artifacts : [];
+      const artifacts: StoredReportArtifact[] = rawArtifacts.flatMap(item => {
+        if (!item || typeof item !== 'object') return [];
+        const artifact = item as Record<string, unknown>;
+        return typeof artifact.name === 'string' && typeof artifact.mimeType === 'string' &&
+          typeof artifact.sizeBytes === 'number' && typeof artifact.sha256 === 'string'
+          ? [{ name: artifact.name, mimeType: artifact.mimeType, sizeBytes: artifact.sizeBytes, sha256: artifact.sha256 }]
+          : [];
+      });
+      const review = { reviewerId: req.user!.userId, reviewedAt: new Date().toISOString(), note, findings };
+      const root = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const persisted = await persistBattingCoachReview(path.join(root, report.id), analysisRecord, artifacts, review);
+      await prisma.openAiBattingReport.updateMany({
+        where: { id: report.id, tenantId: req.user!.tenantId },
+        data: {
+          analysis: persisted.analysisRecord as Prisma.InputJsonValue,
+          artifacts: persisted.artifacts as unknown as Prisma.InputJsonValue
+        }
+      });
+      return res.json({ review, artifactNames: persisted.artifacts.map(item => item.name) });
+    } catch (error) {
+      console.error('OpenAI batting coach review save failed:', error);
+      return res.status(500).json({ error: 'review_save_failed', message: 'The coach review could not be saved.' });
     }
   }
 );

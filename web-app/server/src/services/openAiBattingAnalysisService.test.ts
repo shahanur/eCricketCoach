@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { analyzeBattingVideoWithOpenAI, calculateProjectedAngle, OpenAiBattingAnalysisError } from './openAiBattingAnalysisService.js';
+import { analyzeBattingVideoWithOpenAI, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
 
 test('OpenAI batting analysis reports a clear configuration error without an API key', async () => {
   const previousKey = process.env.OPENAI_API_KEY;
@@ -19,10 +19,113 @@ test('OpenAI batting analysis reports a clear configuration error without an API
   }
 });
 
+test('completed, incomplete, and refused structured responses are handled distinctly', () => {
+  const completed = extractStructuredOutput({
+    id: 'resp_test', model: 'gpt-6.1-sol', status: 'completed',
+    output: [{ type: 'message', content: [{ type: 'output_text', text: '{"ok":true}' }] }],
+    usage: { input_tokens: 12, output_tokens: 5 }
+  });
+  assert.equal(completed.value, '{"ok":true}');
+  assert.equal(completed.metadata.responseId, 'resp_test');
+  assert.equal(completed.metadata.inputTokens, 12);
+  assert.throws(() => extractStructuredOutput({ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' } }),
+    (error: unknown) => error instanceof OpenAiBattingAnalysisError && error.code === 'openai_response_incomplete');
+  assert.throws(() => extractStructuredOutput({
+    status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'not available' }] }]
+  }), (error: unknown) => error instanceof OpenAiBattingAnalysisError && error.code === 'openai_analysis_refused');
+});
+
+test('only max-output-token truncation receives one bounded token-budget increase', () => {
+  assert.equal(nextOutputTokenBudget('incomplete', 'max_output_tokens', 16_000, 32_000), 32_000);
+  assert.equal(nextOutputTokenBudget('incomplete', 'max_output_tokens', 32_000, 32_000), null);
+  assert.equal(nextOutputTokenBudget('incomplete', 'content_filter', 16_000, 32_000), null);
+  assert.equal(nextOutputTokenBudget('completed', null, 16_000, 32_000), null);
+});
+
+test('request timeouts are classified and only the contact-anchor neighborhood uses high image detail', () => {
+  assert.equal(isOpenAiTimeoutMessage('Request timed out.'), true);
+  assert.equal(isOpenAiTimeoutMessage('invalid_request_error'), false);
+  assert.equal(contactFrameImageDetail(0.994, 0.994), 'high');
+  assert.equal(contactFrameImageDetail(0.9, 0.994), 'high');
+  assert.equal(contactFrameImageDetail(0.8, 0.994), 'low');
+});
+
+test('OpenAI diagnostics include useful status/message metadata while redacting secrets and images', () => {
+  const error = Object.assign(new Error('bad request sk-proj-abcdefghijklmnop data:image/jpeg;base64,QUJDREVGRw=='), {
+    status: 400, code: 'invalid_request_error', request_id: 'req_test'
+  });
+  const diagnostics = safeOpenAiErrorDiagnostics(error);
+  assert.equal(diagnostics.status, 400);
+  assert.equal(diagnostics.code, 'invalid_request_error');
+  assert.equal(diagnostics.requestId, 'req_test');
+  assert.equal(diagnostics.message.includes('abcdefghijklmnop'), false);
+  assert.equal(diagnostics.message.includes('QUJDREVGRw'), false);
+  assert.ok(diagnostics.message.includes('[image data redacted]'));
+});
+
 test('projected joint angles are calculated deterministically in image pixels', () => {
   assert.equal(calculateProjectedAngle({ x: 0, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), 90);
+  assert.equal(calculateProjectedAngle({ x: 0.5, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 200, 100), 180);
+  assert.equal(calculateProjectedAngle({ x: 0, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 200, 100), 90);
   assert.equal(calculateProjectedAngle(null, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
   assert.equal(calculateProjectedAngle({ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
+  assert.equal(calculateProjectedAngle({ x: Number.NaN, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
+  assert.equal(calculateProjectedAngle({ x: 1.1, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
+});
+
+test('crop landmark coordinates map back to the source image and out-of-crop points remain null', () => {
+  const normalized = normalizeLandmarksInCrop(
+    { head: { x: 0.5, y: 0.5 }, leftWrist: { x: 0.1, y: 0.1 } },
+    { width: 100, height: 200 },
+    { left: 25, top: 50, width: 50, height: 100 }
+  );
+  assert.deepEqual(normalized.head, { x: 0.5, y: 0.5 });
+  assert.equal(normalized.left_wrist, null);
+});
+
+test('sample-position frame citations normalize to original source frame IDs', () => {
+  const frames = [{ frameIndex: 0 }, { frameIndex: 5 }, { frameIndex: 12 }, { frameIndex: 20 }];
+  assert.deepEqual(normalizeFrameReferenceList([0, 1, 2, 3], frames), [0, 5, 12, 20]);
+  assert.deepEqual(normalizeFrameReferenceList([0, 5, 12, 20], frames), [0, 5, 12, 20]);
+  assert.equal(normalizeFrameReferenceList([99], frames), null);
+});
+
+test('overview responses citing supplied sample positions pass and are canonicalized to source IDs', () => {
+  const frames = [0, 5, 12, 20, 27, 35, 42, 50, 57, 65, 72, 80, 87, 95, 102, 110, 117, 125].map(frameIndex => ({ frameIndex }));
+  const candidatePhases = [
+    { phase: 'preparation', sampleIndex: 0, confidence: 0.65, evidence: 'Late preparation is visible.', playerBoxNorm: null },
+    { phase: 'foot_plant', sampleIndex: 2, confidence: 0.7, evidence: 'The front foot appears settled.', playerBoxNorm: null },
+    { phase: 'downswing', sampleIndex: 3, confidence: 0.9, evidence: 'The bat is descending.', playerBoxNorm: null },
+    { phase: 'contact', sampleIndex: 4, confidence: 0.68, evidence: 'Candidate anchor only.', playerBoxNorm: null },
+    { phase: 'extension', sampleIndex: 5, confidence: 0.72, evidence: 'The bat rises.', playerBoxNorm: null },
+    { phase: 'finish', sampleIndex: 9, confidence: 0.95, evidence: 'A sustained finish is visible.', playerBoxNorm: null }
+  ];
+  const result = {
+    subjectStatus: 'single_batter', subjectEvidence: 'One batter is visible.',
+    contactCandidateSampleIndex: 4, contactCandidateConfidence: 0.68, contactCandidateEvidence: 'Contact is unclear.',
+    summary: 'One candidate stroke.',
+    observations: [{ title: 'Sparse phase', observation: 'The initial setup is omitted.', coachingImplication: 'Request earlier footage.', frameIndices: [0, 1, 2, 3], confidence: 'moderate' }],
+    phases: [], limitations: [],
+    shotCandidates: [{
+      shotId: 'shot_01', sampleIndex: 4, shotType: 'candidate_front_foot_drive', confidence: 0.88,
+      evidence: 'One continuous stroke.', windowStartSeconds: 0, windowEndSeconds: 4.259956, phases: candidatePhases
+    }]
+  };
+  assert.equal(validateAndNormalizeOverview(result, frames, 4.26), true);
+  assert.deepEqual(result.observations[0].frameIndices, [0, 5, 12, 20]);
+});
+
+test('stroke-wide overview windows fall back to bounded contact-anchor extraction', () => {
+  assert.deepEqual(selectDenseContactWindow(0.9942, 4.259956, 0.5, 2, 0, 4.259956), {
+    startSeconds: 0.4942,
+    endSeconds: 1.4942,
+    usedProposedWindow: false
+  });
+  assert.deepEqual(selectDenseContactWindow(0.9942, 4.259956, 0.5, 2, 0.760944, 1.260822), {
+    startSeconds: 0.4942,
+    endSeconds: 1.4942,
+    usedProposedWindow: true
+  });
 });
 
 test('detailed strict schema includes phase landmark provenance and rejects extra root properties', async () => {
@@ -31,8 +134,42 @@ test('detailed strict schema includes phase landmark provenance and rejects extr
   assert.ok(schema.required.includes('landmarksByFrame'));
   assert.equal(schema.properties.landmarksByFrame.maxItems, 6);
   assert.equal(schema.properties.shotIdentification.additionalProperties, false);
+  assert.ok(schema.$defs.finding.required.includes('coachingCue'));
+  assert.ok(schema.$defs.finding.required.includes('drill'));
+  assert.ok(schema.properties.footageQuality.required.includes('framing'));
+  assert.ok(schema.required.includes('kinetics'));
+  assert.equal(schema.properties.kinetics.properties.status.enum[0], 'not_measured');
+  assert.equal(schema.properties.annotations.maxItems, 100);
   const overview = JSON.parse(await readFile(path.join(process.cwd(), 'src/services/openai_inputs/overview.schema.v1.json'), 'utf8'));
   const finding = overview.$defs.observation;
   assert.ok(finding.required.includes('frameIndices'));
   assert.equal(finding.additionalProperties, false);
+  assert.ok(overview.properties.shotCandidates.items.required.includes('windowStartSeconds'));
+  assert.ok(overview.properties.shotCandidates.items.required.includes('phases'));
+  assert.ok(overview.required.includes('subjectStatus'));
+});
+
+test('versioned prompt assets include the handoff instructions and resolve every request placeholder', async () => {
+  const assetPath = (name: string) => path.join(process.cwd(), 'src/services/openai_inputs', name);
+  const [shared, overviewTemplate, detailedTemplate] = await Promise.all([
+    readFile(assetPath('shared-instructions.v1.md'), 'utf8'),
+    readFile(assetPath('overview.v1.md'), 'utf8'),
+    readFile(assetPath('detailed.v1.md'), 'utf8')
+  ]);
+  for (const requiredHeading of ['EVIDENCE', 'CONTACT', 'KINEMATICS', 'KINETICS', 'JOINT ANGLES', 'BAT PATH', 'ANNOTATIONS', 'OUTPUT']) {
+    assert.ok(shared.includes(requiredHeading));
+  }
+  assert.ok(overviewTemplate.includes('Locate each batting stroke in this overview sequence.'));
+  assert.ok(overviewTemplate.includes('{{validated_user_metadata_json}}'));
+  for (const placeholder of ['shot_id', 'shot_type', 'batter_handedness', 'camera_view', 'timing_metadata', 'priorities']) {
+    assert.ok(detailedTemplate.includes(`{{${placeholder}}}`));
+  }
+  const resolvedOverview = renderPromptTemplate(overviewTemplate, { validated_user_metadata_json: '{"shot_type":"unknown"}' });
+  const resolvedDetailed = renderPromptTemplate(detailedTemplate, {
+    shot_id: 'shot_001', shot_type: 'front_foot_drive', batter_handedness: 'right',
+    camera_view: 'side_on', timing_metadata: '{"playback_speed":"unknown"}', priorities: '["contact"]'
+  });
+  assert.equal(/\{\{[a-z_]+\}\}/.test(resolvedOverview + resolvedDetailed), false);
+  assert.ok(resolvedDetailed.includes('Handedness: right'));
+  assert.ok(resolvedDetailed.includes('early elbow folding'));
 });

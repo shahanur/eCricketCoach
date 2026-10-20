@@ -4,12 +4,31 @@ The authenticated `POST /api/videos/analyze/openai-batting` endpoint analyzes an
 
 ## Pipeline and limits
 
-- Inputs use the existing 500 MB upload limit and are rejected when longer than 180 seconds.
-- FFprobe timestamps are used to map sampled frames back to source presentation timestamps. The overview samples at up to 4 fps, bounded to 36 images.
+- The OpenAI route accepts coach-provided shot type, handedness, camera view, playback speed, optional capture FPS, and priorities. Unknown values are explicit and are not inferred.
+- FFprobe timestamps are used to map frames to original presentation timestamps. The overview defaults to up to 4 fps, bounded to 36 images.
 - Up to three distinct overview stroke candidates are retained. The primary candidate and up to two additional candidates get a dense contact-window pass.
-- Contact windows are approximately 0.7 seconds and bounded to 36 frames each. The current pipeline sends sampled images, not a guarantee that every encoded frame is analyzed for high-frame-rate or variable-frame-rate video.
+- Contact windows default to 0.5 seconds on either side of the candidate and decode every original PTS frame. They are bounded by `OPENAI_MAX_CONTACT_WINDOW_SECONDS` and `OPENAI_MAX_CONTACT_WINDOW_FRAMES`; over-limit windows fail explicitly instead of silently dropping frames.
+- Structured-output budgets are capped at 4,000 tokens for overview and 8,000 per detailed pass, with one retry at 8,000/16,000 only when the API reports `max_output_tokens`. Refusals and content-filter interruptions are not retried.
+- Detailed requests include every decoded contact-window frame; only frames within 0.1 seconds of the contact anchor use high image detail. The remainder of the contact sequence and overview phase context use low detail to reduce preprocessing latency without dropping temporal samples.
 - Coordinates and joint angles are projected 2D visual estimates. The application calculates interior image-plane angles from pixel-scaled landmark coordinates; these are not clinical or 3D angles. Physical speed, forces, torque, and ground reaction force are not measured.
-- PNG visuals are rendered from source frames. Bat orientation is emitted only when both endpoints are available and is explicitly not a tracked trajectory. Unsupported visuals are omitted and explained in `report.md`.
+- PNG visuals are rendered from original-resolution, orientation-corrected source frames. Contact review brackets uncertain impact. Phase-specific joint montages, bat shaft positions, annotations, crop transforms, source frame references, and output checksums are recorded. Bat positions are not connected into a measured trajectory. Unsupported visuals are omitted and explained in `report.md`.
+
+## Configuration
+
+All limits are optional server environment variables; invalid values fall back to safe defaults:
+
+| Variable | Default | Bounded range |
+|---|---:|---:|
+| `OPENAI_VIDEO_ANALYSIS_MODEL` | `gpt-6.1-sol` | Configured model ID; no silent substitution |
+| `OPENAI_MAX_VIDEO_SIZE_MB` | `500` | 1–2048 MB |
+| `OPENAI_MAX_VIDEO_DURATION_SECONDS` | `180` | 1–600 seconds |
+| `OPENAI_OVERVIEW_FPS` | `4` | 0.5–10 fps |
+| `OPENAI_MAX_OVERVIEW_FRAMES` | `36` | 4–120 frames |
+| `OPENAI_CONTACT_CONTEXT_SECONDS` | `0.5` | 0.1–1.5 seconds per side |
+| `OPENAI_MAX_CONTACT_WINDOW_SECONDS` | `2` | 0.5–5 seconds |
+| `OPENAI_MAX_CONTACT_WINDOW_FRAMES` | `120` | 1–800 original frames per stroke |
+| `OPENAI_REQUEST_TIMEOUT_MS` | `240000` | 30,000–600,000 ms per Responses request; SDK retries disabled |
+| `OPENAI_REPORTS_DIR` | Compose: `/var/openai-reports` | Persistent server-only volume |
 
 ## Versioned model assets
 
@@ -23,6 +42,13 @@ Report metadata and the image-free analysis record are stored in `openai_batting
 
 Supported artifact names are allowlisted. The ZIP contains generated report files; original uploaded video bytes are not persisted by this report pipeline.
 
+Coaches can retrieve or revise their tenant's review record through:
+
+- `GET /api/videos/analyze/openai-batting/:reportId/review`
+- `PATCH /api/videos/analyze/openai-batting/:reportId/review`
+
+The patch accepts an overall coach note (up to 3000 characters) and finding dispositions/notes (up to 30 findings, 1000 characters per note). It refreshes `analysis.json`, `report.md`, checksums, and the ZIP. Review notes do not alter model-generated evidence or silently recalculate landmarks.
+
 ## Local verification
 
-From `web-app/server`, run `npx prisma generate`, `npm run build`, and `npm exec -- tsx --test src/services/openAiBattingAnalysisService.test.ts src/services/openAiBattingReportArtifacts.test.ts`. From `web-app/client`, run `npm run build`. A live model/video request is not required for these checks and may incur API charges.
+From `web-app/server`, run `npx prisma generate`, `npm run build`, and `npm exec -- tsx --test src/services/openAiBattingAnalysisService.test.ts src/services/openAiBattingReportArtifacts.test.ts src/services/openAiBattingVisuals.test.ts`. From `web-app/client`, run `npm run build`. A live model/video request is not required for these checks and may incur API charges.

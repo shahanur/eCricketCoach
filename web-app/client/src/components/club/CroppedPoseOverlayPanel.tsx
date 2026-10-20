@@ -424,6 +424,8 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
               </div>
               <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
               <p className="mt-1 text-xs text-cyan-100">{item.coachingImplication}</p>
+              {item.coachingCue && <p className="mt-1 text-xs text-violet-200">Cue: {item.coachingCue}</p>}
+              {item.drill && <p className="mt-1 text-xs text-emerald-200">Drill: {item.drill}</p>}
             </article>
           ))}
         </section>
@@ -448,7 +450,12 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
             <div>
               <p className="text-xs font-semibold text-emerald-200">Strengths</p>
               <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">
-                {analysis.strengths.map((strength, index) => <li key={index}>{strength}</li>)}
+                {analysis.strengths.map((strength, index) => (
+                  <li key={`${strength.title}-${index}`}>
+                    <span className="font-semibold">{strength.title}:</span> {strength.observation}
+                    <span className="ml-1 text-[10px] text-slate-500">{strength.confidence} confidence · frames {strength.frameIndices.join(', ') || 'not cited'}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           )}

@@ -310,6 +310,8 @@ export interface OpenAiBattingObservation {
   observation: string;
   coachingImplication: string;
   alternativeExplanation: string;
+  coachingCue?: string;
+  drill?: string;
   frameIndices: number[];
   confidence: OpenAiVisualConfidence;
 }
@@ -323,6 +325,14 @@ export interface OpenAiBattingAnalysis {
   reportId?: string;
   artifactNames?: string[];
   status: 'assessable' | 'partially_assessable' | 'unassessable';
+  requestMetadata: {
+    shotType: 'front_foot_drive' | 'front_foot_defence' | 'unknown';
+    batterHandedness: 'right' | 'left' | 'unknown';
+    cameraView: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
+    playbackSpeed: 'real_time' | 'slow_motion' | 'unknown';
+    captureFps: number | null;
+    priorities: string[];
+  };
   video: { durationSeconds: number; width: number; height: number; fps: number; sampledOverviewFrames: number };
   frameManifest: Array<{
     frameId: string;
@@ -334,7 +344,16 @@ export interface OpenAiBattingAnalysis {
     coordinateSpace: 'orientation_corrected_supplied_image';
     detail: 'overview' | 'contact';
   }>;
-  shotCandidates: Array<{ shotId: string; sampleIndex: number; shotType: string | null; confidence: number; evidence: string }>;
+  shotCandidates: Array<{
+    shotId: string;
+    sampleIndex: number;
+    shotType: string | null;
+    confidence: number;
+    evidence: string;
+    windowStartSeconds: number | null;
+    windowEndSeconds: number | null;
+    phases: Array<{ phase: string; sampleIndex: number | null; confidence: number; evidence: string; playerBoxNorm: { left: number; top: number; right: number; bottom: number } | null }>;
+  }>;
   shotAssessments: Array<{
     shotId: string;
     shotType: string | null;
@@ -345,11 +364,18 @@ export interface OpenAiBattingAnalysis {
     summary: string;
     observations: OpenAiBattingObservation[];
     errors: OpenAiBattingObservation[];
-    strengths: string[];
+    strengths: Array<{ title: string; observation: string; frameIndices: number[]; confidence: OpenAiVisualConfidence }>;
     limitations: string[];
+    kinetics: { status: 'not_measured'; hypotheses: string[] };
     jointAngles: Array<{
+      frameId: string;
       joint: 'elbow' | 'knee' | 'hip' | 'shoulder';
       side: 'left' | 'right';
+      landmarkNames: [string, string, string];
+      a: { x: number; y: number } | null;
+      b: { x: number; y: number } | null;
+      c: { x: number; y: number } | null;
+      visibility: 'visible' | 'unassessable';
       angleDegrees: number | null;
       frameIndex: number;
       timestampSeconds: number;
@@ -360,10 +386,19 @@ export interface OpenAiBattingAnalysis {
       status: 'calculated' | 'unassessable';
       limitations: string[];
     }>;
+    phaseReviewFrames: Array<{ shotId: string; frameIndex: number; timestampSeconds: number; phase: string; confidence: number; landmarksNorm: Record<string, { x: number; y: number } | null>; imageDataUrl: string }>;
+    batLandmarksByFrame: Array<{ frameIndex: number; phase: string; confidence: number; visibility: 'visible' | 'partially_visible' | 'hidden' | 'unknown'; handleNorm: { x: number; y: number } | null; toeNorm: { x: number; y: number } | null }>;
+    annotations: Array<{ frameIndex: number; type: 'point' | 'line' | 'polyline' | 'arrow' | 'ellipse' | 'text'; points: Array<{ x: number; y: number }>; label: string; evidenceStatus: 'observed' | 'estimated' | 'schematic'; confidence: number }>;
   }>;
   jointAngles: Array<{
+    frameId: string;
     joint: 'elbow' | 'knee' | 'hip' | 'shoulder';
     side: 'left' | 'right';
+    landmarkNames: [string, string, string];
+    a: { x: number; y: number } | null;
+    b: { x: number; y: number } | null;
+    c: { x: number; y: number } | null;
+    visibility: 'visible' | 'unassessable';
     angleDegrees: number | null;
     frameIndex: number;
     timestampSeconds: number;
@@ -374,13 +409,22 @@ export interface OpenAiBattingAnalysis {
     status: 'calculated' | 'unassessable';
     limitations: string[];
   }>;
+  phaseReviewFrames: Array<{ shotId: string; frameIndex: number; timestampSeconds: number; phase: string; confidence: number; landmarksNorm: Record<string, { x: number; y: number } | null>; imageDataUrl: string }>;
+  sourceFrameImages: Array<{ frameIndex: number; timestampSeconds: number; imageDataUrl: string }>;
+  batLandmarksByFrame: Array<{ frameIndex: number; phase: string; confidence: number; visibility: 'visible' | 'partially_visible' | 'hidden' | 'unknown'; handleNorm: { x: number; y: number } | null; toeNorm: { x: number; y: number } | null }>;
+  annotations: Array<{ frameIndex: number; type: 'point' | 'line' | 'polyline' | 'arrow' | 'ellipse' | 'text'; points: Array<{ x: number; y: number }>; label: string; evidenceStatus: 'observed' | 'estimated' | 'schematic'; confidence: number }>;
   executionLog: {
     stages: string[];
-    toolVersions: { node: string; ffmpeg: string; ffprobe: string };
+    toolVersions: { node: string; ffmpeg: string; ffprobe: string; sharp: string };
     modelRequested: string;
     modelReturned: string;
     responseIds: string[];
     usage: { inputTokens: number; outputTokens: number } | null;
+    sourceSha256: string;
+    frameManifest: OpenAiBattingAnalysis['frameManifest'];
+    cropTransforms: Array<{ frameIndex: number; sourceWidth: number; sourceHeight: number; cropX: number; cropY: number; cropWidth: number; cropHeight: number; outputWidth: number; outputHeight: number; coordinateSpace: string }>;
+    errors: string[];
+    outputs: Array<{ path: string; sha256: string; sizeBytes: number }>;
   };
   contact: {
     status: OpenAiContactStatus;
@@ -409,10 +453,11 @@ export interface OpenAiBattingAnalysis {
     movementSequenceImageDataUrl: string;
     jointAlignmentImageDataUrl: string;
   };
-  phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; evidence: string }>;
-  shotIdentification: { shotType: string | null; confidence: number; evidence: string };
+  phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; confidence: number; evidence: string }>;
+  shotIdentification: { shotType: string | null; batterHandedness: 'right' | 'left' | 'unknown'; confidence: number; evidence: string };
   footageQuality: {
     cameraView: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
+    framing: 'full_batter_visible' | 'partially_cropped' | 'poor' | 'unknown';
     blur: 'low' | 'moderate' | 'high' | 'unknown';
     occlusions: string[];
     timingLimitations: string[];
@@ -420,9 +465,10 @@ export interface OpenAiBattingAnalysis {
   };
   contactWindow: { startSeconds: number | null; endSeconds: number | null };
   summary: string;
+  kinetics: { status: 'not_measured'; hypotheses: string[] };
   observations: OpenAiBattingObservation[];
   errors: OpenAiBattingObservation[];
-  strengths: string[];
+  strengths: Array<{ title: string; observation: string; frameIndices: number[]; confidence: OpenAiVisualConfidence }>;
   priorityCue: string;
   drill: { title: string; instructions: string[]; rationale: string };
   limitations: string[];

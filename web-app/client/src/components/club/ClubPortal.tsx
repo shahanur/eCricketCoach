@@ -18,6 +18,10 @@ import { readDrillImage } from '../../utils/drillImage';
 
 const SHOW_AIHUB = false;
 const SHOW_BIOMECHANICAL_AI_BUTTON = false;
+const OPENAI_BATTING_PRIORITIES = [
+  ['footwork', 'Footwork'], ['head_alignment', 'Head alignment'], ['contact', 'Contact'],
+  ['joint_angles', 'Joint angles'], ['bat_path', 'Bat path'], ['extension', 'Extension'], ['follow_through', 'Follow-through']
+] as const;
 
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
@@ -278,6 +282,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isOpenAiBattingAnalysisRunning, setIsOpenAiBattingAnalysisRunning] = useState(false);
   const [openAiBattingAnalysis, setOpenAiBattingAnalysis] = useState<OpenAiBattingAnalysis | null>(null);
   const [openAiBattingAnalysisError, setOpenAiBattingAnalysisError] = useState<string | null>(null);
+  const [openAiCoachReviewNote, setOpenAiCoachReviewNote] = useState('');
+  const [openAiFindingReviews, setOpenAiFindingReviews] = useState<Record<number, { status: 'accepted' | 'revised' | 'not_applicable' | ''; note: string }>>({});
+  const [isSavingOpenAiCoachReview, setIsSavingOpenAiCoachReview] = useState(false);
+  const [openAiCoachReviewMessage, setOpenAiCoachReviewMessage] = useState<string | null>(null);
+  const [openAiShotType, setOpenAiShotType] = useState<'front_foot_drive' | 'front_foot_defence' | 'unknown'>('unknown');
+  const [openAiBatterHandedness, setOpenAiBatterHandedness] = useState<'right' | 'left' | 'unknown'>('unknown');
+  const [openAiCameraView, setOpenAiCameraView] = useState<'front_on' | 'side_on' | 'three_quarter' | 'unknown'>('unknown');
+  const [openAiPlaybackSpeed, setOpenAiPlaybackSpeed] = useState<'real_time' | 'slow_motion' | 'unknown'>('unknown');
+  const [openAiCaptureFps, setOpenAiCaptureFps] = useState('');
+  const [openAiPriorities, setOpenAiPriorities] = useState<string[]>(OPENAI_BATTING_PRIORITIES.map(([key]) => key));
   const [openAiArtifactDownloadError, setOpenAiArtifactDownloadError] = useState<string | null>(null);
   const [downloadingOpenAiArtifact, setDownloadingOpenAiArtifact] = useState<string | null>(null);
   const [kinematicsResult, setKinematicsResult] = useState<{
@@ -305,6 +319,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       ? null
       : Math.round(openAiBattingAnalysis.contact.selectedTimestampSeconds * openAiBattingAnalysis.video.fps))
     : null;
+  const openAiFindingList = openAiBattingAnalysis
+    ? [...openAiBattingAnalysis.errors, ...openAiBattingAnalysis.observations]
+    : [];
   const downloadOpenAiArtifact = async (name: string) => {
     if (!openAiBattingAnalysis?.reportId) return;
     setDownloadingOpenAiArtifact(name);
@@ -321,6 +338,22 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setOpenAiArtifactDownloadError(error instanceof Error ? error.message : 'Could not download the report artifact.');
     } finally {
       setDownloadingOpenAiArtifact(null);
+    }
+  };
+  const saveOpenAiCoachReview = async () => {
+    if (!openAiBattingAnalysis?.reportId) return;
+    setIsSavingOpenAiCoachReview(true);
+    setOpenAiCoachReviewMessage(null);
+    try {
+      const findings = Object.entries(openAiFindingReviews)
+        .filter(([, review]) => review.status !== '')
+        .map(([findingIndex, review]) => ({ findingIndex: Number(findingIndex), status: review.status as 'accepted' | 'revised' | 'not_applicable', note: review.note }));
+      await api.saveOpenAiBattingReview(openAiBattingAnalysis.reportId, { note: openAiCoachReviewNote, findings });
+      setOpenAiCoachReviewMessage('Coach review saved. The downloadable JSON, Markdown, and ZIP were refreshed.');
+    } catch (error) {
+      setOpenAiCoachReviewMessage(error instanceof Error ? error.message : 'Could not save coach review.');
+    } finally {
+      setIsSavingOpenAiCoachReview(false);
     }
   };
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
@@ -3323,11 +3356,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setIsOpenAiBattingAnalysisRunning(true);
                     setOpenAiBattingAnalysisError(null);
                     setOpenAiBattingAnalysis(null);
+                    setOpenAiCoachReviewNote('');
+                    setOpenAiFindingReviews({});
+                    setOpenAiCoachReviewMessage(null);
                     try {
                       const result = await api.analyzeOpenAiBatting({
                         videoFile: videoSourceMode === 'LOCAL_UPLOAD' ? uploadedVideoFile || undefined : undefined,
                         driveFileId: videoSourceMode === 'GOOGLE_DRIVE' ? selectedDriveVideo || undefined : undefined,
                         playerId: selectedAnalysisPlayer || undefined,
+                        shotType: openAiShotType,
+                        batterHandedness: openAiBatterHandedness,
+                        cameraView: openAiCameraView,
+                        playbackSpeed: openAiPlaybackSpeed,
+                        captureFps: openAiCaptureFps ? Number(openAiCaptureFps) : null,
+                        priorities: openAiPriorities,
                         contactTimestampSeconds: openAiContactSelectionMode === 'MANUAL'
                           ? openAiSelectedContactTimestamp ?? undefined
                           : undefined
@@ -3344,6 +3386,42 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {isOpenAiBattingAnalysisRunning ? 'Analysing…' : 'Analyse batting with OpenAI'}
                 </button>
               </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <label className="text-[11px] text-slate-400">Requested shot
+                  <select value={openAiShotType} onChange={event => setOpenAiShotType(event.target.value as typeof openAiShotType)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+                    <option value="unknown">Identify if visible</option><option value="front_foot_drive">Front-foot drive</option><option value="front_foot_defence">Front-foot defence</option>
+                  </select>
+                </label>
+                <label className="text-[11px] text-slate-400">Batter handedness
+                  <select value={openAiBatterHandedness} onChange={event => setOpenAiBatterHandedness(event.target.value as typeof openAiBatterHandedness)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+                    <option value="unknown">Unknown</option><option value="right">Right-handed</option><option value="left">Left-handed</option>
+                  </select>
+                </label>
+                <label className="text-[11px] text-slate-400">Camera view
+                  <select value={openAiCameraView} onChange={event => setOpenAiCameraView(event.target.value as typeof openAiCameraView)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+                    <option value="unknown">Unknown</option><option value="front_on">Front-on</option><option value="side_on">Side-on</option><option value="three_quarter">Three-quarter</option>
+                  </select>
+                </label>
+                <label className="text-[11px] text-slate-400">Playback speed
+                  <select value={openAiPlaybackSpeed} onChange={event => setOpenAiPlaybackSpeed(event.target.value as typeof openAiPlaybackSpeed)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+                    <option value="unknown">Unknown</option><option value="real_time">Real-time</option><option value="slow_motion">Slow motion</option>
+                  </select>
+                </label>
+                <label className="text-[11px] text-slate-400">Capture FPS (if known)
+                  <input type="number" min="1" max="1000" step="any" value={openAiCaptureFps} onChange={event => setOpenAiCaptureFps(event.target.value)} placeholder="Unknown" className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white placeholder:text-slate-600" />
+                </label>
+              </div>
+              <fieldset className="rounded-md border border-slate-800 px-3 py-2">
+                <legend className="px-1 text-[11px] font-semibold text-slate-400">Coaching priorities</legend>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  {OPENAI_BATTING_PRIORITIES.map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-1.5 text-[11px] text-slate-300">
+                      <input type="checkbox" checked={openAiPriorities.includes(key)} onChange={event => setOpenAiPriorities(current => event.target.checked ? [...current, key] : current.filter(item => item !== key))} className="accent-violet-400" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="space-y-2 rounded-lg border border-violet-400/15 bg-slate-950/60 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-semibold text-slate-300">Contact frame:</span>
@@ -3618,6 +3696,40 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </div>
               )}
 
+              {openAiBattingAnalysis.reportId && (
+                <section className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
+                  <div>
+                    <h5 className="text-xs font-bold uppercase tracking-wide text-emerald-200">Coach review</h5>
+                    <p className="mt-1 text-[11px] text-slate-400">Mark findings and add your coaching note. Saving updates the report JSON, Markdown, checksums, and ZIP.</p>
+                  </div>
+                  {openAiFindingList.map((finding, findingIndex) => (
+                    <div key={`${finding.title}-${findingIndex}`} className="grid gap-2 rounded-md border border-slate-800 bg-slate-950 p-3 md:grid-cols-[1fr_160px]">
+                      <div>
+                        <p className="text-xs font-semibold text-white">{finding.title}</p>
+                        <p className="mt-1 text-xs text-slate-300">{finding.observation}</p>
+                        <p className="mt-1 text-[10px] text-slate-500">Frames {finding.frameIndices.join(', ') || 'not cited'} · {finding.confidence} confidence</p>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] text-slate-400">Review decision
+                          <select value={openAiFindingReviews[findingIndex]?.status ?? ''} onChange={event => {
+                            const status = event.target.value as 'accepted' | 'revised' | 'not_applicable' | '';
+                            setOpenAiFindingReviews(current => ({ ...current, [findingIndex]: { status, note: current[findingIndex]?.note ?? '' } }));
+                          }} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+                            <option value="">Not reviewed</option><option value="accepted">Accepted</option><option value="revised">Revised</option><option value="not_applicable">Not applicable</option>
+                          </select>
+                        </label>
+                        <input value={openAiFindingReviews[findingIndex]?.note ?? ''} onChange={event => setOpenAiFindingReviews(current => ({ ...current, [findingIndex]: { status: current[findingIndex]?.status ?? '', note: event.target.value } }))} maxLength={1000} placeholder="Coach correction or note" className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-white placeholder:text-slate-600" />
+                      </div>
+                    </div>
+                  ))}
+                  <textarea value={openAiCoachReviewNote} onChange={event => setOpenAiCoachReviewNote(event.target.value)} maxLength={3000} rows={3} placeholder="Overall coach note, context, or next-session focus" className="w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-600" />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={() => void saveOpenAiCoachReview()} disabled={isSavingOpenAiCoachReview} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">{isSavingOpenAiCoachReview ? 'Saving…' : 'Save coach review'}</button>
+                    {openAiCoachReviewMessage && <p role="status" className="text-xs text-emerald-200">{openAiCoachReviewMessage}</p>}
+                  </div>
+                </section>
+              )}
+
               <div className="grid gap-4 xl:grid-cols-2">
                 <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                   <img
@@ -3646,14 +3758,15 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               {openAiBattingAnalysis.jointAngles.some(angle => angle.status === 'calculated') && (
                 <div className="overflow-x-auto rounded-lg border border-slate-800">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Joint</th><th className="p-2">Side</th><th className="p-2">Projected angle</th><th className="p-2">Confidence</th><th className="p-2">Frame</th></tr></thead>
+                    <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Joint</th><th className="p-2">Side</th><th className="p-2">Projected angle</th><th className="p-2">Confidence</th><th className="p-2">Frame</th><th className="p-2">Limitations</th></tr></thead>
                     <tbody>{openAiBattingAnalysis.jointAngles.map(angle => (
                       <tr key={`${angle.phase}-${angle.frameIndex}-${angle.joint}-${angle.side}`} className="border-t border-slate-800 text-slate-300">
                         <td className="p-2 capitalize">{angle.phase.replace(/_/g, ' ')}</td>
                         <td className="p-2 capitalize">{angle.joint}</td><td className="p-2 capitalize">{angle.side}</td>
-                        <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `${angle.angleDegrees.toFixed(1)}°`}</td>
+                        <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `≈${Math.round(angle.angleDegrees)}°`}</td>
                         <td className="p-2">{Math.round(angle.confidence * 100)}%</td>
-                        <td className="p-2">{angle.frameIndex} · {angle.timestampSeconds.toFixed(3)} s</td>
+                        <td className="p-2">{angle.frameId} · {angle.timestampSeconds.toFixed(3)} s</td>
+                        <td className="max-w-xs p-2 text-[10px] text-slate-500">{angle.limitations.join(' ')}</td>
                       </tr>
                     ))}</tbody>
                   </table>
