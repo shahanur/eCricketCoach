@@ -35,3 +35,5 @@ lerna-debug.log*
 
 # Others
 drive_analysis_complete/*
+web-app/server/var/openai-reports/
+web-app/pose-overlay-api/__pycache__/app.cpython-312.pyc
