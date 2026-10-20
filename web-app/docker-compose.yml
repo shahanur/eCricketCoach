@@ -59,6 +59,7 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_VIDEO_ANALYSIS_MODEL: ${OPENAI_VIDEO_ANALYSIS_MODEL:-gpt-6.1-sol}
+      OPENAI_REPORTS_DIR: /var/openai-reports
       AI_HUB_URL: http://aihub:8100
       # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).
       CAPE_API_URL: ${CAPE_API_URL:-http://cape-api:8000}
@@ -69,6 +70,7 @@ services:
       POSE_OVERLAY_TIMEOUT_MS: ${POSE_OVERLAY_TIMEOUT_MS:-90000}
     volumes:
       - cape-uploads:/var/cape-uploads
+      - openai-report-artifacts:/var/openai-reports
     ports:
       - "5001:5001"
     depends_on:
@@ -164,3 +166,4 @@ volumes:
   redisdata:
   cape-uploads:
   cape-workspace:
+  openai-report-artifacts:

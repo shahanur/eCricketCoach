@@ -20,6 +20,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 COPY prisma ./prisma
 RUN npx prisma generate
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/services/openai_inputs ./dist/services/openai_inputs
 
 EXPOSE 5001
 CMD ["node", "dist/index.js"]

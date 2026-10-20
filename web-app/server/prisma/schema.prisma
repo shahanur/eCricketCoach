@@ -286,6 +286,26 @@ model CapeJob {
   @@map("cape_jobs")
 }
 
+model OpenAiBattingReport {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  createdById     String   @map("created_by_id")
+  playerId        String?  @map("player_id")
+  playerName      String?  @map("player_name")
+  sourceSha256    String   @map("source_sha256")
+  model           String
+  promptVersion   String   @map("prompt_version")
+  schemaVersion   String   @map("schema_version")
+  artifactKey     String   @map("artifact_key")
+  artifacts       Json
+  analysis        Json
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, playerId, createdAt])
+  @@map("openai_batting_reports")
+}
+
 // A drill a coach assigned to one player, e.g. from a CAPE analysis's coaching guidance.
 // `drillId` is the club catalogue copy; `systemDrillId` the shared SYSTEM_PREDEFINED copy.
 model PlayerDrillAssignment {

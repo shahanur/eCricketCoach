@@ -309,13 +309,79 @@ export interface OpenAiBattingObservation {
   title: string;
   observation: string;
   coachingImplication: string;
+  alternativeExplanation: string;
+  frameIndices: number[];
   confidence: OpenAiVisualConfidence;
 }
 
 export interface OpenAiBattingAnalysis {
   provider: 'openai';
   model: string;
+  promptVersion: string;
+  schemaVersion: string;
+  sourceSha256: string;
+  reportId?: string;
+  artifactNames?: string[];
+  status: 'assessable' | 'partially_assessable' | 'unassessable';
   video: { durationSeconds: number; width: number; height: number; fps: number; sampledOverviewFrames: number };
+  frameManifest: Array<{
+    frameId: string;
+    shotId: string | null;
+    sourceFrameIndex: number;
+    timestampSeconds: number;
+    width: number;
+    height: number;
+    coordinateSpace: 'orientation_corrected_supplied_image';
+    detail: 'overview' | 'contact';
+  }>;
+  shotCandidates: Array<{ shotId: string; sampleIndex: number; shotType: string | null; confidence: number; evidence: string }>;
+  shotAssessments: Array<{
+    shotId: string;
+    shotType: string | null;
+    timestampSeconds: number;
+    status: 'assessable' | 'partially_assessable' | 'unassessable';
+    contactStatus: OpenAiContactStatus;
+    confidence: number;
+    summary: string;
+    observations: OpenAiBattingObservation[];
+    errors: OpenAiBattingObservation[];
+    strengths: string[];
+    limitations: string[];
+    jointAngles: Array<{
+      joint: 'elbow' | 'knee' | 'hip' | 'shoulder';
+      side: 'left' | 'right';
+      angleDegrees: number | null;
+      frameIndex: number;
+      timestampSeconds: number;
+      phase: string;
+      confidence: number;
+      source: 'openai_visual_estimate';
+      calculation: 'image_plane_angle_from_normalized_landmarks';
+      status: 'calculated' | 'unassessable';
+      limitations: string[];
+    }>;
+  }>;
+  jointAngles: Array<{
+    joint: 'elbow' | 'knee' | 'hip' | 'shoulder';
+    side: 'left' | 'right';
+    angleDegrees: number | null;
+    frameIndex: number;
+    timestampSeconds: number;
+    phase: string;
+    confidence: number;
+    source: 'openai_visual_estimate';
+    calculation: 'image_plane_angle_from_normalized_landmarks';
+    status: 'calculated' | 'unassessable';
+    limitations: string[];
+  }>;
+  executionLog: {
+    stages: string[];
+    toolVersions: { node: string; ffmpeg: string; ffprobe: string };
+    modelRequested: string;
+    modelReturned: string;
+    responseIds: string[];
+    usage: { inputTokens: number; outputTokens: number } | null;
+  };
   contact: {
     status: OpenAiContactStatus;
     selectionSource: 'AI' | 'MANUAL';
@@ -328,6 +394,9 @@ export interface OpenAiBattingAnalysis {
     pointNorm: { x: number; y: number } | null;
   };
   croppedContactImageDataUrl: string | null;
+  contactLandmarksNorm: Record<string, { x: number; y: number } | null>;
+  batHandleNorm: { x: number; y: number } | null;
+  batToeNorm: { x: number; y: number } | null;
   croppedContactLandmarksNorm: Record<string, { x: number; y: number } | null>;
   croppedContactPointNorm: { x: number; y: number } | null;
   poseSequenceFrames: Array<{
@@ -340,7 +409,16 @@ export interface OpenAiBattingAnalysis {
     movementSequenceImageDataUrl: string;
     jointAlignmentImageDataUrl: string;
   };
-  phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; evidence: string; imageDataUrl: string | null }>;
+  phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; evidence: string }>;
+  shotIdentification: { shotType: string | null; confidence: number; evidence: string };
+  footageQuality: {
+    cameraView: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
+    blur: 'low' | 'moderate' | 'high' | 'unknown';
+    occlusions: string[];
+    timingLimitations: string[];
+    cameraMotion: 'stable' | 'moving' | 'unknown';
+  };
+  contactWindow: { startSeconds: number | null; endSeconds: number | null };
   summary: string;
   observations: OpenAiBattingObservation[];
   errors: OpenAiBattingObservation[];
@@ -348,6 +426,7 @@ export interface OpenAiBattingAnalysis {
   priorityCue: string;
   drill: { title: string; instructions: string[]; rationale: string };
   limitations: string[];
+  additionalEvidence: string[];
 }
 
 export interface PoseOverlayAnalysis {

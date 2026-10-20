@@ -1,0 +1,5 @@
+Review the chronological overview images for a batting video. Each image is accompanied by its original 0-based decoded frame index and presentation timestamp. Detect up to three distinct batting strokes; do not split one stroke into multiple candidates. For each stroke, select the best supplied sample closest to a likely contact window, identify the likely shot type only when visible, and map preparation/backlift, foot plant, downswing, near-contact, extension, and finish where possible.
+
+Sparse overview frames can miss impact. Return null candidate indices when unsupported. Do not produce final technical faults from this pass. Cite only supplied source frame indices. For phases include the source frame index and a full-batter normalized box, or null when the batter cannot be bounded. Mark repeated/ambiguous strokes as uncertain instead of fabricating candidates.
+
+Return the strict overview schema: one concise overall summary, evidence-based observations, limitations, and `shotCandidates` ordered chronologically. Candidate sample indices must refer to the supplied overview sample indices.

@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "properties": {
+    "contactCandidateSampleIndex": { "type": ["integer", "null"] },
+    "contactCandidateConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "contactCandidateEvidence": { "type": "string" },
+    "summary": { "type": "string" },
+    "observations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/observation" }
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "phase": { "type": "string", "enum": ["preparation", "downswing", "near_contact", "follow_through"] },
+          "sampleIndex": { "type": ["integer", "null"] },
+          "evidence": { "type": "string" },
+          "playerBoxNorm": { "$ref": "#/$defs/boxOrNull" }
+        },
+        "required": ["phase", "sampleIndex", "evidence", "playerBoxNorm"],
+        "additionalProperties": false
+      }
+    },
+    "limitations": { "type": "array", "items": { "type": "string" } },
+    "shotCandidates": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "properties": {
+          "shotId": { "type": "string" },
+          "sampleIndex": { "type": "integer" },
+          "shotType": { "type": ["string", "null"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence": { "type": "string" }
+        },
+        "required": ["shotId", "sampleIndex", "shotType", "confidence", "evidence"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["contactCandidateSampleIndex", "contactCandidateConfidence", "contactCandidateEvidence", "summary", "observations", "phases", "limitations", "shotCandidates"],
+  "additionalProperties": false,
+  "$defs": {
+    "pointOrNull": {
+      "anyOf": [
+        { "type": "object", "properties": { "x": { "type": "number", "minimum": 0, "maximum": 1 }, "y": { "type": "number", "minimum": 0, "maximum": 1 } }, "required": ["x", "y"], "additionalProperties": false },
+        { "type": "null" }
+      ]
+    },
+    "boxOrNull": {
+      "anyOf": [
+        { "type": "object", "properties": { "left": { "type": "number", "minimum": 0, "maximum": 1 }, "top": { "type": "number", "minimum": 0, "maximum": 1 }, "right": { "type": "number", "minimum": 0, "maximum": 1 }, "bottom": { "type": "number", "minimum": 0, "maximum": 1 } }, "required": ["left", "top", "right", "bottom"], "additionalProperties": false },
+        { "type": "null" }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "properties": { "title": { "type": "string" }, "observation": { "type": "string" }, "coachingImplication": { "type": "string" }, "frameIndices": { "type": "array", "items": { "type": "integer" } }, "confidence": { "type": "string", "enum": ["low", "moderate", "high"] } },
+      "required": ["title", "observation", "coachingImplication", "frameIndices", "confidence"],
+      "additionalProperties": false
+    }
+  }
+}

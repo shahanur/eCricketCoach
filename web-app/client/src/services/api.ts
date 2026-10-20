@@ -792,6 +792,8 @@ export const api = {
     discipline: 'BATTING';
     playerId: string | null;
     playerName: string | null;
+    reportId: string;
+    artifactNames: string[];
     analysis: OpenAiBattingAnalysis;
   }> {
     const token = localStorage.getItem('auth_token');
@@ -819,7 +821,25 @@ export const api = {
       });
     }
     if (!res.ok) throw await responseError(res, 'Failed to analyze batting video with OpenAI');
-    return res.json();
+    const result = await res.json();
+    return {
+      ...result,
+      analysis: { ...result.analysis, reportId: result.reportId, artifactNames: result.artifactNames }
+    };
+  },
+
+  async fetchOpenAiBattingArtifact(reportId: string, name: string): Promise<{ blob: Blob; fileName: string }> {
+    const allowedNames = new Set([
+      'analysis.json', 'joint_angles.json', 'contact_review.png', 'joint_analysis.png',
+      'bat_path_sequence.png', 'follow_through.png', 'phase_sequence.png', 'report.md',
+      'execution_log.json', 'analysis_bundle.zip'
+    ]);
+    if (!/^[0-9a-f-]{36}$/i.test(reportId) || !allowedNames.has(name)) throw new Error('Invalid report artifact');
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/${encodeURIComponent(reportId)}/artifacts/${encodeURIComponent(name)}`, {
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'The report download failed');
+    return { blob: await res.blob(), fileName: name };
   },
 
   async analyzeKinematicsOverlay(payload: {

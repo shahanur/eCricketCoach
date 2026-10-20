@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { Prisma } from '@prisma/client';
 import { GeminiVideoAnalysisService } from '../services/geminiVideoAnalysisService.js';
 import { getValidAccessToken } from './googleDrive.js';
 import { DbService } from '../services/dbService.js';
@@ -8,6 +11,7 @@ import { fetchWithRetry } from '../utils/retry.js';
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
 import { prisma } from '../config/prisma.js';
 import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
+import { createAndPersistBattingReport, isBattingReportArtifactName } from '../services/openAiBattingReportArtifacts.js';
 
 export const aiRouter = Router();
 
@@ -211,11 +215,36 @@ aiRouter.post(
       }
 
       const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, { contactTimestampSeconds });
+      const reportRoot = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const storedReport = await createAndPersistBattingReport(analysis, reportRoot);
+      try {
+        await prisma.openAiBattingReport.create({
+          data: {
+            id: storedReport.id,
+            tenantId: user.tenantId,
+            createdById: user.userId,
+            playerId: playerId || null,
+            playerName,
+            sourceSha256: analysis.sourceSha256,
+            model: analysis.executionLog.modelReturned,
+            promptVersion: analysis.promptVersion,
+            schemaVersion: analysis.schemaVersion,
+            artifactKey: storedReport.id,
+            artifacts: storedReport.artifacts as unknown as Prisma.InputJsonValue,
+            analysis: storedReport.analysisRecord as Prisma.InputJsonValue
+          }
+        });
+      } catch (error) {
+        await fs.rm(storedReport.directory, { recursive: true, force: true });
+        throw error;
+      }
       return res.json({
         status: 'COMPLETED',
         discipline: 'BATTING',
         playerId: playerId || null,
         playerName,
+        reportId: storedReport.id,
+        artifactNames: storedReport.artifacts.map(artifact => artifact.name),
         analysis
       });
     } catch (error) {
@@ -224,6 +253,49 @@ aiRouter.post(
       }
       console.error('OpenAI batting video analysis failed:', error);
       return res.status(502).json({ error: 'openai_analysis_failed', message: 'The batting video could not be analysed. Please try again.' });
+    }
+  }
+);
+
+aiRouter.get(
+  '/analyze/openai-batting/:reportId/artifacts/:name',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { reportId, name } = req.params;
+    if (!isBattingReportArtifactName(name) || !/^[0-9a-f-]{36}$/i.test(reportId)) {
+      return res.status(404).json({ error: 'artifact_not_found', message: 'The report artifact was not found.' });
+    }
+    try {
+      const user = req.user!;
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: user.tenantId },
+        select: { id: true, artifacts: true }
+      });
+      const artifactMetadata = Array.isArray(report?.artifacts)
+        ? report.artifacts.find((artifact): artifact is { name: string; mimeType: string } =>
+            Boolean(artifact && typeof artifact === 'object' && 'name' in artifact && 'mimeType' in artifact &&
+              (artifact as { name: unknown }).name === name))
+        : undefined;
+      if (!report || !artifactMetadata) {
+        return res.status(404).json({ error: 'artifact_not_found', message: 'The report artifact was not found.' });
+      }
+      const root = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const artifactPath = path.resolve(root, report.id, name);
+      if (!artifactPath.startsWith(`${root}${path.sep}`)) {
+        return res.status(404).json({ error: 'artifact_not_found', message: 'The report artifact was not found.' });
+      }
+      const data = await fs.readFile(artifactPath);
+      res.setHeader('Content-Type', artifactMetadata.mimeType);
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+      res.attachment(name);
+      return res.send(data);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return res.status(404).json({ error: 'artifact_not_found', message: 'The report artifact was not found.' });
+      }
+      console.error('OpenAI batting report artifact download failed:', error);
+      return res.status(500).json({ error: 'artifact_download_failed', message: 'The report artifact could not be downloaded.' });
     }
   }
 );

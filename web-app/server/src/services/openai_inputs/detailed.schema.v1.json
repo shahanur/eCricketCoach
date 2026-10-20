@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "contactStatus": { "type": "string", "enum": ["DETECTED", "LIKELY", "UNCERTAIN", "NOT_VISIBLE"] },
+    "contactSampleIndex": { "type": ["integer", "null"] },
+    "contactConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "contactEvidence": { "type": "string" },
+    "contactPointNorm": { "$ref": "#/$defs/pointOrNull" },
+    "playerBoxNorm": { "$ref": "#/$defs/boxOrNull" },
+    "landmarksNorm": { "$ref": "#/$defs/landmarks" },
+    "landmarksByFrame": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "properties": {
+          "frameIndex": { "type": "integer" },
+          "phase": { "type": "string", "enum": ["preparation", "foot_plant", "downswing", "contact", "extension", "finish"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "landmarksNorm": { "$ref": "#/$defs/landmarks" }
+        },
+        "required": ["frameIndex", "phase", "confidence", "landmarksNorm"],
+        "additionalProperties": false
+      }
+    },
+    "batHandleNorm": { "$ref": "#/$defs/pointOrNull" },
+    "batToeNorm": { "$ref": "#/$defs/pointOrNull" },
+    "shotIdentification": {
+      "type": "object",
+      "properties": {
+        "shotType": { "type": ["string", "null"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence": { "type": "string" }
+      },
+      "required": ["shotType", "confidence", "evidence"],
+      "additionalProperties": false
+    },
+    "status": { "type": "string", "enum": ["assessable", "partially_assessable", "unassessable"] },
+    "footageQuality": {
+      "type": "object",
+      "properties": {
+        "cameraView": { "type": "string", "enum": ["front_on", "side_on", "three_quarter", "unknown"] },
+        "blur": { "type": "string", "enum": ["low", "moderate", "high", "unknown"] },
+        "occlusions": { "type": "array", "items": { "type": "string" } },
+        "timingLimitations": { "type": "array", "items": { "type": "string" } },
+        "cameraMotion": { "type": "string", "enum": ["stable", "moving", "unknown"] }
+      },
+      "required": ["cameraView", "blur", "occlusions", "timingLimitations", "cameraMotion"],
+      "additionalProperties": false
+    },
+    "contactWindowStartSeconds": { "type": ["number", "null"] },
+    "contactWindowEndSeconds": { "type": ["number", "null"] },
+    "summary": { "type": "string" },
+    "observations": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "errors": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "strengths": { "type": "array", "items": { "type": "string" } },
+    "priorityCue": { "type": "string" },
+    "drill": { "$ref": "#/$defs/drill" },
+    "limitations": { "type": "array", "items": { "type": "string" } },
+    "additionalEvidence": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["contactStatus", "contactSampleIndex", "contactConfidence", "contactEvidence", "contactPointNorm", "playerBoxNorm", "landmarksNorm", "landmarksByFrame", "batHandleNorm", "batToeNorm", "shotIdentification", "status", "footageQuality", "contactWindowStartSeconds", "contactWindowEndSeconds", "summary", "observations", "errors", "strengths", "priorityCue", "drill", "limitations", "additionalEvidence"],
+  "additionalProperties": false,
+  "$defs": {
+    "pointOrNull": {
+      "anyOf": [
+        { "type": "object", "properties": { "x": { "type": "number", "minimum": 0, "maximum": 1 }, "y": { "type": "number", "minimum": 0, "maximum": 1 } }, "required": ["x", "y"], "additionalProperties": false },
+        { "type": "null" }
+      ]
+    },
+    "boxOrNull": {
+      "anyOf": [
+        { "type": "object", "properties": { "left": { "type": "number", "minimum": 0, "maximum": 1 }, "top": { "type": "number", "minimum": 0, "maximum": 1 }, "right": { "type": "number", "minimum": 0, "maximum": 1 }, "bottom": { "type": "number", "minimum": 0, "maximum": 1 } }, "required": ["left", "top", "right", "bottom"], "additionalProperties": false },
+        { "type": "null" }
+      ]
+    },
+    "landmarks": {
+      "type": "object",
+      "properties": {
+        "head": { "$ref": "#/$defs/pointOrNull" }, "leftShoulder": { "$ref": "#/$defs/pointOrNull" }, "rightShoulder": { "$ref": "#/$defs/pointOrNull" },
+        "leftElbow": { "$ref": "#/$defs/pointOrNull" }, "rightElbow": { "$ref": "#/$defs/pointOrNull" }, "leftWrist": { "$ref": "#/$defs/pointOrNull" }, "rightWrist": { "$ref": "#/$defs/pointOrNull" },
+        "leftHip": { "$ref": "#/$defs/pointOrNull" }, "rightHip": { "$ref": "#/$defs/pointOrNull" }, "leftKnee": { "$ref": "#/$defs/pointOrNull" }, "rightKnee": { "$ref": "#/$defs/pointOrNull" },
+        "leftAnkle": { "$ref": "#/$defs/pointOrNull" }, "rightAnkle": { "$ref": "#/$defs/pointOrNull" }, "frontToe": { "$ref": "#/$defs/pointOrNull" }
+      },
+      "required": ["head", "leftShoulder", "rightShoulder", "leftElbow", "rightElbow", "leftWrist", "rightWrist", "leftHip", "rightHip", "leftKnee", "rightKnee", "leftAnkle", "rightAnkle", "frontToe"],
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" }, "observation": { "type": "string" }, "coachingImplication": { "type": "string" },
+        "alternativeExplanation": { "type": "string" }, "confidence": { "type": "string", "enum": ["low", "moderate", "high"] },
+        "frameIndices": { "type": "array", "items": { "type": "integer" } }
+      },
+      "required": ["title", "observation", "coachingImplication", "alternativeExplanation", "confidence", "frameIndices"],
+      "additionalProperties": false
+    },
+    "drill": {
+      "type": "object",
+      "properties": { "title": { "type": "string" }, "instructions": { "type": "array", "items": { "type": "string" } }, "rationale": { "type": "string" } },
+      "required": ["title", "instructions", "rationale"],
+      "additionalProperties": false
+    }
+  }
+}

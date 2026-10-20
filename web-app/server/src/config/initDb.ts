@@ -219,6 +219,24 @@ export async function initDb() {
     )`,
     `CREATE INDEX IF NOT EXISTS cape_jobs_tenant_id_created_at_idx ON cape_jobs (tenant_id, created_at)`,
 
+    `CREATE TABLE IF NOT EXISTS openai_batting_reports (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT NOT NULL,
+      created_by_id TEXT NOT NULL,
+      player_id TEXT,
+      player_name TEXT,
+      source_sha256 VARCHAR(64) NOT NULL,
+      model VARCHAR(100) NOT NULL,
+      prompt_version VARCHAR(100) NOT NULL,
+      schema_version VARCHAR(100) NOT NULL,
+      artifact_key TEXT NOT NULL,
+      artifacts JSONB NOT NULL,
+      analysis JSONB NOT NULL,
+      created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS openai_batting_reports_tenant_id_created_at_idx ON openai_batting_reports (tenant_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS openai_batting_reports_tenant_id_player_id_created_at_idx ON openai_batting_reports (tenant_id, player_id, created_at)`,
+
     `CREATE TABLE IF NOT EXISTS player_drill_assignments (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,

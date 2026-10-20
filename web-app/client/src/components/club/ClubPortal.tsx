@@ -278,6 +278,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isOpenAiBattingAnalysisRunning, setIsOpenAiBattingAnalysisRunning] = useState(false);
   const [openAiBattingAnalysis, setOpenAiBattingAnalysis] = useState<OpenAiBattingAnalysis | null>(null);
   const [openAiBattingAnalysisError, setOpenAiBattingAnalysisError] = useState<string | null>(null);
+  const [openAiArtifactDownloadError, setOpenAiArtifactDownloadError] = useState<string | null>(null);
+  const [downloadingOpenAiArtifact, setDownloadingOpenAiArtifact] = useState<string | null>(null);
   const [kinematicsResult, setKinematicsResult] = useState<{
     discipline: string;
     timestampMs: number;
@@ -303,6 +305,24 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       ? null
       : Math.round(openAiBattingAnalysis.contact.selectedTimestampSeconds * openAiBattingAnalysis.video.fps))
     : null;
+  const downloadOpenAiArtifact = async (name: string) => {
+    if (!openAiBattingAnalysis?.reportId) return;
+    setDownloadingOpenAiArtifact(name);
+    setOpenAiArtifactDownloadError(null);
+    try {
+      const { blob, fileName } = await api.fetchOpenAiBattingArtifact(openAiBattingAnalysis.reportId, name);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (error) {
+      setOpenAiArtifactDownloadError(error instanceof Error ? error.message : 'Could not download the report artifact.');
+    } finally {
+      setDownloadingOpenAiArtifact(null);
+    }
+  };
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
   const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
@@ -3565,10 +3585,38 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     {clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'} · {openAiBattingAnalysis.model}
                   </p>
                 </div>
-                <span className="w-fit rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">
-                  {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Manual reference' : 'AI suggestion'} · {openAiBattingAnalysis.contact.status} · {Math.round(openAiBattingAnalysis.contact.confidence * 100)}% confidence
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-fit rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">
+                    {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Manual reference' : 'AI suggestion'} · {openAiBattingAnalysis.contact.status} · {Math.round(openAiBattingAnalysis.contact.confidence * 100)}% confidence
+                  </span>
+                  {openAiBattingAnalysis.reportId && (
+                    <button
+                      onClick={() => void downloadOpenAiArtifact('analysis_bundle.zip')}
+                      disabled={downloadingOpenAiArtifact !== null}
+                      className="inline-flex items-center gap-1 rounded-lg border border-violet-300/30 px-3 py-1.5 text-xs font-semibold text-violet-100 hover:bg-violet-400/10 disabled:opacity-50"
+                    >
+                      <Download size={14} /> {downloadingOpenAiArtifact === 'analysis_bundle.zip' ? 'Preparing…' : 'Download report bundle'}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {openAiArtifactDownloadError && <p role="alert" className="text-xs text-rose-300">{openAiArtifactDownloadError}</p>}
+
+              {openAiBattingAnalysis.shotAssessments.length > 0 && (
+                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                  <h5 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">Stroke assessments</h5>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {openAiBattingAnalysis.shotAssessments.map(shot => (
+                      <div key={shot.shotId} className="rounded-md bg-slate-950 p-3">
+                        <p className="text-xs font-semibold text-violet-200">{shot.shotId} · {shot.shotType || 'Shot type uncertain'} · {shot.contactStatus}</p>
+                        <p className="mt-1 text-xs text-slate-300">{shot.summary}</p>
+                        <p className="mt-1 text-[11px] text-slate-500">{shot.timestampSeconds.toFixed(3)} s · {shot.status}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid gap-4 xl:grid-cols-2">
                 <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
@@ -3594,6 +3642,35 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 analysis={openAiBattingAnalysis}
                 sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
               />
+
+              {openAiBattingAnalysis.jointAngles.some(angle => angle.status === 'calculated') && (
+                <div className="overflow-x-auto rounded-lg border border-slate-800">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Joint</th><th className="p-2">Side</th><th className="p-2">Projected angle</th><th className="p-2">Confidence</th><th className="p-2">Frame</th></tr></thead>
+                    <tbody>{openAiBattingAnalysis.jointAngles.map(angle => (
+                      <tr key={`${angle.phase}-${angle.frameIndex}-${angle.joint}-${angle.side}`} className="border-t border-slate-800 text-slate-300">
+                        <td className="p-2 capitalize">{angle.phase.replace(/_/g, ' ')}</td>
+                        <td className="p-2 capitalize">{angle.joint}</td><td className="p-2 capitalize">{angle.side}</td>
+                        <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `${angle.angleDegrees.toFixed(1)}°`}</td>
+                        <td className="p-2">{Math.round(angle.confidence * 100)}%</td>
+                        <td className="p-2">{angle.frameIndex} · {angle.timestampSeconds.toFixed(3)} s</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  <p className="px-2 pb-2 text-[10px] text-slate-500">Application-calculated image-plane estimates from visual landmarks; not 3D or clinical angles.</p>
+                </div>
+              )}
+
+              {openAiBattingAnalysis.reportId && openAiBattingAnalysis.artifactNames && (
+                <div className="flex flex-wrap gap-2">
+                  {openAiBattingAnalysis.artifactNames.filter(name => name !== 'analysis_bundle.zip').map(name => (
+                    <button key={name} onClick={() => void downloadOpenAiArtifact(name)} disabled={downloadingOpenAiArtifact !== null}
+                      className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-400/50 disabled:opacity-50">
+                      {downloadingOpenAiArtifact === name ? 'Preparing…' : `Download ${name}`}
+                    </button>
+                  ))}
+                </div>
+              )}
 
             </div>
           )}

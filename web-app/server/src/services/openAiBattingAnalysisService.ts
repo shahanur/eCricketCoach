@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,12 +19,18 @@ import {
 const execFileAsync = promisify(execFile);
 const MAX_VIDEO_DURATION_SECONDS = 180;
 const MAX_OVERVIEW_FRAMES = 36;
-const MAX_DETAIL_FRAMES = 16;
-const OVERVIEW_FPS = 2;
+const MAX_DETAIL_FRAMES = 36;
+const OVERVIEW_FPS = 4;
 const CONTACT_WINDOW_SECONDS = 0.7;
-const DETAIL_FPS = 20;
 const MAX_FRAME_DIMENSION = 960;
 const OPENAI_TIMEOUT_MS = 120_000;
+const PROMPT_VERSION = 'batting-v1';
+const SCHEMA_VERSION = 'batting-v1';
+const runningFromBuild = /(^|[\\/])dist([\\/]|$)/.test(process.argv[1] || '');
+const INPUT_ASSET_DIRS = [
+  path.resolve(process.cwd(), runningFromBuild ? 'dist/services/openai_inputs' : 'src/services/openai_inputs'),
+  path.resolve(process.cwd(), runningFromBuild ? 'src/services/openai_inputs' : 'dist/services/openai_inputs')
+];
 
 type Confidence = 'low' | 'moderate' | 'high';
 type ContactStatus = 'DETECTED' | 'LIKELY' | 'UNCERTAIN' | 'NOT_VISIBLE';
@@ -45,6 +52,7 @@ interface Observation {
   title: string;
   observation: string;
   coachingImplication: string;
+  frameIndices: number[];
   confidence: Confidence;
 }
 
@@ -56,6 +64,25 @@ interface OverviewAnalysis {
   observations: Observation[];
   phases: Array<{ phase: string; sampleIndex: number | null; evidence: string; playerBoxNorm: NormalizedBox | null }>;
   limitations: string[];
+  shotCandidates: Array<{ shotId: string; sampleIndex: number; shotType: string | null; confidence: number; evidence: string }>;
+}
+
+interface DetailedObservation extends Observation {
+  alternativeExplanation: string;
+}
+
+interface DetailedShotAssessment {
+  shotType: string | null;
+  confidence: number;
+  evidence: string;
+}
+
+interface FootageQuality {
+  cameraView: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
+  blur: 'low' | 'moderate' | 'high' | 'unknown';
+  occlusions: string[];
+  timingLimitations: string[];
+  cameraMotion: 'stable' | 'moving' | 'unknown';
 }
 
 interface DetailedAnalysis {
@@ -63,22 +90,103 @@ interface DetailedAnalysis {
   contactSampleIndex: number | null;
   contactConfidence: number;
   contactEvidence: string;
+  contactWindowStartSeconds: number | null;
+  contactWindowEndSeconds: number | null;
   contactPointNorm: NormalizedPoint | null;
   playerBoxNorm: NormalizedBox | null;
   landmarksNorm: EstimatedLandmarks;
+  landmarksByFrame: Array<{
+    frameIndex: number;
+    phase: 'preparation' | 'foot_plant' | 'downswing' | 'contact' | 'extension' | 'finish';
+    confidence: number;
+    landmarksNorm: EstimatedLandmarks;
+  }>;
+  batHandleNorm: NormalizedPoint | null;
+  batToeNorm: NormalizedPoint | null;
   summary: string;
-  observations: Observation[];
-  errors: Observation[];
+  observations: DetailedObservation[];
+  errors: DetailedObservation[];
+  shotIdentification: DetailedShotAssessment;
+  status: 'assessable' | 'partially_assessable' | 'unassessable';
+  footageQuality: FootageQuality;
   strengths: string[];
   priorityCue: string;
   drill: { title: string; instructions: string[]; rationale: string };
   limitations: string[];
+  additionalEvidence: string[];
+}
+
+interface ShotAssessment {
+  shotId: string;
+  shotType: string | null;
+  timestampSeconds: number;
+  status: DetailedAnalysis['status'];
+  contactStatus: ContactStatus;
+  confidence: number;
+  summary: string;
+  observations: DetailedObservation[];
+  errors: DetailedObservation[];
+  strengths: string[];
+  limitations: string[];
+  jointAngles: JointAngleRecord[];
+}
+
+interface JointAngleRecord {
+  joint: 'elbow' | 'knee' | 'hip' | 'shoulder';
+  side: 'left' | 'right';
+  angleDegrees: number | null;
+  frameIndex: number;
+  timestampSeconds: number;
+  phase: string;
+  confidence: number;
+  source: 'openai_visual_estimate';
+  calculation: 'image_plane_angle_from_normalized_landmarks';
+  status: 'calculated' | 'unassessable';
+  limitations: string[];
+}
+
+interface VisionCallMetadata {
+  responseId: string;
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+interface VisionCallResult<T> {
+  value: T;
+  metadata: VisionCallMetadata;
+}
+
+interface FrameManifestEntry {
+  frameId: string;
+  shotId: string | null;
+  sourceFrameIndex: number;
+  timestampSeconds: number;
+  width: number;
+  height: number;
+  coordinateSpace: 'orientation_corrected_supplied_image';
+  detail: 'overview' | 'contact';
 }
 
 export interface OpenAiBattingAnalysis {
   provider: 'openai';
   model: string;
+  promptVersion: string;
+  schemaVersion: string;
+  sourceSha256: string;
   video: Omit<VideoMetadata, 'presentationTimestampsSeconds'> & { sampledOverviewFrames: number };
+  frameManifest: FrameManifestEntry[];
+  shotCandidates: OverviewAnalysis['shotCandidates'];
+  shotAssessments: ShotAssessment[];
+  jointAngles: JointAngleRecord[];
+  executionLog: {
+    stages: string[];
+    toolVersions: { node: string; ffmpeg: string; ffprobe: string };
+    modelRequested: string;
+    modelReturned: string;
+    responseIds: string[];
+    usage: { inputTokens: number; outputTokens: number } | null;
+  };
   contact: {
     status: ContactStatus;
     selectionSource: 'AI' | 'MANUAL';
@@ -91,6 +199,9 @@ export interface OpenAiBattingAnalysis {
     pointNorm: NormalizedPoint | null;
   };
   croppedContactImageDataUrl: string | null;
+  contactLandmarksNorm: EstimatedLandmarks;
+  batHandleNorm: NormalizedPoint | null;
+  batToeNorm: NormalizedPoint | null;
   croppedContactLandmarksNorm: Record<string, NormalizedPoint | null>;
   croppedContactPointNorm: NormalizedPoint | null;
   poseSequenceFrames: Array<{
@@ -105,12 +216,17 @@ export interface OpenAiBattingAnalysis {
   };
   phases: Array<{ phase: string; frameIndex: number | null; timestampSeconds: number | null; evidence: string }>;
   summary: string;
-  observations: Observation[];
-  errors: Observation[];
+  status: DetailedAnalysis['status'];
+  shotIdentification: DetailedShotAssessment;
+  footageQuality: FootageQuality;
+  contactWindow: { startSeconds: number | null; endSeconds: number | null };
+  observations: DetailedObservation[];
+  errors: DetailedObservation[];
   strengths: string[];
   priorityCue: string;
   drill: DetailedAnalysis['drill'];
   limitations: string[];
+  additionalEvidence: string[];
 }
 
 export class OpenAiBattingAnalysisError extends Error {
@@ -128,6 +244,30 @@ function fraction(value: string | undefined): number {
   if (!value) return 0;
   const [numerator, denominator] = value.split('/').map(Number);
   return denominator ? numerator / denominator : numerator;
+}
+
+async function readInputAsset(name: string): Promise<string> {
+  for (const directory of INPUT_ASSET_DIRS) {
+    try {
+      return await fs.readFile(path.join(directory, name), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+  }
+  throw new Error(`OpenAI prompt/schema asset ${name} was not found.`);
+}
+
+async function loadPromptAsset(name: string): Promise<string> {
+  return (await readInputAsset(name)).trim();
+}
+
+async function loadSchemaAsset(name: string): Promise<Record<string, unknown>> {
+  const raw = await readInputAsset(name);
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`OpenAI schema asset ${name} must contain a JSON object.`);
+  }
+  return parsed as Record<string, unknown>;
 }
 
 function jpegDimensions(buffer: Buffer): { width: number; height: number } {
@@ -187,6 +327,17 @@ async function runBinary(binary: string, args: string[], timeout: number): Promi
       'video_decode_failed',
       stderr?.toString().trim().slice(-500) || 'The uploaded video could not be decoded.'
     );
+  }
+}
+
+async function binaryVersion(binary: string): Promise<string> {
+  try {
+    const { stdout } = await execFileAsync(binary, ['-version'], {
+      encoding: 'utf8', timeout: 5_000, maxBuffer: 1024 * 1024, windowsHide: true
+    });
+    return stdout.split(/\r?\n/, 1)[0].trim();
+  } catch {
+    return 'unavailable';
   }
 }
 
@@ -336,9 +487,17 @@ function isConfidence(value: unknown): value is Confidence {
 
 function isObservation(value: unknown): value is Observation {
   if (!value || typeof value !== 'object') return false;
-  const item = value as Record<string, unknown>;
+  const item = value as unknown as Record<string, unknown>;
   return typeof item.title === 'string' && typeof item.observation === 'string' &&
-    typeof item.coachingImplication === 'string' && isConfidence(item.confidence);
+    typeof item.coachingImplication === 'string' && Array.isArray(item.frameIndices) &&
+    item.frameIndices.every(index => Number.isInteger(index)) && isConfidence(item.confidence);
+}
+
+function isDetailedObservation(value: unknown, allowedFrames: Set<number>): value is DetailedObservation {
+  if (!isObservation(value)) return false;
+  const item = value as unknown as Record<string, unknown>;
+  return typeof item.alternativeExplanation === 'string' && Array.isArray(item.frameIndices) &&
+    item.frameIndices.every(index => Number.isInteger(index) && allowedFrames.has(Number(index)));
 }
 
 function isNormalizedPoint(value: unknown): value is NormalizedPoint | null {
@@ -371,16 +530,18 @@ function isEstimatedLandmarks(value: unknown): value is EstimatedLandmarks {
   return LANDMARK_NAMES.every(name => name in points && isNormalizedPoint(points[name]));
 }
 
-function isOverview(value: unknown, frameCount: number): value is OverviewAnalysis {
+function isOverview(value: unknown, frames: SampledFrame[]): value is OverviewAnalysis {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
+  const frameCount = frames.length;
+  const allowedFrames = new Set(frames.map(frame => frame.frameIndex));
   const index = item.contactCandidateSampleIndex;
   const phases = item.phases;
   const limitations = item.limitations;
   return (index === null || (Number.isInteger(index) && Number(index) >= 0 && Number(index) < frameCount)) &&
     typeof item.contactCandidateConfidence === 'number' && item.contactCandidateConfidence >= 0 && item.contactCandidateConfidence <= 1 &&
     typeof item.contactCandidateEvidence === 'string' && typeof item.summary === 'string' &&
-    Array.isArray(item.observations) && item.observations.every(isObservation) &&
+    Array.isArray(item.observations) && item.observations.every(observation => isObservation(observation) && observation.frameIndices.every(frameIndex => allowedFrames.has(frameIndex))) &&
     Array.isArray(phases) && phases.every(phase => Boolean(
       phase && typeof phase === 'object' && typeof (phase as Record<string, unknown>).phase === 'string' &&
       ((phase as Record<string, unknown>).sampleIndex === null || (
@@ -389,51 +550,157 @@ function isOverview(value: unknown, frameCount: number): value is OverviewAnalys
         Number((phase as Record<string, unknown>).sampleIndex) < frameCount
       )) && typeof (phase as Record<string, unknown>).evidence === 'string' &&
       isNormalizedBox((phase as Record<string, unknown>).playerBoxNorm)
-    )) && Array.isArray(limitations) && limitations.every(entry => typeof entry === 'string');
+    )) && Array.isArray(limitations) && limitations.every(entry => typeof entry === 'string') &&
+    Array.isArray(item.shotCandidates) && item.shotCandidates.length <= 3 && item.shotCandidates.every(candidate => {
+      if (!candidate || typeof candidate !== 'object') return false;
+      const shot = candidate as Record<string, unknown>;
+      return typeof shot.shotId === 'string' && shot.shotId.length > 0 &&
+        Number.isInteger(shot.sampleIndex) && Number(shot.sampleIndex) >= 0 && Number(shot.sampleIndex) < frameCount &&
+        (shot.shotType === null || typeof shot.shotType === 'string') &&
+        typeof shot.confidence === 'number' && shot.confidence >= 0 && shot.confidence <= 1 &&
+        typeof shot.evidence === 'string';
+    });
 }
 
-function isDetailed(value: unknown, frameCount: number): value is DetailedAnalysis {
+function isDetailed(value: unknown, frames: SampledFrame[], durationSeconds: number): value is DetailedAnalysis {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   const index = item.contactSampleIndex;
   const statuses: ContactStatus[] = ['DETECTED', 'LIKELY', 'UNCERTAIN', 'NOT_VISIBLE'];
   const drill = item.drill as Record<string, unknown> | undefined;
+  const shotIdentification = item.shotIdentification as Record<string, unknown> | undefined;
+  const footageQuality = item.footageQuality as Record<string, unknown> | undefined;
+  const allowedFrames = new Set(frames.map(frame => frame.frameIndex));
+  const contactWindowStartSeconds = item.contactWindowStartSeconds;
+  const contactWindowEndSeconds = item.contactWindowEndSeconds;
+  const status = item.status;
+  const shotConfidence = shotIdentification?.confidence;
   return statuses.includes(item.contactStatus as ContactStatus) &&
-    (index === null || (Number.isInteger(index) && Number(index) >= 0 && Number(index) < frameCount)) &&
+    (item.contactStatus !== 'DETECTED' || index !== null) &&
+    (index === null || (Number.isInteger(index) && Number(index) >= 0 && Number(index) < frames.length)) &&
     typeof item.contactConfidence === 'number' && item.contactConfidence >= 0 && item.contactConfidence <= 1 &&
     typeof item.contactEvidence === 'string' && typeof item.summary === 'string' &&
     isNormalizedPoint(item.contactPointNorm) && isNormalizedBox(item.playerBoxNorm) &&
-    isEstimatedLandmarks(item.landmarksNorm) &&
-    Array.isArray(item.observations) && item.observations.every(isObservation) &&
-    Array.isArray(item.errors) && item.errors.every(isObservation) &&
+    isEstimatedLandmarks(item.landmarksNorm) && isNormalizedPoint(item.batHandleNorm) && isNormalizedPoint(item.batToeNorm) &&
+    Array.isArray(item.landmarksByFrame) && item.landmarksByFrame.length <= 6 && item.landmarksByFrame.every(entry => {
+      if (!entry || typeof entry !== 'object') return false;
+      const frameLandmarks = entry as Record<string, unknown>;
+      return Number.isInteger(frameLandmarks.frameIndex) && allowedFrames.has(Number(frameLandmarks.frameIndex)) &&
+        ['preparation', 'foot_plant', 'downswing', 'contact', 'extension', 'finish'].includes(String(frameLandmarks.phase)) &&
+        typeof frameLandmarks.confidence === 'number' && frameLandmarks.confidence >= 0 && frameLandmarks.confidence <= 1 &&
+        isEstimatedLandmarks(frameLandmarks.landmarksNorm);
+    }) &&
+    Array.isArray(item.observations) && item.observations.every(entry => isDetailedObservation(entry, allowedFrames)) &&
+    Array.isArray(item.errors) && item.errors.length <= 3 && item.errors.every(entry => isDetailedObservation(entry, allowedFrames)) &&
     Array.isArray(item.strengths) && item.strengths.every(value => typeof value === 'string') &&
     typeof item.priorityCue === 'string' && drill !== undefined && typeof drill.title === 'string' &&
     Array.isArray(drill.instructions) && drill.instructions.every(value => typeof value === 'string') &&
-    typeof drill.rationale === 'string' && Array.isArray(item.limitations) && item.limitations.every(value => typeof value === 'string');
+    typeof drill.rationale === 'string' && Array.isArray(item.limitations) && item.limitations.every(value => typeof value === 'string') &&
+    Array.isArray(item.additionalEvidence) && item.additionalEvidence.every(value => typeof value === 'string') &&
+    typeof status === 'string' && ['assessable', 'partially_assessable', 'unassessable'].includes(status) &&
+    shotIdentification !== undefined && (shotIdentification.shotType === null || typeof shotIdentification.shotType === 'string') &&
+    typeof shotConfidence === 'number' && shotConfidence >= 0 && shotConfidence <= 1 && typeof shotIdentification.evidence === 'string' &&
+    footageQuality !== undefined && ['front_on', 'side_on', 'three_quarter', 'unknown'].includes(String(footageQuality.cameraView)) &&
+    ['low', 'moderate', 'high', 'unknown'].includes(String(footageQuality.blur)) &&
+    ['stable', 'moving', 'unknown'].includes(String(footageQuality.cameraMotion)) &&
+    Array.isArray(footageQuality.occlusions) && footageQuality.occlusions.every(value => typeof value === 'string') &&
+    Array.isArray(footageQuality.timingLimitations) && footageQuality.timingLimitations.every(value => typeof value === 'string') &&
+    (contactWindowStartSeconds === null || (typeof contactWindowStartSeconds === 'number' && Number.isFinite(contactWindowStartSeconds) && contactWindowStartSeconds >= 0 && contactWindowStartSeconds <= durationSeconds)) &&
+    (contactWindowEndSeconds === null || (typeof contactWindowEndSeconds === 'number' && Number.isFinite(contactWindowEndSeconds) && contactWindowEndSeconds >= 0 && contactWindowEndSeconds <= durationSeconds)) &&
+    (contactWindowStartSeconds === null || contactWindowEndSeconds === null || contactWindowStartSeconds <= contactWindowEndSeconds);
+}
+
+export function calculateProjectedAngle(
+  a: NormalizedPoint | null | undefined,
+  vertex: NormalizedPoint | null | undefined,
+  c: NormalizedPoint | null | undefined,
+  width: number,
+  height: number
+): number | null {
+  if (!a || !vertex || !c) return null;
+  const ax = (a.x - vertex.x) * width;
+  const ay = (a.y - vertex.y) * height;
+  const cx = (c.x - vertex.x) * width;
+  const cy = (c.y - vertex.y) * height;
+  const aLength = Math.hypot(ax, ay);
+  const cLength = Math.hypot(cx, cy);
+  if (aLength === 0 || cLength === 0) return null;
+  const cosine = Math.max(-1, Math.min(1, (ax * cx + ay * cy) / (aLength * cLength)));
+  return Math.round(Math.acos(cosine) * 18000 / Math.PI) / 100;
+}
+
+function calculateJointAngles(
+  landmarksByFrame: DetailedAnalysis['landmarksByFrame'],
+  frames: SampledFrame[]
+): JointAngleRecord[] {
+  const framesBySourceIndex = new Map(frames.map(frame => [frame.frameIndex, frame]));
+  const definitions: Array<{ joint: JointAngleRecord['joint']; side: JointAngleRecord['side']; a: keyof EstimatedLandmarks; vertex: keyof EstimatedLandmarks; c: keyof EstimatedLandmarks }> = [
+    { joint: 'elbow', side: 'left', a: 'leftShoulder', vertex: 'leftElbow', c: 'leftWrist' },
+    { joint: 'elbow', side: 'right', a: 'rightShoulder', vertex: 'rightElbow', c: 'rightWrist' },
+    { joint: 'knee', side: 'left', a: 'leftHip', vertex: 'leftKnee', c: 'leftAnkle' },
+    { joint: 'knee', side: 'right', a: 'rightHip', vertex: 'rightKnee', c: 'rightAnkle' },
+    { joint: 'hip', side: 'left', a: 'leftShoulder', vertex: 'leftHip', c: 'leftKnee' },
+    { joint: 'hip', side: 'right', a: 'rightShoulder', vertex: 'rightHip', c: 'rightKnee' },
+    { joint: 'shoulder', side: 'left', a: 'leftElbow', vertex: 'leftShoulder', c: 'leftHip' },
+    { joint: 'shoulder', side: 'right', a: 'rightElbow', vertex: 'rightShoulder', c: 'rightHip' }
+  ];
+  return landmarksByFrame.flatMap(phaseEntry => {
+    const frame = framesBySourceIndex.get(phaseEntry.frameIndex);
+    if (!frame) return [];
+    return definitions.map(definition => {
+      const angleDegrees = calculateProjectedAngle(
+        phaseEntry.landmarksNorm[definition.a], phaseEntry.landmarksNorm[definition.vertex],
+        phaseEntry.landmarksNorm[definition.c], frame.width, frame.height
+      );
+      return {
+        joint: definition.joint,
+        side: definition.side,
+        angleDegrees,
+        frameIndex: frame.frameIndex,
+        timestampSeconds: frame.timestampSeconds,
+        phase: phaseEntry.phase,
+        confidence: phaseEntry.confidence,
+        source: 'openai_visual_estimate',
+        calculation: 'image_plane_angle_from_normalized_landmarks',
+        status: angleDegrees === null ? 'unassessable' : 'calculated',
+        limitations: ['Estimated 2D image-plane angle; not a 3D or clinical angle.', 'Landmarks are visually estimated and may be affected by occlusion and perspective.']
+      };
+    });
+  });
+}
+
+function createFrameManifest(frames: SampledFrame[], detail: FrameManifestEntry['detail'], shotId: string | null = null): FrameManifestEntry[] {
+  return frames.map(frame => ({
+    frameId: `${detail}_frame_${String(frame.frameIndex).padStart(6, '0')}`,
+    shotId,
+    sourceFrameIndex: frame.frameIndex,
+    timestampSeconds: frame.timestampSeconds,
+    width: frame.width,
+    height: frame.height,
+    coordinateSpace: 'orientation_corrected_supplied_image',
+    detail
+  }));
 }
 
 async function requestVisionJson<T>(
   client: OpenAI,
   model: string,
+  instructions: string,
   prompt: string,
+  schemaName: string,
+  schema: Record<string, unknown>,
   frames: SampledFrame[],
   validator: (value: unknown) => value is T,
   detail: 'low' | 'high' = 'low'
-): Promise<T> {
+): Promise<VisionCallResult<T>> {
   try {
     const response = await client.responses.create({
       model,
-      max_output_tokens: 3000,
+      max_output_tokens: 6000,
       reasoning: { effort: 'medium' },
-      text: { format: { type: 'json_object' } },
+      instructions,
+      text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } },
       input: [
-        {
-          role: 'system',
-          content: [{
-            type: 'input_text',
-            text: 'You are a cautious cricket batting coach. Analyze only visible evidence. Do not invent measurements, forces, 3D positions, or contact that cannot be seen. Landmark coordinates are approximate visual estimates, not measurements. Separate visual observation from coaching interpretation, state uncertainty, and return valid JSON only.'
-          }]
-        },
         {
           role: 'user',
           content: [
@@ -446,7 +713,20 @@ async function requestVisionJson<T>(
         }
       ]
     });
-    const text = response.output_text;
+    if (response.status === 'incomplete') {
+      const reason = response.incomplete_details?.reason || 'unknown';
+      throw new OpenAiBattingAnalysisError(502, 'openai_response_incomplete', `OpenAI returned an incomplete analysis (${reason}).`);
+    }
+    if (response.status !== 'completed') {
+      throw new OpenAiBattingAnalysisError(502, 'openai_response_not_completed', `OpenAI analysis ended with status ${response.status}.`);
+    }
+    const message = response.output.find(item => item.type === 'message');
+    const refusal = message?.content.find(content => content.type === 'refusal');
+    if (refusal?.type === 'refusal') {
+      throw new OpenAiBattingAnalysisError(422, 'openai_analysis_refused', 'OpenAI declined to analyze the supplied video frames.');
+    }
+    const structuredOutput = message?.content.find(content => content.type === 'output_text');
+    const text = structuredOutput?.type === 'output_text' ? structuredOutput.text : '';
     if (!text) throw new Error('OpenAI returned an empty analysis.');
     let parsed: unknown;
     try {
@@ -455,7 +735,15 @@ async function requestVisionJson<T>(
       throw new Error('OpenAI returned invalid JSON.');
     }
     if (!validator(parsed)) throw new Error('OpenAI returned analysis in an unexpected format.');
-    return parsed;
+    return {
+      value: parsed,
+      metadata: {
+        responseId: response.id,
+        model: response.model,
+        inputTokens: response.usage?.input_tokens ?? null,
+        outputTokens: response.usage?.output_tokens ?? null
+      }
+    };
   } catch (error) {
     const status = (error as { status?: number }).status;
     if (status === 401 || status === 403) {
@@ -465,7 +753,10 @@ async function requestVisionJson<T>(
       throw new OpenAiBattingAnalysisError(429, 'openai_rate_limited', 'OpenAI is rate limiting requests. Please try again shortly.');
     }
     if (error instanceof OpenAiBattingAnalysisError) throw error;
-    console.error('OpenAI batting analysis request failed:', error);
+    console.error('OpenAI batting analysis request failed:', {
+      status,
+      name: error instanceof Error ? error.name : 'UnknownError'
+    });
     throw new OpenAiBattingAnalysisError(502, 'openai_analysis_failed', 'OpenAI could not complete the batting analysis. Please try again.');
   }
 }
@@ -486,7 +777,7 @@ export async function analyzeBattingVideoWithOpenAI(
     if (manualTimestamp !== undefined && (!Number.isFinite(manualTimestamp) || manualTimestamp < 0 || manualTimestamp > metadata.durationSeconds)) {
       throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'The selected contact time must be within the video duration.');
     }
-    const overviewFps = Math.min(2, (MAX_OVERVIEW_FRAMES - 1) / metadata.durationSeconds);
+    const overviewFps = Math.min(OVERVIEW_FPS, (MAX_OVERVIEW_FRAMES - 1) / metadata.durationSeconds);
     const overviewFrames = await sampleFrames(inputPath, workDir, {
       startSeconds: 0,
       durationSeconds: metadata.durationSeconds,
@@ -499,22 +790,40 @@ export async function analyzeBattingVideoWithOpenAI(
 
     const model = process.env.OPENAI_VIDEO_ANALYSIS_MODEL?.trim() || 'gpt-6.1-sol';
     const client = new OpenAI({ apiKey, timeout: OPENAI_TIMEOUT_MS, maxRetries: 1 });
-    const overviewPrompt = `Review this batting video as an evidence-based cricket coach. The frames are uniformly sampled across the clip and labeled with sample index, original presentation timestamp, and decoded source frame index. Return one JSON object with this exact shape:
-{
-  "contactCandidateSampleIndex": integer from the supplied overview samples or null,
-  "contactCandidateConfidence": number from 0 to 1,
-  "contactCandidateEvidence": "what is visibly happening at the candidate; say if impact is unclear",
-  "summary": "brief cautious assessment of the batting technique",
-  "observations": [{"title":"short label","observation":"visible evidence only","coachingImplication":"practical interpretation","confidence":"low|moderate|high"}],
-  "phases": [{"phase":"preparation|downswing|near_contact|follow_through","sampleIndex":integer or null,"evidence":"visible cue","playerBoxNorm":{"left":number,"top":number,"right":number,"bottom":number} or null}],
-  "limitations": ["specific visibility or viewpoint limitations"]
-}
-For each phase, estimate the full visible batter box normalized to the image (0..1, top-left origin); include padding-free player bounds and use null if the batter cannot be bounded. Pick the sample closest to visible bat-ball contact, not merely the end of the swing. Use null if no candidate can reasonably be identified. Describe contact as likely/uncertain in the evidence when ball and bat are blurred, occluded, or too small. Do not claim exact joint angles, forces, weight transfer, or 3D movement from this overview.`;
-    const overview = await requestVisionJson(client, model, overviewPrompt, overviewFrames, value => isOverview(value, overviewFrames.length));
+    const [sharedInstructions, overviewPrompt, overviewSchema] = await Promise.all([
+      loadPromptAsset('shared-instructions.v1.md'),
+      loadPromptAsset('overview.v1.md'),
+      loadSchemaAsset('overview.schema.v1.json')
+    ]);
+    const overviewCall = await requestVisionJson(
+      client, model, sharedInstructions, overviewPrompt, 'batting_overview_v1', overviewSchema,
+      overviewFrames, value => isOverview(value, overviewFrames)
+    );
+    const overview = overviewCall.value;
+    const visionCalls: VisionCallMetadata[] = [overviewCall.metadata];
+    const frameManifest = createFrameManifest(overviewFrames, 'overview');
 
-    const aiCandidate = overview.contactCandidateSampleIndex === null
-      ? null
-      : overviewFrames[overview.contactCandidateSampleIndex];
+    const aiCandidateIndex = overview.contactCandidateSampleIndex ?? overview.shotCandidates[0]?.sampleIndex ?? null;
+    const aiCandidate = aiCandidateIndex === null ? null : overviewFrames[aiCandidateIndex];
+    const rankedShotCandidates = overview.shotCandidates.slice(0, 3);
+    const primaryShotCandidate = rankedShotCandidates.find(shot => shot.sampleIndex === aiCandidateIndex);
+    const shotCandidates = manualTimestamp === undefined
+      ? aiCandidateIndex === null
+        ? rankedShotCandidates
+        : [
+            primaryShotCandidate ?? {
+              shotId: 'shot_primary', sampleIndex: aiCandidateIndex, shotType: null,
+              confidence: overview.contactCandidateConfidence, evidence: overview.contactCandidateEvidence
+            },
+            ...rankedShotCandidates.filter(shot => shot.sampleIndex !== aiCandidateIndex)
+          ].slice(0, 3)
+      : [{
+          shotId: 'manual_selection',
+          sampleIndex: aiCandidate?.sampleIndex ?? 0,
+          shotType: null,
+          confidence: 1,
+          evidence: 'Coach-selected contact timestamp.'
+        }];
     const manualReference = manualTimestamp === undefined
       ? null
       : nearestPresentationFrame(metadata.presentationTimestampsSeconds, manualTimestamp);
@@ -532,6 +841,9 @@ For each phase, estimate the full visible batter box normalized to the image (0.
           Math.abs(frame.timestampSeconds - candidate.timestampSeconds) < Math.abs(closest.timestampSeconds - candidate.timestampSeconds) ? frame : closest
         )
       : null;
+    if (manualTimestamp !== undefined && closestOverviewFrame && shotCandidates[0]) {
+      shotCandidates[0].sampleIndex = closestOverviewFrame.sampleIndex;
+    }
     const selectionSource = manualTimestamp === undefined ? 'AI' as const : 'MANUAL' as const;
     const selectedTimestampSeconds = candidate?.timestampSeconds ?? null;
     let contactStatus: ContactStatus = candidate ? 'LIKELY' : 'NOT_VISIBLE';
@@ -546,15 +858,29 @@ For each phase, estimate the full visible batter box normalized to the image (0.
       ? null
       : overview.phases.find(phase => phase.phase === 'near_contact')?.playerBoxNorm ?? null;
     let contactLandmarksNorm: EstimatedLandmarks = {};
+    let batHandleNorm: NormalizedPoint | null = null;
+    let batToeNorm: NormalizedPoint | null = null;
     let detailContactFrame: SampledFrame | null = null;
     let poseSequenceFrames: OpenAiBattingAnalysis['poseSequenceFrames'] = [];
     let summary = overview.summary;
-    let observations = overview.observations;
-    let errors: Observation[] = [];
+    let observations: DetailedObservation[] = overview.observations.map(observation => ({
+      ...observation,
+      alternativeExplanation: 'Sparse overview footage may omit relevant movement between sampled frames.'
+    }));
+    let errors: DetailedObservation[] = [];
     let strengths: string[] = [];
     let priorityCue = '';
     let drill: DetailedAnalysis['drill'] = { title: '', instructions: [], rationale: '' };
     let limitations = overview.limitations;
+    let assessmentStatus: DetailedAnalysis['status'] = candidate ? 'partially_assessable' : 'unassessable';
+    let shotIdentification: DetailedShotAssessment = { shotType: null, confidence: 0, evidence: '' };
+    let footageQuality: FootageQuality = {
+      cameraView: 'unknown', blur: 'unknown', occlusions: [], timingLimitations: [], cameraMotion: 'unknown'
+    };
+    let contactWindow = { startSeconds: null as number | null, endSeconds: null as number | null };
+    let additionalEvidence: string[] = [];
+    const shotAssessments: ShotAssessment[] = [];
+    const jointAngles: JointAngleRecord[] = [];
     const phases = overview.phases.map(phase => {
       const sample = phase.sampleIndex === null ? null : overviewFrames[phase.sampleIndex];
       return {
@@ -568,7 +894,7 @@ For each phase, estimate the full visible batter box normalized to the image (0.
     if (candidate !== null) {
       const startSeconds = Math.max(0, candidate.timestampSeconds - CONTACT_WINDOW_SECONDS / 2);
       const windowSeconds = Math.min(CONTACT_WINDOW_SECONDS, metadata.durationSeconds - startSeconds);
-      const detailFps = Math.max(1, Math.min(DETAIL_FPS, metadata.fps, (MAX_DETAIL_FRAMES - 1) / Math.max(windowSeconds, 0.05)));
+      const detailFps = Math.max(1, Math.min(metadata.fps, MAX_DETAIL_FRAMES / Math.max(windowSeconds, 0.05)));
       const detailFrames = await sampleFrames(inputPath, workDir, {
         startSeconds,
         durationSeconds: windowSeconds,
@@ -578,6 +904,7 @@ For each phase, estimate the full visible batter box normalized to the image (0.
         dimension: MAX_FRAME_DIMENSION,
         presentationTimestampsSeconds: metadata.presentationTimestampsSeconds
       });
+      frameManifest.push(...createFrameManifest(detailFrames, 'contact', shotCandidates[0]?.shotId ?? 'shot_001'));
       detailContactFrame = detailFrames.reduce((closest, frame) =>
         Math.abs(frame.timestampSeconds - candidate.timestampSeconds) < Math.abs(closest.timestampSeconds - candidate.timestampSeconds) ? frame : closest
       );
@@ -585,25 +912,43 @@ For each phase, estimate the full visible batter box normalized to the image (0.
       const contactReferenceInstruction = manualTimestamp === undefined
         ? `The overview pass proposed a likely contact near ${candidate.timestampSeconds.toFixed(6)} seconds.`
         : `A coach manually selected ${candidate.timestampSeconds.toFixed(6)} seconds as the contact-time reference. Treat that selected moment as the center of review, inspect the neighboring frames for confirmation, and do not silently replace it with a distant event.`;
-      const detailPrompt = `${contactReferenceInstruction} These higher-resolution frames cover a short interval around that time, with sample index, original PTS and source frame index for each. Return JSON with this exact shape:
-{
-  "contactStatus":"DETECTED|LIKELY|UNCERTAIN|NOT_VISIBLE",
-  "contactSampleIndex":integer from these detail samples or null,
-  "contactConfidence":number from 0 to 1,
-  "contactEvidence":"specific visual evidence for/against ball meeting bat",
-  "contactPointNorm":{"x":number,"y":number} or null,
-  "playerBoxNorm":{"left":number,"top":number,"right":number,"bottom":number} or null,
-  "landmarksNorm":{"head":{"x":number,"y":number} or null,"leftShoulder":{"x":number,"y":number} or null,"rightShoulder":{"x":number,"y":number} or null,"leftElbow":{"x":number,"y":number} or null,"rightElbow":{"x":number,"y":number} or null,"leftWrist":{"x":number,"y":number} or null,"rightWrist":{"x":number,"y":number} or null,"leftHip":{"x":number,"y":number} or null,"rightHip":{"x":number,"y":number} or null,"leftKnee":{"x":number,"y":number} or null,"rightKnee":{"x":number,"y":number} or null,"leftAnkle":{"x":number,"y":number} or null,"rightAnkle":{"x":number,"y":number} or null,"frontToe":{"x":number,"y":number} or null},
-  "summary":"concise batting assessment grounded in the overview and detail frames",
-  "observations":[{"title":"short label","observation":"visible evidence","coachingImplication":"practical interpretation","confidence":"low|moderate|high"}],
-  "errors":[{"title":"specific correctable error","observation":"visible evidence","coachingImplication":"why it matters/how to correct","confidence":"low|moderate|high"}],
-  "strengths":["visible strengths only"],
-  "priorityCue":"one short coaching cue or empty string",
-  "drill":{"title":"simple drill or empty string","instructions":["safe specific steps"],"rationale":"what it tests"},
-  "limitations":["what cannot be determined from this footage"]
-}
-Coordinates are normalized to the full detail image (0..1, origin at top-left); estimate them only when the feature is visible, otherwise use null. Return all landmark keys. Set DETECTED only if impact is visibly identifiable; LIKELY when timing is plausible but the precise collision is blurred; otherwise use UNCERTAIN or NOT_VISIBLE and null sample index if no frame can be selected. Do not infer quantitative biomechanics, forces, 3D position, or a technical fault solely from a front-on projected offset. Distinguish an observation from its coaching interpretation.`;
-      const detailed = await requestVisionJson(client, model, detailPrompt, detailFrames, value => isDetailed(value, detailFrames.length), 'high');
+      const [detailTaskPrompt, detailSchema] = await Promise.all([
+        loadPromptAsset('detailed.v1.md'),
+        loadSchemaAsset('detailed.schema.v1.json')
+      ]);
+      const detailPrompt = `${detailTaskPrompt}\n\n${contactReferenceInstruction}`;
+      const detailCall = await requestVisionJson(
+        client, model, sharedInstructions, detailPrompt, 'batting_detailed_v1', detailSchema,
+        detailFrames, value => isDetailed(value, detailFrames, metadata.durationSeconds), 'high'
+      );
+      visionCalls.push(detailCall.metadata);
+      const detailed = detailCall.value;
+      const primaryShotJointAngles = calculateJointAngles(detailed.landmarksByFrame, detailFrames);
+      jointAngles.push(...primaryShotJointAngles);
+      assessmentStatus = detailed.status;
+      shotIdentification = detailed.shotIdentification;
+      footageQuality = detailed.footageQuality;
+      contactWindow = {
+        startSeconds: detailed.contactWindowStartSeconds,
+        endSeconds: detailed.contactWindowEndSeconds
+      };
+      batHandleNorm = detailed.batHandleNorm;
+      batToeNorm = detailed.batToeNorm;
+      additionalEvidence = detailed.additionalEvidence;
+      shotAssessments.push({
+        shotId: shotCandidates[0]?.shotId || 'shot_001',
+        shotType: detailed.shotIdentification.shotType,
+        timestampSeconds: candidate.timestampSeconds,
+        status: detailed.status,
+        contactStatus: detailed.contactStatus,
+        confidence: detailed.contactConfidence,
+        summary: detailed.summary,
+        observations: detailed.observations,
+        errors: detailed.errors,
+        strengths: detailed.strengths,
+        limitations: detailed.limitations,
+        jointAngles: primaryShotJointAngles
+      });
       contactStatus = detailed.contactStatus;
       contactConfidence = detailed.contactConfidence;
       contactEvidence = detailed.contactEvidence;
@@ -651,6 +996,54 @@ Coordinates are normalized to the full detail image (0..1, origin at top-left); 
               : frame.timestampSeconds > centerSeconds ? 'POST_CONTACT' as const : 'CONTACT' as const,
             imageDataUrl: frame.imageDataUrl
           }));
+      }
+    }
+
+    if (manualTimestamp === undefined) {
+      for (const [candidatePosition, shot] of shotCandidates.slice(1, 3).entries()) {
+        if (aiCandidate && shot.sampleIndex === aiCandidate.sampleIndex) continue;
+        const shotFrame = overviewFrames[shot.sampleIndex];
+        const startSeconds = Math.max(0, shotFrame.timestampSeconds - CONTACT_WINDOW_SECONDS / 2);
+        const windowSeconds = Math.min(CONTACT_WINDOW_SECONDS, metadata.durationSeconds - startSeconds);
+        const detailFps = Math.max(1, Math.min(metadata.fps, MAX_DETAIL_FRAMES / Math.max(windowSeconds, 0.05)));
+        const detailFrames = await sampleFrames(inputPath, workDir, {
+          startSeconds,
+          durationSeconds: windowSeconds,
+          fps: detailFps,
+          maxFrames: MAX_DETAIL_FRAMES,
+          prefix: `shot-${candidatePosition + 2}-detail`,
+          dimension: MAX_FRAME_DIMENSION,
+          presentationTimestampsSeconds: metadata.presentationTimestampsSeconds
+        });
+        frameManifest.push(...createFrameManifest(detailFrames, 'contact', shot.shotId));
+        const [detailTaskPrompt, detailSchema] = await Promise.all([
+          loadPromptAsset('detailed.v1.md'),
+          loadSchemaAsset('detailed.schema.v1.json')
+        ]);
+        const detailCall = await requestVisionJson(
+          client, model, sharedInstructions,
+          `${detailTaskPrompt}\n\nAnalyze shot ${shot.shotId} (${shot.shotType || 'type unknown'}), centered near ${shotFrame.timestampSeconds.toFixed(6)} seconds. ${shot.evidence}`,
+          'batting_detailed_v1', detailSchema, detailFrames,
+          value => isDetailed(value, detailFrames, metadata.durationSeconds), 'high'
+        );
+        visionCalls.push(detailCall.metadata);
+        const detailed = detailCall.value;
+        const candidateJointAngles = calculateJointAngles(detailed.landmarksByFrame, detailFrames);
+        jointAngles.push(...candidateJointAngles);
+        shotAssessments.push({
+          shotId: shot.shotId,
+          shotType: detailed.shotIdentification.shotType ?? shot.shotType,
+          timestampSeconds: shotFrame.timestampSeconds,
+          status: detailed.status,
+          contactStatus: detailed.contactStatus,
+          confidence: detailed.contactConfidence,
+          summary: detailed.summary,
+          observations: detailed.observations,
+          errors: detailed.errors,
+          strengths: detailed.strengths,
+          limitations: detailed.limitations,
+          jointAngles: candidateJointAngles
+        });
       }
     }
 
@@ -708,10 +1101,31 @@ Coordinates are normalized to the full detail image (0..1, origin at top-left); 
       }))
     };
     const { presentationTimestampsSeconds: _framePts, ...videoMetadata } = metadata;
+    const usageValues = visionCalls.filter(call => call.inputTokens !== null && call.outputTokens !== null);
+    const usage = usageValues.length !== visionCalls.length ? null : {
+      inputTokens: usageValues.reduce((total, call) => total + (call.inputTokens ?? 0), 0),
+      outputTokens: usageValues.reduce((total, call) => total + (call.outputTokens ?? 0), 0)
+    };
+    const [ffmpegVersion, ffprobeVersion] = await Promise.all([binaryVersion('ffmpeg'), binaryVersion('ffprobe')]);
     return {
       provider: 'openai',
       model,
+      promptVersion: PROMPT_VERSION,
+      schemaVersion: SCHEMA_VERSION,
+      sourceSha256: createHash('sha256').update(videoBuffer).digest('hex'),
       video: { ...videoMetadata, sampledOverviewFrames: overviewFrames.length },
+      frameManifest,
+      shotCandidates,
+      shotAssessments,
+      jointAngles,
+      executionLog: {
+        stages: ['probe_video', 'sample_overview_frames', 'openai_overview', ...(candidate ? ['sample_contact_window', 'openai_detailed_analysis'] : []), ...(shotAssessments.length > 1 ? ['analyze_additional_shots'] : []), 'calculate_projected_joint_angles', 'render_review_svgs'],
+        toolVersions: { node: process.version, ffmpeg: ffmpegVersion, ffprobe: ffprobeVersion },
+        modelRequested: model,
+        modelReturned: visionCalls.at(-1)?.model ?? model,
+        responseIds: visionCalls.map(call => call.responseId),
+        usage
+      },
       contact: {
         status: contactStatus,
         selectionSource,
@@ -724,18 +1138,26 @@ Coordinates are normalized to the full detail image (0..1, origin at top-left); 
         pointNorm: contactPointNorm
       },
       croppedContactImageDataUrl,
+      contactLandmarksNorm,
+      batHandleNorm,
+      batToeNorm,
       croppedContactLandmarksNorm,
       croppedContactPointNorm,
       poseSequenceFrames,
       phases,
       visualOutputs,
       summary,
+      status: assessmentStatus,
+      shotIdentification,
+      footageQuality,
+      contactWindow,
       observations,
       errors,
       strengths,
       priorityCue,
       drill,
-      limitations
+      limitations,
+      additionalEvidence
     };
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });
