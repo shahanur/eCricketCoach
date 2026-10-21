@@ -36,10 +36,17 @@ test('persists report artifacts and a ZIP without embedding source image data in
     phaseReviewFrames: [{ shotId: 'shot_1', frameIndex: 15, timestampSeconds: 0.5, phase: 'contact', confidence: 0.8, landmarksNorm: { leftShoulder: { x: 0.4, y: 0.3 } }, imageDataUrl }],
     sourceFrameImages: [{ frameIndex: 15, timestampSeconds: 0.5, imageDataUrl }],
     batLandmarksByFrame: [{ frameIndex: 15, phase: 'contact', confidence: 0.8, visibility: 'visible', handleNorm: { x: 0.6, y: 0.5 }, toeNorm: { x: 0.8, y: 0.8 } }], annotations: [],
+    batAngles: [{
+      frameId: 'frame_000015', frameIndex: 15, timestampSeconds: 0.5, phase: 'contact', confidence: 0.8, visibility: 'visible',
+      handle: { x: 0.6, y: 0.5 }, toe: { x: 0.8, y: 0.8 }, handleSource: 'model', angleDegrees: 23.9, source: 'openai_visual_estimate',
+      calculation: 'image_plane_handle_to_toe_from_vertical', status: 'calculated', limitations: ['2D estimate only.']
+    }],
+    contactBatAngle: { frameIndex: 15, angleDegrees: 23.9, method: 'handle_to_toe', source: 'openai_visual_estimate', limitations: ['2D estimate only.'] },
     executionLog: { stages: ['test'], toolVersions: { node: 'test', ffmpeg: 'test', ffprobe: 'test', sharp: 'test' }, modelRequested: 'test-model', modelReturned: 'test-model', responseIds: ['resp_test'], usage: null, sourceSha256: 'a'.repeat(64), frameManifest: [], cropTransforms: [], errors: [], outputs: [] },
     contact: { status: 'UNCERTAIN', selectionSource: 'AI', selectedTimestampSeconds: 0.5, frameIndex: 15, timestampSeconds: 0.5, confidence: 0.2, evidence: 'test evidence', imageDataUrl, pointNorm: { x: 0.5, y: 0.5 } },
     croppedContactImageDataUrl: imageDataUrl, contactLandmarksNorm: { leftShoulder: { x: 0.4, y: 0.3 }, leftElbow: { x: 0.3, y: 0.5 }, leftWrist: { x: 0.4, y: 0.6 } },
     batHandleNorm: { x: 0.6, y: 0.5 }, batToeNorm: { x: 0.8, y: 0.8 }, croppedContactLandmarksNorm: {}, croppedContactPointNorm: null,
+    croppedBatHandleNorm: null, croppedBatToeNorm: null,
     poseSequenceFrames: [{ frameIndex: 16, timestampSeconds: 0.55, phase: 'POST_CONTACT', imageDataUrl }],
     visualOutputs: { movementSequenceImageDataUrl: svgDataUrl, jointAlignmentImageDataUrl: svgDataUrl },
     phases: [], summary: 'A cautious synthetic test result.', status: 'partially_assessable', kinetics: { status: 'not_measured', hypotheses: [] },
@@ -64,6 +71,8 @@ test('persists report artifacts and a ZIP without embedding source image data in
   assert.ok(JSON.parse(analysisJson).executionLog.outputs.some((output: { path: string }) => output.path === 'report.md'));
   assert.ok(reportMarkdown.includes('1 triplet(s) calculated from detailed phase frames; 0 unassessable'));
   assert.ok(reportMarkdown.includes('Overview-only limitation: Joint-triplet status'));
+  assert.ok(reportMarkdown.includes('**At contact (frame 15):** ≈24° from vertical (handle to toe)'));
+  assert.ok(reportMarkdown.includes('| frame_000015 | 0.500 s | contact | visible | ≈24° | 80% |'));
   const zip = await readFile(path.join(persisted.directory, 'analysis_bundle.zip'));
   assert.equal(zip.subarray(0, 2).toString(), 'PK');
   assert.ok(zip.includes('joint_angles.json'));

@@ -100,8 +100,10 @@ kinematicsRouter.post(
       body.append('handedness', handedness);
       const openAiLandmarks = typeof req.body?.openAiLandmarks === 'string' ? req.body.openAiLandmarks : '{}';
       const openAiContactPoint = typeof req.body?.openAiContactPoint === 'string' ? req.body.openAiContactPoint : 'null';
+      const openAiBatPoints = typeof req.body?.openAiBatPoints === 'string' ? req.body.openAiBatPoints : '{}';
       body.append('openai_landmarks', openAiLandmarks);
       body.append('openai_contact_point', openAiContactPoint);
+      body.append('openai_bat_points', openAiBatPoints);
       body.append('shot_type', shotType);
       for (const sequenceImage of sequenceImages) {
         body.append('sequence_images', new Blob([new Uint8Array(sequenceImage.buffer)], { type: sequenceImage.mimetype }), sequenceImage.originalname || 'contact-sequence.jpg');

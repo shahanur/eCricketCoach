@@ -316,6 +316,23 @@ export interface OpenAiBattingObservation {
   confidence: OpenAiVisualConfidence;
 }
 
+export interface OpenAiBatAngle {
+  frameId: string;
+  frameIndex: number;
+  timestampSeconds: number;
+  phase: string;
+  confidence: number;
+  visibility: 'visible' | 'partially_visible' | 'hidden' | 'unknown';
+  handle: { x: number; y: number } | null;
+  toe: { x: number; y: number } | null;
+  handleSource?: 'model' | 'wrists' | null;
+  angleDegrees: number | null;
+  source: 'openai_visual_estimate';
+  calculation: 'image_plane_handle_to_toe_from_vertical';
+  status: 'calculated' | 'unassessable';
+  limitations: string[];
+}
+
 export interface OpenAiBattingAnalysis {
   provider: 'openai';
   model: string;
@@ -386,6 +403,7 @@ export interface OpenAiBattingAnalysis {
       status: 'calculated' | 'unassessable';
       limitations: string[];
     }>;
+    batAngles?: OpenAiBatAngle[];
     phaseReviewFrames: Array<{ shotId: string; frameIndex: number; timestampSeconds: number; phase: string; confidence: number; landmarksNorm: Record<string, { x: number; y: number } | null>; imageDataUrl: string }>;
     batLandmarksByFrame: Array<{ frameIndex: number; phase: string; confidence: number; visibility: 'visible' | 'partially_visible' | 'hidden' | 'unknown'; handleNorm: { x: number; y: number } | null; toeNorm: { x: number; y: number } | null }>;
     annotations: Array<{ frameIndex: number; type: 'point' | 'line' | 'polyline' | 'arrow' | 'ellipse' | 'text'; points: Array<{ x: number; y: number }>; label: string; evidenceStatus: 'observed' | 'estimated' | 'schematic'; confidence: number }>;
@@ -409,6 +427,14 @@ export interface OpenAiBattingAnalysis {
     status: 'calculated' | 'unassessable';
     limitations: string[];
   }>;
+  batAngles?: OpenAiBatAngle[];
+  contactBatAngle?: {
+    frameIndex: number;
+    angleDegrees: number;
+    method: 'handle_to_toe' | 'hands_to_toe' | 'wrists_to_contact';
+    source: 'openai_visual_estimate';
+    limitations: string[];
+  } | null;
   phaseReviewFrames: Array<{ shotId: string; frameIndex: number; timestampSeconds: number; phase: string; confidence: number; landmarksNorm: Record<string, { x: number; y: number } | null>; imageDataUrl: string }>;
   sourceFrameImages: Array<{ frameIndex: number; timestampSeconds: number; imageDataUrl: string }>;
   batLandmarksByFrame: Array<{ frameIndex: number; phase: string; confidence: number; visibility: 'visible' | 'partially_visible' | 'hidden' | 'unknown'; handleNorm: { x: number; y: number } | null; toeNorm: { x: number; y: number } | null }>;
@@ -443,6 +469,8 @@ export interface OpenAiBattingAnalysis {
   batToeNorm: { x: number; y: number } | null;
   croppedContactLandmarksNorm: Record<string, { x: number; y: number } | null>;
   croppedContactPointNorm: { x: number; y: number } | null;
+  croppedBatHandleNorm?: { x: number; y: number } | null;
+  croppedBatToeNorm?: { x: number; y: number } | null;
   poseSequenceFrames: Array<{
     frameIndex: number;
     timestampSeconds: number;

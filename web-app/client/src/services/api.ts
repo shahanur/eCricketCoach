@@ -936,7 +936,8 @@ export const api = {
     shotType: string,
     openAiLandmarks: Record<string, { x: number; y: number } | null>,
     openAiContactPoint: { x: number; y: number } | null,
-    sequenceFrames: Array<{ frameIndex: number; timestampSeconds: number; phase: string; imageDataUrl: string }> = []
+    sequenceFrames: Array<{ frameIndex: number; timestampSeconds: number; phase: string; imageDataUrl: string }> = [],
+    openAiBatPoints: { handle: { x: number; y: number } | null; toe: { x: number; y: number } | null; angle?: number | null } = { handle: null, toe: null }
   ): Promise<PoseOverlayAnalysis> {
     const formData = new FormData();
     const appendImage = (field: string, dataUrl: string, filename: string) => {
@@ -951,6 +952,7 @@ export const api = {
     formData.append('shotType', shotType);
     formData.append('openAiLandmarks', JSON.stringify(openAiLandmarks));
     formData.append('openAiContactPoint', JSON.stringify(openAiContactPoint));
+    formData.append('openAiBatPoints', JSON.stringify(openAiBatPoints));
     sequenceFrames.forEach((frame, index) => {
       appendImage('sequenceImages', frame.imageDataUrl, `contact-sequence-${index}.jpg`);
     });

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { analyzeBattingVideoWithOpenAI, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
+import { analyzeBattingVideoWithOpenAI, calculateBatAngle, calculateBatAngles, calculateContactBatAngle, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
 
 test('OpenAI batting analysis reports a clear configuration error without an API key', async () => {
   const previousKey = process.env.OPENAI_API_KEY;
@@ -71,6 +71,49 @@ test('projected joint angles are calculated deterministically in image pixels', 
   assert.equal(calculateProjectedAngle({ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
   assert.equal(calculateProjectedAngle({ x: Number.NaN, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
   assert.equal(calculateProjectedAngle({ x: 1.1, y: 0 }, { x: 0.5, y: 0.5 }, { x: 0.5, y: 1 }, 100, 100), null);
+});
+
+test('bat angle follows CAPE handle-to-toe convention from vertical in image pixels', () => {
+  assert.equal(calculateBatAngle({ x: 0.5, y: 0.2 }, { x: 0.5, y: 0.8 }, 101, 101), 0);
+  assert.equal(calculateBatAngle({ x: 0.5, y: 0.8 }, { x: 0.5, y: 0.2 }, 101, 101), 180);
+  assert.equal(calculateBatAngle({ x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }, 101, 101), 90);
+  assert.equal(calculateBatAngle({ x: 0.2, y: 0.2 }, { x: 0.5, y: 0.5 }, 101, 101), 45);
+  assert.equal(calculateBatAngle({ x: 0.2, y: 0.2 }, { x: 0.5, y: 0.5 }, 201, 101), 63.4);
+  assert.equal(calculateBatAngle(null, { x: 0.5, y: 0.5 }, 101, 101), null);
+  assert.equal(calculateBatAngle({ x: 0.5, y: 0.5 }, { x: 0.5, y: 0.5 }, 101, 101), null);
+  assert.equal(calculateBatAngle({ x: 1.2, y: 0.5 }, { x: 0.5, y: 0.5 }, 101, 101), null);
+});
+
+test('contact bat angle prefers handle-to-toe and falls back to hands-to-contact', () => {
+  const frame = { frameIndex: 42, width: 101, height: 101 };
+  const direct = calculateContactBatAngle(frame, { x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }, {}, null);
+  assert.equal(direct?.method, 'handle_to_toe');
+  assert.equal(direct?.angleDegrees, 90);
+  const fallback = calculateContactBatAngle(frame, null, null, { leftWrist: { x: 0.4, y: 0.4 }, rightWrist: { x: 0.6, y: 0.4 } }, { x: 0.5, y: 0.7 });
+  assert.equal(fallback?.method, 'wrists_to_contact');
+  assert.equal(fallback?.angleDegrees, 0);
+  assert.equal(fallback?.frameIndex, 42);
+  assert.equal(calculateContactBatAngle(frame, null, null, {}, { x: 0.5, y: 0.7 }), null);
+  const grip = calculateContactBatAngle(frame, null, { x: 0.8, y: 0.4 }, { leftWrist: { x: 0.2, y: 0.4 } }, null);
+  assert.equal(grip?.method, 'hands_to_toe');
+  assert.equal(grip?.angleDegrees, 90);
+});
+
+test('per-frame bat angles use the wrist grip when the model omits the hidden handle', () => {
+  const frames = [{ sampleIndex: 0, frameIndex: 29, timestampSeconds: 1, width: 101, height: 101, imageDataUrl: '', imagePath: '', playerBoxNorm: null }];
+  const [record] = calculateBatAngles(
+    [{ frameIndex: 29, phase: 'contact', confidence: 0.6, visibility: 'partially_visible', handleNorm: null, toeNorm: { x: 0.5, y: 0.8 } }],
+    frames,
+    new Map([[29, { leftWrist: { x: 0.4, y: 0.3 }, rightWrist: { x: 0.6, y: 0.3 } }]])
+  );
+  assert.equal(record.handleSource, 'wrists');
+  assert.equal(record.angleDegrees, 0);
+  assert.equal(record.status, 'calculated');
+  const [missing] = calculateBatAngles(
+    [{ frameIndex: 29, phase: 'contact', confidence: 0.6, visibility: 'partially_visible', handleNorm: null, toeNorm: { x: 0.5, y: 0.8 } }],
+    frames
+  );
+  assert.equal(missing.status, 'unassessable');
 });
 
 test('crop landmark coordinates map back to the source image and out-of-crop points remain null', () => {

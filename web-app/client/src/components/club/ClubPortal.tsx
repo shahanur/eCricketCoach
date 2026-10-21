@@ -3774,6 +3774,33 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </div>
               )}
 
+              {(openAiBattingAnalysis.contactBatAngle || openAiBattingAnalysis.batAngles?.some(angle => angle.status === 'calculated')) && (
+                <div className="overflow-x-auto rounded-lg border border-slate-800">
+                  {openAiBattingAnalysis.contactBatAngle && (
+                    <p className="p-2 text-xs text-slate-300">
+                      Bat angle at contact (frame {openAiBattingAnalysis.contactBatAngle.frameIndex}): <span className="font-semibold">≈{Math.round(openAiBattingAnalysis.contactBatAngle.angleDegrees)}° from vertical</span>
+                      {openAiBattingAnalysis.contactBatAngle.method === 'hands_to_toe' && <span className="text-slate-500"> · grip to bat toe (handle hidden by the hands)</span>}
+                      {openAiBattingAnalysis.contactBatAngle.method === 'wrists_to_contact' && <span className="text-slate-500"> · estimated from hands to contact point</span>}
+                    </p>
+                  )}
+                  {!!openAiBattingAnalysis.batAngles?.length && (
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Projected bat angle</th><th className="p-2">Visibility</th><th className="p-2">Confidence</th><th className="p-2">Frame</th></tr></thead>
+                      <tbody>{openAiBattingAnalysis.batAngles.map(angle => (
+                        <tr key={`bat-${angle.phase}-${angle.frameIndex}`} className="border-t border-slate-800 text-slate-300">
+                          <td className="p-2 capitalize">{angle.phase.replace(/_/g, ' ')}</td>
+                          <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `≈${Math.round(angle.angleDegrees)}°`}</td>
+                          <td className="p-2 capitalize">{angle.visibility.replace(/_/g, ' ')}</td>
+                          <td className="p-2">{Math.round(angle.confidence * 100)}%</td>
+                          <td className="p-2">{angle.frameId} · {angle.timestampSeconds.toFixed(3)} s</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  )}
+                  <p className="px-2 pb-2 text-[10px] text-slate-500">Handle-to-toe direction from straight down in the image (0° = bat hanging below the hands, above 90° = toe above the hands), CAPE's convention. 2D estimate; not a bat face or lie angle.</p>
+                </div>
+              )}
+
               {openAiBattingAnalysis.reportId && openAiBattingAnalysis.artifactNames && (
                 <div className="flex flex-wrap gap-2">
                   {openAiBattingAnalysis.artifactNames.filter(name => name !== 'analysis_bundle.zip').map(name => (

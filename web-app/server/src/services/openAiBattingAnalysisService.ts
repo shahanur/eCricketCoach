@@ -256,9 +256,35 @@ interface ShotAssessment {
   strengths: StrengthObservation[];
   limitations: string[];
   jointAngles: JointAngleRecord[];
+  batAngles: BatAngleRecord[];
   phaseReviewFrames: PhaseReviewFrame[];
   batLandmarksByFrame: DetailedAnalysis['batLandmarksByFrame'];
   annotations: AnnotationSpec[];
+}
+
+interface BatAngleRecord {
+  frameId: string;
+  frameIndex: number;
+  timestampSeconds: number;
+  phase: string;
+  confidence: number;
+  visibility: DetailedAnalysis['batLandmarksByFrame'][number]['visibility'];
+  handle: NormalizedPoint | null;
+  toe: NormalizedPoint | null;
+  handleSource: 'model' | 'wrists' | null;
+  angleDegrees: number | null;
+  source: 'openai_visual_estimate';
+  calculation: 'image_plane_handle_to_toe_from_vertical';
+  status: 'calculated' | 'unassessable';
+  limitations: string[];
+}
+
+interface ContactBatAngle {
+  frameIndex: number;
+  angleDegrees: number;
+  method: 'handle_to_toe' | 'hands_to_toe' | 'wrists_to_contact';
+  source: 'openai_visual_estimate';
+  limitations: string[];
 }
 
 interface JointAngleRecord {
@@ -343,6 +369,8 @@ export interface OpenAiBattingAnalysis {
   shotCandidates: OverviewAnalysis['shotCandidates'];
   shotAssessments: ShotAssessment[];
   jointAngles: JointAngleRecord[];
+  batAngles: BatAngleRecord[];
+  contactBatAngle: ContactBatAngle | null;
   phaseReviewFrames: PhaseReviewFrame[];
   sourceFrameImages: SourceFrameImage[];
   batLandmarksByFrame: DetailedAnalysis['batLandmarksByFrame'];
@@ -377,6 +405,8 @@ export interface OpenAiBattingAnalysis {
   batToeNorm: NormalizedPoint | null;
   croppedContactLandmarksNorm: Record<string, NormalizedPoint | null>;
   croppedContactPointNorm: NormalizedPoint | null;
+  croppedBatHandleNorm: NormalizedPoint | null;
+  croppedBatToeNorm: NormalizedPoint | null;
   poseSequenceFrames: Array<{
     frameIndex: number;
     timestampSeconds: number;
@@ -1059,6 +1089,107 @@ function calculateJointAngles(
   });
 }
 
+const BAT_ANGLE_LIMITATIONS = [
+  'Estimated 2D image-plane angle of the bat shaft from vertical; not a 3D bat face or lie angle.',
+  'Handle and toe points are visually estimated and may be affected by motion blur, occlusion and perspective.'
+];
+
+/** CAPE convention: handle-to-toe direction measured from straight down (0-180 degrees; above 90 = toe above hands). */
+export function calculateBatAngle(
+  handle: NormalizedPoint | null | undefined,
+  toe: NormalizedPoint | null | undefined,
+  width: number,
+  height: number
+): number | null {
+  if (!handle || !toe || !Number.isFinite(width) || !Number.isFinite(height) || width <= 1 || height <= 1) return null;
+  if ([handle, toe].some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)) return null;
+  const dx = (toe.x - handle.x) * (width - 1);
+  const dy = (toe.y - handle.y) * (height - 1);
+  const length = Math.hypot(dx, dy);
+  if (length < 1) return null;
+  return Math.round(Math.acos(Math.max(-1, Math.min(1, dy / length))) * 1800 / Math.PI) / 10;
+}
+
+const GRIP_HANDLE_LIMITATION = 'The handle was hidden by the hands; the wrist midpoint (grip) was used as the handle end, as CAPE does.';
+
+function gripPoint(landmarks: EstimatedLandmarks | null | undefined): NormalizedPoint | null {
+  const wrists = [landmarks?.leftWrist, landmarks?.rightWrist].filter((point): point is NormalizedPoint => Boolean(point));
+  if (!wrists.length) return null;
+  return {
+    x: wrists.reduce((sum, point) => sum + point.x, 0) / wrists.length,
+    y: wrists.reduce((sum, point) => sum + point.y, 0) / wrists.length
+  };
+}
+
+export function calculateBatAngles(
+  batLandmarksByFrame: DetailedAnalysis['batLandmarksByFrame'],
+  frames: SampledFrame[],
+  bodyLandmarksByFrame: Map<number, EstimatedLandmarks> = new Map()
+): BatAngleRecord[] {
+  const framesBySourceIndex = new Map(frames.map(frame => [frame.frameIndex, frame]));
+  return batLandmarksByFrame.flatMap(entry => {
+    const frame = framesBySourceIndex.get(entry.frameIndex);
+    if (!frame) return [];
+    const grip = entry.handleNorm ? null : gripPoint(bodyLandmarksByFrame.get(entry.frameIndex));
+    const handle = entry.handleNorm ?? grip;
+    const angleDegrees = entry.visibility === 'hidden'
+      ? null
+      : calculateBatAngle(handle, entry.toeNorm, frame.width, frame.height);
+    return [{
+      frameId: `frame_${String(frame.frameIndex).padStart(6, '0')}`,
+      frameIndex: frame.frameIndex,
+      timestampSeconds: frame.timestampSeconds,
+      phase: entry.phase,
+      confidence: entry.confidence,
+      visibility: entry.visibility,
+      handle,
+      toe: entry.toeNorm,
+      handleSource: entry.handleNorm ? 'model' as const : grip ? 'wrists' as const : null,
+      angleDegrees,
+      source: 'openai_visual_estimate' as const,
+      calculation: 'image_plane_handle_to_toe_from_vertical' as const,
+      status: angleDegrees === null ? 'unassessable' as const : 'calculated' as const,
+      limitations: grip ? [...BAT_ANGLE_LIMITATIONS, GRIP_HANDLE_LIMITATION] : BAT_ANGLE_LIMITATIONS
+    }];
+  });
+}
+
+/** Body landmarks keyed by source frame, including the contact frame's landmarks. */
+function bodyLandmarkMap(detailed: DetailedAnalysis, frames: SampledFrame[]): Map<number, EstimatedLandmarks> {
+  const map = new Map(detailed.landmarksByFrame.map(entry => [entry.frameIndex, entry.landmarksNorm]));
+  const contactFrame = detailed.contactSampleIndex === null ? undefined : frames[detailed.contactSampleIndex];
+  if (contactFrame && !map.has(contactFrame.frameIndex)) map.set(contactFrame.frameIndex, detailed.landmarksNorm);
+  return map;
+}
+
+/** Bat angle at contact: handle-to-toe, else grip-to-toe, else CAPE's wrists-to-contact fallback. */
+export function calculateContactBatAngle(
+  frame: Pick<SampledFrame, 'frameIndex' | 'width' | 'height'>,
+  handle: NormalizedPoint | null,
+  toe: NormalizedPoint | null,
+  landmarks: EstimatedLandmarks,
+  contactPoint: NormalizedPoint | null
+): ContactBatAngle | null {
+  const direct = calculateBatAngle(handle, toe, frame.width, frame.height);
+  if (direct !== null) {
+    return { frameIndex: frame.frameIndex, angleDegrees: direct, method: 'handle_to_toe', source: 'openai_visual_estimate', limitations: BAT_ANGLE_LIMITATIONS };
+  }
+  const hands = gripPoint(landmarks);
+  const gripToToe = calculateBatAngle(hands, toe, frame.width, frame.height);
+  if (gripToToe !== null) {
+    return { frameIndex: frame.frameIndex, angleDegrees: gripToToe, method: 'hands_to_toe', source: 'openai_visual_estimate', limitations: [...BAT_ANGLE_LIMITATIONS, GRIP_HANDLE_LIMITATION] };
+  }
+  if (!hands || !contactPoint) return null;
+  const fallback = calculateBatAngle(hands, contactPoint, frame.width, frame.height);
+  return fallback === null ? null : {
+    frameIndex: frame.frameIndex,
+    angleDegrees: fallback,
+    method: 'wrists_to_contact',
+    source: 'openai_visual_estimate',
+    limitations: [...BAT_ANGLE_LIMITATIONS, 'Bat ends were not both visible; the bat line was approximated from the hands to the estimated contact point.']
+  };
+}
+
 function createFrameManifest(frames: SampledFrame[], detail: FrameManifestEntry['detail'], shotId: string | null = null): FrameManifestEntry[] {
   return frames.map(frame => ({
     frameId: `${detail}_frame_${String(frame.frameIndex).padStart(6, '0')}`,
@@ -1410,6 +1541,7 @@ export async function analyzeBattingVideoWithOpenAI(
     let additionalEvidence: string[] = [];
     const shotAssessments: ShotAssessment[] = [];
     const jointAngles: JointAngleRecord[] = [];
+    const batAngles: BatAngleRecord[] = [];
     const phaseReviewFrames: PhaseReviewFrame[] = [];
     const batLandmarksByFrame: DetailedAnalysis['batLandmarksByFrame'] = [];
     const annotations: AnnotationSpec[] = [];
@@ -1490,6 +1622,8 @@ export async function analyzeBattingVideoWithOpenAI(
       annotations.push(...detailed.annotations);
       const primaryShotJointAngles = calculateJointAngles(detailed.landmarksByFrame, detailInputFrames);
       jointAngles.push(...primaryShotJointAngles);
+      const primaryShotBatAngles = calculateBatAngles(detailed.batLandmarksByFrame, detailInputFrames, bodyLandmarkMap(detailed, detailInputFrames));
+      batAngles.push(...primaryShotBatAngles);
       assessmentStatus = detailed.status;
       shotIdentification = detailed.shotIdentification;
       footageQuality = detailed.footageQuality;
@@ -1514,6 +1648,7 @@ export async function analyzeBattingVideoWithOpenAI(
         strengths: detailed.strengths,
         limitations: detailed.limitations,
         jointAngles: primaryShotJointAngles,
+        batAngles: primaryShotBatAngles,
         phaseReviewFrames: primaryPhaseReviewFrames,
         batLandmarksByFrame: detailed.batLandmarksByFrame,
         annotations: detailed.annotations
@@ -1629,6 +1764,8 @@ export async function analyzeBattingVideoWithOpenAI(
         phaseReviewFrames.push(...candidatePhaseReviewFrames);
         const candidateJointAngles = calculateJointAngles(detailed.landmarksByFrame, detailInputFrames);
         jointAngles.push(...candidateJointAngles);
+        const candidateBatAngles = calculateBatAngles(detailed.batLandmarksByFrame, detailInputFrames, bodyLandmarkMap(detailed, detailInputFrames));
+        batAngles.push(...candidateBatAngles);
         shotAssessments.push({
           shotId: shot.shotId,
           shotType: detailed.shotIdentification.shotType ?? shot.shotType,
@@ -1642,6 +1779,7 @@ export async function analyzeBattingVideoWithOpenAI(
           strengths: detailed.strengths,
           limitations: [...new Set([...detailed.limitations, ...candidateWindowLimitations])],
           jointAngles: candidateJointAngles,
+          batAngles: candidateBatAngles,
           phaseReviewFrames: candidatePhaseReviewFrames,
           batLandmarksByFrame: detailed.batLandmarksByFrame,
           annotations: detailed.annotations
@@ -1652,6 +1790,20 @@ export async function analyzeBattingVideoWithOpenAI(
     let croppedContactImageDataUrl: string | null = null;
     let croppedContactLandmarksNorm: Record<string, NormalizedPoint | null> = {};
     let croppedContactPointNorm: NormalizedPoint | null = null;
+    let croppedBatHandleNorm: NormalizedPoint | null = null;
+    let croppedBatToeNorm: NormalizedPoint | null = null;
+    const contactBatFrame = detailContactFrame
+      ? batLandmarksByFrame.find(entry => entry.frameIndex === detailContactFrame!.frameIndex && entry.visibility !== 'hidden')
+      : undefined;
+    const contactBatAngle = detailContactFrame
+      ? calculateContactBatAngle(
+          detailContactFrame,
+          batHandleNorm ?? contactBatFrame?.handleNorm ?? null,
+          batToeNorm ?? contactBatFrame?.toeNorm ?? null,
+          contactLandmarksNorm,
+          contactPointNorm
+        )
+      : null;
     const cropTransforms: CropTransformRecord[] = [];
     if (detailContactFrame && contactPlayerBoxNorm) {
       try {
@@ -1673,6 +1825,12 @@ export async function analyzeBattingVideoWithOpenAI(
           croppedContactLandmarksNorm = normalizeLandmarksInCrop(contactLandmarksNorm, detailContactFrame, crop.bounds);
           croppedContactPointNorm = contactPointNorm
             ? normalizeLandmarksInCrop({ head: contactPointNorm }, detailContactFrame, crop.bounds).head ?? null
+            : null;
+          croppedBatHandleNorm = batHandleNorm
+            ? normalizeLandmarksInCrop({ head: batHandleNorm }, detailContactFrame, crop.bounds).head ?? null
+            : null;
+          croppedBatToeNorm = batToeNorm
+            ? normalizeLandmarksInCrop({ head: batToeNorm }, detailContactFrame, crop.bounds).head ?? null
             : null;
         }
       } catch (error) {
@@ -1760,12 +1918,14 @@ export async function analyzeBattingVideoWithOpenAI(
       shotCandidates,
       shotAssessments,
       jointAngles,
+      batAngles,
+      contactBatAngle,
       phaseReviewFrames,
       sourceFrameImages,
       batLandmarksByFrame,
       annotations,
       executionLog: {
-        stages: ['hash_source_video', 'probe_video', 'sample_overview_frames', 'openai_overview', ...(candidate ? ['decode_all_contact_window_pts_frames', 'include_overview_phase_context', 'openai_detailed_analysis'] : []), ...(shotAssessments.length > 1 ? ['analyze_additional_shots'] : []), 'calculate_projected_joint_angles', 'render_review_svgs'],
+        stages: ['hash_source_video', 'probe_video', 'sample_overview_frames', 'openai_overview', ...(candidate ? ['decode_all_contact_window_pts_frames', 'include_overview_phase_context', 'openai_detailed_analysis'] : []), ...(shotAssessments.length > 1 ? ['analyze_additional_shots'] : []), 'calculate_projected_joint_angles', 'calculate_projected_bat_angles', 'render_review_svgs'],
         toolVersions: { node: process.version, ffmpeg: ffmpegVersion, ffprobe: ffprobeVersion, sharp: 'pending_artifact_renderer' },
         modelRequested: model,
         modelReturned: visionCalls.at(-1)?.model ?? model,
@@ -1794,6 +1954,8 @@ export async function analyzeBattingVideoWithOpenAI(
       batToeNorm,
       croppedContactLandmarksNorm,
       croppedContactPointNorm,
+      croppedBatHandleNorm,
+      croppedBatToeNorm,
       poseSequenceFrames,
       phases,
       visualOutputs,

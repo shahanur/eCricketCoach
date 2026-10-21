@@ -173,33 +173,27 @@ def geometry_metrics(
     return metrics, body_height
 
 
+def bat_line_angle(start: tuple[float, float] | None, end: tuple[float, float] | None) -> float | None:
+    """CAPE convention: start-to-end direction from straight down in the image, 0-180 degrees."""
+    if start is None or end is None:
+        return None
+    direction = np.asarray(end, dtype=np.float64) - np.asarray(start, dtype=np.float64)
+    length = float(np.linalg.norm(direction))
+    if length < 1:
+        return None
+    return round(math.degrees(math.acos(max(-1.0, min(1.0, float(direction[1] / length))))), 1)
+
+
 def bat_angle_from_contact(
     points: dict[str, tuple[float, float] | None],
     contact: tuple[float, float] | None,
 ) -> float | None:
     """CAPE's bat-angle fallback: vector from visible wrist midpoint to contact."""
     wrists = [points.get(name) for name in ("left_wrist", "right_wrist") if points.get(name) is not None]
-    if not wrists or contact is None:
+    if not wrists:
         return None
-    hands = np.mean(np.asarray(wrists, dtype=np.float64), axis=0)
-    direction = np.asarray(contact, dtype=np.float64) - hands
-    length = float(np.linalg.norm(direction))
-    if length < 1:
-        return None
-    return round(math.degrees(math.acos(max(-1.0, min(1.0, float(direction[1] / length))))), 1)
-
-
-def bat_angle_from_contact(points: dict[str, tuple[float, float] | None], contact: tuple[float, float] | None) -> float | None:
-    """Match CAPE's handle-to-contact bat angle in the 2D image plane."""
-    wrists = [points.get(name) for name in ("left_wrist", "right_wrist") if points.get(name) is not None]
-    if not wrists or contact is None:
-        return None
-    hands = np.mean(np.asarray(wrists, dtype=np.float64), axis=0)
-    direction = np.asarray(contact, dtype=np.float64) - hands
-    length = float(np.linalg.norm(direction))
-    if length < 1:
-        return None
-    return round(math.degrees(math.acos(max(-1.0, min(1.0, float(direction[1] / length))))), 1)
+    hands = tuple(np.mean(np.asarray(wrists, dtype=np.float64), axis=0))
+    return bat_line_angle(hands, contact)
 
 
 def mediapipe_world_angles(pose_result: Any, handedness: str) -> dict[str, float]:
@@ -270,6 +264,28 @@ def parse_normalized_point(raw: str) -> tuple[float, float] | None:
         return None
     points = parse_normalized_landmarks(json.dumps({"head": payload}))
     return points.get("head")
+
+
+def parse_bat_points(raw: str) -> dict[str, Any] | None:
+    """OpenAI bat handle/toe (crop-normalized) and full-frame contact bat angle; any may be absent."""
+    try:
+        payload = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        raise HTTPException(status_code=400, detail="OpenAI bat points must be valid JSON.") from None
+    if not payload:
+        return None
+    if not isinstance(payload, dict) or set(payload) - {"handle", "toe", "angle"}:
+        raise HTTPException(status_code=400, detail="OpenAI bat points must be an object with handle, toe and angle.")
+    angle = payload.get("angle")
+    if angle is not None and (
+        isinstance(angle, bool) or not isinstance(angle, (int, float)) or not math.isfinite(angle) or not 0 <= angle <= 180
+    ):
+        raise HTTPException(status_code=400, detail="OpenAI bat angle must be between 0 and 180 degrees.")
+    return {
+        "handle": parse_normalized_point(json.dumps(payload.get("handle"))),
+        "toe": parse_normalized_point(json.dumps(payload.get("toe"))),
+        "angle": None if angle is None else round(float(angle), 1),
+    }
 
 
 def evaluate_cape_rules(metrics: dict[str, float | None], shot_type: str) -> dict[str, Any]:
@@ -471,6 +487,7 @@ def analyse_frame(
     openai_landmarks_norm: dict[str, tuple[float, float]] | None = None,
     openai_contact_point_norm: tuple[float, float] | None = None,
     shot_type: str = "front_foot_drive",
+    openai_bat_points_norm: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     height, width = frame.shape[:2]
     person = detect_person(frame)
@@ -574,7 +591,29 @@ def analyse_frame(
                 metric_sources["front_shoulder_target_angle_deg"] = "OpenAI + MediaPipe geometry" if used_mediapipe_fallback else "OpenAI 2D"
     if openai_contact_pixel and "front_shoulder_target_angle_deg" in metrics:
         metric_sources["front_shoulder_target_angle_deg"] = "OpenAI + MediaPipe geometry" if used_mediapipe_fallback else "OpenAI 2D"
-    if openai_contact_pixel:
+    openai_bat = openai_bat_points_norm or {}
+    bat_handle_pixel, bat_toe_pixel = (
+        None if openai_bat.get(key) is None else (openai_bat[key][0] * width, openai_bat[key][1] * height)
+        for key in ("handle", "toe")
+    )
+    wrists = [geometry_points.get(name) for name in ("left_wrist", "right_wrist") if geometry_points.get(name) is not None]
+    grip_pixel = tuple(np.mean(np.asarray(wrists, dtype=np.float64), axis=0)) if wrists else None
+    openai_bat_pixels = None
+    shaft_bat_angle = None
+    if bat_handle_pixel and bat_toe_pixel:
+        shaft_bat_angle = bat_line_angle(bat_handle_pixel, bat_toe_pixel)
+        openai_bat_pixels = (bat_handle_pixel, bat_toe_pixel)
+        bat_source = "OpenAI 2D bat handle-to-toe"
+    if shaft_bat_angle is None and bat_toe_pixel and grip_pixel:
+        # The handle is usually hidden by the hands; CAPE also measures from the hands to the bat tip.
+        shaft_bat_angle = bat_line_angle(grip_pixel, bat_toe_pixel)
+        openai_bat_pixels = (grip_pixel, bat_toe_pixel)
+        bat_source = "OpenAI bat toe + wrist grip"
+    if shaft_bat_angle is not None:
+        metrics["bat_angle_deg"] = shaft_bat_angle
+        openai_metrics["bat_angle_deg"] = shaft_bat_angle
+        metric_sources["bat_angle_deg"] = bat_source
+    elif openai_contact_pixel:
         contact_bat_angle = bat_angle_from_contact(geometry_points, openai_contact_pixel)
         openai_bat_angle = bat_angle_from_contact(openai_points, openai_contact_pixel)
         mediapipe_bat_angle = bat_angle_from_contact(mediapipe_points, openai_contact_pixel)
@@ -588,6 +627,10 @@ def analyse_frame(
                 metric_sources["bat_angle_deg"] = "MediaPipe wrist + OpenAI contact fallback"
             else:
                 metric_sources["bat_angle_deg"] = "Merged wrist/contact estimate"
+    if metrics.get("bat_angle_deg") is None and openai_bat.get("angle") is not None:
+        metrics["bat_angle_deg"] = openai_bat["angle"]
+        openai_metrics["bat_angle_deg"] = openai_bat["angle"]
+        metric_sources["bat_angle_deg"] = "OpenAI full-frame bat estimate"
     metrics_source = "openai+mediapipe-fallback" if openai_points and used_mediapipe_fallback else "openai" if openai_points else "mediapipe"
     rules_comparison = evaluate_cape_rules(metrics, shot_type)
     point_pairs = {
@@ -668,6 +711,12 @@ def analyse_frame(
             put_label(overlay, f"AI {name.replace('_', ' ').upper()}", (location[0] + 7, location[1] + 15), openai_color)
         if openai_contact_pixel:
             cv2.drawMarker(overlay, tuple(map(round, openai_contact_pixel)), (0, 80, 255), cv2.MARKER_CROSS, max(14, width // 30), 3, cv2.LINE_AA)
+    if openai_bat_pixels:
+        bat_color = (133, 113, 251)
+        handle_point, toe_point = (tuple(map(round, point)) for point in openai_bat_pixels)
+        dashed_line(overlay, handle_point, toe_point, bat_color)
+        if shaft_bat_angle is not None:
+            put_label(overlay, f"AI BAT {shaft_bat_angle:.0f} deg", (toe_point[0] + 8, toe_point[1] - 6), bat_color)
     footer = f"2D pose overlay · {handedness}-handed · {width}x{height}"
     cv2.rectangle(overlay, (0, 0), (width, min(30, height)), (14, 23, 38), -1)
     cv2.putText(overlay, footer[:100], (8, min(21, height - 2)), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (235, 245, 255), 1, cv2.LINE_AA)
@@ -729,6 +778,7 @@ async def pose_overlay(
     shot_type: str = Form("front_foot_drive"),
     openai_landmarks: str = Form("{}"),
     openai_contact_point: str = Form("null"),
+    openai_bat_points: str = Form("{}"),
     sequence_images: list[UploadFile] = File(default=[]),
     sequence_metadata: str = Form("[]"),
     x_api_key: str | None = Header(None, alias="X-API-Key"),
@@ -741,6 +791,7 @@ async def pose_overlay(
         raise HTTPException(status_code=400, detail="Choose a supported batting shot type for rule comparison.")
     parsed_openai_landmarks = parse_normalized_landmarks(openai_landmarks)
     parsed_openai_contact_point = parse_normalized_point(openai_contact_point)
+    parsed_openai_bat_points = parse_bat_points(openai_bat_points)
     if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
         raise HTTPException(status_code=415, detail="Upload a JPEG, PNG, or WebP crop.")
     if len(sequence_images) > 9:
@@ -777,7 +828,7 @@ async def pose_overlay(
     if width < 32 or height < 32 or width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
         raise HTTPException(status_code=422, detail="The cropped image dimensions must be between 32 and 4096 pixels.")
     result = await run_in_threadpool(
-        analyse_frame, frame, handedness, parsed_openai_landmarks, parsed_openai_contact_point, shot_type
+        analyse_frame, frame, handedness, parsed_openai_landmarks, parsed_openai_contact_point, shot_type, parsed_openai_bat_points
     )
     sequence_results = []
     for sequence_image, metadata in zip(sequence_images, sequence_info):

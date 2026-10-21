@@ -58,10 +58,16 @@ function reviewOverlay(
   const points = Object.values(landmarks).filter((point): point is { x: number; y: number } => Boolean(point))
     .map(point => `<circle cx="${point.x * width}" cy="${point.y * height}" r="7" fill="#22d3ee" stroke="#082f49" stroke-width="3"/>`).join('');
   const batFrame = analysis.batLandmarksByFrame.find(item => item.frameIndex === frameIndex);
-  const handle = batFrame?.handleNorm ?? (frameIndex === analysis.contact.frameIndex ? analysis.batHandleNorm : null);
+  const batRecord = (analysis.batAngles ?? []).find(item => item.frameIndex === frameIndex && item.angleDegrees !== null);
+  const handle = batFrame?.handleNorm ?? batRecord?.handle ?? (frameIndex === analysis.contact.frameIndex ? analysis.batHandleNorm : null);
   const toe = batFrame?.toeNorm ?? (frameIndex === analysis.contact.frameIndex ? analysis.batToeNorm : null);
+  const batAngle = batRecord?.angleDegrees
+    ?? (analysis.contactBatAngle?.frameIndex === frameIndex && analysis.contactBatAngle.method !== 'wrists_to_contact' ? analysis.contactBatAngle.angleDegrees : null);
+  const batLabel = batAngle === null || batAngle === undefined
+    ? 'Estimated shaft orientation'
+    : `Estimated shaft ≈${Math.round(batAngle)}° from vertical`;
   const bat = handle && toe
-    ? `<line x1="${handle.x * width}" y1="${handle.y * height}" x2="${toe.x * width}" y2="${toe.y * height}" stroke="#fb7185" stroke-width="4" stroke-dasharray="9 7"/><text x="${Math.min(handle.x, toe.x) * width}" y="${Math.max(20, Math.min(handle.y, toe.y) * height - 8)}" fill="#fff" font-family="sans-serif" font-size="14" stroke="#0f172a" stroke-width="3" paint-order="stroke">Estimated shaft orientation</text>`
+    ? `<line x1="${handle.x * width}" y1="${handle.y * height}" x2="${toe.x * width}" y2="${toe.y * height}" stroke="#fb7185" stroke-width="4" stroke-dasharray="9 7"/><text x="${Math.min(handle.x, toe.x) * width}" y="${Math.max(20, Math.min(handle.y, toe.y) * height - 8)}" fill="#fff" font-family="sans-serif" font-size="14" stroke="#0f172a" stroke-width="3" paint-order="stroke">${batLabel}</text>`
     : '';
   const angleTriplets: Record<string, [keyof typeof landmarks, keyof typeof landmarks, keyof typeof landmarks]> = {
     'elbow:left': ['leftShoulder', 'leftElbow', 'leftWrist'], 'elbow:right': ['rightShoulder', 'rightElbow', 'rightWrist'],
@@ -132,6 +138,8 @@ function markdownReport(analysis: OpenAiBattingAnalysis, artifactNames: Set<stri
   const findings = [...analysis.errors, ...analysis.observations];
   const calculatedAngleCount = analysis.jointAngles.filter(item => item.angleDegrees !== null).length;
   const unassessableAngleCount = analysis.jointAngles.length - calculatedAngleCount;
+  const batAngles = analysis.batAngles ?? [];
+  const contactBatAngle = analysis.contactBatAngle ?? null;
   const renderEvidenceRequest = (value: string) => {
     const trimmed = value.trim();
     if (trimmed.startsWith('{')) {
@@ -184,6 +192,20 @@ function markdownReport(analysis: OpenAiBattingAnalysis, artifactNames: Set<stri
     '',
     'Angles are application-calculated image-plane estimates from visually estimated landmarks. They are not 3D or clinical angles; force, torque, ground reaction force, and physical speed are not measured.',
     `Kinetics status: ${analysis.kinetics.status}. ${analysis.kinetics.hypotheses.length ? analysis.kinetics.hypotheses.join(' ') : 'Force, torque, pressure distribution, joint loads and centre of mass are not measured.'}`,
+    '',
+    '## Projected bat angles',
+    '',
+    contactBatAngle
+      ? `- **At contact (frame ${contactBatAngle.frameIndex}):** ≈${Math.round(contactBatAngle.angleDegrees)}° from vertical (${contactBatAngle.method === 'handle_to_toe' ? 'handle to toe' : contactBatAngle.method === 'hands_to_toe' ? 'grip to toe; handle hidden by the hands' : 'hands to estimated contact point; bat toe not visible'})`
+      : '- **At contact:** unassessable; bat ends and hands-to-contact line were not both available.',
+    '',
+    ...(batAngles.length ? [
+      '| Frame | Timestamp | Phase | Visibility | Estimated 2D bat angle | Confidence |',
+      '|---|---:|---|---|---:|---:|',
+      ...batAngles.map(item => `| ${item.frameId} | ${item.timestampSeconds.toFixed(3)} s | ${item.phase} | ${item.visibility} | ${item.angleDegrees === null ? 'Unassessable' : `≈${Math.round(item.angleDegrees)}°`} | ${Math.round(item.confidence * 100)}% |`),
+      ''
+    ] : []),
+    'Bat angle is the handle-to-toe direction measured from straight down in the image (0° = bat hanging vertically below the hands, above 90° = toe above the hands), matching CAPE\'s convention. It is a 2D estimate, not a 3D bat face or lie angle.',
     '',
     '## Limitations',
     '',

@@ -101,7 +101,8 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
       shotType,
       analysis.croppedContactLandmarksNorm,
       analysis.croppedContactPointNorm,
-      sequenceFrames
+      sequenceFrames,
+      { handle: analysis.croppedBatHandleNorm ?? null, toe: analysis.croppedBatToeNorm ?? null, angle: analysis.contactBatAngle?.angleDegrees ?? null }
     )
       .then(next => { if (!cancelled) setResult(next); })
       .catch((failure: unknown) => {
@@ -109,7 +110,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
       })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, [imageDataUrl, handedness, shotType, retryCount, sequenceFrames, analysis.croppedContactLandmarksNorm, analysis.croppedContactPointNorm]);
+  }, [imageDataUrl, handedness, shotType, retryCount, sequenceFrames, analysis.croppedContactLandmarksNorm, analysis.croppedContactPointNorm, analysis.croppedBatHandleNorm, analysis.croppedBatToeNorm, analysis.contactBatAngle]);
 
   const ruleChecks = result?.coaching_rules.checks || [];
   const metricRow = (group: 'alignment' | 'shot', metric: string, label: string, unit: string) => {
