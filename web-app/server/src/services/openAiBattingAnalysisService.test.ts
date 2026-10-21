@@ -46,7 +46,8 @@ test('request timeouts are classified and only the contact-anchor neighborhood u
   assert.equal(isOpenAiTimeoutMessage('Request timed out.'), true);
   assert.equal(isOpenAiTimeoutMessage('invalid_request_error'), false);
   assert.equal(contactFrameImageDetail(0.994, 0.994), 'high');
-  assert.equal(contactFrameImageDetail(0.9, 0.994), 'high');
+  assert.equal(contactFrameImageDetail(0.95, 0.994), 'high');
+  assert.equal(contactFrameImageDetail(0.9, 0.994), 'low');
   assert.equal(contactFrameImageDetail(0.8, 0.994), 'low');
 });
 

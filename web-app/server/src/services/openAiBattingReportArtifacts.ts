@@ -236,6 +236,8 @@ function markdownReport(analysis: OpenAiBattingAnalysis, artifactNames: Set<stri
     `- **Model:** requested ${analysis.executionLog.modelRequested}; returned ${analysis.executionLog.modelReturned}`,
     `- **Responses:** ${analysis.executionLog.responseIds.join(', ') || 'none'}`,
     `- **Usage:** ${analysis.executionLog.usage ? `${analysis.executionLog.usage.inputTokens} input / ${analysis.executionLog.usage.outputTokens} output tokens` : 'not reported by API'}`,
+    `- **OpenAI analysis elapsed:** ${analysis.executionLog.analysisElapsedMs ?? 'not recorded'} ms`,
+    ...(analysis.executionLog.visionCalls ?? []).map(call => `- **${call.schemaName} call:** ${call.elapsedMs} ms · ${call.suppliedFrameCount} images · ${call.inputTokens ?? 'unknown'} input / ${call.outputTokens ?? 'unknown'} output tokens`),
     `- **Tools:** Node ${analysis.executionLog.toolVersions.node}; FFmpeg ${analysis.executionLog.toolVersions.ffmpeg}; FFprobe ${analysis.executionLog.toolVersions.ffprobe}; Sharp ${analysis.executionLog.toolVersions.sharp}`,
     `- **Stages:** ${analysis.executionLog.stages.join(' → ')}`,
     ...(analysis.executionLog.outputs.length ? analysis.executionLog.outputs.map(output => `- **Output checksum:** \`${output.path}\` · SHA-256 \`${output.sha256}\` · ${output.sizeBytes} bytes`) : ['- No separate output checksums were recorded.']),

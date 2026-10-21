@@ -51,7 +51,12 @@ export function isOpenAiTimeoutMessage(message: string): boolean {
   return /timed?\s*out|timeout/i.test(message);
 }
 
-export function contactFrameImageDetail(timestampSeconds: number, anchorSeconds: number, highDetailRadiusSeconds = 0.1): 'low' | 'high' {
+function getOpenAiReasoningEffort(): 'low' | 'medium' | 'high' {
+  const effort = process.env.OPENAI_REASONING_EFFORT?.trim().toLowerCase();
+  return effort === 'medium' || effort === 'high' ? effort : 'low';
+}
+
+export function contactFrameImageDetail(timestampSeconds: number, anchorSeconds: number, highDetailRadiusSeconds = 0.05): 'low' | 'high' {
   return Math.abs(timestampSeconds - anchorSeconds) <= highDetailRadiusSeconds ? 'high' : 'low';
 }
 
@@ -316,9 +321,15 @@ interface VisionCallMetadata {
   outputTokens: number | null;
 }
 
-interface VisionCallResult<T> {
+interface VisionCallTiming extends VisionCallMetadata {
+  schemaName: string;
+  suppliedFrameCount: number;
+  elapsedMs: number;
+}
+
+interface VisionCallResult<T, M extends VisionCallMetadata = VisionCallMetadata> {
   value: T;
-  metadata: VisionCallMetadata;
+  metadata: M;
 }
 
 interface FrameManifestEntry {
@@ -378,6 +389,8 @@ export interface OpenAiBattingAnalysis {
   annotations: AnnotationSpec[];
   executionLog: {
     stages: string[];
+    analysisElapsedMs?: number;
+    visionCalls?: VisionCallTiming[];
     toolVersions: { node: string; ffmpeg: string; ffprobe: string; sharp: string };
     modelRequested: string;
     modelReturned: string;
@@ -1297,14 +1310,14 @@ async function requestVisionJson<T>(
   frames: SampledFrame[],
   validator: (value: unknown) => value is T,
   detail: 'low' | 'high' = 'low'
-): Promise<VisionCallResult<T>> {
+): Promise<VisionCallResult<T, VisionCallTiming>> {
   const requestStartedAt = Date.now();
   const outputBudgets: number[] = [];
   try {
     const createResponse = (maxOutputTokens: number) => client.responses.create({
       model,
       max_output_tokens: maxOutputTokens,
-      reasoning: { effort: 'medium' },
+      reasoning: { effort: getOpenAiReasoningEffort() },
       instructions,
       text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } },
       input: [
@@ -1373,7 +1386,10 @@ async function requestVisionJson<T>(
         ...output.metadata,
         responseIds: responseAttempts.map(attempt => attempt.id),
         inputTokens: completeUsage ? attemptUsages.reduce((total, usage) => total + (usage?.input_tokens ?? 0), 0) : null,
-        outputTokens: completeUsage ? attemptUsages.reduce((total, usage) => total + (usage?.output_tokens ?? 0), 0) : null
+        outputTokens: completeUsage ? attemptUsages.reduce((total, usage) => total + (usage?.output_tokens ?? 0), 0) : null,
+        schemaName,
+        suppliedFrameCount: frames.length,
+        elapsedMs: Date.now() - requestStartedAt
       }
     };
   } catch (error) {
@@ -1407,6 +1423,7 @@ export async function analyzeBattingVideoWithOpenAI(
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new OpenAiBattingAnalysisError(503, 'openai_not_configured', 'OpenAI analysis is not configured. Set OPENAI_API_KEY on the server.');
 
+  const analysisStartedAt = Date.now();
   const limits = getAnalysisLimits();
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ecco-openai-video-'));
   const inputPath = path.join(workDir, 'input-video');
@@ -1455,7 +1472,7 @@ export async function analyzeBattingVideoWithOpenAI(
     if (overview.subjectStatus !== 'single_batter') {
       throw new OpenAiBattingAnalysisError(422, 'batter_selection_required', 'The clip may contain multiple or ambiguous batters. Please upload a single-batter crop or provide a clip with the intended batter clearly isolated.');
     }
-    const visionCalls: VisionCallMetadata[] = [overviewCall.metadata];
+    const visionCalls: VisionCallTiming[] = [overviewCall.metadata];
     const frameManifest = createFrameManifest(overviewFrames, 'overview');
 
     const aiCandidateIndex = overview.contactCandidateSampleIndex ?? overview.shotCandidates[0]?.sampleIndex ?? null;
@@ -1928,6 +1945,8 @@ export async function analyzeBattingVideoWithOpenAI(
       annotations,
       executionLog: {
         stages: ['hash_source_video', 'probe_video', 'sample_overview_frames', 'openai_overview', ...(candidate ? ['decode_all_contact_window_pts_frames', 'include_overview_phase_context', 'openai_detailed_analysis'] : []), ...(shotAssessments.length > 1 ? ['analyze_additional_shots'] : []), 'calculate_projected_joint_angles', 'calculate_projected_bat_angles', 'render_review_svgs'],
+        analysisElapsedMs: Date.now() - analysisStartedAt,
+        visionCalls,
         toolVersions: { node: process.version, ffmpeg: ffmpegVersion, ffprobe: ffprobeVersion, sharp: 'pending_artifact_renderer' },
         modelRequested: model,
         modelReturned: visionCalls.at(-1)?.model ?? model,

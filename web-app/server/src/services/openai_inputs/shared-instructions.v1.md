@@ -15,6 +15,8 @@ Mark ambiguous or hidden features as unassessable. Do not assume a high
 finish, bent elbow or nonvertical bat is an error. Consider foreshortening
 when judging extension. Do not infer bottom-hand dominance, wrist rolling
 or movement in depth without adequate visual evidence.
+Keep text fields concise and avoid repeating the same evidence in multiple
+fields; preserve distinctions between observation, interpretation and advice.
 If multiple batters are visible and the intended batter is not unambiguous,
 request a single-batter crop or return an ambiguity status; do not select one
 based on personal characteristics.

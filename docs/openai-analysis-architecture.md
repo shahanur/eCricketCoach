@@ -635,6 +635,7 @@ Indexes: `(tenant_id, created_at)` and `(tenant_id, player_id, created_at)`. The
 | `OPENAI_MAX_CONTACT_WINDOW_SECONDS` | 2 | 0.5–5 |
 | `OPENAI_MAX_CONTACT_WINDOW_FRAMES` | 120 | 1–800 |
 | `OPENAI_REQUEST_TIMEOUT_MS` | 240 000 | 30 000–600 000 per Responses call |
+| `OPENAI_REASONING_EFFORT` | `low` | `low`, `medium`, or `high`; lower effort reduces latency while preserving the strict response schema |
 | `OPENAI_CAPE_TIMEOUT_MS` | 180 000 | 30 000–600 000 for optional CAPE video analysis |
 | `OPENAI_REPORTS_DIR` | `./var/openai-reports` (Compose: `/var/openai-reports`) | Persistent volume `openai-report-artifacts` |
 | `POSE_OVERLAY_API_URL` | `http://pose-overlay-api:8200` | |
