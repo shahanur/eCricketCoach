@@ -41,6 +41,15 @@ function bearerHeader(): Record<string, string> {
   return rest;
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read saved image'));
+    reader.onerror = () => reject(reader.error || new Error('Could not read saved image'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function responseError(response: Response, fallback: string): Promise<Error> {
   const body = await response.json().catch(() => ({}));
   return new Error(typeof body.message === 'string' ? body.message : typeof body.error === 'string' ? body.error : fallback);
@@ -858,7 +867,8 @@ export const api = {
     const allowedNames = new Set([
       'analysis.json', 'joint_angles.json', 'contact_review.png', 'joint_analysis.png',
       'bat_path_sequence.png', 'follow_through.png', 'phase_sequence.png', 'report.md',
-      'execution_log.json', 'analysis_bundle.zip'
+      'execution_log.json', 'analysis_bundle.zip', 'pose_overlay.png',
+      ...Array.from({ length: 9 }, (_, index) => `pose_sequence_${index}.png`)
     ]);
     if (!/^[0-9a-f-]{36}$/i.test(reportId) || !allowedNames.has(name)) throw new Error('Invalid report artifact');
     const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/${encodeURIComponent(reportId)}/artifacts/${encodeURIComponent(name)}`, {
@@ -866,6 +876,72 @@ export const api = {
     });
     if (!res.ok) throw await responseError(res, 'The report download failed');
     return { blob: await res.blob(), fileName: name };
+  },
+
+  async getLatestOpenAiBattingAnalysis(playerId: string): Promise<OpenAiBattingAnalysis | null> {
+    const query = new URLSearchParams({ playerId });
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/latest?${query}`, {
+      headers: authenticatedHeaders()
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw await responseError(res, 'The saved batting review could not be loaded');
+    const body = await res.json() as { report: { reportId: string; artifactNames: string[]; analysis: OpenAiBattingAnalysis } | null };
+    if (!body.report) return null;
+    let poseOverlayResult: PoseOverlayAnalysis | undefined;
+    const savedPoseOverlay = body.report.analysis.poseOverlay;
+    if (savedPoseOverlay?.overlayArtifactName) {
+      const readImage = async (name: string): Promise<string> => {
+        try {
+          const { blob } = await api.fetchOpenAiBattingArtifact(body.report!.reportId, name);
+          return (await blobToDataUrl(blob)).split(',', 2)[1] || '';
+        } catch {
+          return '';
+        }
+      };
+      const [overlayImage, sequence] = await Promise.all([
+        readImage(savedPoseOverlay.overlayArtifactName),
+        Promise.all(savedPoseOverlay.sequence.map(async frame => ({
+          ...frame,
+          overlay_image_base64: frame.artifactName ? await readImage(frame.artifactName) : undefined,
+          overlay_mime_type: frame.artifactName ? 'image/png' : undefined
+        })))
+      ]);
+      poseOverlayResult = { ...savedPoseOverlay, overlay_image_base64: overlayImage, sequence } as PoseOverlayAnalysis;
+    }
+    return {
+      ...body.report.analysis,
+      reportId: body.report.reportId,
+      artifactNames: body.report.artifactNames,
+      restoredFromReport: true,
+      poseOverlayResult
+    };
+  },
+
+  async saveOpenAiPoseOverlay(reportId: string, result: PoseOverlayAnalysis): Promise<{ artifactNames: string[] }> {
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) throw new Error('Invalid report identifier');
+    const formData = new FormData();
+    const appendPng = (field: string, base64: string, filename: string) => {
+      if (!/^[A-Za-z0-9+/=]+$/.test(base64)) throw new Error('The pose overlay image is invalid.');
+      const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+      formData.append(field, new Blob([bytes], { type: 'image/png' }), filename);
+    };
+    appendPng('overlay', result.overlay_image_base64, 'pose-overlay.png');
+    const sequence = result.sequence.map((frame, index) => {
+      const { overlay_image_base64, ...metadata } = frame;
+      if (frame.status === 'success' && overlay_image_base64) {
+        appendPng(`sequence_${index}`, overlay_image_base64, `pose-sequence-${index}.png`);
+      }
+      return metadata;
+    });
+    const { overlay_image_base64: _overlay, sequence: _sequence, ...metadata } = result;
+    formData.set('poseOverlay', JSON.stringify({ ...metadata, sequence }));
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/${encodeURIComponent(reportId)}/pose-overlay`, {
+      method: 'POST',
+      headers: bearerHeader(),
+      body: formData
+    });
+    if (!res.ok) throw await responseError(res, 'The pose overlay could not be saved');
+    return res.json();
   },
 
   async saveOpenAiBattingReview(

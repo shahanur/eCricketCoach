@@ -26,6 +26,11 @@ export interface CoachReviewRecord {
   findings: Array<{ findingIndex: number; status: 'accepted' | 'revised' | 'not_applicable'; note: string }>;
 }
 
+export interface PoseOverlayArtifactInput {
+  name: string;
+  buffer: Buffer;
+}
+
 function decodeImageDataUrl(dataUrl: string | null | undefined): Buffer | null {
   if (!dataUrl) return null;
   const match = /^data:image\/(?:jpeg|png|svg\+xml);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
@@ -441,6 +446,56 @@ export async function persistBattingCoachReview(
   return { analysisRecord: updatedAnalysis, artifacts };
 }
 
+export async function persistOpenAiPoseOverlay(
+  directory: string,
+  analysisRecord: Record<string, unknown>,
+  currentArtifacts: StoredReportArtifact[],
+  poseOverlay: Record<string, unknown>,
+  images: PoseOverlayArtifactInput[]
+): Promise<{ analysisRecord: Record<string, unknown>; artifacts: StoredReportArtifact[] }> {
+  const files = new Map<string, Buffer>();
+  for (const artifact of currentArtifacts) {
+    if (!isBattingReportArtifactName(artifact.name) || artifact.name === 'analysis_bundle.zip' || isPoseOverlayArtifactName(artifact.name)) continue;
+    files.set(artifact.name, await fs.readFile(path.join(directory, artifact.name)));
+  }
+  if (!files.has('analysis.json') || !files.has('report.md')) throw new Error('Persisted report is missing report artifacts.');
+  for (const image of images) {
+    if (!isPoseOverlayArtifactName(image.name) || !image.buffer.length) throw new Error('Invalid pose-overlay artifact.');
+    files.set(image.name, image.buffer);
+  }
+
+  const updatedAnalysis = {
+    ...analysisRecord,
+    poseOverlay,
+    visualArtifacts: [...new Set([...(Array.isArray(analysisRecord.visualArtifacts) ? analysisRecord.visualArtifacts as string[] : []), ...images.map(image => image.name)])]
+  };
+  const reportAddition = Buffer.from(`\n\n## Cropped pose overlay\n\n${images.map(image => `- ${image.name}`).join('\n')}\n`);
+  files.set('report.md', Buffer.concat([files.get('report.md')!, reportAddition]));
+  files.set('analysis.json', Buffer.from(JSON.stringify(updatedAnalysis, null, 2)));
+  files.set('analysis_bundle.zip', await archiveBuffers(files));
+
+  const artifacts: StoredReportArtifact[] = [...files.entries()].map(([name, buffer]) => ({
+    name,
+    mimeType: name.endsWith('.png') ? 'image/png' : name.endsWith('.zip') ? 'application/zip' : name.endsWith('.md') ? 'text/markdown' : 'application/json',
+    sizeBytes: buffer.length,
+    sha256: createHash('sha256').update(buffer).digest('hex')
+  }));
+  const staged: Array<{ temporary: string; target: string }> = [];
+  try {
+    for (const [name, buffer] of files) {
+      const target = path.join(directory, name);
+      const temporary = path.join(directory, `${randomUUID()}.tmp`);
+      await fs.writeFile(temporary, buffer, { flag: 'wx' });
+      staged.push({ temporary, target });
+    }
+    for (const file of staged) await fs.rename(file.temporary, file.target);
+  } catch (error) {
+    await Promise.all(staged.map(file => fs.rm(file.temporary, { force: true })));
+    throw error;
+  }
+  return { analysisRecord: updatedAnalysis, artifacts };
+}
+
 export function toPersistableAnalysis(analysis: OpenAiBattingAnalysis, artifactNames: string[] = []): Record<string, unknown> {
   const { imageDataUrl: _contactImage, ...contact } = analysis.contact;
   const { croppedContactImageDataUrl: _crop, poseSequenceFrames, phaseReviewFrames, sourceFrameImages, shotAssessments, visualOutputs: _visuals, ...report } = analysis;
@@ -463,5 +518,9 @@ function filesToBuffers(files: Map<string, { buffer: Buffer; mimeType: string }>
 }
 
 export function isBattingReportArtifactName(name: string): boolean {
-  return /^(analysis\.json|joint_angles\.json|contact_review\.png|joint_analysis\.png|bat_path_sequence\.png|follow_through\.png|phase_sequence\.png|report\.md|execution_log\.json|analysis_bundle\.zip)$/.test(name);
+  return /^(analysis\.json|joint_angles\.json|contact_review\.png|joint_analysis\.png|bat_path_sequence\.png|follow_through\.png|phase_sequence\.png|pose_overlay\.png|pose_sequence_[0-8]\.png|report\.md|execution_log\.json|analysis_bundle\.zip)$/.test(name);
+}
+
+export function isPoseOverlayArtifactName(name: string): boolean {
+  return name === 'pose_overlay.png' || /^pose_sequence_[0-8]\.png$/.test(name);
 }

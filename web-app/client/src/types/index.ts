@@ -362,6 +362,13 @@ export interface OpenAiBattingAnalysis {
   sourceSha256: string;
   reportId?: string;
   artifactNames?: string[];
+  restoredFromReport?: boolean;
+  coachReview?: {
+    reviewerId: string;
+    reviewedAt: string;
+    note: string;
+    findings: Array<{ findingIndex: number; status: 'accepted' | 'revised' | 'not_applicable'; note: string }>;
+  };
   status: 'assessable' | 'partially_assessable' | 'unassessable';
   requestMetadata: {
     shotType: 'front_foot_drive' | 'front_foot_defence' | 'unknown';
@@ -516,6 +523,8 @@ export interface OpenAiBattingAnalysis {
   summary: string;
   kinetics: { status: 'not_measured'; hypotheses: string[] };
   capeKinetics?: OpenAiCapeKinetics;
+  poseOverlay?: PersistedPoseOverlay;
+  poseOverlayResult?: PoseOverlayAnalysis;
   observations: OpenAiBattingObservation[];
   errors: OpenAiBattingObservation[];
   strengths: Array<{ title: string; observation: string; frameIndices: number[]; confidence: OpenAiVisualConfidence }>;
@@ -603,6 +612,11 @@ export interface PoseOverlayAnalysis {
     overlay_mime_type?: string;
   }>;
 }
+
+export type PersistedPoseOverlay = Omit<PoseOverlayAnalysis, 'overlay_image_base64' | 'sequence'> & {
+  overlayArtifactName: string;
+  sequence: Array<Omit<PoseOverlayAnalysis['sequence'][number], 'overlay_image_base64'> & { artifactName: string | null }>;
+};
 
 export interface DriveVideoFile {
   id: string;

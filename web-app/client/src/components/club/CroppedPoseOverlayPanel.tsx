@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { OpenAiBattingAnalysis, PoseOverlayAnalysis } from '../../types';
@@ -7,6 +7,8 @@ interface CroppedPoseOverlayPanelProps {
   imageDataUrl: string | null;
   analysis: OpenAiBattingAnalysis;
   sequenceFrames: OpenAiBattingAnalysis['poseSequenceFrames'];
+  savedResult?: PoseOverlayAnalysis;
+  onPoseOverlaySaved?: (result: PoseOverlayAnalysis, artifactNames: string[]) => void;
 }
 
 const metricLabels: Record<string, string> = {
@@ -76,15 +78,23 @@ function statusClass(status: string): string {
   return 'border-slate-700 text-slate-400';
 }
 
-export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = ({ imageDataUrl, analysis, sequenceFrames }) => {
+export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = ({ imageDataUrl, analysis, sequenceFrames, savedResult, onPoseOverlaySaved }) => {
   const [handedness, setHandedness] = useState<'right' | 'left'>('right');
   const [shotType, setShotType] = useState('front_foot_drive');
   const [result, setResult] = useState<PoseOverlayAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const onPoseOverlaySavedRef = useRef(onPoseOverlaySaved);
+  onPoseOverlaySavedRef.current = onPoseOverlaySaved;
 
   useEffect(() => {
+    if (savedResult) {
+      setResult(savedResult);
+      setIsLoading(false);
+      setError('');
+      return;
+    }
     if (!imageDataUrl) {
       setResult(null);
       setIsLoading(false);
@@ -104,13 +114,23 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
       sequenceFrames,
       { handle: analysis.croppedBatHandleNorm ?? null, toe: analysis.croppedBatToeNorm ?? null, angle: analysis.contactBatAngle?.angleDegrees ?? null }
     )
-      .then(next => { if (!cancelled) setResult(next); })
+      .then(next => {
+        if (cancelled) return;
+        setResult(next);
+        if (analysis.reportId && !analysis.restoredFromReport) {
+          void api.saveOpenAiPoseOverlay(analysis.reportId, next)
+            .then(saved => onPoseOverlaySavedRef.current?.(next, saved.artifactNames))
+            .catch(failure => {
+              if (!cancelled) setError(failure instanceof Error ? `Overlay ready, but it could not be saved: ${failure.message}` : 'Overlay ready, but it could not be saved to the report.');
+            });
+        }
+      })
       .catch((failure: unknown) => {
         if (!cancelled) setError(failure instanceof Error ? failure.message : 'The cropped image pose analysis failed.');
       })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
-  }, [imageDataUrl, handedness, shotType, retryCount, sequenceFrames, analysis.croppedContactLandmarksNorm, analysis.croppedContactPointNorm, analysis.croppedBatHandleNorm, analysis.croppedBatToeNorm, analysis.contactBatAngle]);
+  }, [imageDataUrl, handedness, shotType, retryCount, sequenceFrames, savedResult, analysis.reportId, analysis.restoredFromReport, analysis.croppedContactLandmarksNorm, analysis.croppedContactPointNorm, analysis.croppedBatHandleNorm, analysis.croppedBatToeNorm, analysis.contactBatAngle]);
 
   const ruleChecks = result?.coaching_rules.checks || [];
   const metricRow = (group: 'alignment' | 'shot', metric: string, label: string, unit: string) => {
@@ -271,14 +291,16 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
             <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · pose overlay images</summary>
           <div className="mt-3 grid items-start gap-4 xl:grid-cols-2">
-            <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-              <img
-                src={imageDataUrl || ''}
-                alt="Enlarged batter crop produced from the selected OpenAI contact frame"
-                className="max-h-[75vh] w-full bg-black object-contain"
-              />
-              <figcaption className="px-3 py-2 text-[11px] text-slate-400">Selected contact view</figcaption>
-            </figure>
+            {imageDataUrl && (
+              <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
+                <img
+                  src={imageDataUrl}
+                  alt="Enlarged batter crop produced from the selected OpenAI contact frame"
+                  className="max-h-[75vh] w-full bg-black object-contain"
+                />
+                <figcaption className="px-3 py-2 text-[11px] text-slate-400">Selected contact view</figcaption>
+              </figure>
+            )}
             <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
               <img
                 src={`data:${result.overlay_mime_type};base64,${result.overlay_image_base64}`}

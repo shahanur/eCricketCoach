@@ -23,6 +23,18 @@ const OPENAI_BATTING_PRIORITIES = [
   ['footwork', 'Footwork'], ['head_alignment', 'Head alignment'], ['contact', 'Contact'],
   ['joint_angles', 'Joint angles'], ['bat_path', 'Bat path'], ['extension', 'Extension'], ['follow_through', 'Follow-through']
 ] as const;
+const OPENAI_CAPE_METRIC_ROWS = [
+  { key: 'incomingBallSpeedKmh', label: 'Incoming ball speed', unit: 'km/h' },
+  { key: 'incomingMomentumKgMps', label: 'Incoming momentum', unit: 'kg·m/s' },
+  { key: 'incomingKineticEnergyJ', label: 'Incoming ball energy', unit: 'J' },
+  { key: 'exitSpeedKmh', label: 'Ball speed after contact', unit: 'km/h' },
+  { key: 'exitMomentumKgMps', label: 'Outgoing momentum', unit: 'kg·m/s' },
+  { key: 'exitKineticEnergyJ', label: 'Outgoing ball energy', unit: 'J' },
+  { key: 'launchAngleDegrees', label: 'Launch angle', unit: '°' },
+  { key: 'batSwingSpeedKmh', label: 'Bat swing speed', unit: 'km/h' },
+  { key: 'batSwingArcDegrees', label: 'Bat swing arc', unit: '°' },
+  { key: 'followThroughArcDegrees', label: 'Follow-through arc', unit: '°' }
+] as const;
 
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
@@ -283,6 +295,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isOpenAiBattingAnalysisRunning, setIsOpenAiBattingAnalysisRunning] = useState(false);
   const [openAiBattingAnalysis, setOpenAiBattingAnalysis] = useState<OpenAiBattingAnalysis | null>(null);
   const [openAiBattingAnalysisError, setOpenAiBattingAnalysisError] = useState<string | null>(null);
+  const [isLoadingSavedOpenAiAnalysis, setIsLoadingSavedOpenAiAnalysis] = useState(false);
+  const openAiAnalysisGeneration = useRef(0);
   const [openAiCoachReviewNote, setOpenAiCoachReviewNote] = useState('');
   const [openAiFindingReviews, setOpenAiFindingReviews] = useState<Record<number, { status: 'accepted' | 'revised' | 'not_applicable' | ''; note: string }>>({});
   const [isSavingOpenAiCoachReview, setIsSavingOpenAiCoachReview] = useState(false);
@@ -314,6 +328,37 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     } | null;
     cricketInterpretationError: string | null;
   } | null>(null);
+
+  useEffect(() => {
+    const generation = ++openAiAnalysisGeneration.current;
+    let cancelled = false;
+    setOpenAiBattingAnalysis(null);
+    setOpenAiBattingAnalysisError(null);
+    setOpenAiCoachReviewNote('');
+    setOpenAiFindingReviews({});
+    if (!selectedAnalysisPlayer) return () => { cancelled = true; };
+    setIsLoadingSavedOpenAiAnalysis(true);
+    api.getLatestOpenAiBattingAnalysis(selectedAnalysisPlayer)
+      .then(saved => {
+        if (!cancelled && generation === openAiAnalysisGeneration.current) {
+          setOpenAiBattingAnalysis(saved);
+          setOpenAiCoachReviewNote(saved?.coachReview?.note ?? '');
+          setOpenAiFindingReviews(Object.fromEntries((saved?.coachReview?.findings ?? []).map(finding => [finding.findingIndex, {
+            status: finding.status,
+            note: finding.note
+          }])));
+        }
+      })
+      .catch(error => {
+        if (!cancelled && generation === openAiAnalysisGeneration.current) {
+          setOpenAiBattingAnalysisError(error instanceof Error ? error.message : 'Could not load the player’s saved batting review.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled && generation === openAiAnalysisGeneration.current) setIsLoadingSavedOpenAiAnalysis(false);
+      });
+    return () => { cancelled = true; };
+  }, [selectedAnalysisPlayer]);
   const analysisPlayers = clubMembers.filter(member => member.role === 'PLAYER' && member.invitationStatus === 'ACTIVE');
   const openAiContactFrameForCape = openAiBattingAnalysis
     ? openAiBattingAnalysis.contact.frameIndex ?? (openAiBattingAnalysis.contact.selectedTimestampSeconds === null
@@ -3361,6 +3406,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     (openAiContactSelectionMode === 'MANUAL' &&
                       (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 || openAiSelectedContactTimestamp === null))}
                   onClick={async () => {
+                    const generation = ++openAiAnalysisGeneration.current;
                     setIsOpenAiBattingAnalysisRunning(true);
                     setOpenAiBattingAnalysisError(null);
                     setOpenAiBattingAnalysis(null);
@@ -3383,7 +3429,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           ? openAiSelectedContactTimestamp ?? undefined
                           : undefined
                       });
-                      setOpenAiBattingAnalysis(result.analysis);
+                      if (generation === openAiAnalysisGeneration.current) setOpenAiBattingAnalysis(result.analysis);
                     } catch (err: any) {
                       setOpenAiBattingAnalysisError(err?.message || 'OpenAI batting analysis failed. Please try again.');
                     } finally {
@@ -3526,6 +3572,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               </div>
               {analysisDiscipline !== 'BATTING' && <p className="text-[11px] text-amber-300">OpenAI visual review is currently available for batting videos.</p>}
               {openAiBattingAnalysisError && <p role="alert" className="text-xs text-rose-300">{openAiBattingAnalysisError}</p>}
+                  {isLoadingSavedOpenAiAnalysis && <p role="status" className="text-xs text-slate-400">Loading this player’s latest saved review…</p>}
             </div>
 
             {/* AIHub is hidden for now; set SHOW_AIHUB to restore it and the AIHub vs CAPE comparison. */}
@@ -3753,33 +3800,69 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </section>
               )}
 
-              <div className="grid gap-4 xl:grid-cols-2">
-                <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                  <img
-                    src={openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl}
-                    alt="Preparation, downswing, near-contact, and follow-through movement sequence"
-                    className="block h-auto w-full"
-                  />
-                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement phases are visual estimates.</figcaption>
-                </figure>
-                <details className="rounded-lg border border-slate-800 bg-slate-900">
-                  <summary className="cursor-pointer p-3 text-xs font-semibold text-slate-300">Advanced details · annotated contact view</summary>
-                  <figure className="overflow-hidden border-t border-slate-800">
-                    <img
-                      src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl}
-                      alt="Contact view with estimated joint and alignment annotations"
-                      className="block h-auto w-full"
-                    />
-                    <figcaption className="px-3 py-2 text-[11px] text-slate-400">Visual estimates; illustrative arrows are not measurements.</figcaption>
-                  </figure>
-                </details>
-              </div>
+              {openAiBattingAnalysis.restoredFromReport && (
+                <section className="space-y-3 rounded-lg border border-violet-400/20 bg-violet-500/5 p-4">
+                  <div>
+                    <h5 className="text-xs font-bold uppercase tracking-wide text-violet-200">Analysis summary</h5>
+                    <p className="mt-1 text-sm text-slate-100">{openAiBattingAnalysis.summary}</p>
+                  </div>
+                  {openAiBattingAnalysis.priorityCue && <p className="text-sm font-semibold text-white">Coaching focus: {openAiBattingAnalysis.priorityCue}</p>}
+                  {openAiBattingAnalysis.drill.title && (
+                    <div className="rounded-md border border-violet-400/15 bg-slate-950/50 p-3">
+                      <p className="text-xs font-bold text-violet-100">Suggested drill: {openAiBattingAnalysis.drill.title}</p>
+                      {openAiBattingAnalysis.drill.rationale && <p className="mt-1 text-xs text-slate-300">{openAiBattingAnalysis.drill.rationale}</p>}
+                      {openAiBattingAnalysis.drill.instructions.length > 0 && <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-300">{openAiBattingAnalysis.drill.instructions.map((instruction, index) => <li key={index}>{instruction}</li>)}</ol>}
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.strengths.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-200">Strengths</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">{openAiBattingAnalysis.strengths.map((strength, index) => <li key={index}><strong>{strength.title}:</strong> {strength.observation}</li>)}</ul>
+                    </div>
+                  )}
+                  {openAiBattingAnalysis.capeKinetics?.source === 'cape' && (
+                    <div className="overflow-x-auto rounded-lg border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900/70 text-slate-400"><tr><th className="p-2">Video measurements</th><th className="p-2">Estimate</th></tr></thead>
+                        <tbody>{OPENAI_CAPE_METRIC_ROWS.filter(row => openAiBattingAnalysis.capeKinetics?.metrics[row.key] !== null).map(row => (
+                          <tr key={row.key} className="border-t border-slate-800"><td className="p-2 text-slate-300">{row.label}</td><td className="p-2 text-white">{openAiBattingAnalysis.capeKinetics?.metrics[row.key]?.toFixed(1)} {row.unit}</td></tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500">Saved report visuals and detailed measurements are available under Advanced details or in the report bundle.</p>
+                </section>
+              )}
 
-              <CroppedPoseOverlayPanel
-                imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
-                analysis={openAiBattingAnalysis}
-                sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
-              />
+              {openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl && (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                    <img src={openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl} alt="Preparation, downswing, near-contact, and follow-through movement sequence" className="block h-auto w-full" />
+                    <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement phases are visual estimates.</figcaption>
+                  </figure>
+                  {openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl && (
+                    <details className="rounded-lg border border-slate-800 bg-slate-900">
+                      <summary className="cursor-pointer p-3 text-xs font-semibold text-slate-300">Advanced details · annotated contact view</summary>
+                      <figure className="overflow-hidden border-t border-slate-800">
+                        <img src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl} alt="Contact view with estimated joint and alignment annotations" className="block h-auto w-full" />
+                        <figcaption className="px-3 py-2 text-[11px] text-slate-400">Visual estimates; illustrative arrows are not measurements.</figcaption>
+                      </figure>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {(!openAiBattingAnalysis.restoredFromReport || openAiBattingAnalysis.poseOverlayResult) && (
+                <CroppedPoseOverlayPanel
+                  imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
+                  analysis={openAiBattingAnalysis}
+                  sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
+                  savedResult={openAiBattingAnalysis.poseOverlayResult}
+                  onPoseOverlaySaved={(result, artifactNames) => setOpenAiBattingAnalysis(current => current
+                    ? { ...current, poseOverlayResult: result, artifactNames }
+                    : current)}
+                />
+              )}
 
               <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                 <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · frame-by-frame measurements</summary>

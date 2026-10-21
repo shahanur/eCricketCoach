@@ -11,12 +11,19 @@ import { fetchWithRetry } from '../utils/retry.js';
 import { AuthenticatedRequest, authenticateToken, requireRole } from '../middleware/auth.js';
 import { prisma } from '../config/prisma.js';
 import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysis, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
-import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, StoredReportArtifact } from '../services/openAiBattingReportArtifacts.js';
+import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, persistOpenAiPoseOverlay, StoredReportArtifact } from '../services/openAiBattingReportArtifacts.js';
 import { analyzeVideoKineticsWithCape } from '../services/openAiCapeKinetics.js';
 
 export const aiRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
+const poseOverlayImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 10, fieldSize: 512 * 1024 }
+}).fields([
+  { name: 'overlay', maxCount: 1 },
+  ...Array.from({ length: 9 }, (_, index) => ({ name: `sequence_${index}`, maxCount: 1 }))
+]);
 const jwtSecret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
 const GOOGLE_DRIVE_FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 const GOOGLE_DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,200}$/;
@@ -174,6 +181,84 @@ aiRouter.post('/analyze', upload.single('file'), async (req: Request, res: Respo
 });
 
 // OpenAI-assisted batting review using timestamped sampled frames and a focused contact window.
+aiRouter.get(
+  '/analyze/openai-batting/latest',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const playerId = typeof req.query.playerId === 'string' ? req.query.playerId.trim() : '';
+    if (!playerId) return res.status(400).json({ error: 'player_required', message: 'Select a player to load their latest batting review.' });
+
+    const user = req.user!;
+    try {
+      if (user.role === 'COACH') {
+        if (user.coachContext !== 'CLUB') return res.status(403).json({ error: 'club_coach_required' });
+        const coach = await prisma.clubMember.findFirst({
+          where: { id: user.userId, clubId: user.tenantId, role: 'COACH', invitationStatus: 'ACTIVE' }
+        });
+        if (!coach) return res.status(403).json({ error: 'club_coach_required' });
+      }
+      const player = await prisma.clubMember.findFirst({
+        where: { id: playerId, clubId: user.tenantId, role: 'PLAYER', invitationStatus: 'ACTIVE' },
+        select: { id: true }
+      });
+      if (!player) return res.status(404).json({ error: 'player_not_found', message: 'The selected player is not active in this club.' });
+
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { tenantId: user.tenantId, playerId: player.id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, playerName: true, createdAt: true, analysis: true, artifacts: true }
+      });
+      if (!report) return res.json({ report: null });
+
+      const saved = report.analysis as Record<string, unknown>;
+      const rawArtifacts = Array.isArray(report.artifacts) ? report.artifacts : [];
+      const artifactNames = rawArtifacts.flatMap(item => {
+        if (!item || typeof item !== 'object') return [];
+        const name = (item as Record<string, unknown>).name;
+        return typeof name === 'string' && isBattingReportArtifactName(name) ? [name] : [];
+      });
+      const reportRoot = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const reportDirectory = path.resolve(reportRoot, report.id);
+      if (!reportDirectory.startsWith(`${reportRoot}${path.sep}`)) return res.status(404).json({ error: 'report_not_found' });
+      const readPngDataUrl = async (name: string): Promise<string> => {
+        if (!artifactNames.includes(name)) return '';
+        try {
+          const bytes = await fs.readFile(path.join(reportDirectory, name));
+          return `data:image/png;base64,${bytes.toString('base64')}`;
+        } catch {
+          return '';
+        }
+      };
+      const [movementImage, alignmentImage] = await Promise.all([
+        readPngDataUrl('phase_sequence.png'),
+        readPngDataUrl('joint_analysis.png')
+      ]);
+      const contact = saved.contact && typeof saved.contact === 'object' ? saved.contact as Record<string, unknown> : {};
+      const shotAssessments = Array.isArray(saved.shotAssessments) ? saved.shotAssessments : [];
+      const analysis = {
+        ...saved,
+        reportId: report.id,
+        artifactNames,
+        restoredFromReport: true,
+        contact: { ...contact, imageDataUrl: null },
+        croppedContactImageDataUrl: null,
+        phaseReviewFrames: [],
+        sourceFrameImages: [],
+        poseSequenceFrames: [],
+        visualOutputs: { movementSequenceImageDataUrl: movementImage, jointAlignmentImageDataUrl: alignmentImage },
+        shotAssessments: shotAssessments.map(item => item && typeof item === 'object'
+          ? { ...(item as Record<string, unknown>), phaseReviewFrames: [] }
+          : item)
+      };
+      return res.json({ report: { reportId: report.id, playerName: report.playerName, createdAt: report.createdAt, artifactNames, analysis } });
+    } catch (error) {
+      console.error('OpenAI batting report history fetch failed:', error);
+      return res.status(500).json({ error: 'report_fetch_failed', message: 'The saved batting review could not be loaded.' });
+    }
+  }
+);
+
 aiRouter.post(
   '/analyze/openai-batting',
   authenticateToken,
@@ -362,6 +447,100 @@ aiRouter.get(
     } catch (error) {
       console.error('OpenAI batting coach review fetch failed:', error);
       return res.status(500).json({ error: 'review_fetch_failed' });
+    }
+  }
+);
+
+aiRouter.post(
+  '/analyze/openai-batting/:reportId/pose-overlay',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  (req: Request, res: Response, next) => {
+    poseOverlayImageUpload(req, res, error => {
+      if (error instanceof multer.MulterError) {
+        return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: 'invalid_pose_overlay_upload', message: 'The pose overlay images could not be uploaded.' });
+      }
+      if (error) return res.status(400).json({ error: 'invalid_pose_overlay_upload', message: 'The pose overlay images could not be uploaded.' });
+      next();
+    });
+  },
+  async (req: AuthenticatedRequest, res: Response) => {
+    const reportId = req.params.reportId;
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(404).json({ error: 'report_not_found' });
+    const files = (req as Request & { files?: Record<string, Express.Multer.File[]> }).files || {};
+    const overlayFile = files.overlay?.[0];
+    if (!overlayFile || overlayFile.mimetype !== 'image/png') {
+      return res.status(400).json({ error: 'invalid_pose_overlay', message: 'A PNG contact overlay is required.' });
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(String(req.body?.poseOverlay || ''));
+    } catch {
+      return res.status(400).json({ error: 'invalid_pose_overlay', message: 'Pose overlay metadata must be valid JSON.' });
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return res.status(400).json({ error: 'invalid_pose_overlay', message: 'Pose overlay metadata must be an object.' });
+    }
+    const result = raw as Record<string, unknown>;
+    const sequenceRaw = Array.isArray(result.sequence) ? result.sequence : [];
+    if (result.status !== 'success' || !Number.isInteger(result.width) || !Number.isInteger(result.height) || sequenceRaw.length > 9) {
+      return res.status(400).json({ error: 'invalid_pose_overlay', message: 'Pose overlay metadata is incomplete.' });
+    }
+    const sequence: Array<Record<string, unknown>> = [];
+    const imageAssets: Array<{ name: string; buffer: Buffer }> = [{ name: 'pose_overlay.png', buffer: overlayFile.buffer }];
+    for (const [index, value] of sequenceRaw.entries()) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return res.status(400).json({ error: 'invalid_pose_overlay', message: 'Pose sequence metadata is invalid.' });
+      }
+      const frame = value as Record<string, unknown>;
+      if (!Number.isInteger(frame.frame_index) || typeof frame.timestamp_seconds !== 'number' || !Number.isFinite(frame.timestamp_seconds) ||
+        !['PRE_CONTACT', 'CONTACT', 'POST_CONTACT'].includes(String(frame.phase)) || !['success', 'unavailable'].includes(String(frame.status))) {
+        return res.status(400).json({ error: 'invalid_pose_overlay', message: 'Pose sequence metadata is invalid.' });
+      }
+      const { overlay_image_base64: _inlineImage, ...frameMetadata } = frame;
+      const sequenceFile = files[`sequence_${index}`]?.[0];
+      if (frame.status === 'success' && (!sequenceFile || sequenceFile.mimetype !== 'image/png')) {
+        return res.status(400).json({ error: 'invalid_pose_overlay', message: 'A successful pose frame is missing its PNG image.' });
+      }
+      const artifactName = sequenceFile ? `pose_sequence_${index}.png` : null;
+      sequence.push({ ...frameMetadata, artifactName });
+      if (sequenceFile && artifactName) imageAssets.push({ name: artifactName, buffer: sequenceFile.buffer });
+    }
+    const user = req.user!;
+    try {
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: user.tenantId },
+        select: { id: true, analysis: true, artifacts: true }
+      });
+      if (!report) return res.status(404).json({ error: 'report_not_found' });
+      const record = report.analysis as Record<string, unknown>;
+      const { overlay_image_base64: _inlineOverlay, ...resultMetadata } = result;
+      const metadata = { ...resultMetadata, overlayArtifactName: 'pose_overlay.png', sequence };
+      const root = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const directory = path.resolve(root, report.id);
+      if (!directory.startsWith(`${root}${path.sep}`)) return res.status(404).json({ error: 'report_not_found' });
+      const currentArtifacts: StoredReportArtifact[] = Array.isArray(report.artifacts)
+        ? report.artifacts.flatMap(item => {
+            if (!item || typeof item !== 'object') return [];
+            const artifact = item as Record<string, unknown>;
+            return typeof artifact.name === 'string' && typeof artifact.mimeType === 'string' && typeof artifact.sizeBytes === 'number' && typeof artifact.sha256 === 'string'
+              ? [{ name: artifact.name, mimeType: artifact.mimeType, sizeBytes: artifact.sizeBytes, sha256: artifact.sha256 }]
+              : [];
+          })
+        : [];
+      const persisted = await persistOpenAiPoseOverlay(directory, record, currentArtifacts, metadata, imageAssets);
+      const updated = await prisma.openAiBattingReport.updateMany({
+        where: { id: report.id, tenantId: user.tenantId },
+        data: {
+          analysis: persisted.analysisRecord as Prisma.InputJsonValue,
+          artifacts: persisted.artifacts as unknown as Prisma.InputJsonValue
+        }
+      });
+      if (!updated.count) return res.status(404).json({ error: 'report_not_found' });
+      return res.json({ artifactNames: persisted.artifacts.map(artifact => artifact.name) });
+    } catch (error) {
+      console.error('OpenAI pose overlay persistence failed:', error);
+      return res.status(500).json({ error: 'pose_overlay_save_failed', message: 'The pose overlay could not be saved to the report.' });
     }
   }
 );

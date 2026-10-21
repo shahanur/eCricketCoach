@@ -5,7 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { after, test } from 'node:test';
 import type { OpenAiBattingAnalysis } from './openAiBattingAnalysisService.js';
-import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, toPersistableAnalysis } from './openAiBattingReportArtifacts.js';
+import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, persistOpenAiPoseOverlay, toPersistableAnalysis } from './openAiBattingReportArtifacts.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -99,6 +99,31 @@ test('persists report artifacts and a ZIP without embedding source image data in
   assert.ok(reviewedMarkdown.includes('Keep the cue shorter.'));
   assert.equal(reviewedZip.subarray(0, 2).toString(), 'PK');
   assert.ok(reviewed.artifacts.every(artifact => artifact.sha256.length === 64));
+
+  const overlayBuffer = Buffer.from((await dataUrlPng()).split(',', 2)[1], 'base64');
+  const persistedOverlay = await persistOpenAiPoseOverlay(
+    persisted.directory,
+    reviewed.analysisRecord,
+    reviewed.artifacts,
+    {
+      status: 'success',
+      metrics: { bat_angle_deg: 24 },
+      overlayArtifactName: 'pose_overlay.png',
+      sequence: [{ frame_index: 16, timestamp_seconds: 0.55, phase: 'POST_CONTACT', status: 'success', artifactName: 'pose_sequence_0.png' }]
+    },
+    [
+      { name: 'pose_overlay.png', buffer: overlayBuffer },
+      { name: 'pose_sequence_0.png', buffer: overlayBuffer }
+    ]
+  );
+  assert.equal((persistedOverlay.analysisRecord.poseOverlay as { metrics: { bat_angle_deg: number } }).metrics.bat_angle_deg, 24);
+  assert.ok(persistedOverlay.artifacts.some(artifact => artifact.name === 'pose_overlay.png'));
+  assert.ok(persistedOverlay.artifacts.some(artifact => artifact.name === 'pose_sequence_0.png'));
+  const finalAnalysisJson = await readFile(path.join(persisted.directory, 'analysis.json'), 'utf8');
+  assert.equal(finalAnalysisJson.includes('data:image/'), false);
+  const finalZip = await readFile(path.join(persisted.directory, 'analysis_bundle.zip'));
+  assert.ok(finalZip.includes('pose_overlay.png'));
+  assert.ok(finalZip.includes('pose_sequence_0.png'));
 });
 
 test('persistable analysis omits inline frame data and the artifact allowlist rejects traversal', () => {
@@ -106,5 +131,8 @@ test('persistable analysis omits inline frame data and the artifact allowlist re
   const safe = toPersistableAnalysis(source);
   assert.equal(JSON.stringify(safe).includes('data:image/'), false);
   assert.equal(isBattingReportArtifactName('analysis_bundle.zip'), true);
+  assert.equal(isBattingReportArtifactName('pose_overlay.png'), true);
+  assert.equal(isBattingReportArtifactName('pose_sequence_8.png'), true);
+  assert.equal(isBattingReportArtifactName('pose_sequence_9.png'), false);
   assert.equal(isBattingReportArtifactName('../analysis.json'), false);
 });
