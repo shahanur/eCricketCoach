@@ -2,8 +2,7 @@
 
 The **OpenAI batting analysis** feature is a synchronous, coach-facing review pipeline inside the Node/Express server. It turns one batting clip into:
 
-- a stroke overview (phases, up to three shot candidates, subject check),
-- a dense contact-window review per stroke (contact status, landmarks, bat shaft, findings, strengths, drill),
+- a one-request full-clip batting review (likely contact, stroke phases, landmarks, bat shaft, findings, strengths and drill),
 - application-calculated **2D projected** joint angles,
 - a persisted, checksummed report bundle (PNG review images, JSON, Markdown, ZIP),
 - an optional coach review layer and hand-offs to the **pose-overlay API** and **CAPE**.
@@ -60,7 +59,7 @@ flowchart LR
     R --> S
     S --> FF
     S --> TMP
-    S -- "overview + detailed calls" --> OAI
+    S -- "one detailed call<br/>sparse full-clip frames or manual dense window" --> OAI
     R --> A
     A --> VOL
     R --> PG
@@ -75,8 +74,8 @@ flowchart LR
 |---|---|---|
 | Auth, roles, tenant scope | Yes | — |
 | Video decode, PTS mapping, frame extraction | ffprobe / ffmpeg | — |
-| Stroke localisation, phase labels, candidate windows | Validates bounds | Proposes |
-| Contact status / frame / point | Validates frame belongs to dense window | Proposes |
+| Stroke localisation, phase labels, contact sample | Validates frame references | Proposes in one detailed response |
+| Contact status / frame / point | Validates frame belongs to supplied samples | Proposes |
 | Body & bat landmarks (normalised) | Validates ranges, remaps to crops | Estimates |
 | Joint angles | **Calculates** from pixel-scaled landmarks | Must return `null` / pending |
 | Findings, strengths, drill text | Schema + semantic validation | Generates |
@@ -91,7 +90,7 @@ flowchart LR
 |---|---|---|
 | Runtime | Node.js 20, TypeScript, Express 4 | Same server process as the rest of the API |
 | Upload | multer `memoryStorage` | Per-route limit `OPENAI_MAX_VIDEO_SIZE_MB` (default 500 MB) |
-| AI SDK | `openai` ^7.36 — `client.responses.create` | `text.format = json_schema (strict)`, `reasoning.effort = medium`, SDK retries **disabled** (`maxRetries: 0`) |
+| AI SDK | `openai` ^7.36 — `client.responses.create` | One `batting_detailed_v1` request, strict JSON schema, default low reasoning, SDK retries **disabled** (`maxRetries: 0`) |
 | Model | `OPENAI_VIDEO_ANALYSIS_MODEL` (default `gpt-6.1-sol`) | No silent substitution; requested vs returned model logged |
 | Video tooling | `ffprobe` (per-frame `best_effort_timestamp_time`), `ffmpeg` (sample, select, crop) | Invoked with `execFile` (no shell) |
 | Imaging | `sharp` (SVG overlay compositing, PNG montages) | |
@@ -118,12 +117,12 @@ flowchart TB
     subgraph Service["openAiBattingAnalysisService.ts"]
         AN["analyzeBattingVideoWithOpenAI"]
         PR["probeVideo (ffprobe)"]
-        SF["sampleFrames (overview)"]
-        EW["extractEverySourceFrameInWindow (dense)"]
+        SF["sampleFrames (local full-clip samples)"]
+        EW["extractEverySourceFrameInWindow (manual timestamp)"]
         EO["extractOriginalSourceFrames (report-res)"]
         CR["createContactPlayerCrop"]
         RV["requestVisionJson&lt;T&gt;"]
-        VAL["isOverview / isDetailed<br/>validateAndNormalizeOverview<br/>normalizeDetailedEvidenceFrames"]
+        VAL["isDetailed<br/>normalizeDetailedEvidenceFrames"]
         JA["calculateJointAngles · calculateProjectedAngle"]
         WIN["selectDenseContactWindow"]
         AS["loadPromptAsset / loadSchemaAsset<br/>renderPromptTemplate"]
@@ -144,7 +143,7 @@ flowchart TB
         NM["isBattingReportArtifactName"]
     end
 
-    ASSETS[("openai_inputs/<br/>shared-instructions.v1.md<br/>overview.v1.md · overview.schema.v1.json<br/>detailed.v1.md · detailed.schema.v1.json")]
+    ASSETS[("openai_inputs/<br/>shared-instructions.v1.md<br/>detailed.v1.md · detailed.schema.v1.json")]
     DB[("openai_batting_reports")]
     FS[("OPENAI_REPORTS_DIR")]
     OAI["OpenAI Responses API"]
@@ -174,7 +173,7 @@ flowchart TB
 |---|---|
 | `analyzeBattingVideoWithOpenAI(buffer, options)` | Orchestrates the whole pipeline in a temp dir; always deletes it in `finally` |
 | `probeVideo` | ffprobe stream/format + per-frame PTS list; rejects bad metadata and `duration > OPENAI_MAX_VIDEO_DURATION_SECONDS` |
-| `sampleFrames` | Overview JPEGs at `min(OPENAI_OVERVIEW_FPS, (maxFrames−1)/duration)` fps, longest side 768 px; each mapped to the nearest source PTS frame |
+| `sampleFrames` | Full-clip sample JPEGs at `min(OPENAI_OVERVIEW_FPS, (maxFrames−1)/duration)` fps, longest side 768 px; each mapped to the nearest source PTS frame |
 | `selectDenseContactWindow` | Window = anchor ± `OPENAI_CONTACT_CONTEXT_SECONDS`, widened to the model's proposed window if it is ≤ `OPENAI_MAX_CONTACT_WINDOW_SECONDS`, else clamped and centred |
 | `extractEverySourceFrameInWindow` | Decodes **every** source PTS frame in the window (≤ 960 px); fails if count > `OPENAI_MAX_CONTACT_WINDOW_FRAMES` or decoded count ≠ expected |
 | `combineContactAndPhaseFrames` | Dense frames + overview phase frames (low detail); dense frames within ±0.1 s of the anchor use `detail: high` |
@@ -210,7 +209,7 @@ Base path: `/api/videos` (mounted in [web-app/server/src/index.ts](../web-app/se
 | `playbackSpeed` / `playback_speed` | `real_time` \| `slow_motion` \| `unknown` | `unknown` | |
 | `captureFps` / `capture_fps` | number | `null` | 0 < fps ≤ 1000 |
 | `priorities` | JSON array | all 7 | Subset of `footwork, head_alignment, contact, joint_angles, bat_path, extension, follow_through` (de-duplicated) |
-| `contactTimestampSeconds` | number | — | ≥ 0 and ≤ video duration. Switches to **manual contact mode** |
+| `contactTimestampSeconds` | number | — | ≥ 0 and ≤ video duration. Switches the single call to dense **manual contact mode** |
 | `capeCalibrationPoints` | JSON `[[x,y]×4]` | No | Optional opt-in to a CAPE full-video pass, started concurrently with OpenAI. CAPE independently selects contact (Gemini when configured, otherwise detector); the report records its frame/source because it may differ from OpenAI's selection. Pixel coordinate order: batter-end left, batter-end right, bowler-end right, bowler-end left. |
 
 Additional checks: a `COACH` must have `coachContext = CLUB` and be an ACTIVE club coach.
@@ -307,10 +306,9 @@ Cropped pose overlay (see §6.9). Multipart: `image` (JPEG/PNG/WebP ≤ 12 MB), 
 | 413 | `file_too_large` | multer / Drive size check |
 | 413 | `video_too_long`, `contact_window_too_dense` | service |
 | 422 | `video_decode_failed`, `video_probe_failed`, `invalid_video_metadata`, `video_frames_unavailable`, `sample_frame_invalid`, `contact_window_decode_mismatch`, `source_frame_render_mismatch` | ffmpeg / ffprobe stages |
-| 422 | `batter_selection_required` | overview `subjectStatus ≠ single_batter` |
 | 422 | `openai_analysis_refused` | model refusal |
 | 429 | `openai_rate_limited` | OpenAI 429 |
-| 502 | `openai_response_invalid`, `openai_response_incomplete`, `openai_response_not_completed`, `openai_analysis_validation_failed`, `overview_frame_reference_invalid`, `detailed_frame_reference_invalid`, `openai_analysis_failed` | response handling |
+| 502 | `openai_response_invalid`, `openai_response_incomplete`, `openai_response_not_completed`, `openai_analysis_validation_failed`, `detailed_frame_reference_invalid`, `openai_analysis_failed` | response handling |
 | 503 | `openai_not_configured`, `openai_auth_failed`, `video_decoder_unavailable` | config / OpenAI 401-403 / missing ffmpeg |
 | 504 | `openai_request_timeout` | request exceeded `OPENAI_REQUEST_TIMEOUT_MS` |
 | 500 | `review_fetch_failed`, `review_save_failed`, `artifact_download_failed` | persistence |
@@ -348,17 +346,10 @@ sequenceDiagram
     R->>S: analyzeBattingVideoWithOpenAI(buffer, options)
     S->>S: mkdtemp, write input-video
     S->>FF: ffprobe (stream, duration, per-frame PTS)
-    S->>FF: ffmpeg overview sampling (≤ 36 frames, 768 px)
-    S->>O: overview call (batting_overview_v1, low detail)
-    O-->>S: subject, phases, ≤ 3 shot candidates, contact candidate
-    S->>S: validate + normalise frame refs, require single_batter
-    loop primary candidate (+ up to 2 more in AI mode)
-        S->>S: selectDenseContactWindow
-        S->>FF: decode every PTS frame in window (≤ 960 px)
-        S->>O: detailed call (batting_detailed_v1, high detail near anchor)
-        O-->>S: contact, landmarks, bat, findings, drill, quality
-        S->>S: validate, normalise, calculateJointAngles
-    end
+    S->>FF: ffmpeg full-clip sampling (≤ 36 frames, 768 px)
+    S->>O: one detailed call (batting_detailed_v1)
+    O-->>S: contact sample, phases, landmarks, bat, findings, drill, quality
+    S->>S: validate, normalise, calculateJointAngles
     S->>FF: crop contact player, re-decode referenced source frames
     S->>S: build SVG visuals, execution log, SHA-256
     S->>S: rm temp dir
@@ -382,24 +373,14 @@ flowchart TD
     B -- no --> X1[/503 openai_not_configured/]
     B -- yes --> C["mkdtemp · write input-video"]
     C --> D["probeVideo<br/>duration ≤ 180 s, per-frame PTS"]
-    D --> E["sampleFrames overview<br/>≤ 4 fps, ≤ 36 frames, 768 px"]
-    E --> F["Overview call<br/>shared-instructions + overview.v1 + schema"]
-    F --> G{subjectStatus = single_batter?}
-    G -- no --> X2[/422 batter_selection_required/]
-    G -- yes --> H{contactTimestampSeconds?}
-    H -- yes --> HM["Manual mode<br/>anchor = nearest PTS frame<br/>single candidate 'manual_selection'"]
-    H -- no --> HA["AI mode<br/>anchor = contactCandidateSampleIndex<br/>or first shot candidate<br/>≤ 3 ranked candidates"]
-    HM --> I
-    HA --> I{anchor exists?}
-    I -- no --> R["Overview-only result<br/>status unassessable, contact NOT_VISIBLE"]
-    I -- yes --> J["Dense window + every PTS frame"]
-    J --> K["Detailed call (primary)"]
-    K --> L["Joint angles · pose sequence ±0.3 s"]
-    L --> M{AI mode and more candidates?}
-    M -- yes --> N["Detailed call per extra candidate<br/>→ shotAssessments"]
-    M -- no --> P
-    N --> P["Contact player crop<br/>landmarks re-normalised"]
-    R --> P
+    D --> E{contactTimestampSeconds?}
+    E -- yes --> M["Decode dense contact window<br/>around manual timestamp"]
+    E -- no --> S["Sample full clip<br/>≤ 4 fps, ≤ 36 frames, 768 px"]
+    M --> I["One detailed call<br/>locates contact and assesses stroke"]
+    S --> I
+    I --> V["Validate frame references<br/>retain contact uncertainty"]
+    V --> L["Joint angles · pose sequence"]
+    L --> P["Contact player crop<br/>landmarks re-normalised"]
     P --> Q["Re-decode referenced source frames<br/>SVG visuals · execution log · SHA-256"]
     Q --> Z([OpenAiBattingAnalysis])
 ```
@@ -441,50 +422,43 @@ sequenceDiagram
 ### 6.1 Frame identity and timestamps
 
 - `probeVideo` runs `ffprobe -show_frames` and keeps every frame's `best_effort_timestamp_time`. The list index is the **source frame index** used everywhere (manifest, landmarks, artifacts, CAPE hand-off).
-- Overview samples are mapped to the nearest source PTS frame with binary search (`nearestPresentationFrame`).
-- Dense windows decode with `select='between(t,start,end)'` and `-fps_mode vfr`. The decoded count must equal the PTS count in the window, otherwise `contact_window_decode_mismatch`. No frame is silently dropped.
-- Every frame sent to the model is preceded by a text part: `Supplied sample N; original source PTS t seconds; source frame F. Overview phase context: … | Dense contact-window frame.`
+- Automatic mode samples the whole clip and maps each sampled timestamp to the nearest source PTS frame with binary search (`nearestPresentationFrame`).
+- Manual contact mode decodes every source PTS frame in the bounded window with `select='between(t,start,end)'` and `-fps_mode vfr`. The decoded count must equal the PTS count in the window, otherwise `contact_window_decode_mismatch`. No frame is silently dropped.
+- One compact source map lists each image's sample number, original PTS timestamp and source frame index; images then follow in that same order.
 - The model may cite either source frame IDs or supplied sample indices. `normalizeFrameReferenceList` converts them all to source frame indices, or fails the request.
 
-### 6.2 Overview pass
+### 6.2 Single detailed request
 
 | Item | Value |
 |---|---|
-| Frames | `min(OPENAI_OVERVIEW_FPS, (OPENAI_MAX_OVERVIEW_FRAMES − 1) / duration)` fps, ≤ `OPENAI_MAX_OVERVIEW_FRAMES` |
-| Resolution | longest side 768 px, JPEG `q:v 3` |
-| Image detail | `low` |
-| Output budget | 4 000 tokens, one retry at 8 000 on `max_output_tokens` |
-| Schema | `batting_overview_v1` ([overview.schema.v1.json](../web-app/server/src/services/openai_inputs/overview.schema.v1.json)) |
-| Prompt variables | `{{validated_user_metadata_json}}` |
+| Frames | Automatic: full-clip samples at `min(OPENAI_OVERVIEW_FPS, (OPENAI_MAX_OVERVIEW_FRAMES − 1) / duration)` fps, ≤ `OPENAI_MAX_OVERVIEW_FRAMES`; manual: every source frame in the contact window |
+| Resolution | Automatic samples: longest side 768 px; manual window: longest side 960 px |
+| Image detail | Automatic: low; manual: high only within 50 ms of the selected time, low elsewhere |
+| Output budget | 8 000 tokens, one retry at 16 000 only on `max_output_tokens` |
+| Schema | `batting_detailed_v1` ([detailed.schema.v1.json](../web-app/server/src/services/openai_inputs/detailed.schema.v1.json)) |
+| Prompt variables | Shot ID/type, handedness, camera view, timing metadata and priorities |
 
-Returned (`OverviewAnalysis`): `subjectStatus`, `subjectEvidence`, `contactCandidateSampleIndex`, `contactCandidateConfidence`, `contactCandidateEvidence`, `summary`, `observations[]`, `phases[]` (`preparation | foot_plant | downswing | contact | extension | finish`, with `playerBoxNorm`), `limitations[]`, `shotCandidates[≤3]` (`shotId`, `sampleIndex`, `shotType`, `confidence`, `evidence`, `windowStartSeconds`, `windowEndSeconds`, `phases`).
+In automatic mode this one request identifies contact and assesses the complete supplied sparse sequence. It must mark contact `UNCERTAIN` or `NOT_VISIBLE` when the gap between samples prevents exact impact identification; it cannot claim unsupplied frames. A manual timestamp switches to dense source-frame extraction and is used as the center of review. Only one stroke is assessed per request.
 
-### 6.3 Dense contact-window pass
+### 6.3 Manual dense contact window
 
 ```mermaid
 flowchart LR
-    A["anchor t"] --> B["base = t ± context (0.5 s)"]
-    P["model window<br/>[ws, we]"] --> C{"we − ws ≤ max window (2 s)?"}
-    C -- yes --> D["start = min(base.start, ws)<br/>end = max(base.end, we)"]
-    C -- no --> E["use base"]
-    D --> F{"end − start ≤ max window?"}
-    E --> F
-    F -- yes --> G["window"]
-    F -- no --> H["t ± max/2, clamped to [0, duration]<br/>+ limitation note"]
-    G --> I{"PTS frames ≤ 120?"}
-    H --> I
-    I -- no --> X[/413 contact_window_too_dense/]
-    I -- yes --> J["decode every frame ≤ 960 px"]
+    A["selected contact time"] --> B["window = time ± 0.5 s"]
+    B --> C["clamp to clip and configured max seconds"]
+    C --> D{"PTS frames ≤ configured max?"}
+    D -- no --> X[/413 contact_window_too_dense/]
+    D -- yes --> E["decode every source frame ≤ 960 px"]
 ```
 
-Detailed request inputs: dense frames (`high` detail within ±0.1 s of the anchor, `low` otherwise) plus overview phase frames as `low`-detail context. Output budget 8 000 tokens, one retry at 16 000. Prompt variables: `shot_id`, `shot_type`, `batter_handedness`, `camera_view`, `timing_metadata`, `priorities`, followed by a contact-reference sentence. The manual mode sentence tells the model to centre on the coach's timestamp and not replace it with a distant event.
+The dense window is used only when the coach supplies `contactTimestampSeconds`. Frames within ±50 ms of the selected time use high image detail; other frames remain in the same single request at low detail. Output budget is 8 000 tokens, with one retry at 16 000 only on output truncation. Prompt variables: shot ID/type, handedness, camera view, timing metadata and priorities.
 
 `DetailedAnalysis` key fields and validator constraints (`isDetailed`):
 
 | Field | Constraint |
 |---|---|
 | `contactStatus` | `DETECTED \| LIKELY \| UNCERTAIN \| NOT_VISIBLE`; `DETECTED` requires `contactSampleIndex` |
-| `contactSampleIndex` | Must index a **dense-window** frame (not phase context) |
+| `contactSampleIndex` | Must index a frame supplied to this request; automatic mode indices refer to the full-clip sample list |
 | `contactPointNorm`, `batHandleNorm`, `batToeNorm` | normalised `[0,1]` or `null` |
 | `playerBoxNorm` | valid normalised box or `null` |
 | `landmarksNorm` | all 14 keys present: `head`, L/R `Shoulder/Elbow/Wrist/Hip/Knee/Ankle`, `frontToe`; each point or `null` |
@@ -498,14 +472,14 @@ Detailed request inputs: dense frames (`high` detail within ±0.1 s of the ancho
 | `footageQuality` | enums for camera view, framing, blur, motion |
 | `contactWindowStart/EndSeconds` | within `[0, duration]`, start ≤ end |
 
-### 6.4 Candidate handling
+### 6.4 Contact selection and call count
 
-| Mode | Trigger | Candidates analysed | `contact.selectionSource` | Initial confidence |
+| Mode | Trigger | Images supplied to the single request | `contact.selectionSource` | Initial confidence |
 |---|---|---|---|---|
-| AI | no `contactTimestampSeconds` | primary (contact candidate) + up to 2 ranked shot candidates | `AI` | overview candidate confidence |
-| Manual | `contactTimestampSeconds` | single `manual_selection` | `MANUAL` | 0.5, then detailed confidence |
+| AI | no `contactTimestampSeconds` | ≤ 36 low-detail samples spanning the full clip | `AI` | detailed response confidence |
+| Manual | `contactTimestampSeconds` | every source PTS frame in the bounded window; high detail within 50 ms | `MANUAL` | 0.5, then detailed confidence |
 
-The primary candidate's detailed result sets the top-level `contact`, `summary`, `errors`, `observations`, `strengths`, `drill`, `priorityCue`, `footageQuality` and `kinetics`. Extra candidates are added only to `shotAssessments`, `jointAngles`, `phaseReviewFrames`, `batLandmarksByFrame` and `annotations`. In AI mode, if contact ends `UNCERTAIN`/`NOT_VISIBLE` with no `contactSampleIndex`, the contact timestamp and image are cleared.
+The single detailed result sets the top-level contact, stroke assessment, landmarks, findings, coaching cues, angles and artifacts. Automatic contact selection is limited by sparse sampling; the model must return `UNCERTAIN`/`NOT_VISIBLE` when samples cannot establish impact. No additional candidate strokes are analyzed. Manual mode retains dense contact review for higher-precision frame selection.
 
 **Pose sequence:** around the selected contact frame, the nearest dense frames at ±0.075 / 0.15 / 0.225 / 0.3 s are labelled `PRE_CONTACT`, `CONTACT` or `POST_CONTACT`. The result is up to 9 frames, used by the pose-overlay hand-off and the contact-review montage.
 
@@ -751,9 +725,9 @@ No live model call is needed.
 
 | Area | Note |
 |---|---|
-| Synchronous latency | Up to 1 overview + 3 detailed calls, each allowed `OPENAI_REQUEST_TIMEOUT_MS` (240 s), plus optional CAPE analysis (180 s). CAPE overlaps the OpenAI pass; the OpenAI route has a dedicated 1800 s nginx timeout. For longer-term scale, move the request into a job queue. |
+| Synchronous latency | One detailed OpenAI call (with one bounded retry only on output truncation), plus optional parallel CAPE analysis (180 s). The OpenAI route has a dedicated 1800 s nginx timeout. |
 | Memory | multer `memoryStorage` holds up to 500 MB per request. The buffer is then written to disk, and frames are held as base64 data URLs. Concurrent requests multiply this cost. |
-| Cost | Each analysis sends up to 36 overview images plus up to 3 × (≤ 120 dense + phase) images. Usage is logged in `executionLog.usage`. |
+| Cost | Automatic mode sends at most 36 low-detail full-clip samples. Manual mode sends up to 120 contact-window frames, with high detail only within 50 ms of the anchor. Usage and elapsed time are recorded in `executionLog`. |
 | Coach scope on reports | Review and artifact routes check tenant + role only. Any coach in the club can read or review any club report, and the active-coach check is applied only on analysis creation. |
 | Measurement validity | Landmarks are visual estimates; angles are 2D image-plane; no speed, force, torque or centre of mass; slow-motion timing needs metadata. |
 | Shot types | The request enum covers only `front_foot_drive`, `front_foot_defence` and `unknown`. The pose-overlay / CAPE hand-off uses the CAPE shot enum. |

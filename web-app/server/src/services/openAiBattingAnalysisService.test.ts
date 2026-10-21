@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { analyzeBattingVideoWithOpenAI, calculateBatAngle, calculateBatAngles, calculateContactBatAngle, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
+import { analyzeBattingVideoWithOpenAI, calculateBatAngle, calculateBatAngles, calculateContactBatAngle, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, formatFrameSourceMap, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
 
 test('OpenAI batting analysis reports a clear configuration error without an API key', async () => {
   const previousKey = process.env.OPENAI_API_KEY;
@@ -49,6 +49,16 @@ test('request timeouts are classified and only the contact-anchor neighborhood u
   assert.equal(contactFrameImageDetail(0.95, 0.994), 'high');
   assert.equal(contactFrameImageDetail(0.9, 0.994), 'low');
   assert.equal(contactFrameImageDetail(0.8, 0.994), 'low');
+});
+
+test('frame-source map preserves source frame IDs and timestamps compactly', () => {
+  assert.equal(
+    formatFrameSourceMap([
+      { sampleIndex: 0, frameIndex: 4, timestampSeconds: 0.133333 },
+      { sampleIndex: 1, frameIndex: 10, timestampSeconds: 0.333333 }
+    ]),
+    'Chronological image map (sample: source-frame@PTS-seconds): 0:4@0.133 1:10@0.333. Images follow sample order; cite source frame indices.'
+  );
 });
 
 test('OpenAI diagnostics include useful status/message metadata while redacting secrets and images', () => {

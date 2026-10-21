@@ -60,6 +60,12 @@ export function contactFrameImageDetail(timestampSeconds: number, anchorSeconds:
   return Math.abs(timestampSeconds - anchorSeconds) <= highDetailRadiusSeconds ? 'high' : 'low';
 }
 
+export function formatFrameSourceMap(frames: Array<Pick<SampledFrame, 'sampleIndex' | 'frameIndex' | 'timestampSeconds'>>): string {
+  return `Chronological image map (sample: source-frame@PTS-seconds): ${frames
+    .map(frame => `${frame.sampleIndex}:${frame.frameIndex}@${frame.timestampSeconds.toFixed(3)}`)
+    .join(' ')}. Images follow sample order; cite source frame indices.`;
+}
+
 export function selectDenseContactWindow(
   anchorSeconds: number,
   durationSeconds: number,
@@ -100,7 +106,6 @@ interface VideoMetadata {
 interface SampledFrame extends VisualFrame {
   sampleIndex: number;
   imagePath: string;
-  contextPhase?: StrokePhase;
   visionDetail?: 'low' | 'high';
 }
 
@@ -1218,25 +1223,6 @@ function createFrameManifest(frames: SampledFrame[], detail: FrameManifestEntry[
   }));
 }
 
-function combineContactAndPhaseFrames(contactFrames: SampledFrame[], phases: OverviewPhase[], overviewFrames: SampledFrame[], anchorSeconds: number): SampledFrame[] {
-  const combined = new Map<number, SampledFrame>();
-  for (const frame of contactFrames) {
-    combined.set(frame.frameIndex, {
-      ...frame,
-      visionDetail: contactFrameImageDetail(frame.timestampSeconds, anchorSeconds)
-    });
-  }
-  for (const phase of phases) {
-    if (phase.sampleIndex === null) continue;
-    const source = overviewFrames[phase.sampleIndex];
-    if (!source || combined.has(source.frameIndex)) continue;
-    combined.set(source.frameIndex, { ...source, contextPhase: phase.phase, visionDetail: 'low' });
-  }
-  return [...combined.values()]
-    .sort((a, b) => a.timestampSeconds - b.timestampSeconds)
-    .map((frame, sampleIndex) => ({ ...frame, sampleIndex }));
-}
-
 export function extractStructuredOutput(responseValue: unknown): VisionCallResult<string> {
   if (!responseValue || typeof responseValue !== 'object') throw new OpenAiBattingAnalysisError(502, 'openai_response_invalid', 'OpenAI returned an invalid response.');
   const response = responseValue as Record<string, unknown>;
@@ -1325,10 +1311,12 @@ async function requestVisionJson<T>(
           role: 'user' as const,
           content: [
             { type: 'input_text', text: prompt },
-            ...frames.flatMap(frame => [
-              { type: 'input_text' as const, text: `Supplied sample ${frame.sampleIndex}; original source PTS ${frame.timestampSeconds.toFixed(6)} seconds; source frame ${frame.frameIndex}.${frame.contextPhase ? ` Overview phase context: ${frame.contextPhase}.` : ' Dense contact-window frame.'}` },
-              { type: 'input_image' as const, image_url: frame.imageDataUrl, detail: frame.visionDetail ?? detail }
-            ])
+            { type: 'input_text' as const, text: formatFrameSourceMap(frames) },
+            ...frames.map(frame => ({
+              type: 'input_image' as const,
+              image_url: frame.imageDataUrl,
+              detail: frame.visionDetail ?? detail
+            }))
           ]
         }
       ]
@@ -1447,10 +1435,10 @@ export async function analyzeBattingVideoWithOpenAI(
 
     const model = process.env.OPENAI_VIDEO_ANALYSIS_MODEL?.trim() || 'gpt-6.1-sol';
     const client = new OpenAI({ apiKey, timeout: getOpenAiRequestTimeoutMs(), maxRetries: 0 });
-    const [sharedInstructions, overviewTemplate, overviewSchema] = await Promise.all([
+    const [sharedInstructions, detailTaskPrompt, detailSchema] = await Promise.all([
       loadPromptAsset('shared-instructions.v1.md'),
-      loadPromptAsset('overview.v1.md'),
-      loadSchemaAsset('overview.schema.v1.json')
+      loadPromptAsset('detailed.v1.md'),
+      loadSchemaAsset('detailed.schema.v1.json')
     ]);
     const priorities = options.priorities?.length ? options.priorities : DEFAULT_PRIORITIES;
     const requestMetadata = {
@@ -1461,19 +1449,112 @@ export async function analyzeBattingVideoWithOpenAI(
       capture_fps: options.captureFps ?? null,
       priorities
     };
-    const overviewPrompt = renderPromptTemplate(overviewTemplate, {
-      validated_user_metadata_json: JSON.stringify(requestMetadata)
-    });
-    const overviewCall = await requestVisionJson(
-      client, model, sharedInstructions, overviewPrompt, 'batting_overview_v1', overviewSchema,
-      overviewFrames, value => validateAndNormalizeOverview(value, overviewFrames, metadata.durationSeconds)
+    const manualReference = manualTimestamp === undefined
+      ? null
+      : nearestPresentationFrame(metadata.presentationTimestampsSeconds, manualTimestamp);
+    const manualSelectedTimestampSeconds = manualTimestamp === undefined
+      ? null
+      : manualReference?.timestamp ?? manualTimestamp;
+    const singleCallContactWindow = manualSelectedTimestampSeconds === null
+      ? null
+      : selectDenseContactWindow(
+          manualSelectedTimestampSeconds,
+          metadata.durationSeconds,
+          limits.contactContextSeconds,
+          limits.maxContactWindowSeconds,
+          null,
+          null
+        );
+    const singleCallFrames = singleCallContactWindow
+      ? (await extractEverySourceFrameInWindow(inputPath, workDir, {
+          startSeconds: singleCallContactWindow.startSeconds,
+          endSeconds: singleCallContactWindow.endSeconds,
+          prefix: 'contact-detail',
+          dimension: MAX_FRAME_DIMENSION,
+          maxFrames: limits.maxContactWindowFrames,
+          presentationTimestampsSeconds: metadata.presentationTimestampsSeconds
+        })).map(frame => ({ ...frame, visionDetail: contactFrameImageDetail(frame.timestampSeconds, manualSelectedTimestampSeconds!) }))
+      : overviewFrames.map(frame => ({ ...frame, visionDetail: 'low' as const }));
+    const singleCallContactFrameIndices = new Set(singleCallFrames.map(frame => frame.frameIndex));
+    const contactReferenceInstruction = manualSelectedTimestampSeconds === null
+      ? 'These are sparse chronological samples spanning the full clip. Locate the most likely contact frame only if supported by visible evidence. Because frames between samples are not supplied, mark exact contact UNCERTAIN or NOT_VISIBLE when the imagery cannot establish it; do not invent a frame.'
+      : `A coach selected ${manualSelectedTimestampSeconds.toFixed(6)} seconds as the contact-time reference. The supplied frames are a dense contact window centered on that time. Inspect neighboring frames for confirmation and do not silently replace it with a distant event.`;
+    const singleCallPrompt = `${renderPromptTemplate(detailTaskPrompt, {
+      shot_id: 'shot_primary',
+      shot_type: options.shotType ?? 'unknown',
+      batter_handedness: options.batterHandedness ?? 'unknown',
+      camera_view: options.cameraView ?? 'unknown',
+      timing_metadata: JSON.stringify({ playback_speed: options.playbackSpeed ?? 'unknown', capture_fps: options.captureFps ?? null }),
+      priorities: JSON.stringify(priorities)
+    })}\n\nAnalysis mode: one OpenAI pass; no separate overview request. ${contactReferenceInstruction}`;
+    const singleCall = await requestVisionJson(
+      client,
+      model,
+      sharedInstructions,
+      singleCallPrompt,
+      'batting_detailed_v1',
+      detailSchema,
+      singleCallFrames,
+      value => isDetailed(value, singleCallFrames, metadata.durationSeconds, singleCallContactFrameIndices),
+      'high'
     );
-    const overview = overviewCall.value;
-    if (overview.subjectStatus !== 'single_batter') {
-      throw new OpenAiBattingAnalysisError(422, 'batter_selection_required', 'The clip may contain multiple or ambiguous batters. Please upload a single-batter crop or provide a clip with the intended batter clearly isolated.');
+    const singleCallDetailed = singleCall.value;
+    normalizeDetailedEvidenceFrames(singleCallDetailed, singleCallFrames);
+    const singleCallPhases: OverviewPhase[] = [];
+    for (const phase of singleCallDetailed.landmarksByFrame) {
+      const sampleIndex = overviewFrames.reduce((bestIndex, frame, index) =>
+        Math.abs(frame.timestampSeconds - (singleCallFrames.find(item => item.frameIndex === phase.frameIndex)?.timestampSeconds ?? 0)) <
+        Math.abs(overviewFrames[bestIndex]?.timestampSeconds - (singleCallFrames.find(item => item.frameIndex === phase.frameIndex)?.timestampSeconds ?? 0))
+          ? index
+          : bestIndex,
+        0
+      );
+      if (singleCallPhases.some(existing => existing.phase === phase.phase)) continue;
+      singleCallPhases.push({
+        phase: phase.phase,
+        sampleIndex,
+        confidence: phase.confidence,
+        evidence: `Detailed-pass ${phase.phase.replace(/_/g, ' ')} frame.`,
+        playerBoxNorm: singleCallDetailed.playerBoxNorm
+      });
     }
-    const visionCalls: VisionCallTiming[] = [overviewCall.metadata];
-    const frameManifest = createFrameManifest(overviewFrames, 'overview');
+    const selectedSingleCallFrame = singleCallDetailed.contactSampleIndex === null
+      ? null
+      : singleCallFrames[singleCallDetailed.contactSampleIndex];
+    const contactOverviewIndex = selectedSingleCallFrame
+      ? overviewFrames.reduce((bestIndex, frame, index) =>
+          Math.abs(frame.timestampSeconds - selectedSingleCallFrame.timestampSeconds) <
+          Math.abs(overviewFrames[bestIndex]?.timestampSeconds - selectedSingleCallFrame.timestampSeconds) ? index : bestIndex,
+          0
+        )
+      : Math.floor(overviewFrames.length / 2);
+    const overview: OverviewAnalysis = {
+      subjectStatus: 'single_batter',
+      subjectEvidence: singleCallDetailed.shotIdentification.evidence,
+      contactCandidateSampleIndex: contactOverviewIndex,
+      contactCandidateConfidence: singleCallDetailed.contactConfidence,
+      contactCandidateEvidence: singleCallDetailed.contactEvidence,
+      summary: singleCallDetailed.summary,
+      observations: singleCallDetailed.observations.map(({ title, observation, coachingImplication, frameIndices, confidence }) => ({
+        title, observation, coachingImplication, frameIndices, confidence
+      })),
+      phases: singleCallPhases,
+      limitations: [...singleCallDetailed.limitations, ...(manualTimestamp === undefined
+        ? ['One-pass analysis uses sparse full-clip samples; exact impact timing between supplied frames may be uncertain.']
+        : [])],
+      shotCandidates: [{
+        shotId: 'shot_primary',
+        sampleIndex: contactOverviewIndex,
+        shotType: singleCallDetailed.shotIdentification.shotType,
+        confidence: singleCallDetailed.contactConfidence,
+        evidence: singleCallDetailed.contactEvidence,
+        windowStartSeconds: singleCallDetailed.contactWindowStartSeconds,
+        windowEndSeconds: singleCallDetailed.contactWindowEndSeconds,
+        phases: singleCallPhases
+      }]
+    };
+    const visionCalls: VisionCallTiming[] = [singleCall.metadata];
+    const frameManifest = createFrameManifest(singleCallFrames, manualTimestamp === undefined ? 'overview' : 'contact', 'shot_primary');
 
     const aiCandidateIndex = overview.contactCandidateSampleIndex ?? overview.shotCandidates[0]?.sampleIndex ?? null;
     const aiCandidate = aiCandidateIndex === null ? null : overviewFrames[aiCandidateIndex];
@@ -1500,12 +1581,6 @@ export async function analyzeBattingVideoWithOpenAI(
           windowEndSeconds: null,
           phases: overview.phases
         }];
-    const manualReference = manualTimestamp === undefined
-      ? null
-      : nearestPresentationFrame(metadata.presentationTimestampsSeconds, manualTimestamp);
-    const manualSelectedTimestampSeconds = manualTimestamp === undefined
-      ? null
-      : manualReference?.timestamp ?? manualTimestamp;
     const candidate = manualTimestamp === undefined
       ? aiCandidate
       : {
@@ -1521,7 +1596,7 @@ export async function analyzeBattingVideoWithOpenAI(
       shotCandidates[0].sampleIndex = closestOverviewFrame.sampleIndex;
     }
     const selectionSource = manualTimestamp === undefined ? 'AI' as const : 'MANUAL' as const;
-    const selectedTimestampSeconds = candidate?.timestampSeconds ?? null;
+    let selectedTimestampSeconds = candidate?.timestampSeconds ?? null;
     let contactStatus: ContactStatus = candidate ? 'LIKELY' : 'NOT_VISIBLE';
     let contactTimestampSeconds: number | null = candidate?.timestampSeconds ?? null;
     let contactConfidence = manualTimestamp === undefined ? shotCandidates[0]?.confidence ?? overview.contactCandidateConfidence : 0.5;
@@ -1576,53 +1651,13 @@ export async function analyzeBattingVideoWithOpenAI(
     });
 
     if (candidate !== null) {
-      const proposedWindow = shotCandidates[0];
-      const denseWindow = selectDenseContactWindow(
-        candidate.timestampSeconds, metadata.durationSeconds, limits.contactContextSeconds,
-        limits.maxContactWindowSeconds, proposedWindow?.windowStartSeconds ?? null, proposedWindow?.windowEndSeconds ?? null
-      );
-      const { startSeconds, endSeconds } = denseWindow;
-      if (!denseWindow.usedProposedWindow && typeof proposedWindow?.windowStartSeconds === 'number' && typeof proposedWindow.windowEndSeconds === 'number') {
-        limitations = [...limitations, 'The overview window covered the wider stroke; dense extraction used a bounded window centered on its contact anchor.'];
-      }
-      const detailFrames = await extractEverySourceFrameInWindow(inputPath, workDir, {
-        startSeconds,
-        endSeconds,
-        prefix: 'contact-detail',
-        dimension: MAX_FRAME_DIMENSION,
-        maxFrames: limits.maxContactWindowFrames,
-        presentationTimestampsSeconds: metadata.presentationTimestampsSeconds
-      });
-      frameManifest.push(...createFrameManifest(detailFrames, 'contact', shotCandidates[0]?.shotId ?? 'shot_001'));
-      const primaryPhaseContext = shotCandidates[0]?.phases.length ? shotCandidates[0].phases : overview.phases;
-      const detailInputFrames = combineContactAndPhaseFrames(detailFrames, primaryPhaseContext, overviewFrames, candidate.timestampSeconds);
-      const contactFrameIndices = new Set(detailFrames.map(frame => frame.frameIndex));
+      const detailFrames = singleCallFrames;
+      const detailInputFrames = singleCallFrames;
       detailContactFrame = detailFrames.reduce((closest, frame) =>
         Math.abs(frame.timestampSeconds - candidate.timestampSeconds) < Math.abs(closest.timestampSeconds - candidate.timestampSeconds) ? frame : closest
       );
       contactImageDataUrl = detailContactFrame.imageDataUrl;
-      const contactReferenceInstruction = manualTimestamp === undefined
-        ? `The overview pass proposed a likely contact near ${candidate.timestampSeconds.toFixed(6)} seconds.`
-        : `A coach manually selected ${candidate.timestampSeconds.toFixed(6)} seconds as the contact-time reference. Treat that selected moment as the center of review, inspect the neighboring frames for confirmation, and do not silently replace it with a distant event.`;
-      const [detailTaskPrompt, detailSchema] = await Promise.all([
-        loadPromptAsset('detailed.v1.md'),
-        loadSchemaAsset('detailed.schema.v1.json')
-      ]);
-      const detailPrompt = `${renderPromptTemplate(detailTaskPrompt, {
-        shot_id: shotCandidates[0]?.shotId || 'shot_001',
-        shot_type: options.shotType ?? shotCandidates[0]?.shotType ?? 'unknown',
-        batter_handedness: options.batterHandedness ?? 'unknown',
-        camera_view: options.cameraView ?? 'unknown',
-        timing_metadata: JSON.stringify({ playback_speed: options.playbackSpeed ?? 'unknown', capture_fps: options.captureFps ?? null }),
-        priorities: JSON.stringify(priorities)
-      })}\n\nContact reference: ${contactReferenceInstruction}`;
-      const detailCall = await requestVisionJson(
-        client, model, sharedInstructions, detailPrompt, 'batting_detailed_v1', detailSchema,
-        detailInputFrames, value => isDetailed(value, detailInputFrames, metadata.durationSeconds, contactFrameIndices), 'high'
-      );
-      visionCalls.push(detailCall.metadata);
-      const detailed = detailCall.value;
-      normalizeDetailedEvidenceFrames(detailed, detailInputFrames);
+      const detailed = singleCallDetailed;
       const primaryShotId = shotCandidates[0]?.shotId || 'shot_001';
       const primaryPhaseReviewFrames = detailed.landmarksByFrame.flatMap(phase => {
         const frame = detailInputFrames.find(item => item.frameIndex === phase.frameIndex);
@@ -1689,6 +1724,7 @@ export async function analyzeBattingVideoWithOpenAI(
         const selected = detailInputFrames[detailed.contactSampleIndex];
         detailContactFrame = selected;
         contactTimestampSeconds = selected.timestampSeconds;
+        if (manualTimestamp === undefined) selectedTimestampSeconds = selected.timestampSeconds;
         contactImageDataUrl = selected.imageDataUrl;
       } else if ((contactStatus === 'NOT_VISIBLE' || contactStatus === 'UNCERTAIN') && manualTimestamp === undefined) {
         contactTimestampSeconds = null;
@@ -1719,90 +1755,6 @@ export async function analyzeBattingVideoWithOpenAI(
               : frame.timestampSeconds > centerSeconds ? 'POST_CONTACT' as const : 'CONTACT' as const,
             imageDataUrl: frame.imageDataUrl
           }));
-      }
-    }
-
-    if (manualTimestamp === undefined) {
-      for (const [candidatePosition, shot] of shotCandidates.slice(1, 3).entries()) {
-        if (aiCandidate && shot.sampleIndex === aiCandidate.sampleIndex) continue;
-        const shotFrame = overviewFrames[shot.sampleIndex];
-        const denseWindow = selectDenseContactWindow(
-          shotFrame.timestampSeconds, metadata.durationSeconds, limits.contactContextSeconds,
-          limits.maxContactWindowSeconds, shot.windowStartSeconds, shot.windowEndSeconds
-        );
-        const { startSeconds, endSeconds } = denseWindow;
-        const candidateWindowLimitations = !denseWindow.usedProposedWindow && typeof shot.windowStartSeconds === 'number' && typeof shot.windowEndSeconds === 'number'
-          ? ['The overview window covered the wider stroke; dense extraction used a bounded window centered on its contact anchor.']
-          : [];
-        const detailFrames = await extractEverySourceFrameInWindow(inputPath, workDir, {
-          startSeconds,
-          endSeconds,
-          prefix: `shot-${candidatePosition + 2}-detail`,
-          dimension: MAX_FRAME_DIMENSION,
-          maxFrames: limits.maxContactWindowFrames,
-          presentationTimestampsSeconds: metadata.presentationTimestampsSeconds
-        });
-        frameManifest.push(...createFrameManifest(detailFrames, 'contact', shot.shotId));
-        const candidatePhaseContext = shot.phases.length ? shot.phases : overview.phases;
-        const detailInputFrames = combineContactAndPhaseFrames(detailFrames, candidatePhaseContext, overviewFrames, shotFrame.timestampSeconds);
-        const contactFrameIndices = new Set(detailFrames.map(frame => frame.frameIndex));
-        const [detailTaskPrompt, detailSchema] = await Promise.all([
-          loadPromptAsset('detailed.v1.md'),
-          loadSchemaAsset('detailed.schema.v1.json')
-        ]);
-        const detailCall = await requestVisionJson(
-          client, model, sharedInstructions,
-          `${renderPromptTemplate(detailTaskPrompt, {
-            shot_id: shot.shotId,
-            shot_type: options.shotType ?? shot.shotType ?? 'unknown',
-            batter_handedness: options.batterHandedness ?? 'unknown',
-            camera_view: options.cameraView ?? 'unknown',
-            timing_metadata: JSON.stringify({ playback_speed: options.playbackSpeed ?? 'unknown', capture_fps: options.captureFps ?? null }),
-            priorities: JSON.stringify(priorities)
-          })}\n\nCandidate context: centered near ${shotFrame.timestampSeconds.toFixed(6)} seconds. ${shot.evidence}`,
-          'batting_detailed_v1', detailSchema, detailInputFrames,
-          value => isDetailed(value, detailInputFrames, metadata.durationSeconds, contactFrameIndices), 'high'
-        );
-        visionCalls.push(detailCall.metadata);
-        const detailed = detailCall.value;
-        normalizeDetailedEvidenceFrames(detailed, detailInputFrames);
-        batLandmarksByFrame.push(...detailed.batLandmarksByFrame);
-        annotations.push(...detailed.annotations);
-        const candidatePhaseReviewFrames = detailed.landmarksByFrame.flatMap(phase => {
-          const frame = detailInputFrames.find(item => item.frameIndex === phase.frameIndex);
-          return frame ? [{
-            shotId: shot.shotId,
-            frameIndex: phase.frameIndex,
-            timestampSeconds: frame.timestampSeconds,
-            phase: phase.phase,
-            confidence: phase.confidence,
-            landmarksNorm: phase.landmarksNorm,
-            imageDataUrl: frame.imageDataUrl
-          }] : [];
-        });
-        phaseReviewFrames.push(...candidatePhaseReviewFrames);
-        const candidateJointAngles = calculateJointAngles(detailed.landmarksByFrame, detailInputFrames);
-        jointAngles.push(...candidateJointAngles);
-        const candidateBatAngles = calculateBatAngles(detailed.batLandmarksByFrame, detailInputFrames, bodyLandmarkMap(detailed, detailInputFrames));
-        batAngles.push(...candidateBatAngles);
-        shotAssessments.push({
-          shotId: shot.shotId,
-          shotType: detailed.shotIdentification.shotType ?? shot.shotType,
-          timestampSeconds: shotFrame.timestampSeconds,
-          status: detailed.status,
-          contactStatus: detailed.contactStatus,
-          confidence: detailed.contactConfidence,
-          summary: detailed.summary,
-          observations: detailed.observations,
-          errors: detailed.errors,
-          strengths: detailed.strengths,
-          limitations: [...new Set([...detailed.limitations, ...candidateWindowLimitations])],
-          jointAngles: candidateJointAngles,
-          batAngles: candidateBatAngles,
-          phaseReviewFrames: candidatePhaseReviewFrames,
-          batLandmarksByFrame: detailed.batLandmarksByFrame,
-          annotations: detailed.annotations
-        });
       }
     }
 
@@ -1944,7 +1896,7 @@ export async function analyzeBattingVideoWithOpenAI(
       batLandmarksByFrame,
       annotations,
       executionLog: {
-        stages: ['hash_source_video', 'probe_video', 'sample_overview_frames', 'openai_overview', ...(candidate ? ['decode_all_contact_window_pts_frames', 'include_overview_phase_context', 'openai_detailed_analysis'] : []), ...(shotAssessments.length > 1 ? ['analyze_additional_shots'] : []), 'calculate_projected_joint_angles', 'calculate_projected_bat_angles', 'render_review_svgs'],
+        stages: ['hash_source_video', 'probe_video', 'sample_full_clip_frames', ...(manualTimestamp === undefined ? [] : ['decode_manual_contact_window_frames']), 'openai_single_pass_batting_analysis', 'calculate_projected_joint_angles', 'calculate_projected_bat_angles', 'render_review_svgs'],
         analysisElapsedMs: Date.now() - analysisStartedAt,
         visionCalls,
         toolVersions: { node: process.version, ffmpeg: ffmpegVersion, ffprobe: ffprobeVersion, sharp: 'pending_artifact_renderer' },

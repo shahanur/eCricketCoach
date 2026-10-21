@@ -3351,7 +3351,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-violet-200">OpenAI batting video review</h4>
-                  <p className="text-[11px] text-slate-400">Samples the video, identifies a likely contact frame, and reports visual evidence and uncertainty. Separate from CAPE.</p>
+                  <p className="text-[11px] text-slate-400">One OpenAI request samples the clip, locates likely contact, and reports visual evidence and uncertainty. Sparse samples can make exact impact timing uncertain.</p>
                 </div>
                 <button
                   type="button"
@@ -3561,7 +3561,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
               initialContactFrame={openAiContactFrameForCape}
               startLabel={openAiContactFrameForCape === null
                 ? 'Analyse with CAPE'
-                : `Analyse OpenAI contact frame #${openAiContactFrameForCape} with CAPE`}
+                : 'Verify OpenAI contact with CAPE'}
               onJobChange={setComparisonCapeJob}
               source={videoSourceMode === 'LOCAL_UPLOAD'
                 ? (uploadedVideoFile ? { name: uploadedVideoFile.name, file: uploadedVideoFile } : null)
@@ -3687,14 +3687,16 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             <div className="rounded-xl border border-violet-400/30 bg-slate-950 p-5 space-y-4">
               <div className="flex flex-col gap-2 border-b border-slate-800 pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h4 className="text-sm font-bold text-white">OpenAI batting review</h4>
+                  <h4 className="text-sm font-bold text-white">Batting review</h4>
                   <p className="text-xs text-slate-400">
-                    {clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'} · {openAiBattingAnalysis.model}
+                    {clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="w-fit rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">
-                    {openAiBattingAnalysis.contact.selectionSource === 'MANUAL' ? 'Manual reference' : 'AI suggestion'} · {openAiBattingAnalysis.contact.status} · {Math.round(openAiBattingAnalysis.contact.confidence * 100)}% confidence
+                    {openAiBattingAnalysis.contact.status === 'DETECTED' ? 'Contact visible'
+                      : openAiBattingAnalysis.contact.status === 'LIKELY' ? 'Contact likely'
+                        : openAiBattingAnalysis.contact.status === 'UNCERTAIN' ? 'Contact unclear' : 'Contact not visible'}
                   </span>
                   {openAiBattingAnalysis.reportId && (
                     <button
@@ -3710,33 +3712,25 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
 
               {openAiArtifactDownloadError && <p role="alert" className="text-xs text-rose-300">{openAiArtifactDownloadError}</p>}
 
-              {openAiBattingAnalysis.shotAssessments.length > 0 && (
-                <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-                  <h5 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">Stroke assessments</h5>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {openAiBattingAnalysis.shotAssessments.map(shot => (
-                      <div key={shot.shotId} className="rounded-md bg-slate-950 p-3">
-                        <p className="text-xs font-semibold text-violet-200">{shot.shotId} · {shot.shotType || 'Shot type uncertain'} · {shot.contactStatus}</p>
-                        <p className="mt-1 text-xs text-slate-300">{shot.summary}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">{shot.timestampSeconds.toFixed(3)} s · {shot.status}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {openAiBattingAnalysis.reportId && (
                 <section className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
                   <div>
                     <h5 className="text-xs font-bold uppercase tracking-wide text-emerald-200">Coach review</h5>
-                    <p className="mt-1 text-[11px] text-slate-400">Mark findings and add your coaching note. Saving updates the report JSON, Markdown, checksums, and ZIP.</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Mark findings and add your coaching note. Your notes will be added to the report.</p>
                   </div>
                   {openAiFindingList.map((finding, findingIndex) => (
                     <div key={`${finding.title}-${findingIndex}`} className="grid gap-2 rounded-md border border-slate-800 bg-slate-950 p-3 md:grid-cols-[1fr_160px]">
                       <div>
                         <p className="text-xs font-semibold text-white">{finding.title}</p>
-                        <p className="mt-1 text-xs text-slate-300">{finding.observation}</p>
-                        <p className="mt-1 text-[10px] text-slate-500">Frames {finding.frameIndices.join(', ') || 'not cited'} · {finding.confidence} confidence</p>
+                        <p className="mt-1 text-xs text-slate-300">{finding.coachingImplication}</p>
+                        {finding.coachingCue && <p className="mt-1 text-xs text-violet-200">Cue: {finding.coachingCue}</p>}
+                        {finding.drill && <p className="mt-1 text-xs text-emerald-200">Drill: {finding.drill}</p>}
+                        <details className="mt-2 text-[10px] text-slate-500">
+                          <summary className="cursor-pointer">Advanced details · evidence</summary>
+                          <p className="mt-1">{finding.observation}</p>
+                          {finding.alternativeExplanation && <p className="mt-1">Alternative explanation: {finding.alternativeExplanation}</p>}
+                          <p className="mt-1">Evidence references: {finding.frameIndices.join(', ') || 'not cited'} · {finding.confidence} confidence</p>
+                        </details>
                       </div>
                       <div className="space-y-2">
                         <label className="block text-[10px] text-slate-400">Review decision
@@ -3763,19 +3757,22 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
                   <img
                     src={openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl}
-                    alt="Preparation, downswing, near-contact, and follow-through sequence with source frame timestamps"
+                    alt="Preparation, downswing, near-contact, and follow-through movement sequence"
                     className="block h-auto w-full"
                   />
-                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement sequence from sampled source frames. Phase labels are visual estimates.</figcaption>
+                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement phases are visual estimates.</figcaption>
                 </figure>
-                <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                  <img
-                    src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl}
-                    alt="Near-contact frame with approximate joint and alignment annotations and coaching observations"
-                    className="block h-auto w-full"
-                  />
-                  <figcaption className="px-3 py-2 text-[11px] text-slate-400">Landmarks are approximate visual estimates; force arrows are illustrative, not measured.</figcaption>
-                </figure>
+                <details className="rounded-lg border border-slate-800 bg-slate-900">
+                  <summary className="cursor-pointer p-3 text-xs font-semibold text-slate-300">Advanced details · annotated contact view</summary>
+                  <figure className="overflow-hidden border-t border-slate-800">
+                    <img
+                      src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl}
+                      alt="Contact view with estimated joint and alignment annotations"
+                      className="block h-auto w-full"
+                    />
+                    <figcaption className="px-3 py-2 text-[11px] text-slate-400">Visual estimates; illustrative arrows are not measurements.</figcaption>
+                  </figure>
+                </details>
               </div>
 
               <CroppedPoseOverlayPanel
@@ -3784,6 +3781,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
               />
 
+              <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · frame-by-frame measurements</summary>
               {openAiBattingAnalysis.jointAngles.some(angle => angle.status === 'calculated') && (
                 <div className="overflow-x-auto rounded-lg border border-slate-800">
                   <table className="w-full text-left text-xs">
@@ -3829,16 +3828,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <p className="px-2 pb-2 text-[10px] text-slate-500">Handle-to-toe direction from straight down in the image (0° = bat hanging below the hands, above 90° = toe above the hands), CAPE's convention. 2D estimate; not a bat face or lie angle.</p>
                 </div>
               )}
+              </details>
 
               {openAiBattingAnalysis.reportId && openAiBattingAnalysis.artifactNames && (
-                <div className="flex flex-wrap gap-2">
-                  {openAiBattingAnalysis.artifactNames.filter(name => name !== 'analysis_bundle.zip').map(name => (
-                    <button key={name} onClick={() => void downloadOpenAiArtifact(name)} disabled={downloadingOpenAiArtifact !== null}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-400/50 disabled:opacity-50">
-                      {downloadingOpenAiArtifact === name ? 'Preparing…' : `Download ${name}`}
-                    </button>
-                  ))}
-                </div>
+                <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                  <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · individual report files</summary>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {openAiBattingAnalysis.artifactNames.filter(name => name !== 'analysis_bundle.zip').map(name => (
+                      <button key={name} onClick={() => void downloadOpenAiArtifact(name)} disabled={downloadingOpenAiArtifact !== null}
+                        className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-400/50 disabled:opacity-50">
+                        {downloadingOpenAiArtifact === name ? 'Preparing…' : `Download ${name}`}
+                      </button>
+                    ))}
+                  </div>
+                </details>
               )}
 
             </div>

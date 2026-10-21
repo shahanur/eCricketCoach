@@ -5,11 +5,11 @@ The authenticated `POST /api/videos/analyze/openai-batting` endpoint analyzes an
 ## Pipeline and limits
 
 - The OpenAI route accepts coach-provided shot type, handedness, camera view, playback speed, optional capture FPS, and priorities. Unknown values are explicit and are not inferred.
-- FFprobe timestamps are used to map frames to original presentation timestamps. The overview defaults to up to 4 fps, bounded to 36 images.
-- Up to three distinct overview stroke candidates are retained. The primary candidate and up to two additional candidates get a dense contact-window pass.
-- Contact windows default to 0.5 seconds on either side of the candidate and decode every original PTS frame. They are bounded by `OPENAI_MAX_CONTACT_WINDOW_SECONDS` and `OPENAI_MAX_CONTACT_WINDOW_FRAMES`; over-limit windows fail explicitly instead of silently dropping frames.
-- Structured-output budgets are capped at 4,000 tokens for overview and 8,000 per detailed pass, with one retry at 8,000/16,000 only when the API reports `max_output_tokens`. Refusals and content-filter interruptions are not retried.
-- Detailed requests include every decoded contact-window frame; only frames within 0.1 seconds of the contact anchor use high image detail. The remainder of the contact sequence and overview phase context use low detail to reduce preprocessing latency without dropping temporal samples.
+- The pipeline makes one OpenAI Responses request. FFprobe maps frame samples to original presentation timestamps; the default automatic mode sends up to 36 full-clip samples at up to 4 fps. The detailed response identifies likely contact and assesses one stroke.
+- Automatic mode does not run a second dense contact pass or additional candidate-shot passes. Since samples are sparse, exact impact may be marked uncertain or not visible rather than interpolated.
+- When the coach supplies a contact timestamp, CAPE’s bounded contact-window settings control local decoding of every original PTS frame (0.5 seconds per side by default, maximum 2 seconds / 120 frames). Over-limit windows fail explicitly instead of silently dropping frames.
+- Structured output is capped at 8,000 tokens with one retry at 16,000 only when the API reports `max_output_tokens`. Refusals and content-filter interruptions are not retried. `OPENAI_REASONING_EFFORT` defaults to `low` and can be raised if quality needs more reasoning.
+- Automatic full-clip samples use low image detail. In manual dense-window mode, only frames within 0.05 seconds of the selected contact use high detail; other supplied frames remain in the request at low detail.
 - Coordinates and joint angles are projected 2D visual estimates. The application calculates interior image-plane angles from pixel-scaled landmark coordinates; these are not clinical or 3D angles. Physical speed, forces, torque, and ground reaction force are not measured.
 - PNG visuals are rendered from original-resolution, orientation-corrected source frames. Contact review brackets uncertain impact. Phase-specific joint montages, bat shaft positions, annotations, crop transforms, source frame references, and output checksums are recorded. Bat positions are not connected into a measured trajectory. Unsupported visuals are omitted and explained in `report.md`.
 
@@ -20,13 +20,14 @@ All limits are optional server environment variables; invalid values fall back t
 | Variable | Default | Bounded range |
 |---|---:|---:|
 | `OPENAI_VIDEO_ANALYSIS_MODEL` | `gpt-6.1-sol` | Configured model ID; no silent substitution |
+| `OPENAI_REASONING_EFFORT` | `low` | `low`, `medium`, or `high` |
 | `OPENAI_MAX_VIDEO_SIZE_MB` | `500` | 1–2048 MB |
 | `OPENAI_MAX_VIDEO_DURATION_SECONDS` | `180` | 1–600 seconds |
 | `OPENAI_OVERVIEW_FPS` | `4` | 0.5–10 fps |
 | `OPENAI_MAX_OVERVIEW_FRAMES` | `36` | 4–120 frames |
 | `OPENAI_CONTACT_CONTEXT_SECONDS` | `0.5` | 0.1–1.5 seconds per side |
 | `OPENAI_MAX_CONTACT_WINDOW_SECONDS` | `2` | 0.5–5 seconds |
-| `OPENAI_MAX_CONTACT_WINDOW_FRAMES` | `120` | 1–800 original frames per stroke |
+| `OPENAI_MAX_CONTACT_WINDOW_FRAMES` | `120` | 1–800 original frames in manual-contact mode |
 | `OPENAI_REQUEST_TIMEOUT_MS` | `240000` | 30,000–600,000 ms per Responses request; SDK retries disabled |
 | `OPENAI_REPORTS_DIR` | Compose: `/var/openai-reports` | Persistent server-only volume |
 

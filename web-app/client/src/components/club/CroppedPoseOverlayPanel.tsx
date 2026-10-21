@@ -120,7 +120,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     const value = rawValue ?? temporal?.value ?? null;
     const usedTemporalEstimate = rawValue === null || rawValue === undefined ? temporal : undefined;
     const status = usedTemporalEstimate
-      ? `Nearest frame #${usedTemporalEstimate.frame_index} (${usedTemporalEstimate.offset_ms > 0 ? '+' : ''}${usedTemporalEstimate.offset_ms} ms)`
+      ? 'Estimated from nearby frames'
       : statusText(check, value !== null, group === 'alignment');
     return {
       key: `${group}-${metric}`,
@@ -162,6 +162,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     { label: 'Follow-through arc', key: 'followThroughArcDegrees', unit: '°' }
   ];
   const capeKinetics = analysis.capeKinetics;
+  const showCapeKinetics = Boolean(capeKinetics && capeKinetics.status !== 'not_requested');
   const kineticsValue = (key: typeof kineticsRows[number]['key'], unit: string) => {
     const value = capeKinetics?.metrics[key];
     if (value !== null && value !== undefined) return `${value.toFixed(1)}${unit}`;
@@ -173,8 +174,8 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     <section className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-4" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h5 className="text-sm font-bold text-cyan-100">Pose overlay on OpenAI contact crop</h5>
-          <p className="text-[11px] text-slate-400">OpenAI landmarks are primary; MediaPipe fills only missing points. YOLO and OpenCV provide person geometry and 2D calculations.</p>
+          <h5 className="text-sm font-bold text-cyan-100">Movement and technique</h5>
+          <p className="text-[11px] text-slate-400">A visual estimate to help guide coaching discussion.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <label className="flex items-center gap-2 text-xs text-slate-300">
@@ -219,91 +220,64 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         <p className="text-sm font-semibold text-white">{analysis.summary}</p>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
           <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-cyan-100">
-            Contact: {analysis.contact.status.toLowerCase().replace(/_/g, ' ')} · {Math.round(analysis.contact.confidence * 100)}% confidence
+            {analysis.contact.status === 'DETECTED' ? 'Contact visible'
+              : analysis.contact.status === 'LIKELY' ? 'Contact likely'
+                : analysis.contact.status === 'UNCERTAIN' ? 'Contact unclear' : 'Contact not visible'}
           </span>
-          {analysis.contact.frameIndex !== null && (
-            <span className="text-slate-400">
-              Frame #{analysis.contact.frameIndex} · {analysis.contact.timestampSeconds?.toFixed(3) ?? '—'}s
-            </span>
-          )}
-          <span className="text-slate-500">{analysis.contact.selectionSource === 'MANUAL' ? 'Coach-selected reference' : 'AI-selected reference'}</span>
         </div>
-        <p className="mt-2 text-xs text-slate-300">{analysis.contact.evidence}</p>
+        <details className="mt-2 text-[11px] text-slate-400">
+          <summary className="cursor-pointer">Advanced details · contact notes</summary>
+          <p className="mt-1">{analysis.contact.evidence}</p>
+        </details>
       </div>
 
       {result && (
         <>
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/50 p-3">
             <div>
-              <h6 className="text-xs font-semibold uppercase tracking-wide text-violet-200">Detailed batting analysis</h6>
+              <h6 className="text-xs font-semibold uppercase tracking-wide text-violet-200">Technique summary</h6>
               <p className="mt-1 text-sm font-semibold text-white">{result.coaching_rules.verdict}</p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                {formatShotType(result.coaching_rules.shot_type)} · {result.coaching_rules.checks_evaluated}/{result.coaching_rules.checks_applicable} CAPE checks evaluated · {result.landmark_source === 'openai+mediapipe-fallback' ? 'OpenAI primary + MediaPipe fallback' : result.landmark_source === 'openai' ? 'OpenAI landmarks' : 'MediaPipe landmarks'}
-              </p>
+              <p className="mt-1 text-[11px] text-slate-400">{formatShotType(result.coaching_rules.shot_type)}</p>
             </div>
-            {!result.coaching_rules.score_scope.startsWith('partial') && (
-              <span className="rounded-full border border-violet-300/30 bg-violet-400/10 px-3 py-1 text-sm font-bold text-violet-100">{result.coaching_rules.score}/100</span>
-            )}
           </section>
 
           <CapeStyleMetricTable title="Kinematics" rows={kinematicsRows} />
           <CapeStyleMetricTable title="Alignment checklist" rows={alignmentRows} />
-          <section className="overflow-x-auto rounded-lg border border-slate-800">
-            <table className="w-full text-left text-xs">
-              <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">CAPE video estimate</th></tr></thead>
-              <tbody>
-                {kineticsRows.map(({ label, key, unit }) => (
-                  <tr key={key} className="border-t border-slate-800 bg-slate-950/40">
-                    <td className="py-2 pl-3 pr-2 text-slate-200">{label}</td>
-                    <td className="py-2 pr-3 text-slate-300">{kineticsValue(key, unit)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {capeKinetics?.source === 'cape' && capeKinetics.contactFrame !== null && (
-              <p className="px-3 pb-1 text-[10px] text-slate-400">
-                CAPE contact: frame #{capeKinetics.contactFrame} ({capeKinetics.contactSelectionSource ?? 'automatic'}); OpenAI contact: {analysis.contact.frameIndex === null ? 'unavailable' : `frame #${analysis.contact.frameIndex}`}.
-              </p>
-            )}
-            <p className="px-3 pb-2 text-[10px] text-slate-500">{capeKinetics?.limitations.join(' ') || 'Enable CAPE video kinetics and provide four pitch-corner calibration points to estimate these metrics.'} {result.coaching_rules.metric_basis}</p>
-          </section>
+          {(result.coaching_rules.faults.length > 0 || result.coaching_rules.strengths.length > 0 || result.coaching_rules.unavailable.length > 0) && (
+            <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · CAPE rule comparison</summary>
+              {!result.coaching_rules.score_scope.startsWith('partial') && <p className="mt-2 text-xs text-slate-400">Rule-check score: {result.coaching_rules.score}/100</p>}
+              {result.coaching_rules.faults.length > 0 && (
+                <section className="mt-3 space-y-2">
+                  {result.coaching_rules.faults.map(fault => (
+                    <article key={fault.code} className={`rounded-lg border p-3 ${fault.severity === 'high' ? 'border-rose-400/30 bg-rose-500/10' : fault.severity === 'medium' ? 'border-amber-400/30 bg-amber-500/10' : 'border-yellow-400/20 bg-yellow-500/5'}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h6 className="text-xs font-bold text-white">{fault.verdict || fault.message}</h6>
+                        <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] uppercase">{fault.severity}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-300">{fault.message}</p>
+                      <p className="mt-1 text-[11px] text-slate-400">{fault.metric.replace(/_/g, ' ')}: {fault.value.toFixed(1)} · {formatExpectedValue(fault.expected, fault.metric)}</p>
+                      <p className="mt-1 text-xs text-slate-200">{fault.recommendation}</p>
+                      {fault.drill && <p className="mt-1 text-[11px] text-violet-200">Drill: {fault.drill}</p>}
+                    </article>
+                  ))}
+                </section>
+              )}
+              {result.coaching_rules.strengths.length > 0 && <ul className="mt-2 list-disc pl-4 text-xs text-emerald-200">{result.coaching_rules.strengths.map((strength, index) => <li key={index}>{strength}</li>)}</ul>}
+              {result.coaching_rules.unavailable.length > 0 && <p className="mt-2 text-[11px] text-slate-400">Not assessed: {result.coaching_rules.unavailable.map(name => name.replace(/_/g, ' ')).join(', ')}.</p>}
+            </details>
+          )}
 
-          {result.coaching_rules.faults.length > 0 && (
-            <section className="space-y-2">
-              <h6 className="text-xs font-semibold text-white">What to fix</h6>
-              {result.coaching_rules.faults.map(fault => (
-                <article key={fault.code} className={`rounded-lg border p-3 ${fault.severity === 'high' ? 'border-rose-400/30 bg-rose-500/10' : fault.severity === 'medium' ? 'border-amber-400/30 bg-amber-500/10' : 'border-yellow-400/20 bg-yellow-500/5'}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h6 className="text-xs font-bold text-white">{fault.verdict || fault.message}</h6>
-                    <span className="rounded-full border border-current/30 px-2 py-0.5 text-[10px] uppercase">{fault.severity}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-300">{fault.message}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">{fault.metric.replace(/_/g, ' ')}: {fault.value.toFixed(1)} · {formatExpectedValue(fault.expected, fault.metric)}</p>
-                  <p className="mt-1 text-xs text-slate-200">{fault.recommendation}</p>
-                  {fault.drill && <p className="mt-1 text-[11px] text-violet-200">Drill: {fault.drill}</p>}
-                </article>
-              ))}
-            </section>
-          )}
-          {result.coaching_rules.strengths.length > 0 && (
-            <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
-              <h6 className="text-xs font-semibold text-emerald-200">Strengths</h6>
-              <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">{result.coaching_rules.strengths.map((strength, index) => <li key={index}>{strength}</li>)}</ul>
-            </section>
-          )}
-          {result.coaching_rules.unavailable.length > 0 && (
-            <p className="text-[11px] text-slate-400">Not evaluated: {result.coaching_rules.unavailable.map(name => name.replace(/_/g, ' ')).join(', ')}; these checks require additional frames or calibrated video.</p>
-          )}
-          <p className="text-[10px] text-slate-500">Rules loaded from CAPE’s shared coaching_rules.yaml. Expected ranges and status are taken directly from that rules file.</p>
-
-          <div className="grid items-start gap-4 xl:grid-cols-2">
+          <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · pose overlay images</summary>
+          <div className="mt-3 grid items-start gap-4 xl:grid-cols-2">
             <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
               <img
                 src={imageDataUrl || ''}
                 alt="Enlarged batter crop produced from the selected OpenAI contact frame"
                 className="max-h-[75vh] w-full bg-black object-contain"
               />
-              <figcaption className="px-3 py-2 text-[11px] text-slate-400">OpenAI contact-frame crop sent to the pose service</figcaption>
+              <figcaption className="px-3 py-2 text-[11px] text-slate-400">Selected contact view</figcaption>
             </figure>
             <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
               <img
@@ -311,11 +285,10 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
                 alt="MediaPipe and OpenAI pose landmarks with head-to-toe alignment and joint labels"
                 className="max-h-[75vh] w-full bg-black object-contain"
               />
-              <figcaption className="flex flex-wrap items-center justify-between gap-1 px-3 py-2 text-[11px] text-slate-400">
-                {result.width} × {result.height}px crop · magenta markers are OpenAI estimates; skeleton is MediaPipe{result.person_detection ? ` · YOLO person confidence ${Math.round(result.person_detection.confidence * 100)}%` : ''}
-              </figcaption>
+              <figcaption className="flex flex-wrap items-center justify-between gap-1 px-3 py-2 text-[11px] text-slate-400">Pose overlay · visual estimates</figcaption>
             </figure>
           </div>
+          </details>
           {result.sequence.length > 0 && (
             <section className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
               <div>
@@ -328,19 +301,21 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
                     {frame.status === 'success' && frame.overlay_image_base64 ? (
                       <img
                         src={`data:${frame.overlay_mime_type || 'image/png'};base64,${frame.overlay_image_base64}`}
-                        alt={`${frame.phase.toLowerCase().replace(/_/g, ' ')} pose overlay at ${frame.timestamp_seconds.toFixed(3)} seconds`}
+                        alt={`${frame.phase.toLowerCase().replace(/_/g, ' ')} pose overlay`}
                         className="max-h-80 w-full bg-black object-contain"
                       />
                     ) : (
                       <div className="flex min-h-36 items-center justify-center p-3 text-center text-[11px] text-slate-400">{frame.error || 'Pose unavailable for this frame.'}</div>
                     )}
                     <figcaption className="px-2 py-1.5 text-[10px] text-slate-300">
-                      {frame.phase.replace(/_/g, ' ')} · #{frame.frame_index} · {frame.timestamp_seconds.toFixed(3)}s
+                      {frame.phase.replace(/_/g, ' ')}
                     </figcaption>
                   </figure>
                 ))}
               </div>
-              <div className="overflow-x-auto rounded-lg border border-slate-800">
+              <details className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · measurements through the movement</summary>
+              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-800">
                 <table className="w-full text-left text-[11px]">
                   <thead className="text-slate-500">
                     <tr>
@@ -371,15 +346,11 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
                   </tbody>
                 </table>
               </div>
+              </details>
             </section>
           )}
-          <p className="text-[11px] text-slate-400">
-            Primary landmark source: {result.landmark_source === 'openai+mediapipe-fallback'
-              ? 'OpenAI, with MediaPipe fallback for missing joints'
-              : result.landmark_source === 'openai' ? 'OpenAI' : 'MediaPipe'}.
-          </p>
           <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Optional: compare OpenAI and MediaPipe landmark outputs</summary>
+            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · measurement sources</summary>
             <div className="mt-3 space-y-3">
               <PoseMetricTable title="Joint-model comparison · 2D estimates" metricKeys={jointMetricKeys} metrics={result.mediapipe_metrics} openAiMetrics={result.openai_metrics} />
               <PoseMetricTable title="Alignment-model comparison · image-plane estimates" metricKeys={alignmentMetricKeys} metrics={result.mediapipe_metrics} openAiMetrics={result.openai_metrics} />
@@ -402,9 +373,9 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </>
       )}
 
-      <section className="overflow-x-auto rounded-lg border border-slate-800">
+      {showCapeKinetics && <section className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-left text-xs">
-          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">CAPE video estimate</th></tr></thead>
+          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Video measurements</th><th className="py-1.5 pr-3 font-medium">Estimate</th></tr></thead>
           <tbody>
             {kineticsRows.map(({ label, key, unit }) => (
               <tr key={key} className="border-t border-slate-800">
@@ -414,45 +385,14 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
             ))}
           </tbody>
         </table>
-        {capeKinetics?.source === 'cape' && capeKinetics.contactFrame !== null && (
-          <p className="px-3 pb-1 text-[10px] text-slate-400">CAPE contact: frame #{capeKinetics.contactFrame} ({capeKinetics.contactSelectionSource ?? 'automatic'}); OpenAI contact: {analysis.contact.frameIndex === null ? 'unavailable' : `frame #${analysis.contact.frameIndex}`}.</p>
-        )}
-        <p className="px-3 pb-2 text-[10px] text-slate-500">{capeKinetics?.limitations.join(' ') || 'Enable CAPE video kinetics and provide four pitch-corner calibration points to estimate these metrics.'}</p>
-      </section>
-
-      {analysis.errors.length > 0 && (
-        <section className="space-y-2">
-          <h6 className="text-xs font-semibold uppercase tracking-wide text-rose-200">What to review</h6>
-          {analysis.errors.map((item, index) => (
-            <article key={`${item.title}-${index}`} className="rounded-lg border border-rose-400/30 bg-rose-500/10 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h6 className="text-xs font-bold text-rose-100">{item.title}</h6>
-                <span className="text-[10px] uppercase text-rose-200">{item.confidence} confidence</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-200">{item.observation}</p>
-              <p className="mt-1 text-xs text-slate-300">{item.coachingImplication}</p>
-            </article>
-          ))}
-        </section>
-      )}
-
-      {analysis.observations.length > 0 && (
-        <section className="space-y-2">
-          <h6 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Visible observations</h6>
-          {analysis.observations.map((item, index) => (
-            <article key={`${item.title}-${index}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h6 className="text-xs font-bold text-white">{item.title}</h6>
-                <span className="text-[10px] uppercase text-slate-500">{item.confidence} confidence</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-300">{item.observation}</p>
-              <p className="mt-1 text-xs text-cyan-100">{item.coachingImplication}</p>
-              {item.coachingCue && <p className="mt-1 text-xs text-violet-200">Cue: {item.coachingCue}</p>}
-              {item.drill && <p className="mt-1 text-xs text-emerald-200">Drill: {item.drill}</p>}
-            </article>
-          ))}
-        </section>
-      )}
+        <details className="px-3 pb-2 text-[10px] text-slate-500">
+          <summary className="cursor-pointer">Advanced details · measurement notes</summary>
+          <p className="mt-1">{capeKinetics?.limitations.join(' ')}</p>
+          {capeKinetics?.contactFrame !== null && capeKinetics?.contactFrame !== undefined && (
+            <p>CAPE selected contact from {capeKinetics.contactSelectionSource ?? 'automatic'} review; OpenAI contact: {analysis.contact.frameIndex === null ? 'not available' : 'also reviewed'}.</p>
+          )}
+        </details>
+      </section>}
 
       {(analysis.priorityCue || analysis.drill.title || analysis.strengths.length > 0) && (
         <section className="space-y-2 rounded-lg border border-violet-400/25 bg-violet-500/5 p-3">
@@ -476,7 +416,6 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
                 {analysis.strengths.map((strength, index) => (
                   <li key={`${strength.title}-${index}`}>
                     <span className="font-semibold">{strength.title}:</span> {strength.observation}
-                    <span className="ml-1 text-[10px] text-slate-500">{strength.confidence} confidence · frames {strength.frameIndices.join(', ') || 'not cited'}</span>
                   </li>
                 ))}
               </ul>
@@ -485,9 +424,12 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </section>
       )}
 
-      <ul className="space-y-1 rounded-lg border border-amber-400/20 bg-amber-500/5 p-3 text-[11px] text-amber-100/80">
-        {[...new Set([...analysis.limitations, ...(result?.limitations || [])])].map((limitation, index) => <li key={index}>• {limitation}</li>)}
-      </ul>
+      <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · limitations</summary>
+        <ul className="mt-2 space-y-1 text-[11px] text-slate-400">
+          {[...new Set([...analysis.limitations, ...(result?.limitations || [])])].map((limitation, index) => <li key={index}>• {limitation}</li>)}
+        </ul>
+      </details>
     </section>
   );
 };
@@ -523,7 +465,6 @@ const CapeStyleMetricTable: React.FC<{
             <tr key={row.key} className="border-t border-slate-800">
               <td className="py-1.5 pr-2 text-slate-200">
                 {row.label}
-                {row.source && row.source !== 'OpenAI 2D' && <span className="ml-1 text-[9px] text-slate-500">({row.source})</span>}
               </td>
               <td className="py-1.5 pr-2 text-white">{row.value === null ? '—' : `${row.value.toFixed(1)}${unit}`}</td>
               <td className="py-1.5 pr-2 text-slate-400">{row.expected}</td>

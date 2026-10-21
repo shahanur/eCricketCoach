@@ -11,14 +11,14 @@ const image: VisualFrame = {
   playerBoxNorm: { left: 0.35, top: 0.2, right: 0.75, bottom: 0.9 }
 };
 
-test('movement sequence SVG contains four phases with source frame and PTS labels', () => {
+test('movement sequence SVG contains four phases without technical frame labels', () => {
   const phases: SequencePhase[] = ['Preparation', 'Downswing', 'Near contact', 'Follow-through']
     .map((label, index) => ({ label, frame: { ...image, frameIndex: 200 + index, timestampSeconds: 6.9 + index } }));
   const svg = makeMovementSequenceSvg(phases);
 
   for (const label of ['Preparation', 'Downswing', 'Near contact', 'Follow-through']) assert.ok(svg.includes(label));
-  assert.ok(svg.includes('Frame #200'));
-  assert.ok(svg.includes('6.900 s'));
+  assert.equal(svg.includes('Frame #200'), false);
+  assert.equal(svg.includes('6.900 s'), false);
   assert.ok(svg.includes(image.imageDataUrl));
 });
 
@@ -52,6 +52,8 @@ test('joint alignment SVG includes approximate landmarks and illustrative-force 
   assert.ok(svg.includes('Head position'));
   assert.ok(svg.includes('Step to the line.'));
   assert.ok(svg.includes('KINETICS · ILLUSTRATIVE ONLY'));
+  assert.equal(svg.includes('Near-contact frame #240'), false);
+  assert.equal(svg.includes('Confidence: moderate'), false);
   const visibleText = svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
   assert.ok(visibleText.includes('No force, torque, power'));
   assert.ok(svg.includes(image.imageDataUrl));

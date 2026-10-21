@@ -81,8 +81,6 @@ function imageElement(frame: VisualFrame, crop: NormalizedBox, viewport: { x: nu
   return `<defs><clipPath id="${clipId}"><rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" rx="8"/></clipPath></defs><image href="${frame.imageDataUrl}" x="${place.x}" y="${place.y}" width="${place.width}" height="${place.height}" preserveAspectRatio="none" clip-path="url(#${clipId})"/>`;
 }
 
-const fmtTime = (seconds: number) => `${seconds.toFixed(3)} s`;
-
 export function makeMovementSequenceSvg(phases: SequencePhase[]): string {
   const width = 1440;
   const height = 590;
@@ -96,9 +94,9 @@ export function makeMovementSequenceSvg(phases: SequencePhase[]): string {
     const x = margin + index * (panelWidth + gap);
     const viewport = { x: x + 10, y: imageY, width: panelWidth - 20, height: imageHeight };
     const crop = cropBox(phase.frame.playerBoxNorm);
-    return `<g><rect x="${x}" y="56" width="${panelWidth}" height="${cardHeight}" rx="12" fill="#182436" stroke="#34445b"/>${imageElement(phase.frame, crop, viewport, `sequence-${index}`)}<text x="${x + 10}" y="${imageY + imageHeight + 34}" fill="#ffffff" font-family="Arial,sans-serif" font-size="24" font-weight="600">${escapeXml(phase.label)}</text><text x="${x + 10}" y="${imageY + imageHeight + 68}" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="20">Frame #${phase.frame.frameIndex} · ${fmtTime(phase.frame.timestampSeconds)}</text></g>`;
+    return `<g><rect x="${x}" y="56" width="${panelWidth}" height="${cardHeight}" rx="12" fill="#182436" stroke="#34445b"/>${imageElement(phase.frame, crop, viewport, `sequence-${index}`)}<text x="${x + 10}" y="${imageY + imageHeight + 48}" fill="#ffffff" font-family="Arial,sans-serif" font-size="24" font-weight="600">${escapeXml(phase.label)}</text></g>`;
   }).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#101c2c"/><text x="24" y="34" fill="#f8fafc" font-family="Arial,sans-serif" font-size="23" font-weight="700">Batting movement sequence</text>${panels}<text x="24" y="566" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="17">Frames are original video samples; phase labels and contact timing are visual estimates.</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#101c2c"/><text x="24" y="34" fill="#f8fafc" font-family="Arial,sans-serif" font-size="23" font-weight="700">Batting movement sequence</text>${panels}<text x="24" y="566" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="17">Movement phases are visual estimates, not motion tracking.</text></svg>`;
 }
 
 function wrappedText(text: string, x: number, y: number, maxChars: number, color: string, fontSize = 18, lineHeight = 25): { svg: string; nextY: number } {
@@ -170,16 +168,16 @@ export function makeJointAlignmentSvg(review: JointReviewVisual): string {
     y = wrapped.nextY + 12;
   };
   for (const [index, item] of review.observations.entries()) {
-    addSection(`KINEMATICS · ${index + 1}. ${item.title}`, `${item.observation} ${item.coachingImplication} Confidence: ${item.confidence}.`, '#42e8f0');
+    addSection(`MOVEMENT · ${index + 1}. ${item.title}`, `${item.observation} ${item.coachingImplication}`, '#42e8f0');
   }
   for (const [index, item] of review.errors.entries()) {
-    addSection(`POTENTIAL ERROR · ${index + 1}. ${item.title}`, `${item.observation} ${item.coachingImplication} Confidence: ${item.confidence}.`, '#ffc45c');
+    addSection(`COACHING POINT · ${index + 1}. ${item.title}`, `${item.observation} ${item.coachingImplication}`, '#ffc45c');
   }
   if (review.priorityCue) addSection('COACHING PRIORITY', review.priorityCue, '#ffc45c');
   if (review.limitations.length) addSection('LIMITATIONS', review.limitations.join(' '), '#cbd5e1');
   addSection('KINETICS · ILLUSTRATIVE ONLY', 'Gravity and possible ground-reaction direction are schematic. No force, torque, power, weight split, or centre of mass was measured.', '#b69cff');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><clipPath id="joint-crop"><rect x="${imageViewport.x}" y="${imageViewport.y}" width="${imageViewport.width}" height="${imageViewport.height}" rx="10"/></clipPath><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a78bfa"/></marker></defs><rect width="100%" height="100%" fill="#101c2c"/><text x="28" y="46" fill="#f8fafc" font-family="Arial,sans-serif" font-size="27" font-weight="700">FRONT-FOOT DRIVE · JOINT &amp; ALIGNMENT REVIEW</text><text x="28" y="78" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="18">Near-contact frame #${review.frame.frameIndex} · ${fmtTime(review.frame.timestampSeconds)} · visually estimated</text>${image}${skeleton}${points}${alignment}${contactMarkup}${schematicForces}<line x1="640" y1="95" x2="640" y2="980" stroke="#34445b" stroke-width="2"/>${sections.join('')}<text x="28" y="990" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="16">Original frame crop enlarged; estimated landmarks may be inaccurate. Review with a coach.</text></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><clipPath id="joint-crop"><rect x="${imageViewport.x}" y="${imageViewport.y}" width="${imageViewport.width}" height="${imageViewport.height}" rx="10"/></clipPath><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a78bfa"/></marker></defs><rect width="100%" height="100%" fill="#101c2c"/><text x="28" y="46" fill="#f8fafc" font-family="Arial,sans-serif" font-size="27" font-weight="700">FRONT-FOOT DRIVE · JOINT &amp; ALIGNMENT REVIEW</text><text x="28" y="78" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="18">Near-contact view · visual estimates</text>${image}${skeleton}${points}${alignment}${contactMarkup}${schematicForces}<line x1="640" y1="95" x2="640" y2="980" stroke="#34445b" stroke-width="2"/>${sections.join('')}<text x="28" y="990" fill="#cbd5e1" font-family="Arial,sans-serif" font-size="16">Original frame crop enlarged; estimated landmarks may be inaccurate. Review with a coach.</text></svg>`;
 }
 
 export function svgDataUrl(svg: string): string {
