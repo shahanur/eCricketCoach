@@ -100,8 +100,8 @@ function headers(): Record<string, string> {
   return process.env.CAPE_API_KEY ? { 'X-API-Key': process.env.CAPE_API_KEY } : {};
 }
 
-function timeoutSignal(): AbortSignal {
-  return AbortSignal.timeout(Number(process.env.CAPE_TIMEOUT_MS) || 600_000);
+function timeoutSignal(timeoutMs?: number): AbortSignal {
+  return AbortSignal.timeout(timeoutMs ?? (Number(process.env.CAPE_TIMEOUT_MS) || 600_000));
 }
 
 async function toCapeError(res: Response): Promise<CapeError> {
@@ -123,7 +123,7 @@ function networkError(err: unknown): CapeError {
 }
 
 // Streams the video from disk as multipart (fs.openAsBlob reads lazily, so the file is never fully buffered).
-export async function analyzeWithCape(videoPath: string, request: CapeRequest): Promise<CapeResponse> {
+export async function analyzeWithCape(videoPath: string, request: CapeRequest, timeoutMs?: number): Promise<CapeResponse> {
   const ext = path.extname(videoPath).toLowerCase();
   const form = new FormData();
   form.set('file', await fs.openAsBlob(videoPath, { type: VIDEO_TYPES[ext] || 'video/mp4' }), `clip${ext || '.mp4'}`);
@@ -137,7 +137,7 @@ export async function analyzeWithCape(videoPath: string, request: CapeRequest): 
 
   let res: Response;
   try {
-    res = await fetch(capeUrl('/api/v1/analyze-cricket-video'), { method: 'POST', headers: headers(), body: form, signal: timeoutSignal() });
+    res = await fetch(capeUrl('/api/v1/analyze-cricket-video'), { method: 'POST', headers: headers(), body: form, signal: timeoutSignal(timeoutMs) });
   } catch (err) {
     throw networkError(err);
   }

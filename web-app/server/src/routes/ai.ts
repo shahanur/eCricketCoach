@@ -12,6 +12,7 @@ import { AuthenticatedRequest, authenticateToken, requireRole } from '../middlew
 import { prisma } from '../config/prisma.js';
 import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysis, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
 import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, StoredReportArtifact } from '../services/openAiBattingReportArtifacts.js';
+import { analyzeVideoKineticsWithCape } from '../services/openAiCapeKinetics.js';
 
 export const aiRouter = Router();
 
@@ -44,6 +45,18 @@ function parsePriorities(value: unknown): Array<typeof BATTING_PRIORITIES[number
   }
   if (!Array.isArray(parsed) || parsed.some(item => typeof item !== 'string' || !BATTING_PRIORITIES.includes(item as typeof BATTING_PRIORITIES[number]))) return null;
   return [...new Set(parsed as Array<typeof BATTING_PRIORITIES[number]>)];
+}
+
+function parseCapeCalibrationPoints(value: unknown): [number, number][] | null | false {
+  if (value === undefined || value === null || value === '') return null;
+  let points = value;
+  if (typeof value === 'string') {
+    try { points = JSON.parse(value); } catch { return false; }
+  }
+  if (!Array.isArray(points) || points.length !== 4 || points.some(point =>
+    !Array.isArray(point) || point.length !== 2 || point.some(value => typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+  )) return false;
+  return points as [number, number][];
 }
 
 type Discipline = 'BATTING' | 'BOWLING' | 'KEEPING' | 'FIELDING';
@@ -190,9 +203,13 @@ aiRouter.post(
       ? null
       : typeof rawCaptureFps === 'number' || typeof rawCaptureFps === 'string' ? Number(rawCaptureFps) : Number.NaN;
     const priorities = parsePriorities(body.priorities);
+    const capeCalibrationPoints = parseCapeCalibrationPoints(body.capeCalibrationPoints ?? body.cape_calibration_points);
     if (!shotType || !batterHandedness || !cameraView || !playbackSpeed || priorities === null ||
       (captureFps !== null && (!Number.isFinite(captureFps) || captureFps <= 0 || captureFps > 1000))) {
       return res.status(400).json({ error: 'invalid_analysis_metadata', message: 'Shot, handedness, camera, timing, FPS, or priorities were invalid.' });
+    }
+    if (capeCalibrationPoints === false) {
+      return res.status(400).json({ error: 'invalid_cape_calibration_points', message: 'CAPE calibration needs four non-negative [x, y] video pixel points.' });
     }
     const rawContactTimestamp = req.body?.contactTimestampSeconds;
     const contactTimestampSeconds = rawContactTimestamp === undefined || rawContactTimestamp === ''
@@ -255,6 +272,16 @@ aiRouter.post(
         if (videoBuffer.length > maxVideoBytes) return res.status(413).json({ error: 'file_too_large', message: `Choose a video smaller than ${Math.round(maxVideoBytes / (1024 * 1024))} MB.` });
       }
 
+      const capeKineticsPromise = capeCalibrationPoints
+        ? analyzeVideoKineticsWithCape({
+            video: videoBuffer,
+            filename: path.basename(file?.originalname || 'clip.mp4'),
+            mimeType: file?.mimetype || 'video/mp4',
+            calibrationPoints: capeCalibrationPoints,
+            handedness: batterHandedness === 'left' ? 'left' : 'right',
+            shotType: shotType === 'front_foot_defence' ? 'forward_defence' : 'front_foot_drive'
+          })
+        : null;
       const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, {
         contactTimestampSeconds,
         shotType,
@@ -264,6 +291,10 @@ aiRouter.post(
         captureFps,
         priorities
       });
+      if (capeKineticsPromise) {
+        analysis.capeKinetics = await capeKineticsPromise;
+        analysis.executionLog.stages.push('cape_video_kinetics_parallel');
+      }
       const reportRoot = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
       const storedReport = await createAndPersistBattingReport(analysis, reportRoot);
       try {

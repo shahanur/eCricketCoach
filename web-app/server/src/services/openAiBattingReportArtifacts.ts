@@ -207,6 +207,16 @@ function markdownReport(analysis: OpenAiBattingAnalysis, artifactNames: Set<stri
     ] : []),
     'Bat angle is the handle-to-toe direction measured from straight down in the image (0° = bat hanging vertically below the hands, above 90° = toe above the hands), matching CAPE\'s convention. It is a 2D estimate, not a 3D bat face or lie angle.',
     '',
+    '## CAPE video-derived kinetics',
+    '',
+    ...(analysis.capeKinetics?.source === 'cape'
+      ? [
+          `Status: ${analysis.capeKinetics.status}. CAPE contact frame: ${analysis.capeKinetics.contactFrame ?? 'unavailable'} (${analysis.capeKinetics.contactSelectionSource ?? 'automatic'}).`,
+          ...Object.entries(analysis.capeKinetics.metrics).map(([name, value]) => `- ${name}: ${value === null ? 'unavailable' : value}`),
+          ...analysis.capeKinetics.limitations.map(value => `- Limitation: ${value}`)
+        ]
+      : [`Not requested. ${analysis.capeKinetics?.message ?? 'Supply four pitch-corner calibration points to request CAPE video-derived kinetics.'}`]),
+    '',
     '## Limitations',
     '',
     ...(analysis.limitations.length ? analysis.limitations.map(value => {

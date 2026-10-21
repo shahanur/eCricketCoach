@@ -10,6 +10,7 @@ import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
 import { AihubAnalysisPanel } from './AihubAnalysisPanel';
 import { CroppedPoseOverlayPanel } from './CroppedPoseOverlayPanel';
+import { OpenAiCapeCalibrationPicker } from './OpenAiCapeCalibrationPicker';
 import type { CapeJob } from '../../types';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
@@ -384,6 +385,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [modalDriveVideoFiles, setModalDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [selectedDriveVideo, setSelectedDriveVideo] = useState<string>('');
   const [openAiContactSelectionMode, setOpenAiContactSelectionMode] = useState<'AI' | 'MANUAL'>('AI');
+  const [openAiUseCapeKinetics, setOpenAiUseCapeKinetics] = useState(false);
+  const [openAiCapeCalibrationPoints, setOpenAiCapeCalibrationPoints] = useState<[number, number][]>([]);
   const [openAiVideoPreviewUrl, setOpenAiVideoPreviewUrl] = useState<string | null>(null);
   const [openAiVideoPreviewLoading, setOpenAiVideoPreviewLoading] = useState(false);
   const [openAiVideoPreviewError, setOpenAiVideoPreviewError] = useState<string | null>(null);
@@ -437,6 +440,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [openAiContactSelectionMode, videoSourceMode, uploadedVideoFile, selectedDriveVideo]);
+
+  useEffect(() => {
+    setOpenAiCapeCalibrationPoints([]);
+  }, [videoSourceMode, uploadedVideoFile, selectedDriveVideo]);
 
   const handleDisconnectDrive = async () => {
     try {
@@ -3350,6 +3357,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   type="button"
                   disabled={isOpenAiBattingAnalysisRunning || analysisDiscipline !== 'BATTING' ||
                     (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoFile : !selectedDriveVideo) ||
+                    (openAiUseCapeKinetics && openAiCapeCalibrationPoints.length !== 4) ||
                     (openAiContactSelectionMode === 'MANUAL' &&
                       (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 || openAiSelectedContactTimestamp === null))}
                   onClick={async () => {
@@ -3370,6 +3378,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         playbackSpeed: openAiPlaybackSpeed,
                         captureFps: openAiCaptureFps ? Number(openAiCaptureFps) : null,
                         priorities: openAiPriorities,
+                        capeCalibrationPoints: openAiUseCapeKinetics ? openAiCapeCalibrationPoints : undefined,
                         contactTimestampSeconds: openAiContactSelectionMode === 'MANUAL'
                           ? openAiSelectedContactTimestamp ?? undefined
                           : undefined
@@ -3383,7 +3392,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   }}
                   className="shrink-0 rounded-lg bg-violet-400 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isOpenAiBattingAnalysisRunning ? 'Analysing…' : 'Analyse batting with OpenAI'}
+                  {isOpenAiBattingAnalysisRunning ? (openAiUseCapeKinetics ? 'Analysing with OpenAI + CAPE…' : 'Analysing…') : 'Analyse batting with OpenAI'}
                 </button>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -3493,6 +3502,26 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       </>
                     )}
                   </div>
+                )}
+              </div>
+              <div className="space-y-2 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
+                <label className="flex items-start gap-2 text-xs text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={openAiUseCapeKinetics}
+                    onChange={event => setOpenAiUseCapeKinetics(event.target.checked)}
+                    className="mt-0.5 accent-emerald-400"
+                  />
+                  <span><strong>Calculate video kinetics with CAPE</strong><span className="mt-0.5 block text-[10px] text-slate-400">Runs a second, full-video analysis to estimate ball speed, momentum, energy, launch angle and bat swing. Four pitch corners are required for calibrated ball measurements.</span></span>
+                </label>
+                {openAiUseCapeKinetics && (
+                  <OpenAiCapeCalibrationPicker
+                    source={videoSourceMode === 'LOCAL_UPLOAD'
+                      ? (uploadedVideoFile ? { file: uploadedVideoFile } : null)
+                      : (selectedDriveVideo ? { driveFileId: selectedDriveVideo } : null)}
+                    points={openAiCapeCalibrationPoints}
+                    onChange={setOpenAiCapeCalibrationPoints}
+                  />
                 )}
               </div>
               {analysisDiscipline !== 'BATTING' && <p className="text-[11px] text-amber-300">OpenAI visual review is currently available for batting videos.</p>}

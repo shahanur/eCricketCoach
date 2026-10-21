@@ -333,6 +333,27 @@ export interface OpenAiBatAngle {
   limitations: string[];
 }
 
+export interface OpenAiCapeKinetics {
+  status: 'not_requested' | 'available' | 'partial' | 'unavailable';
+  source: 'cape' | null;
+  contactFrame: number | null;
+  contactSelectionSource: 'gemini' | 'detector' | 'manual' | null;
+  message: string | null;
+  metrics: {
+    incomingBallSpeedKmh: number | null;
+    incomingMomentumKgMps: number | null;
+    incomingKineticEnergyJ: number | null;
+    exitSpeedKmh: number | null;
+    exitMomentumKgMps: number | null;
+    exitKineticEnergyJ: number | null;
+    launchAngleDegrees: number | null;
+    batSwingSpeedKmh: number | null;
+    batSwingArcDegrees: number | null;
+    followThroughArcDegrees: number | null;
+  };
+  limitations: string[];
+}
+
 export interface OpenAiBattingAnalysis {
   provider: 'openai';
   model: string;
@@ -494,6 +515,7 @@ export interface OpenAiBattingAnalysis {
   contactWindow: { startSeconds: number | null; endSeconds: number | null };
   summary: string;
   kinetics: { status: 'not_measured'; hypotheses: string[] };
+  capeKinetics?: OpenAiCapeKinetics;
   observations: OpenAiBattingObservation[];
   errors: OpenAiBattingObservation[];
   strengths: Array<{ title: string; observation: string; frameIndices: number[]; confidence: OpenAiVisualConfidence }>;

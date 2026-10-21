@@ -80,7 +80,7 @@ flowchart LR
 | Body & bat landmarks (normalised) | Validates ranges, remaps to crops | Estimates |
 | Joint angles | **Calculates** from pixel-scaled landmarks | Must return `null` / pending |
 | Findings, strengths, drill text | Schema + semantic validation | Generates |
-| Kinetics | Forced to `not_measured`; hypotheses must start with `hypothesis:` | — |
+| Kinetics | `not_measured` by visual interpretation; when requested, Node calls CAPE with the full clip to obtain CAPE-derived video estimates | No physical measurements |
 | Rendering, checksums, ZIP, persistence | Yes | — |
 
 ---
@@ -211,6 +211,7 @@ Base path: `/api/videos` (mounted in [web-app/server/src/index.ts](../web-app/se
 | `captureFps` / `capture_fps` | number | `null` | 0 < fps ≤ 1000 |
 | `priorities` | JSON array | all 7 | Subset of `footwork, head_alignment, contact, joint_angles, bat_path, extension, follow_through` (de-duplicated) |
 | `contactTimestampSeconds` | number | — | ≥ 0 and ≤ video duration. Switches to **manual contact mode** |
+| `capeCalibrationPoints` | JSON `[[x,y]×4]` | No | Optional opt-in to a CAPE full-video pass, started concurrently with OpenAI. CAPE independently selects contact (Gemini when configured, otherwise detector); the report records its frame/source because it may differ from OpenAI's selection. Pixel coordinate order: batter-end left, batter-end right, bowler-end right, bowler-end left. |
 
 Additional checks: a `COACH` must have `coachContext = CLUB` and be an ACTIVE club coach.
 
@@ -234,6 +235,11 @@ Additional checks: a `COACH` must have `coachContext = CLUB` and be an ACTIVE cl
     "contact": { "status": "DETECTED", "selectionSource": "AI", "selectedTimestampSeconds": 3.103,
                  "frameIndex": 93, "timestampSeconds": 3.103, "confidence": 0.78, "evidence": "…",
                  "imageDataUrl": null, "pointNorm": { "x": 0.52, "y": 0.61 } },
+        "capeKinetics": { "status": "available", "source": "cape", "contactFrame": 93,
+            "metrics": { "incomingBallSpeedKmh": 104, "incomingMomentumKgMps": 16.22,
+                "incomingKineticEnergyJ": 88.5, "exitSpeedKmh": 71, "exitMomentumKgMps": 11.08,
+                "exitKineticEnergyJ": 39.3, "launchAngleDegrees": 8, "batSwingSpeedKmh": 91.2,
+                "batSwingArcDegrees": 112, "followThroughArcDegrees": 97 }, "limitations": ["…"] },
     "status": "assessable",
     "shotIdentification": { "shotType": "front_foot_drive", "batterHandedness": "right", "confidence": 0.8, "evidence": "…" },
     "footageQuality": { "cameraView": "side_on", "framing": "full_batter_visible", "blur": "moderate",
@@ -629,6 +635,7 @@ Indexes: `(tenant_id, created_at)` and `(tenant_id, player_id, created_at)`. The
 | `OPENAI_MAX_CONTACT_WINDOW_SECONDS` | 2 | 0.5–5 |
 | `OPENAI_MAX_CONTACT_WINDOW_FRAMES` | 120 | 1–800 |
 | `OPENAI_REQUEST_TIMEOUT_MS` | 240 000 | 30 000–600 000 per Responses call |
+| `OPENAI_CAPE_TIMEOUT_MS` | 180 000 | 30 000–600 000 for optional CAPE video analysis |
 | `OPENAI_REPORTS_DIR` | `./var/openai-reports` (Compose: `/var/openai-reports`) | Persistent volume `openai-report-artifacts` |
 | `POSE_OVERLAY_API_URL` | `http://pose-overlay-api:8200` | |
 | `POSE_OVERLAY_API_KEY` | `${CAPE_API_KEY}` | Shared with pose service |
@@ -743,7 +750,7 @@ No live model call is needed.
 
 | Area | Note |
 |---|---|
-| Synchronous latency | Up to 1 overview + 3 detailed calls, each allowed `OPENAI_REQUEST_TIMEOUT_MS` (240 s), all inside one HTTP request. The nginx proxy read timeout (300 s) can expire first, and the user sees a gateway error even though the server keeps working. Consider moving this to a queue like CAPE, or lowering the timeout and candidate count. |
+| Synchronous latency | Up to 1 overview + 3 detailed calls, each allowed `OPENAI_REQUEST_TIMEOUT_MS` (240 s), plus optional CAPE analysis (180 s). CAPE overlaps the OpenAI pass; the OpenAI route has a dedicated 1800 s nginx timeout. For longer-term scale, move the request into a job queue. |
 | Memory | multer `memoryStorage` holds up to 500 MB per request. The buffer is then written to disk, and frames are held as base64 data URLs. Concurrent requests multiply this cost. |
 | Cost | Each analysis sends up to 36 overview images plus up to 3 × (≤ 120 dense + phase) images. Usage is logged in `executionLog.usage`. |
 | Coach scope on reports | Review and artifact routes check tenant + role only. Any coach in the club can read or review any club report, and the active-coach check is applied only on analysis creation. |

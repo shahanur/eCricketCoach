@@ -67,6 +67,7 @@ services:
       OPENAI_MAX_CONTACT_WINDOW_SECONDS: ${OPENAI_MAX_CONTACT_WINDOW_SECONDS:-2}
       OPENAI_MAX_CONTACT_WINDOW_FRAMES: ${OPENAI_MAX_CONTACT_WINDOW_FRAMES:-120}
       OPENAI_REQUEST_TIMEOUT_MS: ${OPENAI_REQUEST_TIMEOUT_MS:-240000}
+      OPENAI_CAPE_TIMEOUT_MS: ${OPENAI_CAPE_TIMEOUT_MS:-180000}
       OPENAI_REPORTS_DIR: /var/openai-reports
       AI_HUB_URL: http://aihub:8100
       # CAPE video analysis (cape-api + cape-worker, started via `--profile cape` in deploy.sh).

@@ -50,6 +50,14 @@ test('persists report artifacts and a ZIP without embedding source image data in
     poseSequenceFrames: [{ frameIndex: 16, timestampSeconds: 0.55, phase: 'POST_CONTACT', imageDataUrl }],
     visualOutputs: { movementSequenceImageDataUrl: svgDataUrl, jointAlignmentImageDataUrl: svgDataUrl },
     phases: [], summary: 'A cautious synthetic test result.', status: 'partially_assessable', kinetics: { status: 'not_measured', hypotheses: [] },
+    capeKinetics: {
+      status: 'available', source: 'cape', contactFrame: 15, contactSelectionSource: 'detector', message: null,
+      metrics: {
+        incomingBallSpeedKmh: 101, incomingMomentumKgMps: 15.76, incomingKineticEnergyJ: 122.4,
+        exitSpeedKmh: 72, exitMomentumKgMps: 11.23, exitKineticEnergyJ: 50.9,
+        launchAngleDegrees: 18, batSwingSpeedKmh: 91, batSwingArcDegrees: 112, followThroughArcDegrees: 97
+      }, limitations: ['CAPE estimated from video.']
+    },
     shotIdentification: { shotType: null, batterHandedness: 'unknown', confidence: 0, evidence: '' },
       footageQuality: { cameraView: 'unknown', framing: 'unknown', blur: 'unknown', occlusions: [], timingLimitations: [], cameraMotion: 'unknown' },
     contactWindow: { startSeconds: 0.4, endSeconds: 0.6 }, observations: [], errors: [], strengths: [], priorityCue: '',
@@ -73,6 +81,8 @@ test('persists report artifacts and a ZIP without embedding source image data in
   assert.ok(reportMarkdown.includes('Overview-only limitation: Joint-triplet status'));
   assert.ok(reportMarkdown.includes('**At contact (frame 15):** ≈24° from vertical (handle to toe)'));
   assert.ok(reportMarkdown.includes('| frame_000015 | 0.500 s | contact | visible | ≈24° | 80% |'));
+  assert.ok(reportMarkdown.includes('## CAPE video-derived kinetics'));
+  assert.ok(reportMarkdown.includes('- incomingBallSpeedKmh: 101'));
   const zip = await readFile(path.join(persisted.directory, 'analysis_bundle.zip'));
   assert.equal(zip.subarray(0, 2).toString(), 'PK');
   assert.ok(zip.includes('joint_angles.json'));

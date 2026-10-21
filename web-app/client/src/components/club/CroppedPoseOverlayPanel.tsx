@@ -149,11 +149,25 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     metricRow('alignment', 'back_foot_crease_angle_deg', 'Back foot to crease', '°'),
     metricRow('alignment', 'front_elbow_height_pct', 'Front elbow height', '%')
   ];
-  const kineticsRows = [
-    'Incoming ball speed', 'Incoming momentum', 'Incoming kinetic energy', 'Exit speed',
-    'Exit momentum', 'Exit kinetic energy', 'Launch angle', 'Bat swing speed before contact',
-    'Bat swing arc', 'Follow-through arc'
+  const kineticsRows: Array<{ label: string; key: keyof NonNullable<OpenAiBattingAnalysis['capeKinetics']>['metrics']; unit: string }> = [
+    { label: 'Incoming ball speed', key: 'incomingBallSpeedKmh', unit: ' km/h' },
+    { label: 'Incoming momentum', key: 'incomingMomentumKgMps', unit: ' kg·m/s' },
+    { label: 'Incoming kinetic energy', key: 'incomingKineticEnergyJ', unit: ' J' },
+    { label: 'Exit speed', key: 'exitSpeedKmh', unit: ' km/h' },
+    { label: 'Exit momentum', key: 'exitMomentumKgMps', unit: ' kg·m/s' },
+    { label: 'Exit kinetic energy', key: 'exitKineticEnergyJ', unit: ' J' },
+    { label: 'Launch angle', key: 'launchAngleDegrees', unit: '°' },
+    { label: 'Bat swing speed before contact', key: 'batSwingSpeedKmh', unit: ' km/h' },
+    { label: 'Bat swing arc', key: 'batSwingArcDegrees', unit: '°' },
+    { label: 'Follow-through arc', key: 'followThroughArcDegrees', unit: '°' }
   ];
+  const capeKinetics = analysis.capeKinetics;
+  const kineticsValue = (key: typeof kineticsRows[number]['key'], unit: string) => {
+    const value = capeKinetics?.metrics[key];
+    if (value !== null && value !== undefined) return `${value.toFixed(1)}${unit}`;
+    if (!capeKinetics || capeKinetics.status === 'not_requested') return 'Not requested';
+    return capeKinetics.message || 'Not measurable in this clip';
+  };
 
   return (
     <section className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-4" aria-live="polite">
@@ -236,17 +250,22 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           <CapeStyleMetricTable title="Alignment checklist" rows={alignmentRows} />
           <section className="overflow-x-auto rounded-lg border border-slate-800">
             <table className="w-full text-left text-xs">
-              <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">Estimated</th></tr></thead>
+              <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">CAPE video estimate</th></tr></thead>
               <tbody>
-                {kineticsRows.map(name => (
-                  <tr key={name} className="border-t border-slate-800 bg-slate-950/40">
-                    <td className="py-2 pl-3 pr-2 text-slate-200">{name}</td>
-                    <td className="py-2 pr-3 text-slate-500">Unavailable from one crop</td>
+                {kineticsRows.map(({ label, key, unit }) => (
+                  <tr key={key} className="border-t border-slate-800 bg-slate-950/40">
+                    <td className="py-2 pl-3 pr-2 text-slate-200">{label}</td>
+                    <td className="py-2 pr-3 text-slate-300">{kineticsValue(key, unit)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="px-3 pb-2 text-[10px] text-slate-500">{result.coaching_rules.metric_basis}</p>
+            {capeKinetics?.source === 'cape' && capeKinetics.contactFrame !== null && (
+              <p className="px-3 pb-1 text-[10px] text-slate-400">
+                CAPE contact: frame #{capeKinetics.contactFrame} ({capeKinetics.contactSelectionSource ?? 'automatic'}); OpenAI contact: {analysis.contact.frameIndex === null ? 'unavailable' : `frame #${analysis.contact.frameIndex}`}.
+              </p>
+            )}
+            <p className="px-3 pb-2 text-[10px] text-slate-500">{capeKinetics?.limitations.join(' ') || 'Enable CAPE video kinetics and provide four pitch-corner calibration points to estimate these metrics.'} {result.coaching_rules.metric_basis}</p>
           </section>
 
           {result.coaching_rules.faults.length > 0 && (
@@ -385,17 +404,20 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
 
       <section className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-left text-xs">
-          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">Estimated</th></tr></thead>
+          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Kinetics</th><th className="py-1.5 pr-3 font-medium">CAPE video estimate</th></tr></thead>
           <tbody>
-            {kineticsRows.map(name => (
-              <tr key={name} className="border-t border-slate-800">
-                <td className="py-1.5 pl-3 pr-2 text-slate-200">{name}</td>
-                <td className="py-1.5 pr-3 text-slate-500">Unavailable from a still image</td>
+            {kineticsRows.map(({ label, key, unit }) => (
+              <tr key={key} className="border-t border-slate-800">
+                <td className="py-1.5 pl-3 pr-2 text-slate-200">{label}</td>
+                <td className="py-1.5 pr-3 text-slate-300">{kineticsValue(key, unit)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="px-3 pb-2 text-[10px] text-slate-500">Ball/swing speed, momentum, energy and power require video; calibrated values require pitch calibration.</p>
+        {capeKinetics?.source === 'cape' && capeKinetics.contactFrame !== null && (
+          <p className="px-3 pb-1 text-[10px] text-slate-400">CAPE contact: frame #{capeKinetics.contactFrame} ({capeKinetics.contactSelectionSource ?? 'automatic'}); OpenAI contact: {analysis.contact.frameIndex === null ? 'unavailable' : `frame #${analysis.contact.frameIndex}`}.</p>
+        )}
+        <p className="px-3 pb-2 text-[10px] text-slate-500">{capeKinetics?.limitations.join(' ') || 'Enable CAPE video kinetics and provide four pitch-corner calibration points to estimate these metrics.'}</p>
       </section>
 
       {analysis.errors.length > 0 && (

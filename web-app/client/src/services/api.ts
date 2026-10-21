@@ -793,6 +793,7 @@ export const api = {
     playbackSpeed?: 'real_time' | 'slow_motion' | 'unknown';
     captureFps?: number | null;
     priorities?: string[];
+    capeCalibrationPoints?: [number, number][];
   }): Promise<{
     status: 'COMPLETED';
     discipline: 'BATTING';
@@ -816,6 +817,7 @@ export const api = {
       formData.append('playbackSpeed', payload.playbackSpeed ?? 'unknown');
       if (payload.captureFps !== undefined && payload.captureFps !== null) formData.append('captureFps', String(payload.captureFps));
       formData.append('priorities', JSON.stringify(payload.priorities ?? []));
+      if (payload.capeCalibrationPoints) formData.append('capeCalibrationPoints', JSON.stringify(payload.capeCalibrationPoints));
       res = await fetch(`${API_BASE}/videos/analyze/openai-batting`, {
         method: 'POST',
         headers: authHeader,
@@ -834,11 +836,17 @@ export const api = {
           cameraView: payload.cameraView ?? 'unknown',
           playbackSpeed: payload.playbackSpeed ?? 'unknown',
           captureFps: payload.captureFps ?? null,
-          priorities: payload.priorities ?? []
+          priorities: payload.priorities ?? [],
+          capeCalibrationPoints: payload.capeCalibrationPoints
         })
       });
     }
-    if (!res.ok) throw await responseError(res, 'Failed to analyze batting video with OpenAI');
+    if (!res.ok) {
+      if (res.status === 504) {
+        throw new Error('OpenAI and CAPE analysis exceeded the proxy wait limit. The server may still be processing; check server logs before retrying to avoid a duplicate model run.');
+      }
+      throw await responseError(res, 'Failed to analyze batting video with OpenAI');
+    }
     const result = await res.json();
     return {
       ...result,

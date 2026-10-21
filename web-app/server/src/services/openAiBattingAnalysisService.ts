@@ -15,6 +15,7 @@ import {
   makeMovementSequenceSvg,
   svgDataUrl
 } from './openAiBattingVisuals.js';
+import { emptyOpenAiCapeKinetics, OpenAiCapeKinetics } from './openAiCapeKinetics.js';
 
 const execFileAsync = promisify(execFile);
 const MAX_FRAME_DIMENSION = 960;
@@ -431,6 +432,7 @@ export interface OpenAiBattingAnalysis {
   limitations: string[];
   additionalEvidence: string[];
   kinetics: KineticsAssessment;
+  capeKinetics?: OpenAiCapeKinetics;
 }
 
 export class OpenAiBattingAnalysisError extends Error {
@@ -1971,7 +1973,8 @@ export async function analyzeBattingVideoWithOpenAI(
       drill,
       limitations,
       additionalEvidence,
-      kinetics
+      kinetics,
+      capeKinetics: emptyOpenAiCapeKinetics('not_requested')
     };
   } finally {
     await fs.rm(workDir, { recursive: true, force: true });
