@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { OpenAiBattingAnalysis, PoseOverlayAnalysis } from '../../types';
+import { downloadBattingTechniquePdf } from '../../utils/battingTechniquePdf';
 
 interface CroppedPoseOverlayPanelProps {
   imageDataUrl: string | null;
   analysis: OpenAiBattingAnalysis;
+  playerName: string;
   sequenceFrames: OpenAiBattingAnalysis['poseSequenceFrames'];
   savedResult?: PoseOverlayAnalysis;
   onPoseOverlaySaved?: (result: PoseOverlayAnalysis, artifactNames: string[]) => void;
@@ -56,7 +58,7 @@ function statusClass(status: string): string {
   return 'border-slate-700 text-slate-400';
 }
 
-export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = ({ imageDataUrl, analysis, sequenceFrames, savedResult, onPoseOverlaySaved }) => {
+export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = ({ imageDataUrl, analysis, playerName, sequenceFrames, savedResult, onPoseOverlaySaved }) => {
   const identifiedHandedness = savedResult?.handedness
     ?? (analysis.shotIdentification.batterHandedness !== 'unknown'
       ? analysis.shotIdentification.batterHandedness
@@ -174,6 +176,10 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     if (!capeKinetics || capeKinetics.status === 'not_requested') return 'Not requested';
     return capeKinetics.message || 'Not measurable in this clip';
   };
+  const downloadTechniqueReport = () => {
+    if (!result) return;
+    downloadBattingTechniquePdf(analysis, playerName, result);
+  };
 
   return (
     <section className="space-y-3 rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-4" aria-live="polite">
@@ -182,6 +188,10 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           <h5 className="text-sm font-bold text-cyan-100">Movement and technique</h5>
           <p className="text-[11px] text-slate-400">A visual estimate to help guide coaching discussion.</p>
         </div>
+        <button type="button" onClick={downloadTechniqueReport} disabled={!result || isLoading}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50">
+          <Download size={14} /> Download PDF report
+        </button>
         <div className="flex flex-wrap gap-3 text-xs">
           <p className="text-slate-400">Batter hand <span className="ml-1 text-slate-200">{identifiedHandedness === 'unknown' ? 'Unknown' : `${identifiedHandedness === 'left' ? 'Left' : 'Right'}-handed`}</span></p>
           <p className="text-slate-400">CAPE rule set <span className="ml-1 text-slate-200">{formatShotType(shotType)}</span></p>

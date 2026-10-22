@@ -11,6 +11,7 @@ export type PdfBlock =
   | { type: 'facts'; items: [string, string][] }
   | { type: 'text'; label?: string; text: string }
   | { type: 'bullets'; items: string[] }
+  | { type: 'image'; dataUrl: string; caption: string }
   | { type: 'table'; head: string[]; rows: (string | number)[][] };
 
 export interface PdfReport {
@@ -103,6 +104,21 @@ export function downloadPdfReport(report: PdfReport) {
         y += lines.length * 13;
       }
       y += 6;
+    } else if (block.type === 'image') {
+      const properties = doc.getImageProperties(block.dataUrl);
+      const imageScale = Math.min(contentWidth / properties.width, 460 / properties.width,
+        (pageHeight - 2 * MARGIN - 50) / properties.height);
+      const imageWidth = properties.width * imageScale;
+      const imageHeight = properties.height * imageScale;
+      ensureSpace(imageHeight + 28);
+      doc.addImage(block.dataUrl, properties.fileType, MARGIN, y, imageWidth, imageHeight, undefined, 'FAST');
+      y += imageHeight + 4;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...MUTED);
+      const caption = doc.splitTextToSize(block.caption, contentWidth) as string[];
+      doc.text(caption, MARGIN, y);
+      y += caption.length * 11 + 10;
     } else {
       autoTable(doc, {
         startY: y,

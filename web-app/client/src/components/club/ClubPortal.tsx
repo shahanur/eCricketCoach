@@ -15,6 +15,7 @@ import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
+import { downloadBattingTechniquePdf } from '../../utils/battingTechniquePdf';
 
 const SHOW_AIHUB = false;
 const SHOW_BIOMECHANICAL_AI_BUTTON = false;
@@ -293,8 +294,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [openAiPlaybackSpeed, setOpenAiPlaybackSpeed] = useState<'real_time' | 'slow_motion' | 'unknown'>('unknown');
   const [openAiCaptureFps, setOpenAiCaptureFps] = useState('');
   const [openAiPriorities, setOpenAiPriorities] = useState<string[]>(OPENAI_BATTING_PRIORITIES.map(([key]) => key));
-  const [openAiArtifactDownloadError, setOpenAiArtifactDownloadError] = useState<string | null>(null);
-  const [downloadingOpenAiArtifact, setDownloadingOpenAiArtifact] = useState<string | null>(null);
   const [kinematicsResult, setKinematicsResult] = useState<{
     discipline: string;
     timestampMs: number;
@@ -318,6 +317,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [openAiReportHistory, setOpenAiReportHistory] = useState<OpenAiBattingReportSummary[]>([]);
   const [isOpenAiReportHistoryLoading, setIsOpenAiReportHistoryLoading] = useState(false);
   const [openAiReportHistoryError, setOpenAiReportHistoryError] = useState<string | null>(null);
+  const [downloadingHistoryPdfId, setDownloadingHistoryPdfId] = useState<string | null>(null);
+  const [historyPdfError, setHistoryPdfError] = useState<string | null>(null);
   const openAiHistoryGeneration = useRef(0);
   const battingReviewRef = useRef<HTMLDivElement | null>(null);
   const scrollToReviewOnLoad = useRef(false);
@@ -400,24 +401,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const openAiFindingList = openAiBattingAnalysis
     ? [...openAiBattingAnalysis.errors, ...openAiBattingAnalysis.observations]
     : [];
-  const downloadOpenAiArtifact = async (name: string) => {
-    if (!openAiBattingAnalysis?.reportId) return;
-    setDownloadingOpenAiArtifact(name);
-    setOpenAiArtifactDownloadError(null);
-    try {
-      const { blob, fileName } = await api.fetchOpenAiBattingArtifact(openAiBattingAnalysis.reportId, name);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = fileName;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-    } catch (error) {
-      setOpenAiArtifactDownloadError(error instanceof Error ? error.message : 'Could not download the report artifact.');
-    } finally {
-      setDownloadingOpenAiArtifact(null);
-    }
-  };
   const saveOpenAiCoachReview = async () => {
     if (!openAiBattingAnalysis?.reportId) return;
     setIsSavingOpenAiCoachReview(true);
@@ -3781,19 +3764,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       : openAiBattingAnalysis.contact.status === 'LIKELY' ? 'Contact likely'
                         : openAiBattingAnalysis.contact.status === 'UNCERTAIN' ? 'Contact unclear' : 'Contact not visible'}
                   </span>
-                  {openAiBattingAnalysis.reportId && (
-                    <button
-                      onClick={() => void downloadOpenAiArtifact('analysis_bundle.zip')}
-                      disabled={downloadingOpenAiArtifact !== null}
-                      className="inline-flex items-center gap-1 rounded-lg border border-violet-300/30 px-3 py-1.5 text-xs font-semibold text-violet-100 hover:bg-violet-400/10 disabled:opacity-50"
-                    >
-                      <Download size={14} /> {downloadingOpenAiArtifact === 'analysis_bundle.zip' ? 'Preparing…' : 'Download report bundle'}
-                    </button>
-                  )}
                 </div>
               </div>
-
-              {openAiArtifactDownloadError && <p role="alert" className="text-xs text-rose-300">{openAiArtifactDownloadError}</p>}
 
               {openAiBattingAnalysis.reportId && (
                 <section className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
@@ -3840,6 +3812,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 <CroppedPoseOverlayPanel
                   imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
                   analysis={openAiBattingAnalysis}
+                  playerName={clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Player'}
                   sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
                   savedResult={openAiBattingAnalysis.poseOverlayResult}
                   onPoseOverlaySaved={(result, artifactNames) => setOpenAiBattingAnalysis(current => current
@@ -3896,20 +3869,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </div>
               )}
               </details> */}
-
-              {openAiBattingAnalysis.reportId && openAiBattingAnalysis.artifactNames && (
-                <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-                  <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · individual report files</summary>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {openAiBattingAnalysis.artifactNames.filter(name => name !== 'analysis_bundle.zip').map(name => (
-                      <button key={name} onClick={() => void downloadOpenAiArtifact(name)} disabled={downloadingOpenAiArtifact !== null}
-                        className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-400/50 disabled:opacity-50">
-                        {downloadingOpenAiArtifact === name ? 'Preparing…' : `Download ${name}`}
-                      </button>
-                    ))}
-                  </div>
-                </details>
-              )}
 
             </div>
           )}
@@ -4092,62 +4051,85 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             ) : openAiReportHistory.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">No saved analyses yet for this player. Run an AI analysis above to build their history.</p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 max-h-[340px] overflow-y-auto pr-1">
-                {openAiReportHistory.map(entry => {
-                  const isActive = openAiBattingAnalysis?.reportId === entry.reportId;
-                  const isDrive = entry.sourceType === 'GOOGLE_DRIVE';
-                  return (
-                    <button
-                      type="button"
-                      key={entry.reportId}
-                      aria-pressed={isActive}
-                      disabled={isLoadingSavedOpenAiAnalysis || isOpenAiBattingAnalysisRunning}
-                      onClick={() => {
-                        scrollToReviewOnLoad.current = true;
-                        loadSavedOpenAiAnalysis(selectedAnalysisPlayer, entry.reportId);
-                      }}
-                      className={`w-full text-left p-3 rounded-lg border transition cursor-pointer disabled:cursor-wait disabled:opacity-60 ${isActive
+              <>
+                <div className="grid gap-2 sm:grid-cols-2 max-h-[340px] overflow-y-auto pr-1">
+                  {openAiReportHistory.map(entry => {
+                    const isActive = openAiBattingAnalysis?.reportId === entry.reportId;
+                    const isDrive = entry.sourceType === 'GOOGLE_DRIVE';
+                    const isDownloadingPdf = downloadingHistoryPdfId === entry.reportId;
+                    return (
+                      <div key={entry.reportId} className={`flex items-stretch gap-2 rounded-lg border p-2 transition ${isActive
                         ? 'bg-violet-500/10 border-violet-400/60'
-                        : 'bg-slate-950 border-slate-800 hover:border-violet-400/40'}`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <span className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center ${isDrive
-                          ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
-                          : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'}`}>
-                          {isDrive ? <Cloud className="w-4 h-4" /> : <Video className="w-4 h-4" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-white truncate" title={entry.sourceName || undefined}>
-                            {entry.sourceName || 'Untitled video'}
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            {isDrive ? 'Google Drive' : entry.sourceType === 'LOCAL_UPLOAD' ? 'Device upload' : 'Source not recorded'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-300 border-amber-500/30">
-                              {entry.discipline.charAt(0) + entry.discipline.slice(1).toLowerCase()}
+                        : 'bg-slate-950 border-slate-800 hover:border-violet-400/40'}`}>
+                        <button
+                          type="button"
+                          aria-pressed={isActive}
+                          disabled={isLoadingSavedOpenAiAnalysis || isOpenAiBattingAnalysisRunning}
+                          onClick={() => {
+                            scrollToReviewOnLoad.current = true;
+                            loadSavedOpenAiAnalysis(selectedAnalysisPlayer, entry.reportId);
+                          }}
+                          className="min-w-0 flex-1 text-left cursor-pointer disabled:cursor-wait disabled:opacity-60"
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <span className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center ${isDrive
+                              ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                              : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'}`}>
+                              {isDrive ? <Cloud className="w-4 h-4" /> : <Video className="w-4 h-4" />}
                             </span>
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded border bg-slate-800/70 text-slate-300 border-slate-700 truncate max-w-full"
-                              title={entry.shotType || undefined}
-                            >
-                              {entry.discipline === 'BOWLING' ? 'Bowling type' : 'Shot'}: {entry.shotType || 'Not identified'}
-                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-white truncate" title={entry.sourceName || undefined}>
+                                {entry.sourceName || 'Untitled video'}
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                              </p>
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {isDrive ? 'Google Drive' : entry.sourceType === 'LOCAL_UPLOAD' ? 'Device upload' : 'Source not recorded'}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-300 border-amber-500/30">
+                                  {entry.discipline.charAt(0) + entry.discipline.slice(1).toLowerCase()}
+                                </span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded border bg-slate-800/70 text-slate-300 border-slate-700 truncate max-w-full" title={entry.shotType || undefined}>
+                                  {entry.discipline === 'BOWLING' ? 'Bowling type' : 'Shot'}: {entry.shotType || 'Not identified'}
+                                </span>
+                              </div>
+                            </div>
+                            {isActive && <span className="shrink-0 self-start text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-500/20 text-violet-200 border-violet-400/40">Showing</span>}
                           </div>
-                        </div>
-                        {isActive && (
-                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-500/20 text-violet-200 border-violet-400/40">
-                            Showing
-                          </span>
-                        )}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Download PDF for ${entry.sourceName || 'saved analysis'}`}
+                          title="Download PDF report"
+                          disabled={downloadingHistoryPdfId !== null}
+                          onClick={async event => {
+                            event.stopPropagation();
+                            setDownloadingHistoryPdfId(entry.reportId);
+                            setHistoryPdfError(null);
+                            try {
+                              const report = await api.getLatestOpenAiBattingAnalysis(selectedAnalysisPlayer, entry.reportId);
+                              if (!report) throw new Error('The selected saved analysis could not be loaded.');
+                              const playerName = clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Player';
+                              downloadBattingTechniquePdf(report, playerName);
+                            } catch (error) {
+                              setHistoryPdfError(error instanceof Error ? error.message : 'The PDF report could not be prepared.');
+                            } finally {
+                              setDownloadingHistoryPdfId(null);
+                            }
+                          }}
+                          className="inline-flex shrink-0 self-center items-center gap-1.5 rounded-md border border-violet-400/30 px-2 py-2 text-[10px] font-semibold text-violet-200 hover:bg-violet-400/10 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          {isDownloadingPdf ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                          <span>{isDownloadingPdf ? 'Preparing' : 'PDF'}</span>
+                        </button>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+                {historyPdfError && <p role="alert" className="mt-2 text-xs text-rose-300">{historyPdfError}</p>}
+              </>
             )}
           </div>
         </div>
