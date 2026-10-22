@@ -407,7 +407,12 @@ internal fun SessionExecutionScreen(
 
     fun activeDrillElapsed(): Int {
         val runningSeconds = if (!activeDrillPaused && activeDrillStartedAt != null) {
-            runCatching { (clockNow - Instant.parse(activeDrillStartedAt).toEpochMilli()).coerceAtLeast(0L).toInt() }.getOrDefault(0)
+            runCatching {
+                ((clockNow - Instant.parse(activeDrillStartedAt).toEpochMilli())
+                    .coerceAtLeast(0L) / 1000L)
+                    .coerceAtMost(Int.MAX_VALUE.toLong())
+                    .toInt()
+            }.getOrDefault(0)
         } else 0
         return activeDrillElapsedSeconds + runningSeconds
     }
@@ -763,6 +768,8 @@ internal fun SessionExecutionScreen(
                 drills = drillRows,
                 activeDrillId = activeDrillId,
                 activeDrillSeconds = activeDrillElapsed(),
+                activeDrillBaseSeconds = activeDrillElapsedSeconds,
+                activeDrillStartedAt = activeDrillStartedAt,
                 sessionSeconds = sessionElapsed(),
                 sessionPaused = status == "PAUSED",
                 paused = activeDrillPaused,
@@ -1924,6 +1931,8 @@ private fun FollowUpCard(
                 drills: List<ExecutionDrill>,
                 activeDrillId: String?,
                 activeDrillSeconds: Int,
+                activeDrillBaseSeconds: Int,
+                activeDrillStartedAt: String?,
                 sessionSeconds: Int,
                 sessionPaused: Boolean,
                 paused: Boolean,
@@ -2064,6 +2073,8 @@ private fun FollowUpCard(
                             DrillControlsTabletCard(
                                 activeDrill = activeDrill,
                                 activeDrillSeconds = activeDrillSeconds,
+                                activeDrillBaseSeconds = activeDrillBaseSeconds,
+                                activeDrillStartedAt = activeDrillStartedAt,
                                 nextDrills = drills.mapIndexedNotNull { index, drill ->
                                     if (!drill.completed && drill.id != activeDrill?.id) (index + 1) to drill else null
                                 },
@@ -2587,6 +2598,8 @@ private fun ActiveDrillSummaryCard(
 private fun DrillControlsTabletCard(
     activeDrill: ExecutionDrill?,
     activeDrillSeconds: Int,
+    activeDrillBaseSeconds: Int,
+    activeDrillStartedAt: String?,
     nextDrills: List<Pair<Int, ExecutionDrill>>,
     paused: Boolean,
     drillNotes: String,
@@ -2610,6 +2623,8 @@ private fun DrillControlsTabletCard(
                     modifier = Modifier.weight(1.1f),
                     activeDrill = activeDrill,
                     activeDrillSeconds = activeDrillSeconds,
+                    activeDrillBaseSeconds = activeDrillBaseSeconds,
+                    activeDrillStartedAt = activeDrillStartedAt,
                     paused = paused,
                     drillNotes = drillNotes,
                     isSaving = isSaving,
@@ -2633,6 +2648,8 @@ private fun DrillControlsTabletCard(
                     modifier = Modifier.fillMaxWidth(),
                     activeDrill = activeDrill,
                     activeDrillSeconds = activeDrillSeconds,
+                    activeDrillBaseSeconds = activeDrillBaseSeconds,
+                    activeDrillStartedAt = activeDrillStartedAt,
                     paused = paused,
                     drillNotes = drillNotes,
                     isSaving = isSaving,
@@ -2659,6 +2676,8 @@ private fun CurrentDrillControlPanel(
     modifier: Modifier,
     activeDrill: ExecutionDrill?,
     activeDrillSeconds: Int,
+    activeDrillBaseSeconds: Int,
+    activeDrillStartedAt: String?,
     paused: Boolean,
     drillNotes: String,
     isSaving: Boolean,
@@ -2672,6 +2691,7 @@ private fun CurrentDrillControlPanel(
     val context = LocalContext.current
     var speechError by remember { mutableStateOf("") }
     var addedMinutes by remember(activeDrill?.id) { mutableIntStateOf(0) }
+    var drillClockMillis by remember(activeDrill?.id) { mutableLongStateOf(System.currentTimeMillis()) }
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -2691,6 +2711,23 @@ private fun CurrentDrillControlPanel(
             }
         }
     }
+    LaunchedEffect(activeDrill?.id, activeDrillStartedAt, paused) {
+        if (activeDrill == null || activeDrillStartedAt == null || paused) return@LaunchedEffect
+        while (true) {
+            delay(1000)
+            drillClockMillis = System.currentTimeMillis()
+        }
+    }
+    val drillElapsedForDisplay = when {
+        activeDrill == null -> 0
+        paused || activeDrillStartedAt == null -> activeDrillSeconds
+        else -> activeDrillBaseSeconds + runCatching {
+            ((drillClockMillis - Instant.parse(activeDrillStartedAt).toEpochMilli())
+                .coerceAtLeast(0L) / 1000L)
+                .coerceAtMost(Int.MAX_VALUE.toLong())
+                .toInt()
+        }.getOrDefault(0)
+    }
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
@@ -2706,14 +2743,14 @@ private fun CurrentDrillControlPanel(
                     activeDrill?.title ?: "All planned drills complete",
                     modifier = Modifier.weight(1f),
                     color = Color(0xFF17204A),
-                    fontSize = 14.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (activeDrill != null) {
                     val plannedSeconds = (activeDrill.plannedMinutes * 60).coerceAtLeast(1)
-                    val remainingSeconds = (plannedSeconds - activeDrillSeconds).coerceAtLeast(0)
+                    val remainingSeconds = (plannedSeconds - drillElapsedForDisplay).coerceAtLeast(0)
                     Column(
                         modifier = Modifier.padding(start = 8.dp),
                         horizontalAlignment = Alignment.End,
@@ -2722,16 +2759,16 @@ private fun CurrentDrillControlPanel(
                         Text(
                             formatCoachTime(remainingSeconds),
                             color = Color(0xFF263B75),
-                            fontSize = 16.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text("remaining", color = Color(0xFF66728F), fontSize = 10.sp)
+                        Text("remaining", color = Color(0xFF66728F), fontSize = 14.sp)
                     }
                 }
             }
             if (activeDrill != null) {
                 val plannedSeconds = (activeDrill.plannedMinutes * 60).coerceAtLeast(1)
-                val remainingSeconds = (plannedSeconds - activeDrillSeconds).coerceAtLeast(0)
+                val remainingSeconds = (plannedSeconds - drillElapsedForDisplay).coerceAtLeast(0)
                 val progress = remainingSeconds.toFloat() / plannedSeconds
                 Box(
                     Modifier.fillMaxWidth().height(4.dp)
@@ -2774,13 +2811,13 @@ private fun CurrentDrillControlPanel(
                         "Add minutes",
                         modifier = Modifier.weight(1f),
                         color = Color(0xFF27365F),
-                        fontSize = 12.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         if (addedMinutes == 0) "1–20 min" else "+$addedMinutes min",
                         color = Color(0xFF644BEA),
-                        fontSize = 12.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -2809,8 +2846,8 @@ private fun CurrentDrillControlPanel(
                     shape = RoundedCornerShape(9.dp),
                     minLines = 1,
                     maxLines = 2,
-                    label = { Text("Drill notes", fontSize = 12.sp) },
-                    placeholder = { Text("Add notes about this drill", fontSize = 12.sp) },
+                    label = { Text("Drill notes", fontSize = 16.sp) },
+                    placeholder = { Text("Add notes about this drill", fontSize = 15.sp) },
                     trailingIcon = {
                         IconButton(onClick = {
                             speechError = ""
@@ -2830,14 +2867,14 @@ private fun CurrentDrillControlPanel(
                             Icon(Icons.Outlined.Mic, contentDescription = "Speak drill notes")
                         }
                     },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
                 )
                 if (speechError.isNotBlank()) {
-                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
                 }
             }
-            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 11.sp)
-            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
         }
     }
 }
@@ -2859,9 +2896,9 @@ private fun NextDrillsPanel(
             Modifier.fillMaxWidth().padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Next drills", color = Color(0xFF53617F), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("Next drills", color = Color(0xFF53617F), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (drills.isEmpty()) {
-                Text("No drills remaining", color = Color(0xFF74809A), fontSize = 12.sp)
+                Text("No drills remaining", color = Color(0xFF74809A), fontSize = 16.sp)
             } else {
                 drills.forEach { (number, drill) ->
                     Surface(
@@ -2878,19 +2915,19 @@ private fun NextDrillsPanel(
                         ) {
                             Surface(shape = RoundedCornerShape(50), color = Color(0xFFE8E7FF)) {
                                 Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-                                    Text("$number", color = Color(0xFF5342D2), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("$number", color = Color(0xFF5342D2), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(
                                     drill.title,
                                     color = Color(0xFF26324F),
-                                    fontSize = 12.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text("${drill.plannedMinutes} min", color = Color(0xFF74809A), fontSize = 10.sp)
+                                Text("${drill.plannedMinutes} min", color = Color(0xFF74809A), fontSize = 14.sp)
                             }
                             Icon(
                                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -2933,7 +2970,7 @@ private fun DrillTabletAction(
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(label, color = tint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
