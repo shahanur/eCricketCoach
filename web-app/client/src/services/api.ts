@@ -867,7 +867,7 @@ export const api = {
     const allowedNames = new Set([
       'analysis.json', 'joint_angles.json', 'contact_review.png', 'joint_analysis.png',
       'bat_path_sequence.png', 'follow_through.png', 'phase_sequence.png', 'report.md',
-      'execution_log.json', 'analysis_bundle.zip', 'pose_overlay.png',
+      'execution_log.json', 'analysis_bundle.zip', 'contact_crop.png', 'pose_overlay.png',
       ...Array.from({ length: 9 }, (_, index) => `pose_sequence_${index}.png`)
     ]);
     if (!/^[0-9a-f-]{36}$/i.test(reportId) || !allowedNames.has(name)) throw new Error('Invalid report artifact');

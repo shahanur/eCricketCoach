@@ -66,6 +66,7 @@ test('persists report artifacts and a ZIP without embedding source image data in
 
   const persisted = await createAndPersistBattingReport(analysis, root);
   const names = persisted.artifacts.map(artifact => artifact.name);
+  assert.ok(names.includes('contact_crop.png'));
   assert.ok(names.includes('contact_review.png'));
   assert.ok(names.includes('joint_analysis.png'));
   assert.ok(names.includes('bat_path_sequence.png'));

@@ -295,7 +295,9 @@ export async function createAndPersistBattingReport(
   try {
   const files = new Map<string, { buffer: Buffer; mimeType: string }>();
   const contactSource = decodeImageDataUrl(analysis.contact.imageDataUrl);
+  const contactCrop = decodeImageDataUrl(analysis.croppedContactImageDataUrl);
 
+  if (contactCrop) files.set('contact_crop.png', { buffer: await sharp(contactCrop).png().toBuffer(), mimeType: 'image/png' });
   if (contactSource && analysis.contact.status === 'DETECTED') {
     files.set('contact_review.png', { buffer: await renderAnnotatedFrame(analysis, contactSource, analysis.contact.frameIndex ?? -1, analysis.contactLandmarksNorm, false), mimeType: 'image/png' });
   } else {
@@ -518,7 +520,7 @@ function filesToBuffers(files: Map<string, { buffer: Buffer; mimeType: string }>
 }
 
 export function isBattingReportArtifactName(name: string): boolean {
-  return /^(analysis\.json|joint_angles\.json|contact_review\.png|joint_analysis\.png|bat_path_sequence\.png|follow_through\.png|phase_sequence\.png|pose_overlay\.png|pose_sequence_[0-8]\.png|report\.md|execution_log\.json|analysis_bundle\.zip)$/.test(name);
+  return /^(analysis\.json|joint_angles\.json|contact_crop\.png|contact_review\.png|joint_analysis\.png|bat_path_sequence\.png|follow_through\.png|phase_sequence\.png|pose_overlay\.png|pose_sequence_[0-8]\.png|report\.md|execution_log\.json|analysis_bundle\.zip)$/.test(name);
 }
 
 export function isPoseOverlayArtifactName(name: string): boolean {

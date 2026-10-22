@@ -230,9 +230,10 @@ aiRouter.get(
           return '';
         }
       };
-      const [movementImage, alignmentImage] = await Promise.all([
+      const [movementImage, alignmentImage, contactCropImage] = await Promise.all([
         readPngDataUrl('phase_sequence.png'),
-        readPngDataUrl('joint_analysis.png')
+        readPngDataUrl('joint_analysis.png'),
+        readPngDataUrl('contact_crop.png')
       ]);
       const contact = saved.contact && typeof saved.contact === 'object' ? saved.contact as Record<string, unknown> : {};
       const shotAssessments = Array.isArray(saved.shotAssessments) ? saved.shotAssessments : [];
@@ -242,7 +243,7 @@ aiRouter.get(
         artifactNames,
         restoredFromReport: true,
         contact: { ...contact, imageDataUrl: null },
-        croppedContactImageDataUrl: null,
+        croppedContactImageDataUrl: contactCropImage || null,
         phaseReviewFrames: [],
         sourceFrameImages: [],
         poseSequenceFrames: [],
@@ -755,4 +756,3 @@ aiRouter.post('/analyze/:id/adopt-drill', async (req: Request, res: Response) =>
     return res.status(500).json({ error: 'Failed to update the analysis result.' });
   }
 });
-

@@ -11,7 +11,6 @@ interface CroppedPoseOverlayPanelProps {
   onPoseOverlaySaved?: (result: PoseOverlayAnalysis, artifactNames: string[]) => void;
 }
 
-const battingShotTypes = ['front_foot_drive', 'back_foot_drive', 'forward_defence', 'backward_defence', 'pull', 'cut', 'sweep'];
 const formatShotType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
 
 type CapeRuleCheck = PoseOverlayAnalysis['coaching_rules']['checks'][number];
@@ -52,8 +51,15 @@ function statusClass(status: string): string {
 }
 
 export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = ({ imageDataUrl, analysis, sequenceFrames, savedResult, onPoseOverlaySaved }) => {
-  const [handedness, setHandedness] = useState<'right' | 'left'>('right');
-  const [shotType, setShotType] = useState('front_foot_drive');
+  const identifiedHandedness = savedResult?.handedness
+    ?? (analysis.shotIdentification.batterHandedness !== 'unknown'
+      ? analysis.shotIdentification.batterHandedness
+      : analysis.requestMetadata.batterHandedness);
+  const handedness: 'right' | 'left' = identifiedHandedness === 'left' ? 'left' : 'right';
+  const identifiedShotType = savedResult?.shot_type
+    ?? analysis.shotIdentification.shotType
+    ?? analysis.requestMetadata.shotType;
+  const shotType = identifiedShotType && identifiedShotType !== 'unknown' ? identifiedShotType : 'front_foot_drive';
   const [result, setResult] = useState<PoseOverlayAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -170,30 +176,9 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           <h5 className="text-sm font-bold text-cyan-100">Movement and technique</h5>
           <p className="text-[11px] text-slate-400">A visual estimate to help guide coaching discussion.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-300">
-            Batter hand
-            <select
-              value={handedness}
-              onChange={event => setHandedness(event.target.value as 'right' | 'left')}
-              disabled={isLoading}
-              className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
-            >
-              <option value="right">Right-handed</option>
-              <option value="left">Left-handed</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-xs text-slate-300">
-            CAPE rule set
-            <select
-              value={shotType}
-              onChange={event => setShotType(event.target.value)}
-              disabled={isLoading}
-              className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-white disabled:opacity-50"
-            >
-              {battingShotTypes.map(type => <option key={type} value={type}>{formatShotType(type)}</option>)}
-            </select>
-          </label>
+        <div className="flex flex-wrap gap-3 text-xs">
+          <p className="text-slate-400">Batter hand <span className="ml-1 text-slate-200">{identifiedHandedness === 'unknown' ? 'Unknown' : `${identifiedHandedness === 'left' ? 'Left' : 'Right'}-handed`}</span></p>
+          <p className="text-slate-400">CAPE rule set <span className="ml-1 text-slate-200">{formatShotType(identifiedShotType || 'unknown')}</span></p>
         </div>
       </div>
 
@@ -403,4 +388,3 @@ const CapeStyleMetricTable: React.FC<{
     </table>
   </div>
 );
-

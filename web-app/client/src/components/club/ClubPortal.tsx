@@ -23,19 +23,6 @@ const OPENAI_BATTING_PRIORITIES = [
   ['footwork', 'Footwork'], ['head_alignment', 'Head alignment'], ['contact', 'Contact'],
   ['joint_angles', 'Joint angles'], ['bat_path', 'Bat path'], ['extension', 'Extension'], ['follow_through', 'Follow-through']
 ] as const;
-const OPENAI_CAPE_METRIC_ROWS = [
-  { key: 'incomingBallSpeedKmh', label: 'Incoming ball speed', unit: 'km/h' },
-  { key: 'incomingMomentumKgMps', label: 'Incoming momentum', unit: 'kg·m/s' },
-  { key: 'incomingKineticEnergyJ', label: 'Incoming ball energy', unit: 'J' },
-  { key: 'exitSpeedKmh', label: 'Ball speed after contact', unit: 'km/h' },
-  { key: 'exitMomentumKgMps', label: 'Outgoing momentum', unit: 'kg·m/s' },
-  { key: 'exitKineticEnergyJ', label: 'Outgoing ball energy', unit: 'J' },
-  { key: 'launchAngleDegrees', label: 'Launch angle', unit: '°' },
-  { key: 'batSwingSpeedKmh', label: 'Bat swing speed', unit: 'km/h' },
-  { key: 'batSwingArcDegrees', label: 'Bat swing arc', unit: '°' },
-  { key: 'followThroughArcDegrees', label: 'Follow-through arc', unit: '°' }
-] as const;
-
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
   if (session.executionLog?.status === 'IN_PROGRESS') return 'IN_PROGRESS';
@@ -3797,40 +3784,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     <button onClick={() => void saveOpenAiCoachReview()} disabled={isSavingOpenAiCoachReview} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">{isSavingOpenAiCoachReview ? 'Saving…' : 'Save coach review'}</button>
                     {openAiCoachReviewMessage && <p role="status" className="text-xs text-emerald-200">{openAiCoachReviewMessage}</p>}
                   </div>
-                </section>
-              )}
-
-              {openAiBattingAnalysis.restoredFromReport && (
-                <section className="space-y-3 rounded-lg border border-violet-400/20 bg-violet-500/5 p-4">
-                  <div>
-                    <h5 className="text-xs font-bold uppercase tracking-wide text-violet-200">Analysis summary</h5>
-                    <p className="mt-1 text-sm text-slate-100">{openAiBattingAnalysis.summary}</p>
-                  </div>
-                  {openAiBattingAnalysis.priorityCue && <p className="text-sm font-semibold text-white">Coaching focus: {openAiBattingAnalysis.priorityCue}</p>}
-                  {openAiBattingAnalysis.drill.title && (
-                    <div className="rounded-md border border-violet-400/15 bg-slate-950/50 p-3">
-                      <p className="text-xs font-bold text-violet-100">Suggested drill: {openAiBattingAnalysis.drill.title}</p>
-                      {openAiBattingAnalysis.drill.rationale && <p className="mt-1 text-xs text-slate-300">{openAiBattingAnalysis.drill.rationale}</p>}
-                      {openAiBattingAnalysis.drill.instructions.length > 0 && <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-300">{openAiBattingAnalysis.drill.instructions.map((instruction, index) => <li key={index}>{instruction}</li>)}</ol>}
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.strengths.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-200">Strengths</p>
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-slate-300">{openAiBattingAnalysis.strengths.map((strength, index) => <li key={index}><strong>{strength.title}:</strong> {strength.observation}</li>)}</ul>
-                    </div>
-                  )}
-                  {openAiBattingAnalysis.capeKinetics?.source === 'cape' && (
-                    <div className="overflow-x-auto rounded-lg border border-slate-800">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-900/70 text-slate-400"><tr><th className="p-2">Video measurements</th><th className="p-2">Estimate</th></tr></thead>
-                        <tbody>{OPENAI_CAPE_METRIC_ROWS.filter(row => openAiBattingAnalysis.capeKinetics?.metrics[row.key] !== null).map(row => (
-                          <tr key={row.key} className="border-t border-slate-800"><td className="p-2 text-slate-300">{row.label}</td><td className="p-2 text-white">{openAiBattingAnalysis.capeKinetics?.metrics[row.key]?.toFixed(1)} {row.unit}</td></tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-slate-500">Saved report visuals and detailed measurements are available under Advanced details or in the report bundle.</p>
                 </section>
               )}
 
