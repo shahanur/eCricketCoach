@@ -156,8 +156,28 @@ model TrainingSession {
   postNotes       String?  @map("post_notes")
   aiEvaluation    Json?    @map("ai_evaluation")
   executionLog    Json?    @map("execution_log")
+  observations    SessionObservation[]
 
   @@map("training_sessions")
+}
+
+model SessionObservation {
+  id         String         @id
+  sessionId  String         @map("session_id")
+  clubId     String         @map("club_id")
+  coachId    String         @map("coach_id")
+  playerId   String?        @map("player_id")
+  playerName String?        @map("player_name")
+  scope      String
+  category   String
+  text       String         @db.Text
+  drillId    String?        @map("drill_id")
+  drillTitle String?        @map("drill_title")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  session    TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("session_observations")
 }
 
 model PlayerAssessment {

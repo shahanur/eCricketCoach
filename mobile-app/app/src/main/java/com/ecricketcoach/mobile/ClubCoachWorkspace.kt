@@ -314,12 +314,16 @@ private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
     }
 }
 private fun sessionStatusLabel(session: ClubTrainingSession) = when {
-    session.isExecuted -> "Delivered"
+    session.isExecuted -> "Completed"
+    session.executionLog?.optString("status") == "PAUSED" -> "Paused"
+    session.executionLog?.optString("status") == "IN_PROGRESS" -> "In progress"
     session.isPublished -> "Published"
     else -> "Draft"
 }
 private fun sessionStatusColor(session: ClubTrainingSession) = when {
     session.isExecuted -> Color(0xFF2E7D32)
+    session.executionLog?.optString("status") == "PAUSED" -> Color(0xFFB7791F)
+    session.executionLog?.optString("status") == "IN_PROGRESS" -> Color(0xFF18B982)
     session.isPublished -> Color(0xFF1565C0)
     else -> Color(0xFF757575)
 }
@@ -550,6 +554,8 @@ internal fun ClubCoachWorkspace(
     var followUpBusy by remember { mutableStateOf(false) }
     var followUpError by remember { mutableStateOf("") }
     var createdFollowUpSession by remember { mutableStateOf<ClubTrainingSession?>(null) }
+    var sessionObservations by remember { mutableStateOf<List<SessionObservation>>(emptyList()) }
+    var sessionObservationsError by remember { mutableStateOf("") }
     var queuedMutations by remember { mutableStateOf<List<OfflineMutation>>(emptyList()) }
     var discardMutation by remember { mutableStateOf<OfflineMutation?>(null) }
     val scope = rememberCoroutineScope()
@@ -868,7 +874,20 @@ internal fun ClubCoachWorkspace(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                EkotaWorkspaceHeader(tab, user, isDark, onToggleTheme, onSignOut)
+                EkotaWorkspaceHeader(
+                    tab,
+                    user,
+                    isDark,
+                    onToggleTheme,
+                    onSignOut,
+                    activeSession = executingSession,
+                    onSessionBack = {
+                        executingSession = null
+                        aiAnalysisError = ""
+                        followUpError = ""
+                        createdFollowUpSession = null
+                    }
+                )
                 if (!isTablet && sectionTab != tab) {
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 2.dp),
@@ -926,6 +945,13 @@ internal fun ClubCoachWorkspace(
                 }
                 try {
                     executingSession = api.getCoachSessionExecution(token, session.id)
+                    sessionObservations = emptyList()
+                    sessionObservationsError = ""
+                    try {
+                        sessionObservations = api.getSessionObservations(token, session.id)
+                    } catch (failure: Exception) {
+                        sessionObservationsError = failure.message ?: "Unable to load session observations."
+                    }
                 } catch (failure: IOException) {
                     executingSession = session
                     notice = "Offline session workspace opened from the last synchronized copy. Saves will remain pending until the assigned coach can sync."
@@ -934,7 +960,135 @@ internal fun ClubCoachWorkspace(
                 }
             }
         }
-        when (tab) {
+        val activeExecution = executingSession
+        if (activeExecution != null) {
+            val executionContentModifier = Modifier.weight(1f)
+            MaterialTheme(colorScheme = LiveSessionLightColors) {
+                SessionExecutionScreen(
+                    session = activeExecution,
+                    players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
+                    drills = drills + clubDrills,
+                    readOnly = activeExecution.isExecuted,
+                    onDismiss = {
+                        executingSession = null
+                        aiAnalysisError = ""
+                        followUpError = ""
+                        createdFollowUpSession = null
+                    },
+                    modifier = executionContentModifier,
+                    isSaving = executionSaving,
+                    saveError = executionError,
+                    aiBusy = aiAnalysisBusy,
+                    aiError = aiAnalysisError,
+                    followUpBusy = followUpBusy,
+                    followUpError = followUpError,
+                    createdFollowUp = createdFollowUpSession,
+                    observations = sessionObservations,
+                    observationLoadError = sessionObservationsError,
+                    onReloadObservations = {
+                        sessionObservationsError = ""
+                        try {
+                            sessionObservations = api.getSessionObservations(token, activeExecution.id)
+                        } catch (failure: Exception) {
+                            sessionObservationsError = failure.message ?: "Unable to load session observations."
+                        }
+                    },
+                    onAddObservation = { draft ->
+                        val created = api.createSessionObservation(token, activeExecution.id, draft)
+                        sessionObservations = listOf(created) + sessionObservations.filterNot { it.id == created.id }
+                        created
+                    },
+                    onRunAiAnalysis = { executionLog, playerNotes, notes ->
+                        scope.launch {
+                            aiAnalysisBusy = true
+                            aiAnalysisError = ""
+                            createdFollowUpSession = null
+                            try {
+                                val update = JSONObject()
+                                    .put("executionLog", executionLog)
+                                    .put("playerNotes", playerNotes)
+                                    .put("postNotes", notes)
+                                    .put("complete", false)
+                                api.saveSessionExecution(token, activeExecution.id, update)
+                                val assessed = api.assessCompletedSession(token, activeExecution.id, notes)
+                                sessions = sessions.map { if (it.id == assessed.id) assessed else it }
+                                executingSession = assessed
+                                notice = "AI session analysis generated."
+                            } catch (failure: Exception) {
+                                aiAnalysisError = failure.message ?: "AI analysis failed."
+                            } finally {
+                                aiAnalysisBusy = false
+                            }
+                        }
+                    },
+                    onCreateFollowUp = { payload ->
+                        scope.launch {
+                            followUpBusy = true
+                            followUpError = ""
+                            try {
+                                val (newSession, newDrills) = api.createFollowUpSession(token, activeExecution.id, payload)
+                                clubDrills = clubDrills + newDrills.filterNot { created -> clubDrills.any { it.id == created.id } }
+                                sessions = sessions + newSession
+                                createdFollowUpSession = newSession
+                                notice = "Follow-up session created."
+                            } catch (failure: Exception) {
+                                followUpError = failure.message ?: "Unable to create follow-up session."
+                            } finally {
+                                followUpBusy = false
+                            }
+                        }
+                    },
+                    onSave = { executionLog, playerNotes, notes, complete ->
+                        scope.launch {
+                            executionSaving = true
+                            executionError = ""
+                            try {
+                                val update = JSONObject()
+                                    .put("executionLog", executionLog)
+                                    .put("playerNotes", playerNotes)
+                                    .put("postNotes", notes)
+                                    .put("complete", complete)
+                                val updated = api.saveSessionExecution(token, activeExecution.id, update)
+                                sessions = sessions.map { if (it.id == updated.id) updated else it }
+                                executingSession = if (complete) null else updated
+                                refresh()
+                                if (complete) notice = "Session completed and saved."
+                            } catch (failure: IOException) {
+                                try {
+                                    val mutation = OfflineMutation(
+                                        userId = user.id,
+                                        tenantId = clubId,
+                                        kind = OfflineMutation.SAVE_SESSION_EXECUTION,
+                                        resourceId = activeExecution.id,
+                                        payload = JSONObject()
+                                            .put("executionLog", executionLog)
+                                            .put("playerNotes", playerNotes)
+                                            .put("postNotes", notes)
+                                            .put("complete", complete)
+                                            .toString(),
+                                        baseValue = activeExecution.executionLog?.toString() ?: "null"
+                                    )
+                                    store.enqueueMutation(mutation)
+                                    reloadQueue()
+                                    executingSession = null
+                                    notice = if (complete) {
+                                        "Completion is queued on this device. The session is not delivered until the server confirms synchronization."
+                                    } else {
+                                        "Execution progress is queued on this device and will sync when connectivity returns."
+                                    }
+                                } catch (storageFailure: Exception) {
+                                    executionError = "Network unavailable and this edit could not be safely queued: ${storageFailure.message ?: "encrypted storage error"}"
+                                }
+                            } catch (failure: Exception) {
+                                executionError = failure.message ?: "Unable to save session execution."
+                            } finally {
+                                executionSaving = false
+                            }
+                        }
+                    }
+                )
+            }
+        } else when (tab) {
             "Overview" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
                 OverviewPanel(
                     userId = user.id,
@@ -1713,119 +1867,6 @@ internal fun ClubCoachWorkspace(
             }
         )
     }
-    executingSession?.let { session ->
-        SessionExecutionScreen(
-            session = session,
-            players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
-            drills = drills + clubDrills,
-            readOnly = session.isExecuted,
-            onDismiss = {
-                executingSession = null
-                aiAnalysisError = ""
-                followUpError = ""
-                createdFollowUpSession = null
-            },
-            isSaving = executionSaving,
-            saveError = executionError,
-            aiBusy = aiAnalysisBusy,
-            aiError = aiAnalysisError,
-            followUpBusy = followUpBusy,
-            followUpError = followUpError,
-            createdFollowUp = createdFollowUpSession,
-            onRunAiAnalysis = { executionLog, playerNotes, notes ->
-                scope.launch {
-                    aiAnalysisBusy = true
-                    aiAnalysisError = ""
-                    createdFollowUpSession = null
-                    try {
-                        val update = JSONObject()
-                            .put("executionLog", executionLog)
-                            .put("playerNotes", playerNotes)
-                            .put("postNotes", notes)
-                            .put("complete", false)
-                        api.saveSessionExecution(token, session.id, update)
-                        val assessed = api.assessCompletedSession(token, session.id, notes)
-                        sessions = sessions.map { if (it.id == assessed.id) assessed else it }
-                        executingSession = assessed
-                        notice = "AI session analysis generated."
-                    } catch (failure: Exception) {
-                        aiAnalysisError = failure.message ?: "AI analysis failed."
-                    } finally {
-                        aiAnalysisBusy = false
-                    }
-                }
-            },
-            onCreateFollowUp = { payload ->
-                scope.launch {
-                    followUpBusy = true
-                    followUpError = ""
-                    try {
-                        val (newSession, newDrills) = api.createFollowUpSession(token, session.id, payload)
-                        clubDrills = clubDrills + newDrills.filterNot { created -> clubDrills.any { it.id == created.id } }
-                        sessions = sessions + newSession
-                        createdFollowUpSession = newSession
-                        notice = "Follow-up session created."
-                    } catch (failure: Exception) {
-                        followUpError = failure.message ?: "Unable to create follow-up session."
-                    } finally {
-                        followUpBusy = false
-                    }
-                }
-            },
-            onSave = { executionLog, playerNotes, notes, complete ->
-                scope.launch {
-                    executionSaving = true
-                    executionError = ""
-                    try {
-                        val update = JSONObject()
-                            .put("executionLog", executionLog)
-                            .put("playerNotes", playerNotes)
-                            .put("postNotes", notes)
-                            .put("complete", complete)
-                        val updated = api.saveSessionExecution(
-                            token,
-                            session.id,
-                            update
-                        )
-                        sessions = sessions.map { if (it.id == updated.id) updated else it }
-                        executingSession = if (complete) null else updated
-                        refresh()
-                        notice = if (complete) "Session completed and saved." else "Session progress saved."
-                    } catch (failure: IOException) {
-                        try {
-                            val mutation = OfflineMutation(
-                                userId = user.id,
-                                tenantId = clubId,
-                                kind = OfflineMutation.SAVE_SESSION_EXECUTION,
-                                resourceId = session.id,
-                                payload = JSONObject()
-                                    .put("executionLog", executionLog)
-                                    .put("playerNotes", playerNotes)
-                                    .put("postNotes", notes)
-                                    .put("complete", complete)
-                                    .toString(),
-                                baseValue = session.executionLog?.toString() ?: "null"
-                            )
-                            store.enqueueMutation(mutation)
-                            reloadQueue()
-                            executingSession = null
-                            notice = if (complete) {
-                                "Completion is queued on this device. The session is not delivered until the server confirms synchronization."
-                            } else {
-                                "Execution progress is queued on this device and will sync when connectivity returns."
-                            }
-                        } catch (storageFailure: Exception) {
-                            executionError = "Network unavailable and this edit could not be safely queued: ${storageFailure.message ?: "encrypted storage error"}"
-                        }
-                    } catch (failure: Exception) {
-                        executionError = failure.message ?: "Unable to save session execution."
-                    } finally {
-                        executionSaving = false
-                    }
-                }
-            }
-        )
-    }
     selectedPromotionPlayer?.let { player ->
         PromotePlayerDialog(
             player = player,
@@ -1959,7 +2000,9 @@ private fun EkotaWorkspaceHeader(
     user: CoachUser,
     isDark: Boolean,
     onToggleTheme: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    activeSession: ClubTrainingSession? = null,
+    onSessionBack: (() -> Unit)? = null
 ) {
     MaterialTheme(colorScheme = EkotaOverviewColors) {
         val isOverview = tab == "Overview"
@@ -2004,7 +2047,7 @@ private fun EkotaWorkspaceHeader(
         }
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (isOverview) {
+                if (isOverview && activeSession == null) {
                     Text(greeting, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
                 } else {
                     Spacer(Modifier.weight(1f))
@@ -2018,7 +2061,44 @@ private fun EkotaWorkspaceHeader(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    if (isOverview) {
+                    if (activeSession != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = EkotaOverviewColors.surface,
+                                border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    IconButton(onClick = { onSessionBack?.invoke() }) {
+                                        Icon(
+                                            Icons.AutoMirrored.Outlined.ArrowBack,
+                                            contentDescription = "Back",
+                                            tint = EkotaOverviewColors.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(
+                                    activeSession.title,
+                                    color = EkotaOverviewColors.onSurface,
+                                    fontSize = 23.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}",
+                                    color = EkotaOverviewColors.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    } else if (isOverview) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(user.name, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(" 👋", fontSize = 24.sp)
@@ -3340,8 +3420,11 @@ private fun SessionsPanel(
     val filteredSessions = sessions.filter { session ->
         val executionStatus = session.executionLog?.optString("status").orEmpty()
         val matchesStatus = when (status) {
-            "UPCOMING" -> !session.isExecuted && session.sessionDate >= LocalDate.now().toString()
+            "UPCOMING" -> !session.isExecuted &&
+                executionStatus !in setOf("IN_PROGRESS", "PAUSED") &&
+                session.sessionDate >= LocalDate.now().toString()
             "IN_PROGRESS" -> executionStatus == "IN_PROGRESS" || executionStatus == "PREPARING"
+            "PAUSED" -> executionStatus == "PAUSED"
             "COMPLETED" -> session.isExecuted
             "CANCELLED" -> executionStatus == "CANCELLED"
             else -> true
@@ -3383,6 +3466,7 @@ private fun SessionsPanel(
                         "ALL" to ("All" to Color(0xFF7448EF)),
                         "UPCOMING" to ("Upcoming" to Color(0xFF7448EF)),
                         "IN_PROGRESS" to ("In progress" to Color(0xFF18B982)),
+                        "PAUSED" to ("Paused" to Color(0xFFB7791F)),
                         "COMPLETED" to ("Completed" to Color(0xFF3D6FE8)),
                         "CANCELLED" to ("Cancelled" to Color(0xFFEF6672))
                     ).forEach { (value, chip) ->
@@ -3511,7 +3595,7 @@ private fun SessionCard(
                         Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
                             Text(
-                                if (session.isExecuted) "Completed" else if (session.isPublished) "Published" else "Draft",
+                                sessionStatusLabel(session),
                                 color = statusColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,

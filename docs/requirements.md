@@ -117,7 +117,7 @@ The sign-in callback maps an authenticated tenant to a role and the client selec
 The active Prisma schema defines persistence for:
 
 - Customer tenants, invoices, admin notifications, and club approvals.
-- Drill catalog entries, club members, squads, and training sessions.
+- Drill catalog entries, club members, squads, training sessions, and session observations.
 - Progression certificates and support tickets.
 - Google Drive connections and video-analysis results.
 

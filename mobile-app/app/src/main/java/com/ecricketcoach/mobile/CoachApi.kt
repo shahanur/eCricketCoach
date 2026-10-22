@@ -35,6 +35,9 @@ internal fun apiErrorMessage(status: Int, body: String, path: String): String {
     if (status == 404 && path.startsWith("/api/coach/sessions/") && path.endsWith("/execution")) {
         return "The API does not provide the session execution route. Deploy the matching API build, then sync and try Run again."
     }
+    if (status == 404 && path.startsWith("/api/coach/sessions/") && path.endsWith("/observations")) {
+        return "Session observations are unavailable from this API build. Update or restart the coach API, then retry."
+    }
     return "The server returned HTTP $status."
 }
 
@@ -90,6 +93,28 @@ data class ClubTrainingSession(
     fun isAssignedTo(userId: String): Boolean =
         userId.isNotBlank() && userId in listOf(coachId, coordinatorCoachId, assistantCoachId)
 }
+
+data class SessionObservation(
+    val id: String,
+    val sessionId: String,
+    val playerId: String?,
+    val playerName: String?,
+    val scope: String,
+    val category: String,
+    val text: String,
+    val drillId: String?,
+    val drillTitle: String?,
+    val createdAt: String
+)
+
+data class SessionObservationDraft(
+    val id: String,
+    val playerId: String?,
+    val scope: String,
+    val category: String,
+    val text: String,
+    val drillId: String?
+)
 
 data class PlayerAssessment(
     val id: String,
@@ -471,6 +496,9 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     internal fun sessionExecutionPath(sessionId: String): String =
         "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/execution"
 
+    internal fun sessionObservationsPath(sessionId: String): String =
+        "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/observations"
+
     internal fun clubSessionPath(sessionId: String): String =
         "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}"
 
@@ -581,6 +609,35 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             val json = JSONObject(request("/api/club/sessions", token, session))
             json.getJSONObject("session").toClubTrainingSession()
         }
+
+    suspend fun getSessionObservations(token: String, sessionId: String): List<SessionObservation> =
+        withContext(Dispatchers.IO) {
+            val response = JSONObject(request(sessionObservationsPath(sessionId), token))
+            val rows = response.optJSONArray("observations") ?: JSONArray()
+            (0 until rows.length()).map { index -> rows.getJSONObject(index).toSessionObservation() }
+        }
+
+    suspend fun createSessionObservation(
+        token: String,
+        sessionId: String,
+        observation: SessionObservationDraft
+    ): SessionObservation = withContext(Dispatchers.IO) {
+        val payload = JSONObject()
+            .put("id", observation.id)
+            .put("scope", observation.scope)
+            .put("category", observation.category)
+            .put("text", observation.text)
+            .put("playerId", observation.playerId ?: JSONObject.NULL)
+            .put("drillId", observation.drillId ?: JSONObject.NULL)
+        val response = JSONObject(request(
+            sessionObservationsPath(sessionId),
+            token,
+            payload,
+            method = "POST",
+            idempotencyKey = observation.id
+        ))
+        response.getJSONObject("observation").toSessionObservation()
+    }
 
     suspend fun publishClubSession(token: String, sessionId: String): ClubTrainingSession =
         withContext(Dispatchers.IO) {
@@ -1510,6 +1567,19 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         aiEvaluation = optJSONObject("aiEvaluation")?.takeIf { it.optString("squadSummary").isNotBlank() },
         coordinatorCoachId = optString("coordinatorCoachId").takeIf { it.isNotBlank() && it != "null" },
         assistantCoachId = optString("assistantCoachId").takeIf { it.isNotBlank() && it != "null" }
+    )
+
+    private fun JSONObject.toSessionObservation() = SessionObservation(
+        id = optString("id"),
+        sessionId = optString("sessionId"),
+        playerId = optString("playerId").takeIf { it.isNotBlank() && it != "null" },
+        playerName = optString("playerName").takeIf { it.isNotBlank() && it != "null" },
+        scope = optString("scope"),
+        category = optString("category"),
+        text = optString("text"),
+        drillId = optString("drillId").takeIf { it.isNotBlank() && it != "null" },
+        drillTitle = optString("drillTitle").takeIf { it.isNotBlank() && it != "null" },
+        createdAt = optString("createdAt")
     )
 
     private fun JSONObject.toPlayerAssessment(): PlayerAssessment {

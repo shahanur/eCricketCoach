@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { DbService } from '../services/dbService.js';
-import { SessionExecutionLog } from '../types/index.js';
+import { SessionExecutionLog, SessionObservationCategory, SessionObservationScope } from '../types/index.js';
 
 export const coachRouter = Router();
 
@@ -13,6 +13,45 @@ export const coachRouteQueries = {
   findAssignedSession: (sessionId: string, userId: string, clubId: string) =>
     prisma.trainingSession.findFirst({
       where: assignedExecutionSessionWhere(sessionId, userId, clubId)
+    }),
+  findSessionObservations: (sessionId: string) => prisma.sessionObservation.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: 'desc' },
+    take: 100
+  }),
+  findSessionObservationById: (id: string) => prisma.sessionObservation.findUnique({ where: { id } }),
+  updateSessionObservation: (id: string, data: {
+    playerId: string | null;
+    playerName: string | null;
+    scope: SessionObservationScope;
+    category: SessionObservationCategory;
+    text: string;
+    drillId: string | null;
+    drillTitle: string | null;
+  }) => prisma.sessionObservation.update({ where: { id }, data }),
+  createSessionObservation: (data: {
+    id: string;
+    sessionId: string;
+    clubId: string;
+    coachId: string;
+    playerId: string | null;
+    playerName: string | null;
+    scope: SessionObservationScope;
+    category: SessionObservationCategory;
+    text: string;
+    drillId: string | null;
+    drillTitle: string | null;
+  }) => prisma.sessionObservation.create({ data }),
+  findAssignedPlayer: (playerId: string, clubId: string, squadName: string) =>
+    prisma.clubMember.findFirst({
+      where: {
+        id: playerId,
+        clubId,
+        role: 'PLAYER',
+        invitationStatus: 'ACTIVE',
+        OR: [{ squad: squadName }, { squads: { has: squadName } }]
+      },
+      select: { id: true, name: true }
     })
 };
 
@@ -24,7 +63,7 @@ const minutes = (value: unknown) => Number.isFinite(value) ? Math.min(Math.max(M
 // Normalises the client-supplied execution log into a bounded, well-typed record.
 export function parseExecutionLog(value: unknown): SessionExecutionLog | null {
   if (!isRecord(value)) return null;
-  if (value.status !== 'PREPARING' && value.status !== 'IN_PROGRESS' && value.status !== 'COMPLETED') return null;
+  if (value.status !== 'PREPARING' && value.status !== 'IN_PROGRESS' && value.status !== 'PAUSED' && value.status !== 'COMPLETED') return null;
   const checklist = isRecord(value.checklist) ? value.checklist : {};
   const attendance = isRecord(value.attendance) ? value.attendance : {};
   const evaluation = isRecord(value.evaluation) ? value.evaluation : {};
@@ -37,7 +76,18 @@ export function parseExecutionLog(value: unknown): SessionExecutionLog | null {
   return {
     status: value.status,
     startedAt: text(value.startedAt, 40) || null,
+    sessionPausedAt: text(value.sessionPausedAt, 40) || null,
+    sessionPausedSeconds: Number.isFinite(value.sessionPausedSeconds)
+      ? Math.min(Math.max(Math.round(value.sessionPausedSeconds as number), 0), 86_400)
+      : 0,
+    sessionPausedDrillWasRunning: value.sessionPausedDrillWasRunning === true,
     completedAt: text(value.completedAt, 40) || null,
+    activeDrillId: text(value.activeDrillId, 100) || null,
+    activeDrillStartedAt: text(value.activeDrillStartedAt, 40) || null,
+    activeDrillElapsedSeconds: Number.isFinite(value.activeDrillElapsedSeconds)
+      ? Math.min(Math.max(Math.round(value.activeDrillElapsedSeconds as number), 0), 86_400)
+      : 0,
+    activeDrillPaused: value.activeDrillPaused === true,
     checklist: Object.fromEntries(
       Object.entries(checklist).slice(0, 50).map(([key, done]) => [key.slice(0, 100), done === true])
     ),
@@ -117,12 +167,147 @@ export function isSessionExecutionDateAllowed(
   sessionDate: string,
   status: SessionExecutionLog['status'],
   complete: boolean,
-  now = Date.now()
+  now = Date.now(),
+  alreadyStarted = false
 ): boolean {
   if (status === 'PREPARING' && !complete) return true;
+  if ((status === 'IN_PROGRESS' || status === 'PAUSED') && alreadyStarted) return true;
   const latestLocalDate = new Date(now + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
   return sessionDate <= latestLocalDate;
 }
+
+const observationScopes: SessionObservationScope[] = ['INDIVIDUAL', 'GROUP', 'SQUAD'];
+const observationCategories: SessionObservationCategory[] = ['TECHNIQUE', 'TACTICAL', 'PHYSICAL', 'BEHAVIOUR', 'PROGRESS', 'SAFETY'];
+const isObservationScope = (value: unknown): value is SessionObservationScope =>
+  typeof value === 'string' && observationScopes.includes(value as SessionObservationScope);
+const isObservationCategory = (value: unknown): value is SessionObservationCategory =>
+  typeof value === 'string' && observationCategories.includes(value as SessionObservationCategory);
+
+coachRouter.get('/sessions/:id/observations', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const session = await findAssignedSession(req);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    const observations = await coachRouteQueries.findSessionObservations(session.id);
+    res.json({ observations });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load session observations.' });
+  }
+});
+
+coachRouter.post('/sessions/:id/observations', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const session = await findAssignedSession(req);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    if (session.isExecuted) {
+      res.status(400).json({ error: 'Observations cannot be added to a completed session.' });
+      return;
+    }
+
+    const { id, scope, category, text: observationText, playerId, drillId } = req.body || {};
+    const cleanText = typeof observationText === 'string' ? observationText.trim() : '';
+    if (typeof id !== 'string' || !id.trim() || id.length > 100) {
+      res.status(400).json({ error: 'A valid observation ID is required.' });
+      return;
+    }
+    const observationId = id.trim();
+    if (!isObservationScope(scope)) {
+      res.status(400).json({ error: 'Observation scope must be INDIVIDUAL, GROUP, or SQUAD.' });
+      return;
+    }
+    if (!isObservationCategory(category)) {
+      res.status(400).json({ error: 'Observation category is not supported.' });
+      return;
+    }
+    if (!cleanText || cleanText.length > 4000) {
+      res.status(400).json({ error: 'Observation text must be between 1 and 4000 characters.' });
+      return;
+    }
+    if (scope === 'INDIVIDUAL' && (typeof playerId !== 'string' || !playerId.trim())) {
+      res.status(400).json({ error: 'Select a player for an individual observation.' });
+      return;
+    }
+    if (scope !== 'INDIVIDUAL' && playerId !== undefined && playerId !== null) {
+      res.status(400).json({ error: 'Player selection is only valid for an individual observation.' });
+      return;
+    }
+    if (drillId !== undefined && drillId !== null && typeof drillId !== 'string') {
+      res.status(400).json({ error: 'drillId must be a string.' });
+      return;
+    }
+
+    const selectedPlayerId = typeof playerId === 'string' ? playerId.trim() : '';
+    let playerName: string | null = null;
+    if (scope === 'INDIVIDUAL') {
+      const assignedIds = Array.isArray(session.assignedPlayerIds) ? session.assignedPlayerIds : [];
+      const player = assignedIds.includes(selectedPlayerId)
+        ? await prisma.clubMember.findFirst({
+          where: { id: selectedPlayerId, clubId: req.user!.tenantId, role: 'PLAYER', invitationStatus: 'ACTIVE' },
+          select: { id: true, name: true }
+        })
+        : assignedIds.length === 0
+          ? await coachRouteQueries.findAssignedPlayer(selectedPlayerId, req.user!.tenantId, session.squadName)
+          : null;
+      if (!player) {
+        res.status(400).json({ error: 'Selected player is not assigned to this session.' });
+        return;
+      }
+      playerName = player.name;
+    }
+
+    const executionLog = isRecord(session.executionLog) ? session.executionLog : null;
+    const drillEntries: Record<string, unknown>[] = [];
+    const rawDrillEntries = executionLog?.drillLog;
+    if (Array.isArray(rawDrillEntries)) {
+      for (const entry of rawDrillEntries as unknown[]) {
+        if (isRecord(entry)) drillEntries.push(entry);
+      }
+    }
+    const drill = typeof drillId === 'string' && drillId
+      ? drillEntries.find(entry => entry.drillId === drillId)
+      : undefined;
+    if (typeof drillId === 'string' && drillId && !drill) {
+      res.status(400).json({ error: 'Selected drill is not part of this session execution.' });
+      return;
+    }
+
+    const observationData = {
+      playerId: scope === 'INDIVIDUAL' ? selectedPlayerId : null,
+      playerName,
+      scope,
+      category,
+      text: cleanText,
+      drillId: typeof drill?.drillId === 'string' ? drill.drillId : null,
+      drillTitle: typeof drill?.title === 'string' ? drill.title : null
+    };
+    const existing = await coachRouteQueries.findSessionObservationById(observationId);
+    if (existing) {
+      if (existing.sessionId !== session.id || existing.coachId !== req.user!.userId) {
+        res.status(409).json({ error: 'Observation ID is already in use.' });
+        return;
+      }
+      const observation = await coachRouteQueries.updateSessionObservation(observationId, observationData);
+      res.json({ observation });
+      return;
+    }
+
+    const observation = await coachRouteQueries.createSessionObservation({
+      id: observationId,
+      sessionId: session.id,
+      clubId: req.user!.tenantId,
+      coachId: req.user!.userId,
+      ...observationData
+    });
+    res.status(201).json({ observation });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to save session observation.' });
+  }
+});
 
 coachRouter.get('/sessions/:id/execution', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -243,7 +428,13 @@ coachRouter.patch('/sessions/:id/execution', async (req: AuthenticatedRequest, r
       res.status(400).json({ error: 'A valid execution log is required.' });
       return;
     }
-    if (!isSessionExecutionDateAllowed(session.sessionDate, parsedLog.status, complete === true)) {
+    const savedStatus = isRecord(session.executionLog) ? session.executionLog.status : null;
+    const alreadyStarted = savedStatus === 'IN_PROGRESS' || savedStatus === 'PAUSED';
+    if (parsedLog.status === 'PAUSED' && !alreadyStarted) {
+      res.status(400).json({ error: 'A session must be started before it can be paused.' });
+      return;
+    }
+    if (!isSessionExecutionDateAllowed(session.sessionDate, parsedLog.status, complete === true, Date.now(), alreadyStarted)) {
       res.status(400).json({ error: 'Sessions can only be started on or after their scheduled date.' });
       return;
     }

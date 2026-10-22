@@ -211,10 +211,17 @@ export interface SessionEvaluation {
 }
 
 export interface SessionExecutionLog {
-  status: 'PREPARING' | 'IN_PROGRESS' | 'COMPLETED';
+  status: 'PREPARING' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED';
   startedAt?: string | null;
+  sessionPausedAt?: string | null;
+  sessionPausedSeconds?: number;
+  sessionPausedDrillWasRunning?: boolean;
   startedEarly?: boolean;
   completedAt?: string | null;
+  activeDrillId?: string | null;
+  activeDrillStartedAt?: string | null;
+  activeDrillElapsedSeconds?: number;
+  activeDrillPaused?: boolean;
   checklist: Record<string, boolean>;
   attendance: Record<string, AttendanceStatus>;
   drillLog: SessionDrillLogEntry[];

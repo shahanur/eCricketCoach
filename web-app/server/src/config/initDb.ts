@@ -106,6 +106,23 @@ export async function initDb() {
       execution_log JSONB
     )`,
 
+    `CREATE TABLE IF NOT EXISTS session_observations (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES training_sessions(id) ON DELETE CASCADE ON UPDATE CASCADE,
+      club_id TEXT NOT NULL,
+      coach_id TEXT NOT NULL,
+      player_id TEXT,
+      player_name TEXT,
+      scope TEXT NOT NULL,
+      category TEXT NOT NULL,
+      text TEXT NOT NULL,
+      drill_id TEXT,
+      drill_title TEXT,
+      created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS session_observations_session_id_created_at_idx
+      ON session_observations (session_id, created_at)`,
+
     `CREATE TABLE IF NOT EXISTS player_assessments (
       id VARCHAR(100) PRIMARY KEY,
       club_id VARCHAR(100) NOT NULL,

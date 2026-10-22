@@ -117,11 +117,36 @@ export interface TrainingSession {
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT';
 
+export type SessionObservationScope = 'INDIVIDUAL' | 'GROUP' | 'SQUAD';
+export type SessionObservationCategory = 'TECHNIQUE' | 'TACTICAL' | 'PHYSICAL' | 'BEHAVIOUR' | 'PROGRESS' | 'SAFETY';
+
+export interface SessionObservation {
+  id: string;
+  sessionId: string;
+  clubId: string;
+  coachId: string;
+  playerId: string | null;
+  playerName: string | null;
+  scope: SessionObservationScope;
+  category: SessionObservationCategory;
+  text: string;
+  drillId: string | null;
+  drillTitle: string | null;
+  createdAt: Date;
+}
+
 export interface SessionExecutionLog {
-  status: 'PREPARING' | 'IN_PROGRESS' | 'COMPLETED';
+  status: 'PREPARING' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED';
   startedAt?: string | null;
+  sessionPausedAt?: string | null;
+  sessionPausedSeconds?: number;
+  sessionPausedDrillWasRunning?: boolean;
   startedEarly?: boolean;
   completedAt?: string | null;
+  activeDrillId?: string | null;
+  activeDrillStartedAt?: string | null;
+  activeDrillElapsedSeconds?: number;
+  activeDrillPaused?: boolean;
   checklist: Record<string, boolean>;
   attendance: Record<string, AttendanceStatus>;
   drillLog: Array<{
