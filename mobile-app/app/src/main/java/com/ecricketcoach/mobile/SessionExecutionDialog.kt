@@ -1,5 +1,9 @@
 package com.ecricketcoach.mobile
 
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.speech.RecognizerIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -43,6 +48,7 @@ import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -57,9 +63,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -87,6 +96,7 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private val PreparationChecklist = listOf(
     "plan" to "Review objectives, session plan and drill order",
@@ -243,6 +253,8 @@ internal fun SessionExecutionScreen(
     createdFollowUp: ClubTrainingSession? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    coachPage: String,
+    onCoachPageChange: (String) -> Unit,
     onSave: (JSONObject, JSONObject, String, Boolean) -> Unit,
     onRunAiAnalysis: (JSONObject, JSONObject, String) -> Unit = { _, _, _ -> },
     onCreateFollowUp: (JSONObject) -> Unit = {},
@@ -260,6 +272,8 @@ internal fun SessionExecutionScreen(
         mutableStateOf(savedLog.optBoolean("sessionPausedDrillWasRunning"))
     }
     var attendanceSaveRequested by remember(session.id) { mutableStateOf(false) }
+    var drillNotesDirty by remember(session.id) { mutableStateOf(false) }
+    var drillTimeDirty by remember(session.id) { mutableStateOf(false) }
     val checklist = remember(session.id) {
         mutableStateMapOf<String, Boolean>().apply {
             val values = savedLog.optJSONObject("checklist") ?: JSONObject()
@@ -294,9 +308,6 @@ internal fun SessionExecutionScreen(
     var activeDrillElapsedSeconds by remember(session.id) { mutableIntStateOf(savedLog.optInt("activeDrillElapsedSeconds")) }
     var activeDrillStartedAt by remember(session.id) { mutableStateOf(savedLog.optionalText("activeDrillStartedAt")) }
     var activeDrillPaused by remember(session.id) { mutableStateOf(savedLog.optBoolean("activeDrillPaused")) }
-    var coachPage by remember(session.id) {
-        mutableStateOf(if (savedLog.optString("status") in setOf("IN_PROGRESS", "PAUSED")) "LIVE" else "PREP")
-    }
     var observationScope by remember(session.id) { mutableStateOf("SQUAD") }
     var observationCategory by remember(session.id) { mutableStateOf("TECHNIQUE") }
     var observationPlayerId by remember(session.id) { mutableStateOf<String?>(null) }
@@ -389,7 +400,7 @@ internal fun SessionExecutionScreen(
         activeDrillElapsedSeconds = 0
         activeDrillStartedAt = if (activeDrillId == null) null else Instant.now().toString()
         activeDrillPaused = false
-        coachPage = "LIVE"
+        onCoachPageChange("LIVE")
         showEarlyStartConfirm = false
         showReadyScreen = false
     }
@@ -469,6 +480,28 @@ internal fun SessionExecutionScreen(
         saveProgress()
     }
 
+    LaunchedEffect(
+        drillNotesDirty,
+        activeDrillId,
+        drillRows.firstOrNull { it.id == activeDrillId }?.notes
+    ) {
+        if (!drillNotesDirty) return@LaunchedEffect
+        delay(500)
+        saveProgress()
+        drillNotesDirty = false
+    }
+
+    LaunchedEffect(
+        drillTimeDirty,
+        activeDrillId,
+        drillRows.firstOrNull { it.id == activeDrillId }?.plannedMinutes
+    ) {
+        if (!drillTimeDirty) return@LaunchedEffect
+        delay(350)
+        saveProgress()
+        drillTimeDirty = false
+    }
+
     fun pauseSession() {
         if (status != "IN_PROGRESS") return
         val now = Instant.now()
@@ -528,7 +561,7 @@ internal fun SessionExecutionScreen(
         activeDrillElapsedSeconds = (drill.actualMinutes.coerceIn(0, 600) * 60)
         activeDrillStartedAt = Instant.now().toString()
         activeDrillPaused = false
-        coachPage = "DRILL"
+        onCoachPageChange("DRILL")
         saveProgress()
     }
 
@@ -543,7 +576,7 @@ internal fun SessionExecutionScreen(
         activeDrillElapsedSeconds = 0
         activeDrillPaused = false
         activeDrillStartedAt = if (next == null) null else Instant.now().toString()
-        coachPage = "LIVE"
+        onCoachPageChange("LIVE")
         saveProgress()
     }
 
@@ -552,7 +585,7 @@ internal fun SessionExecutionScreen(
         drillRows = drillRows.map { drill ->
             if (drill.id == currentId) drill.copy(plannedMinutes = (drill.plannedMinutes + minutes).coerceIn(1, 600)) else drill
         }
-        saveProgress()
+        drillTimeDirty = true
     }
 
     fun toggleFollowUpDrillId(drillId: String) {
@@ -745,7 +778,7 @@ internal fun SessionExecutionScreen(
                 players = assignedPlayers,
                 isSaving = isSaving,
                 saveError = saveError,
-                onBack = { coachPage = "LIVE" },
+                onBack = { onCoachPageChange("LIVE") },
                 onOpenObservation = { scope, category ->
                     observationDraftId = UUID.randomUUID().toString()
                     observationScope = scope
@@ -754,7 +787,7 @@ internal fun SessionExecutionScreen(
                     observationText = ""
                     observationSavedAt = ""
                     observationError = ""
-                    coachPage = "OBSERVATION"
+                    onCoachPageChange("OBSERVATION")
                 },
                 onObservationScopeChange = { observationScope = it },
                 onObservationCategoryChange = { observationCategory = it },
@@ -770,13 +803,21 @@ internal fun SessionExecutionScreen(
                 onAdjust = { adjustActiveDrill(it) },
                 onCompleteDrill = { completeActiveDrill() },
                 onSelectDrill = { startDrill(it) },
-                onOpenDrillControls = { coachPage = "DRILL" },
-                onViewAllObservations = { coachPage = "OBSERVATIONS" },
+                onOpenDrillControls = { onCoachPageChange("DRILL") },
+                onViewAllObservations = { onCoachPageChange("OBSERVATIONS") },
                 onPauseSession = { pauseSession() },
                 onResumeSession = { resumeSession() },
-                onEndSession = { coachPage = "END" },
+                onDrillNotesChange = { notes ->
+                    activeDrillId?.let { currentId ->
+                        drillRows = drillRows.map { drill ->
+                            if (drill.id == currentId) drill.copy(notes = notes) else drill
+                        }
+                        drillNotesDirty = true
+                    }
+                },
+                onEndSession = { onCoachPageChange("END") },
                 onFinishSession = {
-                    coachPage = "REVIEW"
+                    onCoachPageChange("REVIEW")
                     val finalDrillSeconds = activeDrillElapsed()
                     activeDrillId?.let { currentId ->
                         drillRows = drillRows.map { drill ->
@@ -1915,6 +1956,7 @@ private fun FollowUpCard(
                 onOpenDrillControls: () -> Unit,
                 onPauseSession: () -> Unit,
                 onResumeSession: () -> Unit,
+                onDrillNotesChange: (String) -> Unit,
                 onEndSession: () -> Unit,
                 onFinishSession: () -> Unit,
                 onSaveProgress: () -> Unit
@@ -1943,11 +1985,14 @@ private fun FollowUpCard(
                         onReloadObservations = onReloadObservations
                     )
                 } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFFF3F5FD)).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 14.dp, bottom = 28.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize().background(Color(0xFFF3F5FD))
                 ) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 28.dp)
+                    ) {
                     when (page) {
                         "OBSERVATION" -> item {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2016,62 +2061,23 @@ private fun FollowUpCard(
                             }
                         }
                         "DRILL" -> item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Surface(
-                                        onClick = onBack,
-                                        shape = RoundedCornerShape(50),
-                                        color = Color.White.copy(alpha = 0.9f),
-                                        border = BorderStroke(1.dp, Color(0xFFE1E7F5))
-                                    ) {
-                                        Icon(
-                                            Icons.AutoMirrored.Outlined.ArrowBack,
-                                            contentDescription = "Back to live session",
-                                            tint = Color(0xFF5943D6),
-                                            modifier = Modifier.padding(9.dp).size(22.dp)
-                                        )
-                                    }
-                                    Text("Drill controls", color = CoachInk, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                                }
-                                CoachCard {
-                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        if (activeDrill == null) {
-                                            Text("All planned drills are complete.", color = CoachMuted)
-                                        } else {
-                                            Text(activeDrill.title, color = CoachInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                            Text("${formatCoachTime(activeDrillSeconds)} elapsed · ${activeDrill.plannedMinutes} min planned", color = CoachMuted)
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                OutlinedButton(onClick = { onAdjust(1) }, modifier = Modifier.weight(1f)) { Text("+1 min") }
-                                                OutlinedButton(onClick = { onAdjust(5) }, modifier = Modifier.weight(1f)) { Text("+5 min") }
-                                            }
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                OutlinedButton(onClick = if (paused) onResume else onPause, modifier = Modifier.weight(1f)) {
-                                                    Text(if (paused) "Resume" else "Pause")
-                                                }
-                                                Button(onClick = onCompleteDrill, modifier = Modifier.weight(1f)) { Text("Complete drill") }
-                                            }
-                                        }
-                                        Text("UP NEXT", color = CoachMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        drills.filter { !it.completed && it.id != activeDrill?.id }.forEach { drill ->
-                                            Surface(
-                                                onClick = { onSelectDrill(drill) },
-                                                color = Color(0xFFF7F8FC),
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                                    Column(Modifier.weight(1f)) {
-                                                        Text(drill.title, color = CoachInk, fontWeight = FontWeight.SemiBold)
-                                                        Text("${drill.plannedMinutes} min planned", color = CoachMuted, fontSize = 11.sp)
-                                                    }
-                                                    Text("Start", color = Color(0xFF5943D6), fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        }
-                                        if (isSaving) Text("Saving drill progress…", color = CoachMuted, fontSize = 11.sp)
-                                        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                                    }
-                                }
-                            }
+                            DrillControlsTabletCard(
+                                activeDrill = activeDrill,
+                                activeDrillSeconds = activeDrillSeconds,
+                                nextDrills = drills.mapIndexedNotNull { index, drill ->
+                                    if (!drill.completed && drill.id != activeDrill?.id) (index + 1) to drill else null
+                                },
+                                paused = paused,
+                                drillNotes = activeDrill?.notes.orEmpty(),
+                                isSaving = isSaving,
+                                saveError = saveError,
+                                onNotesChange = onDrillNotesChange,
+                                onAdjust = onAdjust,
+                                onPause = onPause,
+                                onResume = onResume,
+                                onComplete = onCompleteDrill,
+                                onSelectNext = { drill -> onSelectDrill(drill) }
+                            )
                         }
                         "END" -> item {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2213,6 +2219,7 @@ private fun FollowUpCard(
                                                 if (observation != observations.take(4).last()) HorizontalDivider(color = Color(0xFFE5E8F2))
                                             }
                                         }
+                                    }
                                     }
                                 }
                             }
@@ -2572,6 +2579,361 @@ private fun ActiveDrillSummaryCard(
             ) {
                 Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFF7E68F1)))
             }
+        }
+    }
+}
+
+@Composable
+private fun DrillControlsTabletCard(
+    activeDrill: ExecutionDrill?,
+    activeDrillSeconds: Int,
+    nextDrills: List<Pair<Int, ExecutionDrill>>,
+    paused: Boolean,
+    drillNotes: String,
+    isSaving: Boolean,
+    saveError: String,
+    onNotesChange: (String) -> Unit,
+    onAdjust: (Int) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onComplete: () -> Unit,
+    onSelectNext: (ExecutionDrill) -> Unit
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 600.dp) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                CurrentDrillControlPanel(
+                    modifier = Modifier.weight(1.1f),
+                    activeDrill = activeDrill,
+                    activeDrillSeconds = activeDrillSeconds,
+                    paused = paused,
+                    drillNotes = drillNotes,
+                    isSaving = isSaving,
+                    saveError = saveError,
+                    onNotesChange = onNotesChange,
+                    onAdjust = onAdjust,
+                    onPause = onPause,
+                    onResume = onResume,
+                    onComplete = onComplete
+                )
+                NextDrillsPanel(
+                    modifier = Modifier.weight(0.9f),
+                    drills = nextDrills,
+                    isSaving = isSaving,
+                    onSelectNext = onSelectNext
+                )
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                CurrentDrillControlPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    activeDrill = activeDrill,
+                    activeDrillSeconds = activeDrillSeconds,
+                    paused = paused,
+                    drillNotes = drillNotes,
+                    isSaving = isSaving,
+                    saveError = saveError,
+                    onNotesChange = onNotesChange,
+                    onAdjust = onAdjust,
+                    onPause = onPause,
+                    onResume = onResume,
+                    onComplete = onComplete
+                )
+                NextDrillsPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    drills = nextDrills,
+                    isSaving = isSaving,
+                    onSelectNext = onSelectNext
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CurrentDrillControlPanel(
+    modifier: Modifier,
+    activeDrill: ExecutionDrill?,
+    activeDrillSeconds: Int,
+    paused: Boolean,
+    drillNotes: String,
+    isSaving: Boolean,
+    saveError: String,
+    onNotesChange: (String) -> Unit,
+    onAdjust: (Int) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onComplete: () -> Unit
+) {
+    val context = LocalContext.current
+    var speechError by remember { mutableStateOf("") }
+    var addedMinutes by remember(activeDrill?.id) { mutableIntStateOf(0) }
+    val speechLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spokenText = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+            if (!spokenText.isNullOrBlank()) {
+                val combinedNotes = listOf(drillNotes.trim(), spokenText)
+                    .filter(String::isNotBlank)
+                    .joinToString(" ")
+                onNotesChange(combinedNotes)
+                speechError = ""
+            } else {
+                speechError = "No speech was recognized. Try again."
+            }
+        }
+    }
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F7))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    activeDrill?.title ?: "All planned drills complete",
+                    modifier = Modifier.weight(1f),
+                    color = Color(0xFF17204A),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (activeDrill != null) {
+                    val plannedSeconds = (activeDrill.plannedMinutes * 60).coerceAtLeast(1)
+                    val remainingSeconds = (plannedSeconds - activeDrillSeconds).coerceAtLeast(0)
+                    Column(
+                        modifier = Modifier.padding(start = 8.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(1.dp)
+                    ) {
+                        Text(
+                            formatCoachTime(remainingSeconds),
+                            color = Color(0xFF263B75),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text("remaining", color = Color(0xFF66728F), fontSize = 10.sp)
+                    }
+                }
+            }
+            if (activeDrill != null) {
+                val plannedSeconds = (activeDrill.plannedMinutes * 60).coerceAtLeast(1)
+                val remainingSeconds = (plannedSeconds - activeDrillSeconds).coerceAtLeast(0)
+                val progress = remainingSeconds.toFloat() / plannedSeconds
+                Box(
+                    Modifier.fillMaxWidth().height(4.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0xFFE3E8F5))
+                ) {
+                    Box(
+                        Modifier.fillMaxWidth(progress).fillMaxHeight()
+                            .background(Color(0xFF684BFA))
+                    )
+                }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val actionWidth = minOf(170.dp, (maxWidth - 8.dp) / 2)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                    ) {
+                        DrillTabletAction(
+                            modifier = Modifier.width(actionWidth),
+                            label = if (paused) "Resume" else "Pause",
+                            icon = if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                            color = Color(0xFFEEEAFE),
+                            tint = Color(0xFF644BEA),
+                            enabled = !isSaving,
+                            onClick = if (paused) onResume else onPause
+                        )
+                        DrillTabletAction(
+                            modifier = Modifier.width(actionWidth),
+                            label = "Complete",
+                            icon = Icons.Outlined.CheckCircle,
+                            color = Color(0xFFE2F5ED),
+                            tint = Color(0xFF159B72),
+                            enabled = !isSaving,
+                            onClick = onComplete
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Add minutes",
+                        modifier = Modifier.weight(1f),
+                        color = Color(0xFF27365F),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        if (addedMinutes == 0) "1–20 min" else "+$addedMinutes min",
+                        color = Color(0xFF644BEA),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Slider(
+                    value = addedMinutes.toFloat(),
+                    onValueChange = { rawValue ->
+                        val newValue = rawValue.roundToInt().coerceIn(0, 20)
+                        val difference = newValue - addedMinutes
+                        if (difference != 0) {
+                            onAdjust(difference)
+                            addedMinutes = newValue
+                        }
+                    },
+                    valueRange = 0f..20f,
+                    steps = 19,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth().height(30.dp)
+                )
+                OutlinedTextField(
+                    value = drillNotes,
+                    onValueChange = {
+                        speechError = ""
+                        onNotesChange(it)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(9.dp),
+                    minLines = 1,
+                    maxLines = 2,
+                    label = { Text("Drill notes", fontSize = 12.sp) },
+                    placeholder = { Text("Add notes about this drill", fontSize = 12.sp) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            speechError = ""
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                )
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your drill notes")
+                            }
+                            try {
+                                speechLauncher.launch(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                speechError = "Speech recognition is not available on this device."
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Mic, contentDescription = "Speak drill notes")
+                        }
+                    },
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
+                )
+                if (speechError.isNotBlank()) {
+                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
+            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 11.sp)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun NextDrillsPanel(
+    modifier: Modifier,
+    drills: List<Pair<Int, ExecutionDrill>>,
+    isSaving: Boolean,
+    onSelectNext: (ExecutionDrill) -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, Color(0xFFE2E8F7))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Next drills", color = Color(0xFF53617F), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            if (drills.isEmpty()) {
+                Text("No drills remaining", color = Color(0xFF74809A), fontSize = 12.sp)
+            } else {
+                drills.forEach { (number, drill) ->
+                    Surface(
+                        onClick = { onSelectNext(drill) },
+                        enabled = !isSaving,
+                        shape = RoundedCornerShape(9.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.dp, Color(0xFFE8ECF6))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Surface(shape = RoundedCornerShape(50), color = Color(0xFFE8E7FF)) {
+                                Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                                    Text("$number", color = Color(0xFF5342D2), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Text(
+                                    drill.title,
+                                    color = Color(0xFF26324F),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text("${drill.plannedMinutes} min", color = Color(0xFF74809A), fontSize = 10.sp)
+                            }
+                            Icon(
+                                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                contentDescription = "Start ${drill.title}",
+                                tint = Color(0xFF263B75),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrillTabletAction(
+    modifier: Modifier,
+    label: String,
+    color: Color,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    height: androidx.compose.ui.unit.Dp = 60.dp,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(height),
+        shape = RoundedCornerShape(10.dp),
+        color = color
+    ) {
+        Row(
+            Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(7.dp))
+            }
+            Text(label, color = tint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

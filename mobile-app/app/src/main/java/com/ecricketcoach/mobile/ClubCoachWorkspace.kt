@@ -542,6 +542,7 @@ internal fun ClubCoachWorkspace(
     var assessmentEditSaving by remember { mutableStateOf(false) }
     var assessmentEditError by remember { mutableStateOf("") }
     var executingSession by remember { mutableStateOf<ClubTrainingSession?>(null) }
+    var executionCoachPage by remember { mutableStateOf("LIVE") }
     var activeAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
     var assessmentRunSaving by remember { mutableStateOf(false) }
     var assessmentInsightsBusy by remember { mutableStateOf(false) }
@@ -881,11 +882,16 @@ internal fun ClubCoachWorkspace(
                     onToggleTheme,
                     onSignOut,
                     activeSession = executingSession,
+                    activeSessionPageTitle = if (executionCoachPage == "DRILL") "Drill controls" else null,
                     onSessionBack = {
-                        executingSession = null
-                        aiAnalysisError = ""
-                        followUpError = ""
-                        createdFollowUpSession = null
+                        if (executionCoachPage == "DRILL") {
+                            executionCoachPage = "LIVE"
+                        } else {
+                            executingSession = null
+                            aiAnalysisError = ""
+                            followUpError = ""
+                            createdFollowUpSession = null
+                        }
                     }
                 )
                 if (!isTablet && sectionTab != tab) {
@@ -969,8 +975,11 @@ internal fun ClubCoachWorkspace(
                     players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                     drills = drills + clubDrills,
                     readOnly = activeExecution.isExecuted,
+                    coachPage = executionCoachPage,
+                    onCoachPageChange = { executionCoachPage = it },
                     onDismiss = {
                         executingSession = null
+                        executionCoachPage = "LIVE"
                         aiAnalysisError = ""
                         followUpError = ""
                         createdFollowUpSession = null
@@ -2002,6 +2011,7 @@ private fun EkotaWorkspaceHeader(
     onToggleTheme: () -> Unit,
     onSignOut: () -> Unit,
     activeSession: ClubTrainingSession? = null,
+    activeSessionPageTitle: String? = null,
     onSessionBack: (() -> Unit)? = null
 ) {
     MaterialTheme(colorScheme = EkotaOverviewColors) {
@@ -2082,7 +2092,7 @@ private fun EkotaWorkspaceHeader(
                             }
                             Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
-                                    activeSession.title,
+                                    activeSessionPageTitle ?: activeSession.title,
                                     color = EkotaOverviewColors.onSurface,
                                     fontSize = 23.sp,
                                     fontWeight = FontWeight.ExtraBold,
@@ -2090,7 +2100,11 @@ private fun EkotaWorkspaceHeader(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    "${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}",
+                                    if (activeSessionPageTitle != null) {
+                                        "${activeSession.title}  ·  ${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}"
+                                    } else {
+                                        "${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}"
+                                    },
                                     color = EkotaOverviewColors.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     maxLines = 2,
