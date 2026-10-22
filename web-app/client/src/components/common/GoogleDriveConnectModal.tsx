@@ -169,7 +169,7 @@ export const GoogleDriveConnectModal: React.FC<GoogleDriveConnectModalProps> = (
             </div>
             <h4 className="text-sm font-bold text-white">Google Drive Connected!</h4>
             <p className="text-xs text-slate-300 font-mono">{connectedEmail}</p>
-            <p className="text-[11px] text-emerald-400">Vault synced and ready for AI video analysis</p>
+            <p className="text-[11px] text-emerald-400">Vault synced and ready to review videos</p>
           </div>
         )}
       </div>

@@ -85,7 +85,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
     if (!imageDataUrl) {
       setResult(null);
       setIsLoading(false);
-      setError('OpenAI did not return a usable batter crop for pose analysis.');
+      setError('A usable batter image was not available for the movement review.');
       return;
     }
     let cancelled = false;
@@ -186,7 +186,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h5 className="text-sm font-bold text-cyan-100">Movement and technique</h5>
-          <p className="text-[11px] text-slate-400">A visual estimate to help guide coaching discussion.</p>
+          <p className="text-[11px] text-slate-400">A clear review of the player’s movement and technique.</p>
         </div>
         <button type="button" onClick={downloadTechniqueReport} disabled={!result || isLoading}
           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50">
@@ -194,11 +194,11 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </button>
         <div className="flex flex-wrap gap-3 text-xs">
           <p className="text-slate-400">Batter hand <span className="ml-1 text-slate-200">{identifiedHandedness === 'unknown' ? 'Unknown' : `${identifiedHandedness === 'left' ? 'Left' : 'Right'}-handed`}</span></p>
-          <p className="text-slate-400">CAPE rule set <span className="ml-1 text-slate-200">{formatShotType(shotType)}</span></p>
+          <p className="text-slate-400">Shot type <span className="ml-1 text-slate-200">{formatShotType(shotType)}</span></p>
         </div>
       </div>
 
-      {isLoading && <p className="inline-flex items-center gap-2 text-xs text-cyan-100"><Loader2 size={14} className="animate-spin" />Drawing joints and calculating 2D alignment…</p>}
+      {isLoading && <p className="inline-flex items-center gap-2 text-xs text-cyan-100"><Loader2 size={14} className="animate-spin" />Preparing movement images and alignment checklist…</p>}
       {error && (
         <div className="flex flex-wrap items-center gap-2">
           <p role="alert" className="text-xs text-rose-300">{error}</p>
@@ -248,13 +248,13 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           )}
 
           <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · pose overlay images</summary>
+            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Movement images</summary>
           <div className="mt-3 grid items-start gap-4 xl:grid-cols-2">
             {imageDataUrl && (
               <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
                 <img
                   src={imageDataUrl}
-                  alt="Enlarged batter crop produced from the selected OpenAI contact frame"
+                  alt="Batter at the selected contact point"
                   className="max-h-[75vh] w-full bg-black object-contain"
                 />
                 <figcaption className="px-3 py-2 text-[11px] text-slate-400">Selected contact view</figcaption>
@@ -263,10 +263,10 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
             <figure className="overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
               <img
                 src={`data:${result.overlay_mime_type};base64,${result.overlay_image_base64}`}
-                alt="MediaPipe and OpenAI pose landmarks with head-to-toe alignment and joint labels"
+                alt="Batter movement overlay with alignment and joint labels"
                 className="max-h-[75vh] w-full bg-black object-contain"
               />
-              <figcaption className="flex flex-wrap items-center justify-between gap-1 px-3 py-2 text-[11px] text-slate-400">Pose overlay · visual estimates</figcaption>
+              <figcaption className="flex flex-wrap items-center justify-between gap-1 px-3 py-2 text-[11px] text-slate-400">Movement overlay</figcaption>
             </figure>
           </div>
           </details>
@@ -274,7 +274,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
             <section className="space-y-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
               <div>
                 <h6 className="text-xs font-semibold uppercase tracking-wide text-cyan-100">Pose through contact</h6>
-                <p className="mt-1 text-[11px] text-slate-400">Each overlay is independently estimated from a sampled source frame; apparent changes are 2D image-plane changes, not calibrated movement speed.</p>
+                <p className="mt-1 text-[11px] text-slate-400">Key positions before, during, and after contact.</p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 {result.sequence.map(frame => (
@@ -301,7 +301,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
 
       {showCapeKinetics && <section className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-left text-xs">
-          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Video measurements</th><th className="py-1.5 pr-3 font-medium">Estimate</th></tr></thead>
+          <thead className="text-slate-500"><tr><th className="py-1.5 pl-3 pr-2 font-medium">Ball and bat measurements</th><th className="py-1.5 pr-3 font-medium">Estimate</th></tr></thead>
           <tbody>
             {kineticsRows.map(({ label, key, unit }) => (
               <tr key={key} className="border-t border-slate-800">
@@ -311,13 +311,6 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
             ))}
           </tbody>
         </table>
-        <details className="px-3 pb-2 text-[10px] text-slate-500">
-          <summary className="cursor-pointer">Advanced details · measurement notes</summary>
-          <p className="mt-1">{capeKinetics?.limitations.join(' ')}</p>
-          {capeKinetics?.contactFrame !== null && capeKinetics?.contactFrame !== undefined && (
-            <p>CAPE selected contact from {capeKinetics.contactSelectionSource ?? 'automatic'} review; OpenAI contact: {analysis.contact.frameIndex === null ? 'not available' : 'also reviewed'}.</p>
-          )}
-        </details>
       </section>}
 
       {(analysis.priorityCue || analysis.drill.title || analysis.strengths.length > 0) && (

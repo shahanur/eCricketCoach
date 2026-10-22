@@ -533,7 +533,7 @@ function jpegDimensions(buffer: Buffer): { width: number; height: number } {
     }
     offset += segmentLength;
   }
-  throw new OpenAiBattingAnalysisError(422, 'sample_frame_invalid', 'An extracted video frame could not be read.');
+  throw new OpenAiBattingAnalysisError(422, 'sample_frame_invalid', 'Some parts of the video could not be reviewed. Try another clip.');
 }
 
 function nearestPresentationFrame(timestamps: number[], target: number): { index: number; timestamp: number } | null {
@@ -563,7 +563,7 @@ async function runBinary(binary: string, args: string[], timeout: number): Promi
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') {
-      throw new OpenAiBattingAnalysisError(503, 'video_decoder_unavailable', 'FFmpeg is required for video analysis but was not found on the server.');
+      throw new OpenAiBattingAnalysisError(503, 'video_decoder_unavailable', 'Video review is temporarily unavailable. Please try again later.');
     }
     const stderr = (error as { stderr?: string }).stderr;
     throw new OpenAiBattingAnalysisError(
@@ -600,7 +600,7 @@ async function probeVideo(videoPath: string, maxDurationSeconds: number): Promis
   try {
     probe = JSON.parse(raw);
   } catch {
-    throw new OpenAiBattingAnalysisError(422, 'video_probe_failed', 'Video metadata could not be read.');
+    throw new OpenAiBattingAnalysisError(422, 'video_probe_failed', 'The video could not be read. Check the file and try again.');
   }
   const stream = probe.streams?.[0];
   const durationSeconds = Number(probe.format?.duration);
@@ -608,10 +608,10 @@ async function probeVideo(videoPath: string, maxDurationSeconds: number): Promis
   const width = Number(stream?.width);
   const height = Number(stream?.height);
   if (![durationSeconds, fps, width, height].every(Number.isFinite) || durationSeconds <= 0 || width <= 0 || height <= 0) {
-    throw new OpenAiBattingAnalysisError(422, 'invalid_video_metadata', 'The uploaded file has no readable video stream.');
+    throw new OpenAiBattingAnalysisError(422, 'invalid_video_metadata', 'This file does not contain a viewable video.');
   }
   if (durationSeconds > maxDurationSeconds) {
-    throw new OpenAiBattingAnalysisError(413, 'video_too_long', `OpenAI batting analysis supports videos up to ${maxDurationSeconds} seconds.`);
+    throw new OpenAiBattingAnalysisError(413, 'video_too_long', `Choose a video shorter than ${maxDurationSeconds} seconds.`);
   }
   const presentationTimestampsSeconds = (probe.frames || [])
     .map(frame => Number(frame.best_effort_timestamp_time))
@@ -663,7 +663,7 @@ async function sampleFrames(
       playerBoxNorm: null
     });
   }
-  if (!frames.length) throw new OpenAiBattingAnalysisError(422, 'video_frames_unavailable', 'No video frames could be extracted.');
+  if (!frames.length) throw new OpenAiBattingAnalysisError(422, 'video_frames_unavailable', 'No usable images were found in the video.');
   return frames;
 }
 
@@ -675,9 +675,9 @@ async function extractEverySourceFrameInWindow(
   const expectedFrames = options.presentationTimestampsSeconds
     .map((timestamp, index) => ({ timestamp, index }))
     .filter(frame => frame.timestamp >= options.startSeconds && frame.timestamp <= options.endSeconds);
-  if (!expectedFrames.length) throw new OpenAiBattingAnalysisError(422, 'video_frames_unavailable', 'No source frames were found in the selected contact window.');
+  if (!expectedFrames.length) throw new OpenAiBattingAnalysisError(422, 'video_frames_unavailable', 'No frames were found in the selected shot range.');
   if (expectedFrames.length > options.maxFrames) {
-    throw new OpenAiBattingAnalysisError(413, 'contact_window_too_dense', `The selected contact window contains ${expectedFrames.length} source frames; this analysis is bounded to ${options.maxFrames} frames per stroke. Select a shorter clip around contact.`);
+    throw new OpenAiBattingAnalysisError(413, 'contact_window_too_dense', 'The selected shot range is too long to review. Choose a shorter range around the contact point.');
   }
   const outputPattern = path.join(directory, `${options.prefix}-%04d.jpg`);
   const filter = `select='between(t\\,${options.startSeconds.toFixed(6)}\\,${options.endSeconds.toFixed(6)})',scale=${options.dimension}:${options.dimension}:force_original_aspect_ratio=decrease`;
@@ -690,7 +690,7 @@ async function extractEverySourceFrameInWindow(
     .filter(name => name.startsWith(`${options.prefix}-`) && name.endsWith('.jpg'))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   if (files.length !== expectedFrames.length) {
-    throw new OpenAiBattingAnalysisError(422, 'contact_window_decode_mismatch', 'The contact window could not be mapped reliably to all original presentation-timestamp frames.');
+    throw new OpenAiBattingAnalysisError(422, 'contact_window_decode_mismatch', 'The selected shot range could not be reviewed reliably. Try a different range.');
   }
   const frames: SampledFrame[] = [];
   for (const [sampleIndex, name] of files.entries()) {
@@ -729,7 +729,7 @@ async function extractOriginalSourceFrames(
   const files = (await fs.readdir(directory))
     .filter(name => name.startsWith(`${outputPrefix}-`) && name.endsWith('.jpg'))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  if (files.length !== indices.length) throw new OpenAiBattingAnalysisError(422, 'source_frame_render_mismatch', 'Some selected report frames could not be decoded at source resolution.');
+  if (files.length !== indices.length) throw new OpenAiBattingAnalysisError(422, 'source_frame_render_mismatch', 'Some selected images could not be prepared for the report.');
   const result = new Map<number, { imageDataUrl: string; width: number; height: number }>();
   for (let position = 0; position < files.length; position += 1) {
     const bytes = await fs.readFile(path.join(directory, files[position]));
@@ -1007,7 +1007,7 @@ function isDetailed(value: unknown, frames: SampledFrame[], durationSeconds: num
 function normalizeOverviewEvidenceFrames(overview: OverviewAnalysis, frames: Array<Pick<SampledFrame, 'frameIndex'>>): void {
   for (const observation of overview.observations) {
     const normalized = normalizeFrameReferenceList(observation.frameIndices, frames);
-    if (!normalized) throw new OpenAiBattingAnalysisError(502, 'overview_frame_reference_invalid', 'An overview finding referenced an unknown frame.');
+    if (!normalized) throw new OpenAiBattingAnalysisError(502, 'overview_frame_reference_invalid', 'The batting review could not be completed. Please try again.');
     observation.frameIndices = normalized;
   }
 }
@@ -1021,23 +1021,23 @@ export function validateAndNormalizeOverview(value: unknown, frames: Array<Pick<
 function normalizeDetailedEvidenceFrames(detailed: DetailedAnalysis, frames: SampledFrame[]): void {
   const normalizeIndices = (indices: number[]) => {
     const normalized = normalizeFrameReferenceList(indices, frames);
-    if (!normalized) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'A detailed finding referenced an unknown frame.');
+    if (!normalized) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'The batting review could not be completed. Please try again.');
     return normalized;
   };
   for (const item of [...detailed.observations, ...detailed.errors, ...detailed.strengths]) item.frameIndices = normalizeIndices(item.frameIndices);
   for (const item of detailed.landmarksByFrame) {
     const sourceFrameIndex = normalizeFrameReference(item.frameIndex, frames);
-    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'A joint landmark referenced an unknown frame.');
+    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'The batting review could not be completed. Please try again.');
     item.frameIndex = sourceFrameIndex;
   }
   for (const item of detailed.batLandmarksByFrame) {
     const sourceFrameIndex = normalizeFrameReference(item.frameIndex, frames);
-    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'A bat landmark referenced an unknown frame.');
+    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'The batting review could not be completed. Please try again.');
     item.frameIndex = sourceFrameIndex;
   }
   for (const item of detailed.annotations) {
     const sourceFrameIndex = normalizeFrameReference(item.frameIndex, frames);
-    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'An annotation referenced an unknown frame.');
+    if (sourceFrameIndex === null) throw new OpenAiBattingAnalysisError(502, 'detailed_frame_reference_invalid', 'The batting review could not be completed. Please try again.');
     item.frameIndex = sourceFrameIndex;
   }
 }
@@ -1228,20 +1228,20 @@ function createFrameManifest(frames: SampledFrame[], detail: FrameManifestEntry[
 }
 
 export function extractStructuredOutput(responseValue: unknown): VisionCallResult<string> {
-  if (!responseValue || typeof responseValue !== 'object') throw new OpenAiBattingAnalysisError(502, 'openai_response_invalid', 'OpenAI returned an invalid response.');
+  if (!responseValue || typeof responseValue !== 'object') throw new OpenAiBattingAnalysisError(502, 'openai_response_invalid', 'The batting review could not be completed. Please try again.');
   const response = responseValue as Record<string, unknown>;
   if (response.status === 'incomplete') {
     const details = response.incomplete_details as Record<string, unknown> | null;
-    throw new OpenAiBattingAnalysisError(502, 'openai_response_incomplete', `OpenAI returned an incomplete analysis (${String(details?.reason ?? 'unknown')}).`);
+    throw new OpenAiBattingAnalysisError(502, 'openai_response_incomplete', 'The batting review was incomplete. Please try again.');
   }
   if (response.status !== 'completed') {
-    throw new OpenAiBattingAnalysisError(502, 'openai_response_not_completed', `OpenAI analysis ended with status ${String(response.status)}.`);
+    throw new OpenAiBattingAnalysisError(502, 'openai_response_not_completed', 'The batting review could not be completed. Please try again.');
   }
   const output = Array.isArray(response.output) ? response.output : [];
   const message = output.find(item => Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'message')) as Record<string, unknown> | undefined;
   const content = Array.isArray(message?.content) ? message.content : [];
   const refusal = content.find(item => Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'refusal')) as Record<string, unknown> | undefined;
-  if (refusal) throw new OpenAiBattingAnalysisError(422, 'openai_analysis_refused', 'OpenAI declined to analyze the supplied video frames.');
+  if (refusal) throw new OpenAiBattingAnalysisError(422, 'openai_analysis_refused', 'This video could not be reviewed. Try a different clip.');
   const textItem = content.find(item => Boolean(item && typeof item === 'object' && (item as Record<string, unknown>).type === 'output_text')) as Record<string, unknown> | undefined;
   if (!textItem || typeof textItem.text !== 'string' || !textItem.text) throw new Error('OpenAI returned an empty analysis.');
   const usage = response.usage && typeof response.usage === 'object' ? response.usage as Record<string, unknown> : {};
@@ -1368,7 +1368,7 @@ async function requestVisionJson<T>(
         topLevelKeys,
         suppliedFrameCount: frames.length
       });
-      throw new OpenAiBattingAnalysisError(502, 'openai_analysis_validation_failed', 'OpenAI returned a structured response that did not satisfy source-frame and evidence validation.');
+      throw new OpenAiBattingAnalysisError(502, 'openai_analysis_validation_failed', 'The batting review could not be completed. Please try again.');
     }
     const attemptUsages = responseAttempts.map(attempt => attempt.usage);
     const completeUsage = attemptUsages.every(usage => usage !== null && usage !== undefined && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number');
@@ -1388,10 +1388,10 @@ async function requestVisionJson<T>(
     const diagnostics = safeOpenAiErrorDiagnostics(error);
     const status = diagnostics.status ?? undefined;
     if (status === 401 || status === 403) {
-      throw new OpenAiBattingAnalysisError(503, 'openai_auth_failed', 'OpenAI authentication failed. Check the server API key.');
+      throw new OpenAiBattingAnalysisError(503, 'openai_auth_failed', 'The batting review is temporarily unavailable. Please try again later.');
     }
     if (status === 429) {
-      throw new OpenAiBattingAnalysisError(429, 'openai_rate_limited', 'OpenAI is rate limiting requests. Please try again shortly.');
+      throw new OpenAiBattingAnalysisError(429, 'openai_rate_limited', 'The review service is busy. Please try again shortly.');
     }
     if (error instanceof OpenAiBattingAnalysisError) throw error;
     console.error('OpenAI batting analysis request failed:', {
@@ -1402,9 +1402,9 @@ async function requestVisionJson<T>(
       outputBudgets
     });
     if (isOpenAiTimeoutMessage(diagnostics.message)) {
-      throw new OpenAiBattingAnalysisError(504, 'openai_request_timeout', 'OpenAI timed out while analyzing the supplied frames. Try a shorter contact selection or lower the overview/contact-frame limits.');
+      throw new OpenAiBattingAnalysisError(504, 'openai_request_timeout', 'The review took too long. Try selecting a shorter shot range.');
     }
-    throw new OpenAiBattingAnalysisError(502, 'openai_analysis_failed', 'OpenAI could not complete the batting analysis. Please try again.');
+    throw new OpenAiBattingAnalysisError(502, 'openai_analysis_failed', 'The batting review could not be completed. Please try again.');
   }
 }
 
@@ -1413,7 +1413,7 @@ export async function analyzeBattingVideoWithOpenAI(
   options: OpenAiBattingAnalysisOptions = {}
 ): Promise<OpenAiBattingAnalysis> {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new OpenAiBattingAnalysisError(503, 'openai_not_configured', 'OpenAI analysis is not configured. Set OPENAI_API_KEY on the server.');
+  if (!apiKey) throw new OpenAiBattingAnalysisError(503, 'openai_not_configured', 'The batting review is temporarily unavailable. Please try again later.');
 
   const analysisStartedAt = Date.now();
   const limits = getAnalysisLimits();
@@ -1426,13 +1426,13 @@ export async function analyzeBattingVideoWithOpenAI(
     const rangeStart = options.startTimeSeconds ?? 0;
     const rangeEnd = options.endTimeSeconds ?? metadata.durationSeconds;
     if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeStart < 0 || rangeEnd > metadata.durationSeconds || rangeEnd <= rangeStart) {
-      throw new OpenAiBattingAnalysisError(400, 'invalid_analysis_range', 'The selected shot range must be within the video and have a positive duration.');
+      throw new OpenAiBattingAnalysisError(400, 'invalid_analysis_range', 'Choose a shot range within the video, with the end after the start.');
     }
     if (manualTimestamp !== undefined && (!Number.isFinite(manualTimestamp) || manualTimestamp < 0 || manualTimestamp > metadata.durationSeconds)) {
-      throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'The selected contact time must be within the video duration.');
+      throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'Choose a contact point within the video.');
     }
     if (manualTimestamp !== undefined && (manualTimestamp < rangeStart || manualTimestamp > rangeEnd)) {
-      throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'The selected contact time must be inside the shot range.');
+      throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'Choose a contact point inside the selected shot range.');
     }
     const rangeDuration = rangeEnd - rangeStart;
     const overviewFps = Math.min(limits.overviewFps, (limits.maxOverviewFrames - 1) / rangeDuration);

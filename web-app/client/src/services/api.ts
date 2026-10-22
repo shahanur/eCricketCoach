@@ -859,9 +859,9 @@ export const api = {
     }
     if (!res.ok) {
       if (res.status === 504) {
-        throw new Error('OpenAI and CAPE analysis exceeded the proxy wait limit. The server may still be processing; check server logs before retrying to avoid a duplicate model run.');
+        throw new Error('The video review is taking longer than expected. It may still be processing; check the saved reviews before trying again.');
       }
-      throw await responseError(res, 'Failed to analyze batting video with OpenAI');
+      throw await responseError(res, 'The batting review could not be completed. Please try again.');
     }
     const result = await res.json();
     return {

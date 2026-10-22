@@ -24,7 +24,7 @@ export function downloadBattingTechniquePdf(
     { type: 'heading', text: 'Movement and technique' },
     { type: 'facts', items: [
       ['Batter hand', analysis.requestMetadata.batterHandedness === 'unknown' ? 'Unknown' : `${analysis.requestMetadata.batterHandedness === 'left' ? 'Left' : 'Right'}-handed`],
-      ['CAPE rule set', shotType],
+      ['Shot type', shotType],
       ['Contact status', analysis.contact.status.replace(/_/g, ' ').toLowerCase()]
     ] },
     { type: 'heading', text: 'Technique Summary' },
@@ -83,7 +83,7 @@ export function downloadBattingTechniquePdf(
     blocks.push({
       type: 'image',
       dataUrl: `data:${poseResult.overlay_mime_type};base64,${poseResult.overlay_image_base64}`,
-      caption: 'Pose overlay with visual landmarks'
+      caption: 'Batter movement and alignment'
     });
   } else {
     blocks.push({ type: 'text', text: 'Pose overlay image is not available for this saved analysis.' });

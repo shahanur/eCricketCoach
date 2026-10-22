@@ -98,8 +98,8 @@ export const OpenAiCapeCalibrationPicker: React.FC<OpenAiCapeCalibrationPickerPr
   return (
     <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/60 p-3">
       <div>
-        <p className="text-[11px] font-semibold text-slate-200">Pitch calibration for CAPE video kinetics</p>
-        <p className="mt-1 text-[10px] text-slate-400">Tap the pitch corners in order. These points let CAPE estimate ball speed, momentum, energy and launch angle; keep all four in the same plane and frame.</p>
+        <p className="text-[11px] font-semibold text-slate-200">Ball and bat measurements</p>
+        <p className="mt-1 text-[10px] text-slate-400">Mark the four pitch corners in order to improve estimates of ball speed and direction.</p>
       </div>
       {loading && <p role="status" className="text-xs text-violet-200">Loading video frame…</p>}
       {error && <p role="alert" className="text-xs text-rose-300">{error}</p>}

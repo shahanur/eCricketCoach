@@ -111,7 +111,7 @@ export const PlayerVideoAnalyses: React.FC<PlayerVideoAnalysesProps> = ({ player
                       <p className="text-xs font-semibold capitalize text-white">
                         {row.job.target === 'bowler' ? 'Bowling' : 'Batting'}{row.job.shotType || row.job.bowlerType ? ` • ${SHOT_LABEL(row.job.shotType || row.job.bowlerType)}` : ''}
                       </p>
-                      <p className="text-[10px] text-slate-500">{formatDate(row.createdAt)} • Detailed analysis (CAPE){row.job.assessmentId ? ' • Assessment' : ''}</p>
+                      <p className="text-[10px] text-slate-500">{formatDate(row.createdAt)} • Detailed movement review{row.job.assessmentId ? ' • Assessment' : ''}</p>
                     </div>
                   </div>
                   <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
