@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile, OpenAiBattingAnalysis } from '../../types';
+import { AuthUser, ClubMember, Squad, TrainingSession, Certificate, Drill, Discipline, ContextType, VideoAnalysisResult, DriveVideoFile, OpenAiBattingAnalysis, OpenAiBattingReportSummary } from '../../types';
 import { isInSquad, memberSquads } from '../../utils/squads';
 import { api } from '../../services/api';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { GoogleDriveConnectModal } from '../common/GoogleDriveConnectModal';
-import { VideoAnalysisDetailModal } from '../common/VideoAnalysisDetailModal';
 import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
@@ -316,18 +315,54 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     cricketInterpretationError: string | null;
   } | null>(null);
 
+  const [openAiReportHistory, setOpenAiReportHistory] = useState<OpenAiBattingReportSummary[]>([]);
+  const [isOpenAiReportHistoryLoading, setIsOpenAiReportHistoryLoading] = useState(false);
+  const [openAiReportHistoryError, setOpenAiReportHistoryError] = useState<string | null>(null);
+  const openAiHistoryGeneration = useRef(0);
+  const battingReviewRef = useRef<HTMLDivElement | null>(null);
+  const scrollToReviewOnLoad = useRef(false);
+
   useEffect(() => {
+    if (!scrollToReviewOnLoad.current || !openAiBattingAnalysis) return;
+    scrollToReviewOnLoad.current = false;
+    battingReviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openAiBattingAnalysis]);
+
+  const fetchOpenAiReportHistory = (playerId: string = selectedAnalysisPlayer) => {
+    const generation = ++openAiHistoryGeneration.current;
+    setOpenAiReportHistoryError(null);
+    if (!playerId) {
+      setOpenAiReportHistory([]);
+      setIsOpenAiReportHistoryLoading(false);
+      return;
+    }
+    setIsOpenAiReportHistoryLoading(true);
+    api.listOpenAiBattingReports(playerId)
+      .then(reports => { if (generation === openAiHistoryGeneration.current) setOpenAiReportHistory(reports); })
+      .catch(error => {
+        if (generation === openAiHistoryGeneration.current) {
+          setOpenAiReportHistoryError(error instanceof Error ? error.message : 'Could not load the batting review history.');
+        }
+      })
+      .finally(() => { if (generation === openAiHistoryGeneration.current) setIsOpenAiReportHistoryLoading(false); });
+  };
+
+  // Loads the player's latest saved review, or a specific saved review when reportId is given.
+  const loadSavedOpenAiAnalysis = (playerId: string, reportId?: string) => {
     const generation = ++openAiAnalysisGeneration.current;
-    let cancelled = false;
     setOpenAiBattingAnalysis(null);
     setOpenAiBattingAnalysisError(null);
     setOpenAiCoachReviewNote('');
     setOpenAiFindingReviews({});
-    if (!selectedAnalysisPlayer) return () => { cancelled = true; };
+    setOpenAiCoachReviewMessage(null);
+    if (!playerId) {
+      setIsLoadingSavedOpenAiAnalysis(false);
+      return;
+    }
     setIsLoadingSavedOpenAiAnalysis(true);
-    api.getLatestOpenAiBattingAnalysis(selectedAnalysisPlayer)
+    api.getLatestOpenAiBattingAnalysis(playerId, reportId)
       .then(saved => {
-        if (!cancelled && generation === openAiAnalysisGeneration.current) {
+        if (generation === openAiAnalysisGeneration.current) {
           setOpenAiBattingAnalysis(saved);
           setOpenAiCoachReviewNote(saved?.coachReview?.note ?? '');
           setOpenAiFindingReviews(Object.fromEntries((saved?.coachReview?.findings ?? []).map(finding => [finding.findingIndex, {
@@ -337,14 +372,24 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         }
       })
       .catch(error => {
-        if (!cancelled && generation === openAiAnalysisGeneration.current) {
+        if (generation === openAiAnalysisGeneration.current) {
+          scrollToReviewOnLoad.current = false;
           setOpenAiBattingAnalysisError(error instanceof Error ? error.message : 'Could not load the player’s saved batting review.');
         }
       })
       .finally(() => {
-        if (!cancelled && generation === openAiAnalysisGeneration.current) setIsLoadingSavedOpenAiAnalysis(false);
+        if (generation === openAiAnalysisGeneration.current) setIsLoadingSavedOpenAiAnalysis(false);
       });
-    return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    loadSavedOpenAiAnalysis(selectedAnalysisPlayer);
+    fetchOpenAiReportHistory(selectedAnalysisPlayer);
+    return () => {
+      // Invalidate in-flight loads so a slow response cannot overwrite the next player's review.
+      openAiAnalysisGeneration.current++;
+      openAiHistoryGeneration.current++;
+    };
   }, [selectedAnalysisPlayer]);
   const analysisPlayers = clubMembers.filter(member => member.role === 'PLAYER' && member.invitationStatus === 'ACTIVE');
   const openAiContactFrameForCape = openAiBattingAnalysis
@@ -392,20 +437,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
   const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
-  const [analysisHistory, setAnalysisHistory] = useState<Array<{
-    id: string;
-    playerId: string | null;
-    playerName: string | null;
-    discipline: string;
-    context: string;
-    sourceType: string;
-    overallScore: number;
-    analysis: VideoAnalysisResult;
-    drillAdopted: boolean;
-    createdAt: string;
-  }>>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-  const [viewingAnalysisId, setViewingAnalysisId] = useState<string | null>(null);
   const [videoSourceMode, setVideoSourceMode] = useState<'LOCAL_UPLOAD' | 'GOOGLE_DRIVE'>('LOCAL_UPLOAD');
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
   const [uploadedVideoFile, setUploadedVideoFile] = useState<File | null>(null);
@@ -498,20 +529,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setDriveEmail(status.email || '');
     }).catch(() => {});
   }, []);
-
-  const fetchAnalysisHistory = () => {
-    setIsHistoryLoading(true);
-    api.getVideoAnalysisHistory(selectedAnalysisPlayer || undefined)
-      .then(res => setAnalysisHistory(res.history || []))
-      .catch(() => {})
-      .finally(() => setIsHistoryLoading(false));
-  };
-
-  // Load previously saved real Gemini analyses for the currently selected player on mount,
-  // and whenever a different player is selected from the dropdown.
-  useEffect(() => {
-    fetchAnalysisHistory();
-  }, [selectedAnalysisPlayer]);
 
   useEffect(() => {
     if (analysisPlayers.length > 0 && !analysisPlayers.some(player => player.id === selectedAnalysisPlayer)) {
@@ -3079,7 +3096,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     setOpenAiBattingAnalysisError(null);
                     setKinematicsResult(null);
                     setLastAnalysisId(null);
-                    setViewingAnalysisId(null);
                   }}
                   className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 >
@@ -3363,7 +3379,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     if (res?.analysis) {
                       setClubAnalysisResult(res.analysis);
                       setLastAnalysisId(res.analysisId || null);
-                      fetchAnalysisHistory();
                     }
                   } catch (err: any) {
                     setUploadError(err?.message || 'Failed to analyze the video. Please try again.');
@@ -3416,7 +3431,10 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           ? openAiSelectedContactTimestamp ?? undefined
                           : undefined
                       });
-                      if (generation === openAiAnalysisGeneration.current) setOpenAiBattingAnalysis(result.analysis);
+                      if (generation === openAiAnalysisGeneration.current) {
+                        setOpenAiBattingAnalysis(result.analysis);
+                        if (selectedAnalysisPlayer) fetchOpenAiReportHistory(selectedAnalysisPlayer);
+                      }
                     } catch (err: any) {
                       setOpenAiBattingAnalysisError(err?.message || 'OpenAI batting analysis failed. Please try again.');
                     } finally {
@@ -3692,9 +3710,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           onClick={() => {
                             const message = adoptAiDrillForPlayer(selectedAnalysisPlayer || null, drill);
                             if (lastAnalysisId) {
-                              api.markVideoAnalysisDrillAdopted(lastAnalysisId)
-                                .then(() => fetchAnalysisHistory())
-                                .catch(() => {});
+                              api.markVideoAnalysisDrillAdopted(lastAnalysisId).catch(() => {});
                             }
                             setPortalModal({
                               isOpen: true,
@@ -3718,7 +3734,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           )}
 
           {openAiBattingAnalysis && (
-            <div className="rounded-xl border border-violet-400/30 bg-slate-950 p-5 space-y-4">
+            <div ref={battingReviewRef} className="scroll-mt-4 rounded-xl border border-violet-400/30 bg-slate-950 p-5 space-y-4">
               <div className="flex flex-col gap-2 border-b border-slate-800 pb-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-white">Batting review</h4>
@@ -4014,80 +4030,94 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           )}
           */}
 
-          {/* Past Analysis History (persisted AI results, filtered to selected player) */}
+          {/* Past Analysis History (saved OpenAI batting reviews for the selected player) */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-semibold text-sm text-white">Past AI Video Analyses</h3>
                 <p className="text-xs text-slate-400">
-                  Saved biomechanical analysis history for <strong className="text-white">{clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Selected Player'}</strong>
+                  Saved batting reviews for <strong className="text-white">{clubMembers.find(m => m.id === selectedAnalysisPlayer)?.name || 'Selected Player'}</strong>. Select one to open it above.
                 </p>
               </div>
               <button
-                onClick={fetchAnalysisHistory}
+                type="button"
+                onClick={() => fetchOpenAiReportHistory()}
                 title="Refresh history"
+                aria-label="Refresh history"
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${isOpenAiReportHistoryLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
 
-            {isHistoryLoading && analysisHistory.length === 0 ? (
+            {openAiReportHistoryError ? (
+              <p role="alert" className="text-xs text-rose-300 py-4 text-center">{openAiReportHistoryError}</p>
+            ) : !selectedAnalysisPlayer ? (
+              <p className="text-xs text-slate-500 py-4 text-center">Select a player to see their saved analyses.</p>
+            ) : isOpenAiReportHistoryLoading && openAiReportHistory.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">Loading history...</p>
-            ) : analysisHistory.length === 0 ? (
+            ) : openAiReportHistory.length === 0 ? (
               <p className="text-xs text-slate-500 py-4 text-center">No saved analyses yet for this player. Run an AI analysis above to build their history.</p>
             ) : (
-              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-                {analysisHistory.map(entry => (
-                  <button
-                    type="button"
-                    key={entry.id}
-                    onClick={() => setViewingAnalysisId(entry.id)}
-                    className="w-full text-left p-3 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/40 transition cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
-                          {entry.overallScore}
+              <div className="grid gap-2 sm:grid-cols-2 max-h-[340px] overflow-y-auto pr-1">
+                {openAiReportHistory.map(entry => {
+                  const isActive = openAiBattingAnalysis?.reportId === entry.reportId;
+                  const isDrive = entry.sourceType === 'GOOGLE_DRIVE';
+                  return (
+                    <button
+                      type="button"
+                      key={entry.reportId}
+                      aria-pressed={isActive}
+                      disabled={isLoadingSavedOpenAiAnalysis || isOpenAiBattingAnalysisRunning}
+                      onClick={() => {
+                        scrollToReviewOnLoad.current = true;
+                        loadSavedOpenAiAnalysis(selectedAnalysisPlayer, entry.reportId);
+                      }}
+                      className={`w-full text-left p-3 rounded-lg border transition cursor-pointer disabled:cursor-wait disabled:opacity-60 ${isActive
+                        ? 'bg-violet-500/10 border-violet-400/60'
+                        : 'bg-slate-950 border-slate-800 hover:border-violet-400/40'}`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg border flex items-center justify-center ${isDrive
+                          ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                          : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'}`}>
+                          {isDrive ? <Cloud className="w-4 h-4" /> : <Video className="w-4 h-4" />}
                         </span>
-                        <div>
-                          <p className="text-xs font-semibold text-white">{entry.discipline} • {entry.context}</p>
-                          <p className="text-[10px] text-slate-500">{formatRelativeTime(entry.createdAt)} • {entry.sourceType === 'GOOGLE_DRIVE' ? 'Google Drive' : 'Device Upload'}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-white truncate" title={entry.sourceName || undefined}>
+                            {entry.sourceName || 'Untitled video'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            {isDrive ? 'Google Drive' : entry.sourceType === 'LOCAL_UPLOAD' ? 'Device upload' : 'Source not recorded'}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-300 border-amber-500/30">
+                              {entry.discipline.charAt(0) + entry.discipline.slice(1).toLowerCase()}
+                            </span>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded border bg-slate-800/70 text-slate-300 border-slate-700 truncate max-w-full"
+                              title={entry.shotType || undefined}
+                            >
+                              {entry.discipline === 'BOWLING' ? 'Bowling type' : 'Shot'}: {entry.shotType || 'Not identified'}
+                            </span>
+                          </div>
                         </div>
+                        {isActive && (
+                          <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border bg-violet-500/20 text-violet-200 border-violet-400/40">
+                            Showing
+                          </span>
+                        )}
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${entry.drillAdopted ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
-                        {entry.drillAdopted ? 'Drill Adopted' : 'Not Adopted'}
-                      </span>
-                    </div>
-                    {entry.analysis?.detectedIssues?.length > 0 && (
-                      <p className="text-[11px] text-slate-300 mt-2 flex items-start gap-1.5">
-                        <AlertCircle className="w-3 h-3 shrink-0 mt-0.5 text-amber-400" />
-                        <span>{entry.analysis.detectedIssues[0]}</span>
-                      </p>
-                    )}
-                    {entry.analysis?.recommendedDrills?.length > 0 && (
-                      <p className="text-[11px] text-emerald-400 mt-1">
-                        🎯 {entry.analysis.recommendedDrills[0].title}
-                      </p>
-                    )}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
-      )}
-
-      {/* Video Analysis Detail Modal (full saved result + drill adoption status) */}
-      {viewingAnalysisId && (
-        <VideoAnalysisDetailModal
-          analysisId={viewingAnalysisId}
-          onClose={() => setViewingAnalysisId(null)}
-          onAdopt={(drill, playerId) => {
-            adoptAiDrillForPlayer(playerId, drill);
-            fetchAnalysisHistory();
-          }}
-        />
       )}
 
       {/* 1. Invite Coach / Player Modal Form */}

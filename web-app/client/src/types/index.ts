@@ -354,6 +354,16 @@ export interface OpenAiCapeKinetics {
   limitations: string[];
 }
 
+export interface OpenAiBattingReportSummary {
+  reportId: string;
+  createdAt: string;
+  sourceType: 'LOCAL_UPLOAD' | 'GOOGLE_DRIVE' | null;
+  sourceName: string | null;
+  discipline: Discipline;
+  /** Batting shot type, or the bowling type once bowling reports exist. */
+  shotType: string | null;
+}
+
 export interface OpenAiBattingAnalysis {
   provider: 'openai';
   model: string;

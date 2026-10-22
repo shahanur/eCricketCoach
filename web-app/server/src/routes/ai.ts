@@ -180,7 +180,81 @@ aiRouter.post('/analyze', upload.single('file'), async (req: Request, res: Respo
   }
 });
 
+// Returns the active player in the caller's club, or sends the appropriate error response and returns null.
+async function resolveBattingReportPlayer(req: AuthenticatedRequest, res: Response, playerId: string): Promise<{ id: string } | null> {
+  const user = req.user!;
+  if (user.role === 'COACH') {
+    if (user.coachContext !== 'CLUB') { res.status(403).json({ error: 'club_coach_required' }); return null; }
+    const coach = await prisma.clubMember.findFirst({
+      where: { id: user.userId, clubId: user.tenantId, role: 'COACH', invitationStatus: 'ACTIVE' }
+    });
+    if (!coach) { res.status(403).json({ error: 'club_coach_required' }); return null; }
+  }
+  const player = await prisma.clubMember.findFirst({
+    where: { id: playerId, clubId: user.tenantId, role: 'PLAYER', invitationStatus: 'ACTIVE' },
+    select: { id: true }
+  });
+  if (!player) { res.status(404).json({ error: 'player_not_found', message: 'The selected player is not active in this club.' }); return null; }
+  return player;
+}
+
+const BATTING_SHOT_LABELS: Record<string, string> = {
+  front_foot_drive: 'Front-foot drive',
+  front_foot_defence: 'Front-foot defence'
+};
+
+// Prefers the coach-selected shot; falls back to the shot the model identified.
+function describeBattingShotType(requested: string | null, identified: string | null): string | null {
+  if (requested && BATTING_SHOT_LABELS[requested]) return BATTING_SHOT_LABELS[requested];
+  const text = identified?.trim();
+  if (!text || text === 'unknown') return null;
+  if (BATTING_SHOT_LABELS[text]) return BATTING_SHOT_LABELS[text];
+  const label = text.replace(/_/g, ' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+// Lists a player's saved OpenAI batting reports, newest first, for the history cards.
+aiRouter.get(
+  '/analyze/openai-batting/history',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const playerId = typeof req.query.playerId === 'string' ? req.query.playerId.trim() : '';
+    if (!playerId) return res.status(400).json({ error: 'player_required', message: 'Select a player to load their batting review history.' });
+    try {
+      const player = await resolveBattingReportPlayer(req, res, playerId);
+      if (!player) return;
+      // Reads only the shot-type fields from the analysis JSON rather than loading each full record.
+      const reports = await prisma.$queryRaw<Array<{
+        id: string; created_at: Date; source_type: string | null; source_name: string | null;
+        requested_shot: string | null; identified_shot: string | null;
+      }>>`
+        SELECT id, created_at, source_type, source_name,
+          analysis->'requestMetadata'->>'shotType' AS requested_shot,
+          analysis->'shotIdentification'->>'shotType' AS identified_shot
+        FROM openai_batting_reports
+        WHERE tenant_id = ${req.user!.tenantId} AND player_id = ${player.id}
+        ORDER BY created_at DESC
+        LIMIT 100`;
+      return res.json({
+        reports: reports.map(report => ({
+          reportId: report.id,
+          createdAt: report.created_at,
+          sourceType: report.source_type,
+          sourceName: report.source_name,
+          discipline: 'BATTING',
+          shotType: describeBattingShotType(report.requested_shot, report.identified_shot)
+        }))
+      });
+    } catch (error) {
+      console.error('OpenAI batting report history list failed:', error);
+      return res.status(500).json({ error: 'report_history_failed', message: 'The batting review history could not be loaded.' });
+    }
+  }
+);
+
 // OpenAI-assisted batting review using timestamped sampled frames and a focused contact window.
+// Loads the player's latest saved report, or the one given by the optional reportId query parameter.
 aiRouter.get(
   '/analyze/openai-batting/latest',
   authenticateToken,
@@ -188,28 +262,20 @@ aiRouter.get(
   async (req: AuthenticatedRequest, res: Response) => {
     const playerId = typeof req.query.playerId === 'string' ? req.query.playerId.trim() : '';
     if (!playerId) return res.status(400).json({ error: 'player_required', message: 'Select a player to load their latest batting review.' });
+    const reportId = typeof req.query.reportId === 'string' ? req.query.reportId.trim() : '';
+    if (reportId && !/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(400).json({ error: 'invalid_report_id' });
 
     const user = req.user!;
     try {
-      if (user.role === 'COACH') {
-        if (user.coachContext !== 'CLUB') return res.status(403).json({ error: 'club_coach_required' });
-        const coach = await prisma.clubMember.findFirst({
-          where: { id: user.userId, clubId: user.tenantId, role: 'COACH', invitationStatus: 'ACTIVE' }
-        });
-        if (!coach) return res.status(403).json({ error: 'club_coach_required' });
-      }
-      const player = await prisma.clubMember.findFirst({
-        where: { id: playerId, clubId: user.tenantId, role: 'PLAYER', invitationStatus: 'ACTIVE' },
-        select: { id: true }
-      });
-      if (!player) return res.status(404).json({ error: 'player_not_found', message: 'The selected player is not active in this club.' });
+      const player = await resolveBattingReportPlayer(req, res, playerId);
+      if (!player) return;
 
       const report = await prisma.openAiBattingReport.findFirst({
-        where: { tenantId: user.tenantId, playerId: player.id },
+        where: { tenantId: user.tenantId, playerId: player.id, ...(reportId ? { id: reportId } : {}) },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, playerName: true, createdAt: true, analysis: true, artifacts: true }
+        select: { id: true, playerName: true, createdAt: true, sourceType: true, sourceName: true, analysis: true, artifacts: true }
       });
-      if (!report) return res.json({ report: null });
+      if (!report) return reportId ? res.status(404).json({ error: 'report_not_found', message: 'That saved batting review was not found.' }) : res.json({ report: null });
 
       const saved = report.analysis as Record<string, unknown>;
       const rawArtifacts = Array.isArray(report.artifacts) ? report.artifacts : [];
@@ -252,7 +318,7 @@ aiRouter.get(
           ? { ...(item as Record<string, unknown>), phaseReviewFrames: [] }
           : item)
       };
-      return res.json({ report: { reportId: report.id, playerName: report.playerName, createdAt: report.createdAt, artifactNames, analysis } });
+      return res.json({ report: { reportId: report.id, playerName: report.playerName, createdAt: report.createdAt, sourceType: report.sourceType, sourceName: report.sourceName, artifactNames, analysis } });
     } catch (error) {
       console.error('OpenAI batting report history fetch failed:', error);
       return res.status(500).json({ error: 'report_fetch_failed', message: 'The saved batting review could not be loaded.' });
@@ -342,11 +408,25 @@ aiRouter.post(
       }
 
       let videoBuffer: Buffer;
+      let sourceName: string | null = null;
       if (file) {
         videoBuffer = file.buffer;
+        // Multer decodes multipart filenames as latin1; restore UTF-8 names.
+        sourceName = Buffer.from(file.originalname || '', 'latin1').toString('utf8').trim().slice(0, 255) || null;
       } else {
         const driveAccess = await getValidAccessToken(user.userId);
         if (!driveAccess) return res.status(404).json({ error: 'drive_not_connected', message: 'Google Drive is not connected for this account.' });
+        try {
+          const metadata = await fetch(`${GOOGLE_DRIVE_FILES_URL}/${encodeURIComponent(driveFileId)}?fields=name`, {
+            headers: { Authorization: `Bearer ${driveAccess.accessToken}` }
+          });
+          if (metadata.ok) {
+            const { name } = await metadata.json() as { name?: unknown };
+            if (typeof name === 'string' && name.trim()) sourceName = name.trim().slice(0, 255);
+          }
+        } catch {
+          // The file name is display-only; analysis continues without it.
+        }
         const download = await fetchWithRetry(`${GOOGLE_DRIVE_FILES_URL}/${encodeURIComponent(driveFileId)}?alt=media`, {
           headers: { Authorization: `Bearer ${driveAccess.accessToken}` }
         }, { label: 'Google Drive video download for OpenAI analysis' });
@@ -392,6 +472,8 @@ aiRouter.post(
             playerId: playerId || null,
             playerName,
             sourceSha256: analysis.sourceSha256,
+            sourceType: file ? 'LOCAL_UPLOAD' : 'GOOGLE_DRIVE',
+            sourceName,
             model: analysis.executionLog.modelReturned,
             promptVersion: analysis.promptVersion,
             schemaVersion: analysis.schemaVersion,

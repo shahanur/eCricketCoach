@@ -293,6 +293,8 @@ model OpenAiBattingReport {
   playerId        String?  @map("player_id")
   playerName      String?  @map("player_name")
   sourceSha256    String   @map("source_sha256")
+  sourceType      String?  @map("source_type")
+  sourceName      String?  @map("source_name")
   model           String
   promptVersion   String   @map("prompt_version")
   schemaVersion   String   @map("schema_version")

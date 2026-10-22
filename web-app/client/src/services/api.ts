@@ -22,6 +22,7 @@ import {
   CapeTarget,
   PlayerDrillAssignment,
   OpenAiBattingAnalysis,
+  OpenAiBattingReportSummary,
   PoseOverlayAnalysis
 } from '../types';
 
@@ -878,12 +879,24 @@ export const api = {
     return { blob: await res.blob(), fileName: name };
   },
 
-  async getLatestOpenAiBattingAnalysis(playerId: string): Promise<OpenAiBattingAnalysis | null> {
+  async listOpenAiBattingReports(playerId: string): Promise<OpenAiBattingReportSummary[]> {
     const query = new URLSearchParams({ playerId });
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/history?${query}`, {
+      headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'The batting review history could not be loaded');
+    const body = await res.json() as { reports?: OpenAiBattingReportSummary[] };
+    return Array.isArray(body.reports) ? body.reports : [];
+  },
+
+  // Loads the player's latest saved batting review, or a specific one when reportId is given.
+  async getLatestOpenAiBattingAnalysis(playerId: string, reportId?: string): Promise<OpenAiBattingAnalysis | null> {
+    const query = new URLSearchParams({ playerId });
+    if (reportId) query.set('reportId', reportId);
     const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/latest?${query}`, {
       headers: authenticatedHeaders()
     });
-    if (res.status === 404) return null;
+    if (res.status === 404 && !reportId) return null;
     if (!res.ok) throw await responseError(res, 'The saved batting review could not be loaded');
     const body = await res.json() as { report: { reportId: string; artifactNames: string[]; analysis: OpenAiBattingAnalysis } | null };
     if (!body.report) return null;
