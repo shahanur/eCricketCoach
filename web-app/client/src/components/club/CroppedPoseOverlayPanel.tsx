@@ -209,21 +209,6 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </div>
       )}
 
-      <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
-        <p className="text-sm font-semibold text-white">{analysis.summary}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-          <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-cyan-100">
-            {analysis.contact.status === 'DETECTED' ? 'Contact visible'
-              : analysis.contact.status === 'LIKELY' ? 'Contact likely'
-                : analysis.contact.status === 'UNCERTAIN' ? 'Contact unclear' : 'Contact not visible'}
-          </span>
-        </div>
-        <details className="mt-2 text-[11px] text-slate-400">
-          <summary className="cursor-pointer">Advanced details · contact notes</summary>
-          <p className="mt-1">{analysis.contact.evidence}</p>
-        </details>
-      </div>
-
       {result && (
         <>
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/50 p-3">
