@@ -529,7 +529,7 @@ def analyse_frame(
     # OpenAI wins per point; MediaPipe supplies only points the OpenAI estimate omitted.
     points = dict(mediapipe_points)
     points.update(openai_points)
-    mediapipe_metrics, body_height = geometry_metrics(mediapipe_points, handedness, height)
+    mediapipe_metrics, _ = geometry_metrics(mediapipe_points, handedness, height)
     openai_metrics, _ = geometry_metrics(openai_points, handedness, height)
     metrics, _ = geometry_metrics(points, handedness, height)
     world_angles = mediapipe_world_angles(pose_result, handedness)
@@ -585,8 +585,6 @@ def analyse_frame(
                 cosine = float(np.dot(shoulder_vector, target_vector) / (shoulder_length * target_length))
                 angle = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
                 shoulder_target_angle = min(angle, 180 - angle)
-                openai_metrics["front_shoulder_target_angle_deg"] = round(shoulder_target_angle, 1)
-                mediapipe_metrics["front_shoulder_target_angle_deg"] = round(shoulder_target_angle, 1) if pose_result is not None else None
                 metrics["front_shoulder_target_angle_deg"] = round(shoulder_target_angle, 1)
                 metric_sources["front_shoulder_target_angle_deg"] = "OpenAI + MediaPipe geometry" if used_mediapipe_fallback else "OpenAI 2D"
     if openai_contact_pixel and "front_shoulder_target_angle_deg" in metrics:
@@ -611,7 +609,6 @@ def analyse_frame(
         bat_source = "OpenAI bat toe + wrist grip"
     if shaft_bat_angle is not None:
         metrics["bat_angle_deg"] = shaft_bat_angle
-        openai_metrics["bat_angle_deg"] = shaft_bat_angle
         metric_sources["bat_angle_deg"] = bat_source
     elif openai_contact_pixel:
         contact_bat_angle = bat_angle_from_contact(geometry_points, openai_contact_pixel)
@@ -620,33 +617,16 @@ def analyse_frame(
         if contact_bat_angle is not None:
             metrics["bat_angle_deg"] = contact_bat_angle
             if openai_bat_angle is not None:
-                openai_metrics["bat_angle_deg"] = openai_bat_angle
                 metric_sources["bat_angle_deg"] = "OpenAI 2D"
             elif mediapipe_bat_angle is not None:
-                mediapipe_metrics["bat_angle_deg"] = mediapipe_bat_angle
                 metric_sources["bat_angle_deg"] = "MediaPipe wrist + OpenAI contact fallback"
             else:
                 metric_sources["bat_angle_deg"] = "Merged wrist/contact estimate"
     if metrics.get("bat_angle_deg") is None and openai_bat.get("angle") is not None:
         metrics["bat_angle_deg"] = openai_bat["angle"]
-        openai_metrics["bat_angle_deg"] = openai_bat["angle"]
         metric_sources["bat_angle_deg"] = "OpenAI full-frame bat estimate"
     metrics_source = "openai+mediapipe-fallback" if openai_points and used_mediapipe_fallback else "openai" if openai_points else "mediapipe"
     rules_comparison = evaluate_cape_rules(metrics, shot_type)
-    point_pairs = {
-        **{name: name for name in (
-            "head", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
-            "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee",
-            "right_knee", "left_ankle", "right_ankle",
-        )},
-        "front_toe": f"{front}_toe",
-    }
-    landmark_disagreement_pct = {
-        name: round(math.dist(mediapipe_points[model_name], openai_points[model_name]) / max(body_height, 1.0) * 100.0, 1)
-        if mediapipe_points.get(model_name) is not None and openai_points.get(model_name) is not None else None
-        for name, model_name in point_pairs.items()
-        if mediapipe_points.get(model_name) is not None and openai_points.get(model_name) is not None
-    }
     front_shoulder = points.get(f"{front}_shoulder")
     front_elbow = points.get(f"{front}_elbow")
     front_toe = points.get(f"{front}_toe")
@@ -742,7 +722,6 @@ def analyse_frame(
         "landmarks": serialized_landmarks,
         "metrics": metrics,
         "mediapipe_world_metrics": world_angles,
-        "mediapipe_metrics": mediapipe_metrics if pose_result is not None else {},
         "openai_landmarks": {
             name: {"x": round(point[0] / width, 4), "y": round(point[1] / height, 4)}
             for name, point in openai_points.items()
@@ -751,8 +730,6 @@ def analyse_frame(
             "x": round(openai_contact_pixel[0] / width, 4),
             "y": round(openai_contact_pixel[1] / height, 4),
         },
-        "openai_metrics": openai_metrics,
-        "landmark_disagreement_pct": landmark_disagreement_pct,
         "coaching_rules": rules_comparison,
         "limitations": [
             "The selected shot's coaching_rules.yaml checks use OpenAI landmarks as primary when supplied; unavailable checks are not inferred.",

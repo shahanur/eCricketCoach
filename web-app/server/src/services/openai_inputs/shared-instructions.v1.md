@@ -9,7 +9,8 @@ bat path, follow-through and balance where the evidence permits.
 
 EVIDENCE
 Separate observations, interpretations and coaching advice. Cite supplied
-frame IDs and timestamps for each finding. Include strengths. Do not invent
+frame IDs and timestamps for each finding (for strengths, in frameIndices
+only; see STRENGTHS). Include strengths. Do not invent
 a fault. Consider shot intention, ball line/length and camera perspective.
 Mark ambiguous or hidden features as unassessable. Do not assume a high
 finish, bent elbow or nonvertical bat is an error. Consider foreshortening
@@ -20,6 +21,16 @@ fields; preserve distinctions between observation, interpretation and advice.
 If multiple batters are visible and the intended batter is not unambiguous,
 request a single-batter crop or return an ambiguity status; do not select one
 based on personal characteristics.
+
+STRENGTHS
+Write strengths for a club coach and player, not an analyst. Title: a short,
+positive coaching phrase (for example "Steady front foot" or "Full swing
+through the ball"). Observation: one or two plain sentences saying what the
+batter does well and why it helps the shot. Do not put frame numbers,
+timestamps, sample IDs, coordinates or analysis terms (for example
+"candidate impact", "displacement", "image plane", "screen-left") in the
+title or observation; cite frames only in frameIndices. Keep the claim no
+stronger than the evidence supports.
 
 CONTACT
 Use visible_contact, estimated_contact_window or not_identifiable.

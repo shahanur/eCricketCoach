@@ -3834,24 +3834,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </section>
               )}
 
-              {openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl && (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <figure className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                    <img src={openAiBattingAnalysis.visualOutputs.movementSequenceImageDataUrl} alt="Preparation, downswing, near-contact, and follow-through movement sequence" className="block h-auto w-full" />
-                    <figcaption className="px-3 py-2 text-[11px] text-slate-400">Movement phases are visual estimates.</figcaption>
-                  </figure>
-                  {openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl && (
-                    <details className="rounded-lg border border-slate-800 bg-slate-900">
-                      <summary className="cursor-pointer p-3 text-xs font-semibold text-slate-300">Advanced details · annotated contact view</summary>
-                      <figure className="overflow-hidden border-t border-slate-800">
-                        <img src={openAiBattingAnalysis.visualOutputs.jointAlignmentImageDataUrl} alt="Contact view with estimated joint and alignment annotations" className="block h-auto w-full" />
-                        <figcaption className="px-3 py-2 text-[11px] text-slate-400">Visual estimates; illustrative arrows are not measurements.</figcaption>
-                      </figure>
-                    </details>
-                  )}
-                </div>
-              )}
-
               {(!openAiBattingAnalysis.restoredFromReport || openAiBattingAnalysis.poseOverlayResult) && (
                 <CroppedPoseOverlayPanel
                   imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
@@ -3864,7 +3846,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 />
               )}
 
-              <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+              {/* <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
                 <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · frame-by-frame measurements</summary>
               {openAiBattingAnalysis.jointAngles.some(angle => angle.status === 'calculated') && (
                 <div className="overflow-x-auto rounded-lg border border-slate-800">
@@ -3911,7 +3893,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   <p className="px-2 pb-2 text-[10px] text-slate-500">Handle-to-toe direction from straight down in the image (0° = bat hanging below the hands, above 90° = toe above the hands), CAPE's convention. 2D estimate; not a bat face or lie angle.</p>
                 </div>
               )}
-              </details>
+              </details> */}
 
               {openAiBattingAnalysis.reportId && openAiBattingAnalysis.artifactNames && (
                 <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">

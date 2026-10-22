@@ -11,33 +11,6 @@ interface CroppedPoseOverlayPanelProps {
   onPoseOverlaySaved?: (result: PoseOverlayAnalysis, artifactNames: string[]) => void;
 }
 
-const metricLabels: Record<string, string> = {
-  front_elbow_angle_degrees: 'Front elbow angle',
-  back_elbow_angle_degrees: 'Back elbow angle',
-  front_knee_angle_degrees: 'Front knee angle',
-  back_knee_angle_degrees: 'Back knee angle',
-  front_elbow_height_above_shoulder_pct: 'Front elbow above shoulder',
-  head_to_front_toe_horizontal_offset_pct: 'Head-to-front-toe offset',
-  front_knee_to_toe_horizontal_offset_pct: 'Front knee-to-toe offset',
-  shoulder_tilt_degrees: 'Shoulder tilt'
-};
-
-const metricUnit = (name: string) => name.endsWith('_degrees') ? '°' : '% of visible body height';
-
-const jointMetricKeys = [
-  'front_elbow_angle_degrees', 'back_elbow_angle_degrees',
-  'front_knee_angle_degrees', 'back_knee_angle_degrees'
-];
-const alignmentMetricKeys = [
-  'front_elbow_height_above_shoulder_pct', 'head_to_front_toe_horizontal_offset_pct',
-  'front_knee_to_toe_horizontal_offset_pct', 'shoulder_tilt_degrees'
-];
-const worldAngleMetricKeys: Record<string, string> = {
-  front_elbow_angle_degrees: 'front_elbow',
-  back_elbow_angle_degrees: 'back_elbow',
-  front_knee_angle_degrees: 'front_knee',
-  back_knee_angle_degrees: 'back_knee'
-};
 const battingShotTypes = ['front_foot_drive', 'back_foot_drive', 'forward_defence', 'backward_defence', 'pull', 'cut', 'sweep'];
 const formatShotType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
 
@@ -265,7 +238,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
           <CapeStyleMetricTable title="Alignment checklist" rows={alignmentRows} />
           {(result.coaching_rules.faults.length > 0 || result.coaching_rules.strengths.length > 0 || result.coaching_rules.unavailable.length > 0) && (
             <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-              <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · CAPE rule comparison</summary>
+              <summary className="cursor-pointer text-xs font-semibold text-slate-300">What to Fix</summary>
               {!result.coaching_rules.score_scope.startsWith('partial') && <p className="mt-2 text-xs text-slate-400">Rule-check score: {result.coaching_rules.score}/100</p>}
               {result.coaching_rules.faults.length > 0 && (
                 <section className="mt-3 space-y-2">
@@ -335,63 +308,8 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
                   </figure>
                 ))}
               </div>
-              <details className="rounded-lg border border-slate-800 bg-slate-950/30 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · measurements through the movement</summary>
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-800">
-                <table className="w-full text-left text-[11px]">
-                  <thead className="text-slate-500">
-                    <tr>
-                      <th className="py-1.5 pl-3 pr-2 font-medium">2D metric</th>
-                      {result.sequence.map(frame => (
-                        <th key={`head-${frame.frame_index}`} className="py-1.5 pr-2 font-medium">
-                          {frame.phase.replace(/_/g, ' ')}<br />{frame.timestamp_seconds.toFixed(2)}s
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...jointMetricKeys, ...alignmentMetricKeys].map(key => (
-                      <tr key={key} className="border-t border-slate-800 bg-slate-950/40">
-                        <td className="py-1.5 pl-3 pr-2 text-slate-300">{metricLabels[key] || key.replace(/_/g, ' ')}</td>
-                        {result.sequence.map(frame => {
-                          const value = (worldAngleMetricKeys[key]
-                            ? frame.mediapipe_world_metrics?.[worldAngleMetricKeys[key]]
-                            : undefined) ?? frame.metrics?.[key];
-                          return (
-                            <td key={`${frame.frame_index}-${key}`} className="py-1.5 pr-2 text-white">
-                              {value === null || value === undefined ? '—' : `${value.toFixed(1)}${metricUnit(key) === '°' ? '°' : '%'}`}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              </details>
             </section>
           )}
-          <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · measurement sources</summary>
-            <div className="mt-3 space-y-3">
-              <PoseMetricTable title="Joint-model comparison · 2D estimates" metricKeys={jointMetricKeys} metrics={result.mediapipe_metrics} openAiMetrics={result.openai_metrics} />
-              <PoseMetricTable title="Alignment-model comparison · image-plane estimates" metricKeys={alignmentMetricKeys} metrics={result.mediapipe_metrics} openAiMetrics={result.openai_metrics} />
-              {Object.keys(result.landmark_disagreement_pct).length > 0 && (
-                <section className="space-y-2 rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/5 p-3">
-                  <h6 className="text-xs font-semibold uppercase tracking-wide text-fuchsia-200">Landmark distance between sources</h6>
-                  <p className="text-[11px] text-slate-400">Distance between corresponding MediaPipe and OpenAI points, normalized by visible body height. This is a comparison, not an accuracy score.</p>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    {Object.entries(result.landmark_disagreement_pct).map(([name, value]) => (
-                      <div key={name} className="flex items-center justify-between gap-2 rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2">
-                        <span className="text-xs capitalize text-slate-300">{name.replace(/_/g, ' ')}</span>
-                        <span className="text-xs font-semibold text-fuchsia-100">{value === null ? '—' : `${value.toFixed(1)}%`}</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
-          </details>
         </>
       )}
 
@@ -446,12 +364,12 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </section>
       )}
 
-      <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+      {/* <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
         <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · limitations</summary>
         <ul className="mt-2 space-y-1 text-[11px] text-slate-400">
           {[...new Set([...analysis.limitations, ...(result?.limitations || [])])].map((limitation, index) => <li key={index}>• {limitation}</li>)}
         </ul>
-      </details>
+      </details> */}
     </section>
   );
 };
@@ -501,48 +419,3 @@ const CapeStyleMetricTable: React.FC<{
   </div>
 );
 
-const PoseMetricTable: React.FC<{
-  title: string;
-  metricKeys: string[];
-  metrics: Record<string, number | null>;
-  openAiMetrics: Record<string, number | null>;
-}> = ({ title, metricKeys, metrics, openAiMetrics }) => (
-  <section className="space-y-1.5">
-    <h6 className="text-xs font-semibold uppercase tracking-wide text-cyan-100">{title}</h6>
-    <div className="overflow-x-auto rounded-lg border border-slate-800">
-      <table className="w-full text-left text-xs">
-        <thead className="text-slate-500">
-          <tr>
-            <th className="py-1.5 pl-3 pr-2 font-medium">Metric</th>
-            <th className="py-1.5 pr-2 font-medium">MediaPipe</th>
-            <th className="py-1.5 pr-2 font-medium">OpenAI</th>
-            <th className="py-1.5 pr-3 font-medium">Difference</th>
-          </tr>
-        </thead>
-        <tbody>
-          {metricKeys.map(key => {
-            const value = metrics[key];
-            const openAiValue = openAiMetrics[key];
-            const difference = value === null || value === undefined || openAiValue === null || openAiValue === undefined
-              ? null
-              : Math.abs(value - openAiValue);
-            return (
-              <tr key={key} className="border-t border-slate-800 bg-slate-950/40">
-                <td className="py-2 pl-3 pr-2 text-slate-200">{metricLabels[key] || key.replace(/_/g, ' ')}</td>
-                <td className="py-2 pr-2 font-semibold text-white">
-                  {value === null || value === undefined ? '—' : `${value.toFixed(1)}${metricUnit(key) === '°' ? '°' : ` ${metricUnit(key)}`}`}
-                </td>
-                <td className="py-2 pr-2 text-fuchsia-100">
-                  {openAiValue === null || openAiValue === undefined ? '—' : `${openAiValue.toFixed(1)}${metricUnit(key) === '°' ? '°' : ` ${metricUnit(key)}`}`}
-                </td>
-                <td className="py-2 pr-3 text-slate-300">
-                  {difference === null ? '—' : `${difference.toFixed(1)}${metricUnit(key) === '°' ? '°' : ` ${metricUnit(key)}`}`}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  </section>
-);

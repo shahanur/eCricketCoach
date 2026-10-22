@@ -553,11 +553,8 @@ export interface PoseOverlayAnalysis {
   person_detection: { confidence: number; box_px: [number, number, number, number]; box_norm: [number, number, number, number] } | null;
   landmarks: Record<string, { x: number; y: number; visibility: number } | null>;
   metrics: Record<string, number | null>;
-  mediapipe_metrics: Record<string, number | null>;
   openai_landmarks: Record<string, { x: number; y: number }>;
   openai_contact_point: { x: number; y: number } | null;
-  openai_metrics: Record<string, number | null>;
-  landmark_disagreement_pct: Record<string, number | null>;
   coaching_rules: {
     source: string;
     shot_type: string;
