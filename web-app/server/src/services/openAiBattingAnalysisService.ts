@@ -379,6 +379,8 @@ export interface OpenAiBattingAnalysis {
     cameraView: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
     playbackSpeed: 'real_time' | 'slow_motion' | 'unknown';
     captureFps: number | null;
+    startTimeSeconds: number | null;
+    endTimeSeconds: number | null;
     priorities: NonNullable<OpenAiBattingAnalysisOptions['priorities']>;
   };
   video: Omit<VideoMetadata, 'presentationTimestampsSeconds'> & { sampledOverviewFrames: number };
@@ -462,6 +464,8 @@ export class OpenAiBattingAnalysisError extends Error {
 
 export interface OpenAiBattingAnalysisOptions {
   contactTimestampSeconds?: number;
+  startTimeSeconds?: number;
+  endTimeSeconds?: number;
   shotType?: 'front_foot_drive' | 'front_foot_defence' | 'unknown';
   batterHandedness?: 'right' | 'left' | 'unknown';
   cameraView?: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
@@ -1419,13 +1423,22 @@ export async function analyzeBattingVideoWithOpenAI(
     await fs.writeFile(inputPath, videoBuffer);
     const metadata = await probeVideo(inputPath, limits.maxVideoDurationSeconds);
     const manualTimestamp = options.contactTimestampSeconds;
+    const rangeStart = options.startTimeSeconds ?? 0;
+    const rangeEnd = options.endTimeSeconds ?? metadata.durationSeconds;
+    if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeStart < 0 || rangeEnd > metadata.durationSeconds || rangeEnd <= rangeStart) {
+      throw new OpenAiBattingAnalysisError(400, 'invalid_analysis_range', 'The selected shot range must be within the video and have a positive duration.');
+    }
     if (manualTimestamp !== undefined && (!Number.isFinite(manualTimestamp) || manualTimestamp < 0 || manualTimestamp > metadata.durationSeconds)) {
       throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'The selected contact time must be within the video duration.');
     }
-    const overviewFps = Math.min(limits.overviewFps, (limits.maxOverviewFrames - 1) / metadata.durationSeconds);
+    if (manualTimestamp !== undefined && (manualTimestamp < rangeStart || manualTimestamp > rangeEnd)) {
+      throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'The selected contact time must be inside the shot range.');
+    }
+    const rangeDuration = rangeEnd - rangeStart;
+    const overviewFps = Math.min(limits.overviewFps, (limits.maxOverviewFrames - 1) / rangeDuration);
     const overviewFrames = await sampleFrames(inputPath, workDir, {
-      startSeconds: 0,
-      durationSeconds: metadata.durationSeconds,
+      startSeconds: rangeStart,
+      durationSeconds: rangeDuration,
       fps: overviewFps,
       maxFrames: limits.maxOverviewFrames,
       prefix: 'overview',
@@ -1447,6 +1460,8 @@ export async function analyzeBattingVideoWithOpenAI(
       camera_view: options.cameraView ?? 'unknown',
       playback_speed: options.playbackSpeed ?? 'unknown',
       capture_fps: options.captureFps ?? null,
+      start_time_seconds: options.startTimeSeconds ?? null,
+      end_time_seconds: options.endTimeSeconds ?? null,
       priorities
     };
     const manualReference = manualTimestamp === undefined
@@ -1459,12 +1474,13 @@ export async function analyzeBattingVideoWithOpenAI(
       ? null
       : selectDenseContactWindow(
           manualSelectedTimestampSeconds,
-          metadata.durationSeconds,
+          rangeEnd,
           limits.contactContextSeconds,
           limits.maxContactWindowSeconds,
           null,
           null
         );
+    if (singleCallContactWindow) singleCallContactWindow.startSeconds = Math.max(rangeStart, singleCallContactWindow.startSeconds);
     const singleCallFrames = singleCallContactWindow
       ? (await extractEverySourceFrameInWindow(inputPath, workDir, {
           startSeconds: singleCallContactWindow.startSeconds,
@@ -1882,6 +1898,8 @@ export async function analyzeBattingVideoWithOpenAI(
         cameraView: options.cameraView ?? 'unknown',
         playbackSpeed: options.playbackSpeed ?? 'unknown',
         captureFps: options.captureFps ?? null,
+        startTimeSeconds: options.startTimeSeconds ?? null,
+        endTimeSeconds: options.endTimeSeconds ?? null,
         priorities
       },
       video: { ...videoMetadata, sampledOverviewFrames: overviewFrames.length },

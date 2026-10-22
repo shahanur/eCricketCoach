@@ -797,6 +797,8 @@ export const api = {
     driveFileId?: string;
     playerId?: string;
     contactTimestampSeconds?: number;
+    startTimeSeconds?: number;
+    endTimeSeconds?: number;
     shotType?: 'front_foot_drive' | 'front_foot_defence' | 'unknown';
     batterHandedness?: 'right' | 'left' | 'unknown';
     cameraView?: 'front_on' | 'side_on' | 'three_quarter' | 'unknown';
@@ -821,6 +823,8 @@ export const api = {
       formData.append('file', payload.videoFile, payload.videoFile.name);
       if (payload.playerId) formData.append('playerId', payload.playerId);
       if (payload.contactTimestampSeconds !== undefined) formData.append('contactTimestampSeconds', String(payload.contactTimestampSeconds));
+      if (payload.startTimeSeconds !== undefined) formData.append('startTimeSeconds', String(payload.startTimeSeconds));
+      if (payload.endTimeSeconds !== undefined) formData.append('endTimeSeconds', String(payload.endTimeSeconds));
       formData.append('shotType', payload.shotType ?? 'unknown');
       formData.append('batterHandedness', payload.batterHandedness ?? 'unknown');
       formData.append('cameraView', payload.cameraView ?? 'unknown');
@@ -841,6 +845,8 @@ export const api = {
           driveFileId: payload.driveFileId,
           playerId: payload.playerId,
           contactTimestampSeconds: payload.contactTimestampSeconds,
+          startTimeSeconds: payload.startTimeSeconds,
+          endTimeSeconds: payload.endTimeSeconds,
           shotType: payload.shotType ?? 'unknown',
           batterHandedness: payload.batterHandedness ?? 'unknown',
           cameraView: payload.cameraView ?? 'unknown',

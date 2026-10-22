@@ -13,6 +13,12 @@ interface CroppedPoseOverlayPanelProps {
 
 const formatShotType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
 
+function toCapeShotType(value: string | null | undefined): 'front_foot_drive' | 'forward_defence' | null {
+  if (value === 'front_foot_drive' || value === 'forward_defence') return value;
+  if (value === 'front_foot_defence') return 'forward_defence';
+  return null;
+}
+
 type CapeRuleCheck = PoseOverlayAnalysis['coaching_rules']['checks'][number];
 
 function expectedText(check: CapeRuleCheck | undefined, unit: string): string {
@@ -56,10 +62,10 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
       ? analysis.shotIdentification.batterHandedness
       : analysis.requestMetadata.batterHandedness);
   const handedness: 'right' | 'left' = identifiedHandedness === 'left' ? 'left' : 'right';
-  const identifiedShotType = savedResult?.shot_type
-    ?? analysis.shotIdentification.shotType
-    ?? analysis.requestMetadata.shotType;
-  const shotType = identifiedShotType && identifiedShotType !== 'unknown' ? identifiedShotType : 'front_foot_drive';
+  const shotType = toCapeShotType(savedResult?.shot_type)
+    ?? toCapeShotType(analysis.requestMetadata.shotType)
+    ?? toCapeShotType(analysis.shotIdentification.shotType)
+    ?? 'front_foot_drive';
   const [result, setResult] = useState<PoseOverlayAnalysis | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -178,7 +184,7 @@ export const CroppedPoseOverlayPanel: React.FC<CroppedPoseOverlayPanelProps> = (
         </div>
         <div className="flex flex-wrap gap-3 text-xs">
           <p className="text-slate-400">Batter hand <span className="ml-1 text-slate-200">{identifiedHandedness === 'unknown' ? 'Unknown' : `${identifiedHandedness === 'left' ? 'Left' : 'Right'}-handed`}</span></p>
-          <p className="text-slate-400">CAPE rule set <span className="ml-1 text-slate-200">{formatShotType(identifiedShotType || 'unknown')}</span></p>
+          <p className="text-slate-400">CAPE rule set <span className="ml-1 text-slate-200">{formatShotType(shotType)}</span></p>
         </div>
       </div>
 

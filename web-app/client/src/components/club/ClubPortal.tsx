@@ -455,6 +455,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [openAiVideoPreviewError, setOpenAiVideoPreviewError] = useState<string | null>(null);
   const [openAiVideoDuration, setOpenAiVideoDuration] = useState(0);
   const [openAiSelectedContactTimestamp, setOpenAiSelectedContactTimestamp] = useState<number | null>(null);
+  const [openAiAnalysisStartSeconds, setOpenAiAnalysisStartSeconds] = useState(0);
+  const [openAiAnalysisEndSeconds, setOpenAiAnalysisEndSeconds] = useState(0);
   const openAiVideoRef = useRef<HTMLVideoElement | null>(null);
   const [driveVideosError, setDriveVideosError] = useState<string | null>(null);
   const [modalDriveVideosError, setModalDriveVideosError] = useState<string | null>(null);
@@ -468,6 +470,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setOpenAiVideoPreviewUrl(null);
     setOpenAiVideoDuration(0);
     setOpenAiSelectedContactTimestamp(null);
+    setOpenAiAnalysisStartSeconds(0);
+    setOpenAiAnalysisEndSeconds(0);
     setOpenAiVideoPreviewError(null);
     if (openAiContactSelectionMode !== 'MANUAL') {
       setOpenAiVideoPreviewLoading(false);
@@ -3406,7 +3410,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                     (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoFile : !selectedDriveVideo) ||
                     (openAiUseCapeKinetics && openAiCapeCalibrationPoints.length !== 4) ||
                     (openAiContactSelectionMode === 'MANUAL' &&
-                      (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 || openAiSelectedContactTimestamp === null))}
+                    (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 ||
+                      openAiAnalysisEndSeconds <= openAiAnalysisStartSeconds || openAiSelectedContactTimestamp === null ||
+                      openAiSelectedContactTimestamp < openAiAnalysisStartSeconds || openAiSelectedContactTimestamp > openAiAnalysisEndSeconds))}
                   onClick={async () => {
                     const generation = ++openAiAnalysisGeneration.current;
                     setIsOpenAiBattingAnalysisRunning(true);
@@ -3429,7 +3435,9 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         capeCalibrationPoints: openAiUseCapeKinetics ? openAiCapeCalibrationPoints : undefined,
                         contactTimestampSeconds: openAiContactSelectionMode === 'MANUAL'
                           ? openAiSelectedContactTimestamp ?? undefined
-                          : undefined
+                          : undefined,
+                        startTimeSeconds: openAiContactSelectionMode === 'MANUAL' ? openAiAnalysisStartSeconds : undefined,
+                        endTimeSeconds: openAiContactSelectionMode === 'MANUAL' ? openAiAnalysisEndSeconds : undefined
                       });
                       if (generation === openAiAnalysisGeneration.current) {
                         setOpenAiBattingAnalysis(result.analysis);
@@ -3504,7 +3512,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                 </div>
                 {openAiContactSelectionMode === 'MANUAL' && (
                   <div className="space-y-2">
-                    <p className="text-[11px] text-slate-400">Scrub to the moment you want reviewed. OpenAI will inspect nearby frames to verify contact.</p>
+                    <p className="text-[11px] text-slate-400">Set the shot start and end, then choose the contact point inside that range. Drag the video timeline or the Contact point slider.</p>
                     {openAiVideoPreviewLoading && <p role="status" className="text-xs text-violet-200">Loading video preview…</p>}
                     {openAiVideoPreviewError && <p role="alert" className="text-xs text-rose-300">{openAiVideoPreviewError}</p>}
                     {openAiVideoPreviewUrl && (
@@ -3518,15 +3526,40 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                           onLoadedMetadata={event => {
                             const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
                             setOpenAiVideoDuration(duration);
+                            setOpenAiAnalysisEndSeconds(duration);
                             setOpenAiSelectedContactTimestamp(event.currentTarget.currentTime || 0);
                           }}
-                          onTimeUpdate={event => setOpenAiSelectedContactTimestamp(event.currentTarget.currentTime)}
+                          onTimeUpdate={event => {
+                            const time = event.currentTarget.currentTime;
+                            if (time >= openAiAnalysisStartSeconds && time <= openAiAnalysisEndSeconds) {
+                              setOpenAiSelectedContactTimestamp(time);
+                            }
+                          }}
                           onError={() => setOpenAiVideoPreviewError('This video format cannot be previewed in the browser. Try MP4 or WEBM.')}
                         />
                         {openAiVideoDuration > 0 && (
                           <div>
-                            <label htmlFor="openai-contact-time" className="flex items-center justify-between text-[11px] text-slate-300">
-                              <span>Selected time</span>
+                            <div className="space-y-2 mb-3 rounded-md border border-slate-800 bg-slate-900/70 p-2">
+                              <p className="text-[11px] font-semibold text-slate-300">Shot range to analyse</p>
+                              {([
+                                { id: 'openai-range-start', label: 'Start', value: openAiAnalysisStartSeconds, update: setOpenAiAnalysisStartSeconds, min: 0, max: openAiAnalysisEndSeconds },
+                                { id: 'openai-range-end', label: 'End', value: openAiAnalysisEndSeconds, update: setOpenAiAnalysisEndSeconds, min: openAiAnalysisStartSeconds, max: openAiVideoDuration }
+                              ] as const).map(range => (
+                                <label key={range.id} htmlFor={range.id} className="block text-[10px] text-slate-400">
+                                  <span className="flex justify-between"><span>{range.label} frame</span><span className="font-mono text-violet-200">{`${Math.floor(range.value / 60)}:${(range.value % 60).toFixed(2).padStart(5, '0')}`}</span></span>
+                                  <input id={range.id} type="range" min={range.min} max={range.max} step="0.01" value={range.value}
+                                    onChange={event => {
+                                      const time = Number(event.target.value);
+                                      range.update(time);
+                                      if (range.id === 'openai-range-start' && (openAiSelectedContactTimestamp ?? 0) < time) setOpenAiSelectedContactTimestamp(time);
+                                      if (range.id === 'openai-range-end' && (openAiSelectedContactTimestamp ?? 0) > time) setOpenAiSelectedContactTimestamp(time);
+                                    }}
+                                    className="w-full accent-violet-400" />
+                                </label>
+                              ))}
+                            </div>
+                            <label htmlFor="openai-contact-time" className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                              <span>Contact point</span>
                               <span className="font-mono text-violet-200">
                                 {(() => {
                                   const time = openAiSelectedContactTimestamp ?? 0;
@@ -3537,8 +3570,8 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             <input
                               id="openai-contact-time"
                               type="range"
-                              min="0"
-                              max={openAiVideoDuration}
+                              min={openAiAnalysisStartSeconds}
+                              max={Math.max(openAiAnalysisStartSeconds, openAiAnalysisEndSeconds)}
                               step="0.01"
                               value={Math.min(openAiSelectedContactTimestamp ?? 0, openAiVideoDuration)}
                               onChange={event => {

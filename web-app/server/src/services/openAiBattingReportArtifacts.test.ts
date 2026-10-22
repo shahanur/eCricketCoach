@@ -25,7 +25,7 @@ test('persists report artifacts and a ZIP without embedding source image data in
   const svgDataUrl = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="#123"/></svg>').toString('base64')}`;
   const analysis = {
     provider: 'openai', model: 'test-model', promptVersion: 'test-prompt-v1', schemaVersion: 'test-schema-v1', sourceSha256: 'a'.repeat(64),
-    requestMetadata: { shotType: 'unknown', batterHandedness: 'unknown', cameraView: 'unknown', playbackSpeed: 'unknown', captureFps: null, priorities: [] },
+    requestMetadata: { shotType: 'unknown', batterHandedness: 'unknown', cameraView: 'unknown', playbackSpeed: 'unknown', captureFps: null, startTimeSeconds: null, endTimeSeconds: null, priorities: [] },
     video: { durationSeconds: 1, width: 32, height: 48, fps: 30, sampledOverviewFrames: 1 },
     frameManifest: [], shotCandidates: [], shotAssessments: [], jointAngles: [{
       frameId: 'frame_000015', joint: 'elbow', side: 'left', landmarkNames: ['leftShoulder', 'leftElbow', 'leftWrist'],

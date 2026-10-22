@@ -369,9 +369,21 @@ aiRouter.post(
       : typeof rawContactTimestamp === 'number' || typeof rawContactTimestamp === 'string'
         ? Number(rawContactTimestamp)
         : Number.NaN;
+    const parseOptionalTime = (value: unknown): number | undefined => value === undefined || value === null || value === ''
+      ? undefined
+      : typeof value === 'number' || typeof value === 'string' ? Number(value) : Number.NaN;
+    const startTimeSeconds = parseOptionalTime(req.body?.startTimeSeconds);
+    const endTimeSeconds = parseOptionalTime(req.body?.endTimeSeconds);
 
     if (contactTimestampSeconds !== undefined && (!Number.isFinite(contactTimestampSeconds) || contactTimestampSeconds < 0)) {
       return res.status(400).json({ error: 'invalid_contact_timestamp', message: 'The selected contact time must be a valid non-negative number of seconds.' });
+    }
+    if ((startTimeSeconds !== undefined && (!Number.isFinite(startTimeSeconds) || startTimeSeconds < 0)) ||
+      (endTimeSeconds !== undefined && (!Number.isFinite(endTimeSeconds) || endTimeSeconds < 0)) ||
+      (startTimeSeconds !== undefined && endTimeSeconds !== undefined && endTimeSeconds <= startTimeSeconds) ||
+      (contactTimestampSeconds !== undefined && ((startTimeSeconds !== undefined && contactTimestampSeconds < startTimeSeconds) ||
+        (endTimeSeconds !== undefined && contactTimestampSeconds > endTimeSeconds)))) {
+      return res.status(400).json({ error: 'invalid_analysis_range', message: 'Choose a valid start and end time, with the contact point inside the selected range.' });
     }
 
     if (file && driveFileId) {
@@ -450,6 +462,8 @@ aiRouter.post(
         : null;
       const analysis = await analyzeBattingVideoWithOpenAI(videoBuffer, {
         contactTimestampSeconds,
+        startTimeSeconds,
+        endTimeSeconds,
         shotType,
         batterHandedness,
         cameraView,
