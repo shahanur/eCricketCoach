@@ -48,6 +48,10 @@ class CoachApiTest {
             api.sessionExecutionPath("session/1?include=other")
         )
         assertEquals(
+            "/api/coach/sessions/session%2F1%3Finclude%3Dother/players",
+            api.sessionPlayersPath("session/1?include=other")
+        )
+        assertEquals(
             "/api/club/assessments/assessment%2F1/insights",
             api.assessmentInsightsPath("assessment/1")
         )

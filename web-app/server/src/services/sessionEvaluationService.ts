@@ -84,7 +84,8 @@ export class SessionEvaluationService {
     const noteLines = Object.entries(playerNotes)
       .filter(([, note]) => typeof note === 'string' && note.trim())
       .map(([id, note]) => `- ${nameOf(id)}: ${note.trim()}`);
-    const observations = [extraNotes.trim(), (session.postNotes || '').trim(), log?.evaluation?.wentWell, log?.evaluation?.challenges]
+    const disruptions = log?.evaluation?.disruptions || log?.evaluation?.challenges;
+    const observations = [extraNotes.trim(), (session.postNotes || '').trim(), log?.evaluation?.wentWell, disruptions]
       .filter(Boolean);
     if (!noteLines.length && !observations.length) return null;
 
@@ -101,7 +102,7 @@ export class SessionEvaluationService {
         `Attendance: ${Object.entries(log.attendance || {}).map(([id, status]) => `${nameOf(id)} ${status}`).join(', ') || '-'}`,
         `Drill log:\n${(log.drillLog || []).map(entry => `- ${entry.title}: planned ${entry.plannedMinutes} min, actual ${entry.actualMinutes} min, ${entry.completed ? 'completed' : 'not completed'}${entry.notes ? `; notes: ${entry.notes}` : ''}`).join('\n') || '- None'}`,
         `Disruptions: ${(log.incidents || []).map(item => `[${item.category}] ${item.note}`).join('; ') || 'None'}`,
-        `Coach evaluation: objectives met ${log.evaluation?.objectivesMet || '-'}, engagement ${log.evaluation?.engagement || '-'}/5, went well: ${log.evaluation?.wentWell || '-'}, challenges: ${log.evaluation?.challenges || '-'}, next adjustments: ${log.evaluation?.nextAdjustments || '-'}`
+        `Coach evaluation: objectives met ${log.evaluation?.objectivesMet || '-'}, engagement ${log.evaluation?.engagement || '-'}/5, went well: ${log.evaluation?.wentWell || '-'}, disruptions: ${disruptions || '-'}, next adjustments: ${log.evaluation?.nextAdjustments || '-'}`
       );
     }
 

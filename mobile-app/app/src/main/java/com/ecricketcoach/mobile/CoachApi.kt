@@ -116,6 +116,18 @@ data class SessionObservationDraft(
     val drillId: String?
 )
 
+data class SessionPlayerDraft(
+    val name: String,
+    val email: String,
+    val ageGroup: String,
+    val disciplines: List<String>
+)
+
+data class SessionPlayerAddition(
+    val member: ClubMember,
+    val session: ClubTrainingSession
+)
+
 data class PlayerAssessment(
     val id: String,
     val playerId: String,
@@ -499,6 +511,9 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     internal fun sessionObservationsPath(sessionId: String): String =
         "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/observations"
 
+    internal fun sessionPlayersPath(sessionId: String): String =
+        "/api/coach/sessions/${URLEncoder.encode(sessionId, UTF_8)}/players"
+
     internal fun clubSessionPath(sessionId: String): String =
         "/api/club/sessions/${URLEncoder.encode(sessionId, UTF_8)}"
 
@@ -531,6 +546,15 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
 
     suspend fun inviteClubMember(token: String, member: JSONObject): ClubMember = withContext(Dispatchers.IO) {
         val json = JSONObject(request("/api/club/members/invite", token, member))
+        json.getJSONObject("member").toClubMember()
+    }
+
+    suspend fun acceptClubMember(token: String, memberId: String): ClubMember = withContext(Dispatchers.IO) {
+        val json = JSONObject(request(
+            "/api/club/members/${URLEncoder.encode(memberId, UTF_8)}/accept-invitation",
+            token,
+            method = "POST"
+        ))
         json.getJSONObject("member").toClubMember()
     }
 
@@ -637,6 +661,28 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             idempotencyKey = observation.id
         ))
         response.getJSONObject("observation").toSessionObservation()
+    }
+
+    suspend fun addSessionPlayer(
+        token: String,
+        sessionId: String,
+        player: SessionPlayerDraft
+    ): SessionPlayerAddition = withContext(Dispatchers.IO) {
+        val payload = JSONObject()
+            .put("name", player.name)
+            .put("email", player.email)
+            .put("ageGroup", player.ageGroup)
+            .put("disciplines", JSONArray(player.disciplines))
+        val response = JSONObject(request(
+            sessionPlayersPath(sessionId),
+            token,
+            payload,
+            method = "POST"
+        ))
+        SessionPlayerAddition(
+            member = response.getJSONObject("member").toClubMember(),
+            session = response.getJSONObject("session").toClubTrainingSession()
+        )
     }
 
     suspend fun publishClubSession(token: String, sessionId: String): ClubTrainingSession =

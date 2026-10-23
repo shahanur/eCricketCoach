@@ -163,7 +163,8 @@ export interface SessionExecutionLog {
     objectivesMet: 'YES' | 'PARTIAL' | 'NO' | '';
     engagement: number;
     wentWell: string;
-    challenges: string;
+    disruptions: string;
+    challenges?: string;
     nextAdjustments: string;
   };
 }

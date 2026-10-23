@@ -886,14 +886,15 @@ internal fun ClubCoachWorkspace(
                         "DRILL" -> "Drill controls"
                         "OBSERVATION" -> "New observation"
                         "OBSERVATIONS" -> "Observations"
+                        "PRECHECK" -> "Pre-check"
                         "WENT_WELL" -> "Went well"
-                        "CHALLENGE" -> "Challenge"
+                        "DISRUPTION" -> "Disruption"
                         "ADJUSTMENT" -> "Adjustment"
                         "INCIDENT" -> "Incident"
                         else -> null
                     },
                     onSessionBack = {
-                        if (executionCoachPage in setOf("DRILL", "OBSERVATION", "OBSERVATIONS", "WENT_WELL", "CHALLENGE", "ADJUSTMENT", "INCIDENT")) {
+                        if (executionCoachPage in setOf("DRILL", "OBSERVATION", "OBSERVATIONS", "PRECHECK", "WENT_WELL", "DISRUPTION", "ADJUSTMENT", "INCIDENT")) {
                             executionCoachPage = "LIVE"
                         } else {
                             executingSession = null
@@ -981,7 +982,10 @@ internal fun ClubCoachWorkspace(
             MaterialTheme(colorScheme = LiveSessionLightColors) {
                 SessionExecutionScreen(
                     session = activeExecution,
-                    players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
+                    players = members.filter {
+                        it.role == "PLAYER" &&
+                            (it.invitationStatus == "ACTIVE" || it.id in activeExecution.assignedPlayerIds)
+                    },
                     drills = drills + clubDrills,
                     readOnly = activeExecution.isExecuted,
                     coachPage = executionCoachPage,
@@ -1015,6 +1019,14 @@ internal fun ClubCoachWorkspace(
                         val created = api.createSessionObservation(token, activeExecution.id, draft)
                         sessionObservations = listOf(created) + sessionObservations.filterNot { it.id == created.id }
                         created
+                    },
+                    onAddPlayer = { draft ->
+                        val addition = api.addSessionPlayer(token, activeExecution.id, draft)
+                        members = members.filterNot { it.id == addition.member.id } + addition.member
+                        sessions = sessions.map { if (it.id == addition.session.id) addition.session else it }
+                        executingSession = addition.session
+                        notice = "${addition.member.name} added as a provisional player and marked present."
+                        addition
                     },
                     onRunAiAnalysis = { executionLog, playerNotes, notes ->
                         scope.launch {
@@ -1146,6 +1158,11 @@ internal fun ClubCoachWorkspace(
                 members = members,
                 canInvite = isClubAdmin,
                 onInvite = { showInvite = true },
+                onAcceptMember = { member ->
+                    val accepted = api.acceptClubMember(token, member.id)
+                    members = members.map { if (it.id == accepted.id) accepted else it }
+                    notice = "${accepted.name} approved as an active club member."
+                },
                 onEditMember = { member, updates ->
                     val updated = api.updateClubMember(token, member.id, updates)
                     members = members.map { if (it.id == updated.id) updated else it }
@@ -2604,6 +2621,7 @@ private fun MembersPanel(
     members: List<ClubMember>,
     canInvite: Boolean,
     onInvite: () -> Unit,
+    onAcceptMember: suspend (ClubMember) -> Unit,
     onEditMember: suspend (ClubMember, JSONObject) -> Unit,
     onDeleteMember: suspend (ClubMember) -> Unit,
     modifier: Modifier = Modifier
@@ -2615,6 +2633,7 @@ private fun MembersPanel(
     var deletingMember by remember { mutableStateOf<ClubMember?>(null) }
     var editSaving by remember { mutableStateOf(false) }
     var deleteSaving by remember { mutableStateOf(false) }
+    var acceptingMemberId by remember { mutableStateOf<String?>(null) }
     var memberActionError by remember { mutableStateOf("") }
     var editName by remember(editingMember?.id) { mutableStateOf(editingMember?.name.orEmpty()) }
     var editEmail by remember(editingMember?.id) { mutableStateOf(editingMember?.email.orEmpty()) }
@@ -2719,6 +2738,40 @@ private fun MembersPanel(
                     }
                     Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
                     Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = 12.sp)
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            if (member.invitationStatus == "ACTIVE") "Active" else "Provisional · awaiting approval",
+                            color = if (member.invitationStatus == "ACTIVE") Color(0xFF159B72) else Color(0xFFE28A18),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (canInvite && member.invitationStatus == "PENDING_ACCEPTANCE") {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        acceptingMemberId = member.id
+                                        memberActionError = ""
+                                        try {
+                                            onAcceptMember(member)
+                                        } catch (failure: Exception) {
+                                            memberActionError = failure.message ?: "Unable to approve this member."
+                                        } finally {
+                                            acceptingMemberId = null
+                                        }
+                                    }
+                                },
+                                enabled = acceptingMemberId == null
+                            ) {
+                                Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text(if (acceptingMemberId == member.id) "Approving…" else "Approve")
+                            }
+                        }
+                    }
                 }
             }
         }

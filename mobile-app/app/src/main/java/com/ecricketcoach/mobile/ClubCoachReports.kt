@@ -217,11 +217,11 @@ private fun wrapLine(paint: Paint, text: String, maxWidth: Float): List<String> 
     return lines
 }
 
-private val ReportGreen = android.graphics.Color.rgb(4, 120, 87)
-private val ReportRowAlt = android.graphics.Color.rgb(243, 244, 246)
-private val ReportTextDark = android.graphics.Color.rgb(31, 41, 55)
-private val ReportTextLabel = android.graphics.Color.rgb(55, 65, 81)
-private val ReportTextGray = android.graphics.Color.rgb(107, 114, 128)
+private const val ReportGreen = 0xFF047857.toInt()
+private const val ReportRowAlt = 0xFFF3F4F6.toInt()
+private const val ReportTextDark = 0xFF1F2937.toInt()
+private const val ReportTextLabel = 0xFF374151.toInt()
+private const val ReportTextGray = 0xFF6B7280.toInt()
 
 private fun reportTimestamp(): String =
     java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy, HH:mm:ss")

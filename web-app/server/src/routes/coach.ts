@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import { prisma } from '../config/prisma.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { DbService } from '../services/dbService.js';
@@ -60,6 +61,45 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.slice(0, max) : '';
 const minutes = (value: unknown) => Number.isFinite(value) ? Math.min(Math.max(Math.round(value as number), 0), 600) : 0;
 
+const PLAYER_DISCIPLINES = ['BATTING', 'BOWLING', 'KEEPING', 'FIELDING'] as const;
+
+export function parseSessionPlayerInput(value: unknown): {
+  name: string;
+  email: string;
+  ageGroup: string;
+  discipline: string;
+} | null {
+  if (!isRecord(value)) return null;
+  const name = text(value.name, 120).trim();
+  const email = text(value.email, 254).trim().toLowerCase();
+  const ageGroup = text(value.ageGroup, 50).trim();
+  const rawDisciplines = Array.isArray(value.disciplines)
+    ? value.disciplines
+    : typeof value.discipline === 'string'
+      ? value.discipline.split(',')
+      : [];
+  const disciplines = Array.from(new Set(rawDisciplines
+    .filter((discipline): discipline is string => typeof discipline === 'string')
+    .map(discipline => discipline.trim().toUpperCase())
+    .filter(Boolean)));
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  if (!disciplines.length || disciplines.some(discipline =>
+    !PLAYER_DISCIPLINES.includes(discipline as typeof PLAYER_DISCIPLINES[number])
+  )) return null;
+  return { name, email, ageGroup, discipline: disciplines.join(',') };
+}
+
+export function assignedPlayerIdsAfterAddition(
+  assignedPlayerIds: unknown,
+  activeSquadPlayerIds: string[],
+  playerId: string
+): string[] {
+  const existing = Array.isArray(assignedPlayerIds)
+    ? assignedPlayerIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  return Array.from(new Set([...(existing.length ? existing : activeSquadPlayerIds), playerId]));
+}
+
 // Normalises the client-supplied execution log into a bounded, well-typed record.
 export function parseExecutionLog(value: unknown): SessionExecutionLog | null {
   if (!isRecord(value)) return null;
@@ -116,6 +156,7 @@ export function parseExecutionLog(value: unknown): SessionExecutionLog | null {
       objectivesMet,
       engagement: Math.min(Math.max(Math.round(Number(evaluation.engagement) || 0), 0), 5),
       wentWell: text(evaluation.wentWell, 4000),
+      disruptions: text(evaluation.disruptions, 4000) || text(evaluation.challenges, 4000),
       challenges: text(evaluation.challenges, 4000),
       nextAdjustments: text(evaluation.nextAdjustments, 4000)
     }
@@ -319,6 +360,96 @@ coachRouter.get('/sessions/:id/execution', async (req: AuthenticatedRequest, res
     res.json({ session });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load session execution.' });
+  }
+});
+
+// Registers a walk-in player provisionally and includes them in this session. Club admins can
+// approve the resulting PENDING_ACCEPTANCE roster entry through the existing member workflow.
+coachRouter.post('/sessions/:id/players', async (req: AuthenticatedRequest, res: Response) => {
+  const input = parseSessionPlayerInput(req.body);
+  if (!input) {
+    res.status(400).json({ error: 'Player name, a valid email, and a supported discipline are required.' });
+    return;
+  }
+
+  try {
+    const result = await prisma.$transaction(async transaction => {
+      const session = await transaction.trainingSession.findFirst({
+        where: assignedExecutionSessionWhere(req.params.id, req.user!.userId, req.user!.tenantId)
+      });
+      if (!session || session.isExecuted) return { status: session ? 'COMPLETED' : 'NOT_FOUND' } as const;
+
+      const squadName = session.squadName.trim();
+      const squad = session.squadId
+        ? await transaction.squad.findFirst({ where: { id: session.squadId, clubId: req.user!.tenantId } })
+        : null;
+      const rosterSquads = squadName && squadName !== 'All players' && squadName !== 'Unassigned' ? [squadName] : [];
+      const existing = await transaction.clubMember.findFirst({
+        where: { clubId: req.user!.tenantId, email: { equals: input.email, mode: 'insensitive' } }
+      });
+      if (existing && existing.role !== 'PLAYER') return { status: 'ROLE_CONFLICT' } as const;
+
+      const member = existing
+        ? await transaction.clubMember.update({
+          where: { id: existing.id },
+          data: rosterSquads.length && !existing.squads.includes(squadName)
+            ? { squads: [...existing.squads, squadName], squad: existing.squads[0] || squadName }
+            : {}
+        })
+        : await transaction.clubMember.create({
+          data: {
+            id: `mem-${randomUUID()}`,
+            clubId: req.user!.tenantId,
+            name: input.name,
+            email: input.email,
+            role: 'PLAYER',
+            ageGroup: input.ageGroup || squad?.ageGroup || 'Unspecified',
+            discipline: input.discipline,
+            invitationStatus: 'PENDING_ACCEPTANCE',
+            currentLevel: 'FOUNDATION',
+            squad: rosterSquads[0] || 'Unassigned',
+            squads: rosterSquads
+          }
+        });
+
+      const activeSquadPlayers = Array.isArray(session.assignedPlayerIds) && session.assignedPlayerIds.length
+        ? []
+        : await transaction.clubMember.findMany({
+          where: {
+            clubId: req.user!.tenantId,
+            role: 'PLAYER',
+            invitationStatus: 'ACTIVE',
+            OR: [{ squad: squadName }, { squads: { has: squadName } }]
+          },
+          select: { id: true }
+        });
+      const assignedPlayerIds = assignedPlayerIdsAfterAddition(
+        session.assignedPlayerIds,
+        activeSquadPlayers.map(player => player.id),
+        member.id
+      );
+      const updatedSession = await transaction.trainingSession.update({
+        where: { id: session.id },
+        data: { assignedPlayerIds }
+      });
+      return { status: 'CREATED', member, session: updatedSession } as const;
+    });
+
+    if (result.status === 'NOT_FOUND') {
+      res.status(404).json({ error: 'Session not found or not assigned to you.' });
+      return;
+    }
+    if (result.status === 'COMPLETED') {
+      res.status(409).json({ error: 'Players cannot be added to a completed session.' });
+      return;
+    }
+    if (result.status === 'ROLE_CONFLICT') {
+      res.status(409).json({ error: 'That email belongs to a non-player club member.' });
+      return;
+    }
+    res.status(201).json({ member: result.member, session: result.session });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to add the player to this session.' });
   }
 });
 

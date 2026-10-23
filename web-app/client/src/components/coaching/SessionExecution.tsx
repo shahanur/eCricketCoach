@@ -177,8 +177,15 @@ const reconcileDrillLog = (drillLog: SessionDrillLogEntry[], drillIds: string[],
 
 const buildInitialLog = (session: TrainingSession, drills: Drill[]): SessionExecutionLog => {
   if (session.executionLog) {
-    if (session.isExecuted) return session.executionLog;
-    return { ...session.executionLog, drillLog: reconcileDrillLog(session.executionLog.drillLog, session.drillIds || [], drills) };
+    const normalized = {
+      ...session.executionLog,
+      evaluation: {
+        ...session.executionLog.evaluation,
+        disruptions: session.executionLog.evaluation.disruptions || session.executionLog.evaluation.challenges || ''
+      }
+    };
+    if (session.isExecuted) return normalized;
+    return { ...normalized, drillLog: reconcileDrillLog(normalized.drillLog, session.drillIds || [], drills) };
   }
   const sessionDrills = (session.drillIds || []).map(drillId => catalogueEntry(drillId, drills));
   const block = (title: string, plannedMinutes: number): SessionDrillLogEntry => ({
@@ -192,7 +199,7 @@ const buildInitialLog = (session: TrainingSession, drills: Drill[]): SessionExec
     attendance: {},
     drillLog: [block('Warm-up', 10), ...sessionDrills, block(COOL_DOWN_TITLE, 10)],
     incidents: [],
-    evaluation: { objectivesMet: '', engagement: 0, wentWell: '', challenges: '', nextAdjustments: '' }
+    evaluation: { objectivesMet: '', engagement: 0, wentWell: '', disruptions: '', nextAdjustments: '' }
   };
 };
 
@@ -388,9 +395,9 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
       return;
     }
     const hasNotes = Object.values(playerNotes).some(note => note.trim() && note.trim() !== NOTE_TEMPLATE.trim())
-      || postNotes.trim() || log.evaluation.wentWell.trim() || log.evaluation.challenges.trim();
+      || postNotes.trim() || log.evaluation.wentWell.trim() || log.evaluation.disruptions.trim();
     if (!hasNotes) {
-      setAiError('Add player notes, a session summary, or what went well / challenges before running the AI analysis.');
+      setAiError('Add player notes, a session summary, or what went well / disruptions before running the AI analysis.');
       return;
     }
     setAiBusy(true);
@@ -503,7 +510,7 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             ['Objectives met', log.evaluation.objectivesMet || '-'],
             ['Engagement', `${log.evaluation.engagement || '-'}/5`],
             ['What went well', log.evaluation.wentWell || '-'],
-            ['Challenges', log.evaluation.challenges || '-'],
+            ['Disruptions', log.evaluation.disruptions || '-'],
             ['Next adjustments', log.evaluation.nextAdjustments || '-']
           ]
         },
@@ -856,8 +863,8 @@ export const SessionExecution: React.FC<SessionExecutionProps> = ({ session, pla
             <label className="block text-xs text-slate-400 space-y-1">What went well
               <textarea value={log.evaluation.wentWell} onChange={event => updateLog({ evaluation: { ...log.evaluation, wentWell: event.target.value } })} rows={3} className={inputClass} />
             </label>
-            <label className="block text-xs text-slate-400 space-y-1">Challenges
-              <textarea value={log.evaluation.challenges} onChange={event => updateLog({ evaluation: { ...log.evaluation, challenges: event.target.value } })} rows={3} className={inputClass} />
+            <label className="block text-xs text-slate-400 space-y-1">Disruptions
+              <textarea value={log.evaluation.disruptions} onChange={event => updateLog({ evaluation: { ...log.evaluation, disruptions: event.target.value } })} rows={3} className={inputClass} />
             </label>
             <label className="block text-xs text-slate-400 space-y-1">Adjustments for the next session
               <textarea value={log.evaluation.nextAdjustments} onChange={event => updateLog({ evaluation: { ...log.evaluation, nextAdjustments: event.target.value } })} rows={3} className={inputClass} />

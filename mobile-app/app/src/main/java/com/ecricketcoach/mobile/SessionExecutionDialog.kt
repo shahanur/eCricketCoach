@@ -78,6 +78,7 @@ import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -90,6 +91,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -298,7 +301,8 @@ internal fun SessionExecutionScreen(
     observations: List<SessionObservation> = emptyList(),
     observationLoadError: String = "",
     onReloadObservations: suspend () -> Unit = {},
-    onAddObservation: suspend (SessionObservationDraft) -> SessionObservation = { throw IllegalStateException("Observation service is unavailable.") }
+    onAddObservation: suspend (SessionObservationDraft) -> SessionObservation = { throw IllegalStateException("Observation service is unavailable.") },
+    onAddPlayer: suspend (SessionPlayerDraft) -> SessionPlayerAddition = { throw IllegalStateException("Player registration is unavailable.") }
 ) {
     val savedLog = remember(session.id) { session.executionLog ?: JSONObject() }
     var status by remember(session.id) { mutableStateOf(savedLog.optString("status", "PREPARING")) }
@@ -355,6 +359,9 @@ internal fun SessionExecutionScreen(
     var observationError by remember { mutableStateOf("") }
     var observationSavedAt by remember { mutableStateOf("") }
     var observationRetry by remember { mutableIntStateOf(0) }
+    var showAddPlayer by remember(session.id) { mutableStateOf(false) }
+    var addPlayerBusy by remember { mutableStateOf(false) }
+    var addPlayerError by remember { mutableStateOf("") }
     var clockNow by remember(session.id) { mutableLongStateOf(System.currentTimeMillis()) }
     val drillCatalogue = remember(drills) { drills.associateBy { it.id } }
     var infoDrill by remember { mutableStateOf<ExecutionDrill?>(null) }
@@ -375,7 +382,9 @@ internal fun SessionExecutionScreen(
     var objectives by remember(session.id) { mutableStateOf(evaluation.optString("objectivesMet")) }
     var engagement by remember(session.id) { mutableStateOf(evaluation.optInt("engagement")) }
     var wentWell by remember(session.id) { mutableStateOf(evaluation.optString("wentWell")) }
-    var challenges by remember(session.id) { mutableStateOf(evaluation.optString("challenges")) }
+    var disruptions by remember(session.id) {
+        mutableStateOf(evaluation.optString("disruptions").ifBlank { evaluation.optString("challenges") })
+    }
     var nextAdjustments by remember(session.id) { mutableStateOf(evaluation.optString("nextAdjustments")) }
     var quickNotesDirty by remember(session.id) { mutableStateOf(false) }
     var postNotes by remember(session.id) { mutableStateOf(session.postNotes) }
@@ -390,6 +399,7 @@ internal fun SessionExecutionScreen(
     val checklistComplete = PreparationChecklist.all { (key, _) -> checklist[key] == true }
     val canStart = onScheduleDate || checklistComplete
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val aiEvaluation = remember(session.id, session.aiEvaluation) { parseAiEvaluation(session.aiEvaluation) }
     var followUp by remember(session.id, aiEvaluation) {
         mutableStateOf(aiEvaluation?.let { buildFollowUpDraft(session, it) })
@@ -506,7 +516,7 @@ internal fun SessionExecutionScreen(
                 .put("objectivesMet", objectives)
                 .put("engagement", engagement)
                 .put("wentWell", wentWell)
-                .put("challenges", challenges)
+                .put("disruptions", disruptions)
                 .put("nextAdjustments", nextAdjustments))
         return log
     }
@@ -542,7 +552,7 @@ internal fun SessionExecutionScreen(
         drillNotesDirty = false
     }
 
-    LaunchedEffect(quickNotesDirty, wentWell, challenges, nextAdjustments, incidents) {
+    LaunchedEffect(quickNotesDirty, wentWell, disruptions, nextAdjustments, incidents) {
         if (!quickNotesDirty) return@LaunchedEffect
         delay(600)
         saveProgress()
@@ -786,7 +796,7 @@ internal fun SessionExecutionScreen(
                 "Session notes",
                 listOf(
                     "What went well: ${wentWell.ifBlank { "-" }}",
-                    "Challenges: ${challenges.ifBlank { "-" }}",
+                    "Disruptions: ${disruptions.ifBlank { "-" }}",
                     "Next adjustments: ${nextAdjustments.ifBlank { "-" }}"
                 )
             ),
@@ -841,11 +851,35 @@ internal fun SessionExecutionScreen(
                 onBack = if (showReadyScreen) ({ showReadyScreen = false }) else onDismiss,
                 onProceed = { showReadyScreen = true },
                 onAttendanceChanged = { attendanceSaveRequested = true },
+                onAddPlayer = { showAddPlayer = true },
                 onStart = {
                     if (onScheduleDate) {
                         beginSession(false)
                         saveProgress()
                     } else showEarlyStartConfirm = true
+                }
+            )
+        }
+        if (showAddPlayer) {
+            AddSessionPlayerDialog(
+                busy = addPlayerBusy,
+                error = addPlayerError,
+                onDismiss = { if (!addPlayerBusy) showAddPlayer = false },
+                onAdd = { draft ->
+                    coroutineScope.launch {
+                        addPlayerBusy = true
+                        addPlayerError = ""
+                        try {
+                            val addition = onAddPlayer(draft)
+                            attendance[addition.member.id] = "PRESENT"
+                            saveProgress()
+                            showAddPlayer = false
+                        } catch (failure: Exception) {
+                            addPlayerError = failure.message ?: "Unable to add this player."
+                        } finally {
+                            addPlayerBusy = false
+                        }
+                    }
                 }
             )
         }
@@ -874,7 +908,23 @@ internal fun SessionExecutionScreen(
 
     if (!readOnly && status in setOf("IN_PROGRESS", "PAUSED")) {
         MaterialTheme(colorScheme = LiveSessionLightColors) {
-            SessionCoachModeScreen(
+            if (coachPage == "PRECHECK") {
+                LiveSessionPreCheckScreen(
+                    session = session,
+                    players = assignedPlayers,
+                    drills = drillRows,
+                    checklist = checklist,
+                    attendance = attendance,
+                    isSaving = isSaving,
+                    saveError = saveError,
+                    onClose = {
+                        saveProgress()
+                        onCoachPageChange("LIVE")
+                    },
+                    onChanged = { saveProgress() },
+                    onAddPlayer = { showAddPlayer = true }
+                )
+            } else SessionCoachModeScreen(
                 page = coachPage,
                 session = session,
                 drills = drillRows,
@@ -925,6 +975,8 @@ internal fun SessionExecutionScreen(
                 onReopenDrill = { reopenDrill(it) },
                 onOpenDrillControls = { onCoachPageChange("DRILL") },
                 onViewAllObservations = { onCoachPageChange("OBSERVATIONS") },
+                onAddPlayer = { showAddPlayer = true },
+                onOpenPreCheck = { onCoachPageChange("PRECHECK") },
                 onPauseSession = { pauseSession() },
                 onResumeSession = { resumeSession() },
                 onDrillNotesChange = { notes ->
@@ -938,7 +990,7 @@ internal fun SessionExecutionScreen(
                 onEndSession = { finishSession() },
                 quickNoteText = when (coachPage) {
                     "WENT_WELL" -> wentWell
-                    "CHALLENGE" -> challenges
+                    "DISRUPTION" -> disruptions
                     "ADJUSTMENT" -> nextAdjustments
                     else -> ""
                 },
@@ -946,7 +998,7 @@ internal fun SessionExecutionScreen(
                 onQuickNoteChange = { text ->
                     when (coachPage) {
                         "WENT_WELL" -> wentWell = text
-                        "CHALLENGE" -> challenges = text
+                        "DISRUPTION" -> disruptions = text
                         "ADJUSTMENT" -> nextAdjustments = text
                     }
                     quickNotesDirty = true
@@ -971,6 +1023,29 @@ internal fun SessionExecutionScreen(
                 },
                 onFinishSession = { finishSession() },
                 onSaveProgress = { saveProgress() }
+            )
+        }
+        if (showAddPlayer) {
+            AddSessionPlayerDialog(
+                busy = addPlayerBusy,
+                error = addPlayerError,
+                onDismiss = { if (!addPlayerBusy) showAddPlayer = false },
+                onAdd = { draft ->
+                    coroutineScope.launch {
+                        addPlayerBusy = true
+                        addPlayerError = ""
+                        try {
+                            val addition = onAddPlayer(draft)
+                            attendance[addition.member.id] = "PRESENT"
+                            saveProgress()
+                            showAddPlayer = false
+                        } catch (failure: Exception) {
+                            addPlayerError = failure.message ?: "Unable to add this player."
+                        } finally {
+                            addPlayerBusy = false
+                        }
+                    }
+                }
             )
         }
         return
@@ -1106,8 +1181,8 @@ internal fun SessionExecutionScreen(
                                 EvaluationCard(
                                     wentWell = wentWell,
                                     onWentWellChange = { wentWell = it },
-                                    challenges = challenges,
-                                    onChallengesChange = { challenges = it },
+                                    disruptions = disruptions,
+                                    onDisruptionsChange = { disruptions = it },
                                     nextAdjustments = nextAdjustments,
                                     onNextAdjustmentsChange = { nextAdjustments = it },
                                     postNotes = postNotes,
@@ -1267,6 +1342,7 @@ private fun LiveSessionPreStartScreen(
     onBack: () -> Unit,
     onProceed: () -> Unit,
     onAttendanceChanged: () -> Unit,
+    onAddPlayer: () -> Unit,
     onStart: () -> Unit
 ) {
     val checklistDone = PreparationChecklist.count { (key, _) -> checklist[key] == true }
@@ -1307,7 +1383,7 @@ private fun LiveSessionPreStartScreen(
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 PreparationChecklistCard(checklist, checklistDone, Modifier.weight(1f), onAttendanceChanged)
-                                SquadAttendanceCard(players, attendance, Modifier.weight(1f), onAttendanceChanged)
+                                SquadAttendanceCard(players, attendance, Modifier.weight(1f), onAttendanceChanged, onAddPlayer)
                             }
                         }
                         item {
@@ -1318,7 +1394,7 @@ private fun LiveSessionPreStartScreen(
                         }
                     } else {
                         item { PreparationChecklistCard(checklist, checklistDone, onChanged = onAttendanceChanged) }
-                        item { SquadAttendanceCard(players, attendance, onAttendanceChanged = onAttendanceChanged) }
+                        item { SquadAttendanceCard(players, attendance, onAttendanceChanged = onAttendanceChanged, onAddPlayer = onAddPlayer) }
                         item { SessionFocusCard(session) }
                         item { PlannedDrillsCard(drills) }
                     }
@@ -1395,6 +1471,69 @@ private fun LiveSessionPreStartScreen(
 }
 
 @Composable
+private fun LiveSessionPreCheckScreen(
+    session: ClubTrainingSession,
+    players: List<ClubMember>,
+    drills: List<ExecutionDrill>,
+    checklist: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
+    attendance: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
+    isSaving: Boolean,
+    saveError: String,
+    onClose: () -> Unit,
+    onChanged: () -> Unit,
+    onAddPlayer: () -> Unit
+) {
+    val checklistDone = PreparationChecklist.count { (key, _) -> checklist[key] == true }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val isTablet = maxWidth >= 600.dp
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = if (isTablet) 20.dp else 14.dp,
+                    vertical = 12.dp
+                )
+            ) {
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Pre-check", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                            Text("Review preparation and update attendance without leaving the live session.", color = CoachMuted, fontSize = 14.sp)
+                        }
+                        TextButton(onClick = onClose, enabled = !isSaving) {
+                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("Close")
+                        }
+                    }
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                }
+                if (isTablet) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            PreparationChecklistCard(checklist, checklistDone, Modifier.weight(1f), onChanged)
+                            SquadAttendanceCard(players, attendance, Modifier.weight(1f), onChanged, onAddPlayer)
+                        }
+                    }
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SessionFocusCard(session, Modifier.weight(1f))
+                            PlannedDrillsCard(drills, Modifier.weight(1f))
+                        }
+                    }
+                } else {
+                    item { PreparationChecklistCard(checklist, checklistDone, onChanged = onChanged) }
+                    item { SquadAttendanceCard(players, attendance, onAttendanceChanged = onChanged, onAddPlayer = onAddPlayer) }
+                    item { SessionFocusCard(session) }
+                    item { PlannedDrillsCard(drills) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun PreparationChecklistCard(
     checklist: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
     checklistDone: Int,
@@ -1442,7 +1581,8 @@ private fun SquadAttendanceCard(
     players: List<ClubMember>,
     attendance: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
     modifier: Modifier = Modifier,
-    onAttendanceChanged: () -> Unit = {}
+    onAttendanceChanged: () -> Unit = {},
+    onAddPlayer: () -> Unit = {}
 ) {
     val presentCount = players.count { attendance[it.id] in setOf("PRESENT", "LATE") }
     var query by remember { mutableStateOf("") }
@@ -1452,12 +1592,20 @@ private fun SquadAttendanceCard(
     }
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "Squad attendance  ·  $presentCount/${players.size} present",
-                fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Squad attendance  ·  $presentCount/${players.size} present",
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 19.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                TextButton(onClick = onAddPlayer) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add player")
+                }
+            }
             if (players.isEmpty()) {
                 Text("No players are assigned to this session.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
@@ -1562,6 +1710,228 @@ private fun SquadAttendanceCard(
             }
         }
     }
+}
+
+@Composable
+private fun AddSessionPlayerDialog(
+    busy: Boolean,
+    error: String,
+    onDismiss: () -> Unit,
+    onAdd: (SessionPlayerDraft) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var ageGroup by remember { mutableStateOf("") }
+    var ageMenuOpen by remember { mutableStateOf(false) }
+    var speechLanguageMenuOpen by remember { mutableStateOf(false) }
+    var speechLanguageTag by remember { mutableStateOf("") }
+    var speechTarget by remember { mutableStateOf<String?>(null) }
+    var speechError by remember { mutableStateOf("") }
+    val disciplineOptions = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
+    val selectedDisciplines = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            disciplineOptions.forEach { put(it, it == "BATTING") }
+        }
+    }
+    val ageGroups = listOf("", "U9", "U11", "U13", "U15", "U19", "Senior")
+    val speechLanguages = listOf(
+        "Device default" to "",
+        "English (UK)" to "en-GB",
+        "English (US)" to "en-US",
+        "বাংলা (বাংলাদেশ)" to "bn-BD",
+        "हिन्दी (भारत)" to "hi-IN",
+        "اردو (پاکستان)" to "ur-PK"
+    )
+    val speechLanguageLabel = speechLanguages.first { it.second == speechLanguageTag }.first
+    val valid = name.isNotBlank() && email.contains('@') && email.substringAfter('@').contains('.')
+
+    fun spokenEmail(value: String): String = value.trim().lowercase()
+        .replace(Regex("\\s+(at|অ্যাট|এট|एट|ऐट|ایٹ|اٹ)\\s+"), "@")
+        .replace(Regex("\\s+(dot|ডট|डॉट|ڈاٹ)\\s+"), ".")
+        .replace(Regex("\\s+underscore\\s+"), "_")
+        .replace(Regex("\\s+(dash|hyphen)\\s+"), "-")
+        .replace(Regex("\\s+"), "")
+
+    fun spokenAgeGroup(value: String): String? {
+        val normalized = value.lowercase().replace("-", " ").map { character ->
+            character.digitToIntOrNull()?.toString() ?: character.toString()
+        }.joinToString("").trim()
+        if (listOf("senior", "adult", "সিনিয়র", "প্রাপ্তবয়স্ক", "सीनियर", "वयस्क", "سینئر", "بالغ").any { it in normalized }) return "Senior"
+        val number = Regex("\\d+").find(normalized)?.value
+            ?: mapOf(
+                "nine" to "9", "eleven" to "11", "thirteen" to "13",
+                "fifteen" to "15", "nineteen" to "19",
+                "নয়" to "9", "নয়" to "9", "এগারো" to "11", "তেরো" to "13", "পনেরো" to "15", "উনিশ" to "19",
+                "नौ" to "9", "ग्यारह" to "11", "तेरह" to "13", "पंद्रह" to "15", "उन्नीस" to "19",
+                "نو" to "9", "گیارہ" to "11", "تیرہ" to "13", "پندرہ" to "15", "انیس" to "19"
+            ).entries.firstOrNull { it.key in normalized }?.value
+        return number?.let { spoken -> ageGroups.firstOrNull { it.removePrefix("U") == spoken } }
+    }
+
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val target = speechTarget
+        if (result.resultCode == Activity.RESULT_OK && target != null) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (spoken.isNullOrBlank()) {
+                speechError = "No speech was recognized. Try again."
+            } else when (target) {
+                "NAME" -> { name = spoken; speechError = "" }
+                "EMAIL" -> { email = spokenEmail(spoken); speechError = "" }
+                "AGE" -> {
+                    val matched = spokenAgeGroup(spoken)
+                    if (matched == null) speechError = "Say an age group such as under 15 or senior."
+                    else { ageGroup = matched; speechError = "" }
+                }
+            }
+        }
+        speechTarget = null
+    }
+
+    fun startSpeech(target: String, prompt: String) {
+        speechTarget = target
+        speechError = ""
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+            if (speechLanguageTag.isNotBlank()) putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLanguageTag)
+        }
+        try {
+            speechLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            speechTarget = null
+            speechError = "Speech recognition is not available on this device."
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add player to this session") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "The player will be marked present and added to the club roster as provisional until a club admin approves them.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Voice input language", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Box {
+                        OutlinedButton(
+                            onClick = { speechLanguageMenuOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !busy && speechTarget == null
+                        ) {
+                            Icon(Icons.Outlined.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(7.dp))
+                            Text(speechLanguageLabel, modifier = Modifier.weight(1f))
+                            Icon(Icons.Outlined.ExpandMore, contentDescription = "Change voice input language")
+                        }
+                        DropdownMenu(
+                            expanded = speechLanguageMenuOpen,
+                            onDismissRequest = { speechLanguageMenuOpen = false }
+                        ) {
+                            speechLanguages.forEach { (label, tag) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        speechLanguageTag = tag
+                                        speechLanguageMenuOpen = false
+                                        speechError = ""
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    name,
+                    { name = it },
+                    label = { Text("Player name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = { startSpeech("NAME", "Say the player's name") }) {
+                            Icon(Icons.Outlined.Mic, contentDescription = "Speak player name")
+                        }
+                    }
+                )
+                OutlinedTextField(
+                    email,
+                    { email = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = { startSpeech("EMAIL", "Say the player's email address") }) {
+                            Icon(Icons.Outlined.Mic, contentDescription = "Speak email address")
+                        }
+                    }
+                )
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Age group (optional)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Box {
+                            OutlinedButton(
+                                onClick = { ageMenuOpen = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy
+                            ) {
+                                Text(ageGroup.ifBlank { "Not specified" }, modifier = Modifier.weight(1f))
+                                Icon(Icons.Outlined.ExpandMore, contentDescription = "Open age groups")
+                            }
+                            DropdownMenu(expanded = ageMenuOpen, onDismissRequest = { ageMenuOpen = false }) {
+                                ageGroups.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option.ifBlank { "Not specified" }) },
+                                        onClick = { ageGroup = option; ageMenuOpen = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    IconButton(onClick = { startSpeech("AGE", "Say the player's age group") }, enabled = !busy) {
+                        Icon(Icons.Outlined.Mic, contentDescription = "Speak age group")
+                    }
+                }
+                Text("Disciplines (select one or more)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    disciplineOptions.forEach { option ->
+                        val selected = selectedDisciplines[option] == true
+                        Text(
+                            option.lowercase().replaceFirstChar(Char::uppercase),
+                            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable(enabled = !busy) {
+                                    if (!selected || selectedDisciplines.values.count { it } > 1) {
+                                        selectedDisciplines[option] = !selected
+                                    }
+                                }
+                                .padding(horizontal = 9.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+                if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onAdd(SessionPlayerDraft(
+                        name.trim(),
+                        email.trim(),
+                        ageGroup,
+                        disciplineOptions.filter { selectedDisciplines[it] == true }
+                    ))
+                },
+                enabled = valid && !busy
+            ) { Text(if (busy) "Adding…" else "Add & mark present") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } }
+    )
 }
 
 @Composable
@@ -2091,8 +2461,8 @@ private fun PlayerNotesCard(
 private fun EvaluationCard(
     wentWell: String,
     onWentWellChange: (String) -> Unit,
-    challenges: String,
-    onChallengesChange: (String) -> Unit,
+    disruptions: String,
+    onDisruptionsChange: (String) -> Unit,
     nextAdjustments: String,
     onNextAdjustmentsChange: (String) -> Unit,
     postNotes: String,
@@ -2104,7 +2474,7 @@ private fun EvaluationCard(
     var editing by remember { mutableStateOf(false) }
     val rows = listOf(
         Triple("Went well", Color(0xFF159B72), wentWell to onWentWellChange),
-        Triple("Challenge", Color(0xFFE84A54), challenges to onChallengesChange),
+        Triple("Disruption", Color(0xFFE84A54), disruptions to onDisruptionsChange),
         Triple("Adjustment", Color(0xFFE28A18), nextAdjustments to onNextAdjustmentsChange),
         Triple("Summary", Color(0xFF6C4DF6), postNotes to onPostNotesChange)
     )
@@ -2388,6 +2758,8 @@ private fun FollowUpCard(
                 onBack: () -> Unit,
                 onOpenObservation: (String, String) -> Unit,
                 onViewAllObservations: () -> Unit,
+                onAddPlayer: () -> Unit,
+                onOpenPreCheck: () -> Unit,
                 onObservationScopeChange: (String) -> Unit,
                 onObservationCategoryChange: (String) -> Unit,
                 onObservationPlayerChange: (String?) -> Unit,
@@ -2436,6 +2808,8 @@ private fun FollowUpCard(
                         onOpenQuickNote = onOpenQuickNote,
                         onOpenDrillControls = onOpenDrillControls,
                         onEndSession = onEndSession,
+                        onAddPlayer = onAddPlayer,
+                        onOpenPreCheck = onOpenPreCheck,
                         onViewAllObservations = onViewAllObservations,
                         onReloadObservations = onReloadObservations
                     )
@@ -2449,7 +2823,7 @@ private fun FollowUpCard(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 28.dp)
                     ) {
                     when (page) {
-                        "WENT_WELL", "CHALLENGE", "ADJUSTMENT" -> item {
+                        "WENT_WELL", "DISRUPTION", "ADJUSTMENT" -> item {
                             QuickNotePanel(
                                 kind = page,
                                 text = quickNoteText,
@@ -2729,6 +3103,8 @@ private fun SessionLiveDashboardLayout(
     onOpenQuickNote: (String) -> Unit,
     onOpenDrillControls: () -> Unit,
     onEndSession: () -> Unit,
+    onAddPlayer: () -> Unit,
+    onOpenPreCheck: () -> Unit,
     onViewAllObservations: () -> Unit,
     onReloadObservations: suspend () -> Unit
 ) {
@@ -2767,7 +3143,9 @@ private fun SessionLiveDashboardLayout(
                     modifier = Modifier.weight(0.92f).fillMaxHeight(),
                     observations = observations,
                     loadError = observationLoadError,
-                    onAdd = { onOpenObservation("SQUAD", "TECHNIQUE") },
+                    alignWithCurrentDrill = true,
+                    onAddPlayer = onAddPlayer,
+                    onOpenPreCheck = onOpenPreCheck,
                     onViewAll = onViewAllObservations,
                     onReload = { retryScope.launch { onReloadObservations() } }
                 )
@@ -2803,7 +3181,9 @@ private fun SessionLiveDashboardLayout(
                         modifier = Modifier.fillMaxWidth(),
                         observations = observations,
                         loadError = observationLoadError,
-                        onAdd = { onOpenObservation("SQUAD", "TECHNIQUE") },
+                        alignWithCurrentDrill = false,
+                        onAddPlayer = onAddPlayer,
+                        onOpenPreCheck = onOpenPreCheck,
                         onViewAll = onViewAllObservations,
                         onReload = { retryScope.launch { onReloadObservations() } }
                     )
@@ -2927,12 +3307,12 @@ private fun SessionLivePrimaryPane(
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 QuickCaptureTile(
                     modifier = Modifier.weight(1f),
-                    title = "Challenge",
+                    title = "Disruption",
                     subtitle = "Quick note",
                     icon = Icons.Outlined.Warning,
                     tint = Color(0xFFE84A54),
                     background = Color(0xFFFFF0F0)
-                ) { onOpenQuickNote("CHALLENGE") }
+                ) { onOpenQuickNote("DISRUPTION") }
                 QuickCaptureTile(
                     modifier = Modifier.weight(1f),
                     title = "Incident",
@@ -2965,6 +3345,8 @@ private fun SessionLivePrimaryPane(
     }
 }
 
+private val LiveCurrentDrillCardHeight = 72.dp
+
 @Composable
 private fun ActiveDrillSummaryCard(
     drill: ExecutionDrill?,
@@ -2975,6 +3357,7 @@ private fun ActiveDrillSummaryCard(
     onOpen: () -> Unit
 ) {
     Surface(
+        modifier = Modifier.fillMaxWidth().height(LiveCurrentDrillCardHeight),
         onClick = onOpen,
         enabled = enabled,
         shape = RoundedCornerShape(13.dp),
@@ -3502,11 +3885,12 @@ private fun QuickCaptureTile(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     tint: Color,
     background: Color,
+    height: androidx.compose.ui.unit.Dp = 68.dp,
     onClick: () -> Unit
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.height(68.dp),
+        modifier = modifier.height(height),
         shape = RoundedCornerShape(14.dp),
         color = background.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, tint.copy(alpha = 0.08f))
@@ -3554,17 +3938,43 @@ private fun RecentObservationsPane(
     modifier: Modifier,
     observations: List<SessionObservation>,
     loadError: String,
-    onAdd: () -> Unit,
+    alignWithCurrentDrill: Boolean,
+    onAddPlayer: () -> Unit,
+    onOpenPreCheck: () -> Unit,
     onViewAll: () -> Unit,
     onReload: () -> Unit
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F7))
-    ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        if (alignWithCurrentDrill) Spacer(Modifier.height(60.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            QuickCaptureTile(
+                modifier = Modifier.weight(1f),
+                title = "Add player",
+                subtitle = "Walk-in participant",
+                icon = Icons.Outlined.Groups,
+                tint = Color(0xFF6848E8),
+                background = Color(0xFFF0ECFF),
+                height = LiveCurrentDrillCardHeight,
+                onClick = onAddPlayer
+            )
+            QuickCaptureTile(
+                modifier = Modifier.weight(1f),
+                title = "Pre-check",
+                subtitle = "Checklist & attendance",
+                icon = Icons.Outlined.CheckCircle,
+                tint = Color(0xFF2589F3),
+                background = Color(0xFFEAF3FF),
+                height = LiveCurrentDrillCardHeight,
+                onClick = onOpenPreCheck
+            )
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White.copy(alpha = 0.86f),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F7))
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Recent observations",
@@ -3582,11 +3992,6 @@ private fun RecentObservationsPane(
                 TextButton(onClick = onReload) { Text("Retry", fontSize = 16.sp) }
             } else if (observations.isEmpty()) {
                 Text("No observations yet.", color = CoachMuted, fontSize = 16.sp)
-                OutlinedButton(
-                    onClick = onAdd,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Add observation", fontSize = 16.sp) }
             } else {
                 observations.take(3).forEachIndexed { index, observation ->
                     ObservationListRow(observation)
@@ -3595,6 +4000,7 @@ private fun RecentObservationsPane(
             }
         }
     }
+}
 }
 
 @Composable
@@ -3700,7 +4106,7 @@ private fun QuickNotePanel(
 ) {
     data class NoteStyle(val title: String, val prompt: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val tint: Color, val background: Color)
     val style = when (kind) {
-        "CHALLENGE" -> NoteStyle("Challenge", "What was difficult or didn't work?", Icons.Outlined.Warning, Color(0xFFE84A54), Color(0xFFFFF0F0))
+        "DISRUPTION" -> NoteStyle("Disruption", "What disrupted this session?", Icons.Outlined.Warning, Color(0xFFE84A54), Color(0xFFFFF0F0))
         "ADJUSTMENT" -> NoteStyle("Adjustment", "What would you change next time?", Icons.Outlined.Lightbulb, Color(0xFFE28A18), Color(0xFFFFF6E6))
         else -> NoteStyle("Went well", "What worked well in this session?", Icons.Outlined.Star, Color(0xFF159B72), Color(0xFFE9F8F1))
     }
