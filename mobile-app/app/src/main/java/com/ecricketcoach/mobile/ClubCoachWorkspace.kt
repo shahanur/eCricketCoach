@@ -3580,6 +3580,20 @@ private fun SessionCard(
     var safetyExpanded by remember(session.id) { mutableStateOf(false) }
     val statusColor = sessionStatusColor(session)
     val thumbnailDrill = allDrills.firstOrNull { drill -> drill.id in session.drillIds && !drill.imageUrl.isNullOrBlank() }
+    val executionDrillLog = session.executionLog?.optJSONArray("drillLog")
+    val plannedDrillTitles = if (executionDrillLog != null) {
+        (0 until executionDrillLog.length()).map { index ->
+            val row = executionDrillLog.getJSONObject(index)
+            val drillId = row.optString("drillId").takeIf { it.isNotBlank() && it != "null" }
+            row.optString("title").takeIf(String::isNotBlank)
+                ?: allDrills.firstOrNull { it.id == drillId }?.title
+                ?: "Planned drill"
+        }
+    } else {
+        session.drillIds.distinct().map { drillId ->
+            allDrills.firstOrNull { it.id == drillId }?.title ?: "Unknown Drill"
+        } + "Cool-down and debrief"
+    }
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -3654,13 +3668,12 @@ private fun SessionCard(
                     }
                 }
             }
-            if (session.drillIds.isNotEmpty()) {
+            if (plannedDrillTitles.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    session.drillIds.distinct().forEach { drillId ->
-                        val name = allDrills.find { it.id == drillId }?.title ?: "Unknown Drill"
+                    plannedDrillTitles.forEach { name ->
                         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
                             Text(name, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                         }
@@ -3670,7 +3683,7 @@ private fun SessionCard(
             val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${session.drillIds.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("${plannedDrillTitles.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)

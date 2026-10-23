@@ -2075,9 +2075,7 @@ private fun FollowUpCard(
                                 activeDrillSeconds = activeDrillSeconds,
                                 activeDrillBaseSeconds = activeDrillBaseSeconds,
                                 activeDrillStartedAt = activeDrillStartedAt,
-                                nextDrills = drills.mapIndexedNotNull { index, drill ->
-                                    if (!drill.completed && drill.id != activeDrill?.id) (index + 1) to drill else null
-                                },
+                                sessionDrills = drills.mapIndexed { index, drill -> (index + 1) to drill },
                                 paused = paused,
                                 drillNotes = activeDrill?.notes.orEmpty(),
                                 isSaving = isSaving,
@@ -2600,7 +2598,7 @@ private fun DrillControlsTabletCard(
     activeDrillSeconds: Int,
     activeDrillBaseSeconds: Int,
     activeDrillStartedAt: String?,
-    nextDrills: List<Pair<Int, ExecutionDrill>>,
+    sessionDrills: List<Pair<Int, ExecutionDrill>>,
     paused: Boolean,
     drillNotes: String,
     isSaving: Boolean,
@@ -2637,7 +2635,8 @@ private fun DrillControlsTabletCard(
                 )
                 NextDrillsPanel(
                     modifier = Modifier.weight(0.9f),
-                    drills = nextDrills,
+                    drills = sessionDrills,
+                    activeDrillId = activeDrill?.id,
                     isSaving = isSaving,
                     onSelectNext = onSelectNext
                 )
@@ -2662,7 +2661,8 @@ private fun DrillControlsTabletCard(
                 )
                 NextDrillsPanel(
                     modifier = Modifier.fillMaxWidth(),
-                    drills = nextDrills,
+                    drills = sessionDrills,
+                    activeDrillId = activeDrill?.id,
                     isSaving = isSaving,
                     onSelectNext = onSelectNext
                 )
@@ -2883,6 +2883,7 @@ private fun CurrentDrillControlPanel(
 private fun NextDrillsPanel(
     modifier: Modifier,
     drills: List<Pair<Int, ExecutionDrill>>,
+    activeDrillId: String?,
     isSaving: Boolean,
     onSelectNext: (ExecutionDrill) -> Unit
 ) {
@@ -2896,14 +2897,16 @@ private fun NextDrillsPanel(
             Modifier.fillMaxWidth().padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Next drills", color = Color(0xFF53617F), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Session drills (${drills.size})", color = Color(0xFF53617F), fontSize = 18.sp, fontWeight = FontWeight.Bold)
             if (drills.isEmpty()) {
-                Text("No drills remaining", color = Color(0xFF74809A), fontSize = 16.sp)
+                Text("No drills planned for this session", color = Color(0xFF74809A), fontSize = 16.sp)
             } else {
                 drills.forEach { (number, drill) ->
+                    val isCurrent = drill.id == activeDrillId
+                    val canStart = !drill.completed && !isCurrent
                     Surface(
-                        onClick = { onSelectNext(drill) },
-                        enabled = !isSaving,
+                        onClick = { if (canStart) onSelectNext(drill) },
+                        enabled = !isSaving && canStart,
                         shape = RoundedCornerShape(9.dp),
                         color = Color.Transparent,
                         border = BorderStroke(1.dp, Color(0xFFE8ECF6))
@@ -2927,14 +2930,32 @@ private fun NextDrillsPanel(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Text("${drill.plannedMinutes} min", color = Color(0xFF74809A), fontSize = 14.sp)
+                                val drillStatus = when {
+                                    isCurrent -> "Current drill"
+                                    drill.completed -> "Completed"
+                                    else -> "${drill.plannedMinutes} min"
+                                }
+                                Text(
+                                    drillStatus,
+                                    color = if (drill.completed) Color(0xFF25835D) else Color(0xFF74809A),
+                                    fontSize = 14.sp
+                                )
                             }
-                            Icon(
-                                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                                contentDescription = "Start ${drill.title}",
-                                tint = Color(0xFF263B75),
-                                modifier = Modifier.size(20.dp)
-                            )
+                            when {
+                                drill.completed -> Icon(
+                                    Icons.Outlined.CheckCircle,
+                                    contentDescription = "Completed",
+                                    tint = Color(0xFF25835D),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                isCurrent -> Text("Now", color = Color(0xFF644BEA), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                else -> Icon(
+                                    Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                    contentDescription = "Start ${drill.title}",
+                                    tint = Color(0xFF263B75),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
