@@ -518,6 +518,11 @@ aiRouter.post(
       });
     } catch (error) {
       if (error instanceof OpenAiBattingAnalysisError) {
+        console.warn('OpenAI batting video analysis rejected:', {
+          code: error.code,
+          status: error.status,
+          message: error.message
+        });
         return res.status(error.status).json({ error: error.code, message: error.message });
       }
       console.error('OpenAI batting video analysis failed:', error);

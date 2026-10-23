@@ -667,20 +667,39 @@ async function sampleFrames(
   return frames;
 }
 
+export function denseSourceFrameWindow(
+  presentationTimestampsSeconds: number[],
+  startSeconds: number,
+  endSeconds: number
+): Array<{ timestamp: number; index: number }> {
+  return presentationTimestampsSeconds
+    .map((timestamp, index) => ({ timestamp, index }))
+    .filter(frame => frame.timestamp >= startSeconds && frame.timestamp <= endSeconds);
+}
+
+export function denseSourceFrameSelectFilter(frames: Array<{ index: number }>): string {
+  if (!frames.length) return '';
+  return `between(n\\,${frames[0].index}\\,${frames[frames.length - 1].index})`;
+}
+
 async function extractEverySourceFrameInWindow(
   videoPath: string,
   directory: string,
   options: { startSeconds: number; endSeconds: number; prefix: string; dimension: number; maxFrames: number; presentationTimestampsSeconds: number[] }
 ): Promise<SampledFrame[]> {
-  const expectedFrames = options.presentationTimestampsSeconds
-    .map((timestamp, index) => ({ timestamp, index }))
-    .filter(frame => frame.timestamp >= options.startSeconds && frame.timestamp <= options.endSeconds);
+  const expectedFrames = denseSourceFrameWindow(
+    options.presentationTimestampsSeconds,
+    options.startSeconds,
+    options.endSeconds
+  );
   if (!expectedFrames.length) throw new OpenAiBattingAnalysisError(422, 'video_frames_unavailable', 'No frames were found in the selected shot range.');
   if (expectedFrames.length > options.maxFrames) {
     throw new OpenAiBattingAnalysisError(413, 'contact_window_too_dense', 'The selected shot range is too long to review. Choose a shorter range around the contact point.');
   }
   const outputPattern = path.join(directory, `${options.prefix}-%04d.jpg`);
-  const filter = `select='between(t\\,${options.startSeconds.toFixed(6)}\\,${options.endSeconds.toFixed(6)})',scale=${options.dimension}:${options.dimension}:force_original_aspect_ratio=decrease`;
+  const firstFrameIndex = expectedFrames[0].index;
+  const lastFrameIndex = expectedFrames[expectedFrames.length - 1].index;
+  const filter = `select='${denseSourceFrameSelectFilter(expectedFrames)}',scale=${options.dimension}:${options.dimension}:force_original_aspect_ratio=decrease`;
   await runBinary('ffmpeg', [
     '-hide_banner', '-loglevel', 'error', '-y', '-i', videoPath,
     '-vf', filter, '-fps_mode', 'vfr', '-frames:v', String(options.maxFrames + 1),
@@ -690,6 +709,14 @@ async function extractEverySourceFrameInWindow(
     .filter(name => name.startsWith(`${options.prefix}-`) && name.endsWith('.jpg'))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   if (files.length !== expectedFrames.length) {
+    console.warn('Dense contact-window frame extraction count mismatch:', {
+      expectedFrameCount: expectedFrames.length,
+      extractedFrameCount: files.length,
+      firstFrameIndex,
+      lastFrameIndex,
+      startSeconds: options.startSeconds,
+      endSeconds: options.endSeconds
+    });
     throw new OpenAiBattingAnalysisError(422, 'contact_window_decode_mismatch', 'The selected shot range could not be reviewed reliably. Try a different range.');
   }
   const frames: SampledFrame[] = [];

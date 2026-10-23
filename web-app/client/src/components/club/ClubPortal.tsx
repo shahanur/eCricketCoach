@@ -3427,7 +3427,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                         if (selectedAnalysisPlayer) fetchOpenAiReportHistory(selectedAnalysisPlayer);
                       }
                     } catch (err: any) {
-                      setOpenAiBattingAnalysisError('The batting review could not be completed. Please try again.');
+                      setOpenAiBattingAnalysisError(err instanceof Error ? err.message : 'The batting review could not be completed. Please try again.');
                     } finally {
                       setIsOpenAiBattingAnalysisRunning(false);
                     }

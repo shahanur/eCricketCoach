@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { analyzeBattingVideoWithOpenAI, calculateBatAngle, calculateBatAngles, calculateContactBatAngle, calculateProjectedAngle, contactFrameImageDetail, extractStructuredOutput, formatFrameSourceMap, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
+import { analyzeBattingVideoWithOpenAI, calculateBatAngle, calculateBatAngles, calculateContactBatAngle, calculateProjectedAngle, contactFrameImageDetail, denseSourceFrameSelectFilter, denseSourceFrameWindow, extractStructuredOutput, formatFrameSourceMap, isOpenAiTimeoutMessage, nextOutputTokenBudget, normalizeFrameReferenceList, normalizeLandmarksInCrop, OpenAiBattingAnalysisError, renderPromptTemplate, safeOpenAiErrorDiagnostics, selectDenseContactWindow, validateAndNormalizeOverview } from './openAiBattingAnalysisService.js';
 
 test('OpenAI batting analysis reports a clear configuration error without an API key', async () => {
   const previousKey = process.env.OPENAI_API_KEY;
@@ -180,6 +180,16 @@ test('stroke-wide overview windows fall back to bounded contact-anchor extractio
     endSeconds: 1.4942,
     usedProposedWindow: true
   });
+});
+
+test('dense contact extraction selects probed source indices for irregular timestamps', () => {
+  const frames = denseSourceFrameWindow([0, 0.033, 0.071, 0.1, 0.141], 0.03, 0.1);
+  assert.deepEqual(frames, [
+    { index: 1, timestamp: 0.033 },
+    { index: 2, timestamp: 0.071 },
+    { index: 3, timestamp: 0.1 }
+  ]);
+  assert.equal(denseSourceFrameSelectFilter(frames), 'between(n\\,1\\,3)');
 });
 
 test('detailed strict schema includes phase landmark provenance and rejects extra root properties', async () => {
