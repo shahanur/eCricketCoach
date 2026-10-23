@@ -1,9 +1,41 @@
 package com.ecricketcoach.mobile
 
+import android.Manifest
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import kotlinx.coroutines.launch
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.material.icons.outlined.SportsCricket
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.EmojiPeople
+import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,6 +69,7 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Groups
@@ -71,6 +104,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -195,11 +230,14 @@ private fun JSONObject.optionalText(key: String): String? =
 
 private fun initialExecutionDrills(session: ClubTrainingSession, drills: List<Drill>): List<ExecutionDrill> {
     val log = session.executionLog?.optJSONArray("drillLog")
-    if (log != null) return (0 until log.length()).map { index ->
+    if (log != null) return (0 until log.length()).mapNotNull { index ->
         val row = log.getJSONObject(index)
+        val drillId = row.optString("drillId").takeIf { it.isNotBlank() && it != "null" }
+        // Drop the cool-down block that older app versions auto-appended.
+        if (drillId == null && row.optString("title") == "Cool-down and debrief") return@mapNotNull null
         ExecutionDrill(
             id = row.optString("id").ifBlank { UUID.randomUUID().toString() },
-            drillId = row.optString("drillId").takeIf { it.isNotBlank() && it != "null" },
+            drillId = drillId,
             title = row.optString("title", "Session drill"),
             plannedMinutes = row.optInt("plannedMinutes", 15),
             actualMinutes = row.optInt("actualMinutes"),
@@ -207,7 +245,7 @@ private fun initialExecutionDrills(session: ClubTrainingSession, drills: List<Dr
             notes = row.optString("notes")
         )
     }
-    val entries = session.drillIds.mapNotNull { id ->
+    return session.drillIds.map { id ->
         val drill = drills.find { it.id == id }
         ExecutionDrill(
             id = UUID.randomUUID().toString(),
@@ -219,7 +257,6 @@ private fun initialExecutionDrills(session: ClubTrainingSession, drills: List<Dr
             notes = ""
         )
     }
-    return entries + ExecutionDrill(UUID.randomUUID().toString(), null, "Cool-down and debrief", 5, 0, false, "")
 }
 
 private fun addDaysIso(date: String, days: Long): String =
@@ -277,7 +314,8 @@ internal fun SessionExecutionScreen(
     val checklist = remember(session.id) {
         mutableStateMapOf<String, Boolean>().apply {
             val values = savedLog.optJSONObject("checklist") ?: JSONObject()
-            PreparationChecklist.forEach { (key, _) -> put(key, values.optBoolean(key)) }
+            val hasSavedSelection = PreparationChecklist.any { (key, _) -> values.optBoolean(key) }
+            PreparationChecklist.forEach { (key, _) -> put(key, if (hasSavedSelection) values.optBoolean(key) else true) }
         }
     }
     val assignedPlayers = remember(session.id, players) {
@@ -339,6 +377,7 @@ internal fun SessionExecutionScreen(
     var wentWell by remember(session.id) { mutableStateOf(evaluation.optString("wentWell")) }
     var challenges by remember(session.id) { mutableStateOf(evaluation.optString("challenges")) }
     var nextAdjustments by remember(session.id) { mutableStateOf(evaluation.optString("nextAdjustments")) }
+    var quickNotesDirty by remember(session.id) { mutableStateOf(false) }
     var postNotes by remember(session.id) { mutableStateOf(session.postNotes) }
     var incidentCategory by remember { mutableStateOf("Weather") }
     var incidentNote by remember { mutableStateOf("") }
@@ -478,11 +517,18 @@ internal fun SessionExecutionScreen(
         }, postNotes, false)
     }
 
-    LaunchedEffect(status, attendanceSaveRequested, attendance.toMap()) {
+    LaunchedEffect(status, attendanceSaveRequested, attendance.toMap(), checklist.toMap()) {
         if (status != "PREPARING" || !attendanceSaveRequested) return@LaunchedEffect
         delay(350)
         attendanceSaveRequested = false
         saveProgress()
+    }
+
+    val saveOnExit by rememberUpdatedState {
+        if (!readOnly && status == "PREPARING") saveProgress()
+    }
+    DisposableEffect(session.id) {
+        onDispose { saveOnExit() }
     }
 
     LaunchedEffect(
@@ -494,6 +540,13 @@ internal fun SessionExecutionScreen(
         delay(500)
         saveProgress()
         drillNotesDirty = false
+    }
+
+    LaunchedEffect(quickNotesDirty, wentWell, challenges, nextAdjustments, incidents) {
+        if (!quickNotesDirty) return@LaunchedEffect
+        delay(600)
+        saveProgress()
+        quickNotesDirty = false
     }
 
     LaunchedEffect(
@@ -542,6 +595,10 @@ internal fun SessionExecutionScreen(
     }
 
     fun pauseActiveDrill() {
+        if (status == "IN_PROGRESS") {
+            pauseSession()
+            return
+        }
         activeDrillElapsedSeconds = activeDrillElapsed()
         activeDrillPaused = true
         activeDrillStartedAt = null
@@ -549,12 +606,21 @@ internal fun SessionExecutionScreen(
     }
 
     fun resumeActiveDrill() {
+        if (status == "PAUSED") {
+            sessionPausedDrillWasRunning = true
+            resumeSession()
+            return
+        }
         activeDrillStartedAt = Instant.now().toString()
         activeDrillPaused = false
         saveProgress()
     }
 
     fun startDrill(drill: ExecutionDrill) {
+        if (status == "PAUSED") {
+            sessionPausedDrillWasRunning = false
+            resumeSession()
+        }
         val previousId = activeDrillId
         if (previousId != null && previousId != drill.id) {
             val previousMinutes = (activeDrillElapsed() + 59) / 60
@@ -570,6 +636,30 @@ internal fun SessionExecutionScreen(
         saveProgress()
     }
 
+    fun finishSession() {
+        val finalDrillSeconds = activeDrillElapsed()
+        activeDrillId?.let { currentId ->
+            drillRows = drillRows.map { drill ->
+                if (drill.id == currentId) {
+                    drill.copy(actualMinutes = ((finalDrillSeconds + 59) / 60).coerceIn(1, 600))
+                } else drill
+            }
+        }
+        activeDrillElapsedSeconds = finalDrillSeconds
+        activeDrillStartedAt = null
+        activeDrillPaused = true
+        onSave(payload(true), JSONObject().also { notes ->
+            playerNotes.forEach { (id, note) -> if (note.isNotBlank()) notes.put(id, note) }
+        }, postNotes, true)
+    }
+
+    fun reopenDrill(drill: ExecutionDrill) {
+        if (!drill.completed) return
+        val reopened = drill.copy(completed = false)
+        drillRows = drillRows.map { if (it.id == drill.id) reopened else it }
+        startDrill(reopened)
+    }
+
     fun completeActiveDrill() {
         val currentId = activeDrillId ?: return
         val elapsedMinutes = (activeDrillElapsed() + 59) / 60
@@ -577,11 +667,15 @@ internal fun SessionExecutionScreen(
             if (drill.id == currentId) drill.copy(actualMinutes = elapsedMinutes.coerceIn(1, 600), completed = true) else drill
         }
         val next = drillRows.firstOrNull { !it.completed }
+        if (next != null && status == "PAUSED") {
+            sessionPausedDrillWasRunning = false
+            resumeSession()
+        }
         activeDrillId = next?.id
         activeDrillElapsedSeconds = 0
         activeDrillPaused = false
         activeDrillStartedAt = if (next == null) null else Instant.now().toString()
-        onCoachPageChange("LIVE")
+        onCoachPageChange(if (next == null) "LIVE" else "DRILL")
         saveProgress()
     }
 
@@ -676,16 +770,21 @@ internal fun SessionExecutionScreen(
                 incidents.map { incident -> "${formatTimestamp(incident.time)} [${incident.category}] ${incident.note}" }
             ),
             SessionReportSection(
-                "Player progress notes",
+                "Coach's observations",
+                assignedPlayers.flatMap { player ->
+                    observations.filter { it.playerId == player.id }.sortedBy { it.createdAt }
+                        .map { "${player.name}: ${it.text}" }
+                }
+            ),
+            SessionReportSection(
+                "Player's thoughts",
                 assignedPlayers.mapNotNull { player ->
                     playerNotes[player.id]?.trim()?.takeIf(String::isNotBlank)?.let { "${player.name}: $it" }
                 }
             ),
             SessionReportSection(
-                "Evaluation",
+                "Session notes",
                 listOf(
-                    "Objectives met: ${objectives.ifBlank { "-" }}",
-                    "Engagement: ${if (engagement > 0) "$engagement/5" else "-"}",
                     "What went well: ${wentWell.ifBlank { "-" }}",
                     "Challenges: ${challenges.ifBlank { "-" }}",
                     "Next adjustments: ${nextAdjustments.ifBlank { "-" }}"
@@ -694,15 +793,28 @@ internal fun SessionExecutionScreen(
             SessionReportSection("Session summary", listOf(postNotes.ifBlank { "-" }))
         )
         if (aiEvaluation != null) {
+            fun listBlock(single: String, plural: String, items: List<String>): List<ReportLine> = when {
+                items.isEmpty() -> emptyList()
+                items.size == 1 -> listOf(ReportLine(single, ReportLineStyle.ITALIC_LABEL), ReportLine(items.first()))
+                else -> listOf(ReportLine(plural, ReportLineStyle.ITALIC_LABEL)) + items.map { ReportLine(it, ReportLineStyle.BULLET) }
+            }
             sections += SessionReportSection(
                 "AI session analysis",
-                listOfNotNull(
-                    "Diagnosis: ${ReadinessLabels[aiEvaluation.progressionReadiness] ?: aiEvaluation.progressionReadiness}",
-                    aiEvaluation.squadSummary
-                ) + aiEvaluation.identifiedGaps.map { "Gap: $it" } +
-                    aiEvaluation.playerFeedback.map { (name, focus) -> "$name: $focus" } +
-                    aiEvaluation.sessionImprovements.map { "Improvement: $it" } +
-                    listOf("Commendation: ${aiEvaluation.aiCommendation}")
+                styledLines = listOfNotNull(
+                    ReportLine("Diagnosis", ReportLineStyle.ITALIC_LABEL),
+                    ReportLine(
+                        ReadinessLabels[aiEvaluation.progressionReadiness] ?: aiEvaluation.progressionReadiness,
+                        ReportLineStyle.UNDERLINED
+                    ),
+                    aiEvaluation.squadSummary.takeIf(String::isNotBlank)?.let { ReportLine(it) }
+                ) + listBlock("Gap", "Gaps", aiEvaluation.identifiedGaps) +
+                    aiEvaluation.playerFeedback.flatMap { (name, focus) ->
+                        listOf(ReportLine(name, ReportLineStyle.LABEL), ReportLine(focus))
+                    } +
+                    listBlock("Improvement", "Improvements", aiEvaluation.sessionImprovements) +
+                    aiEvaluation.aiCommendation.takeIf(String::isNotBlank)?.let {
+                        listOf(ReportLine("Commendation", ReportLineStyle.ITALIC_LABEL), ReportLine(it))
+                    }.orEmpty()
             )
         }
         return exportSessionReportPdf(
@@ -810,6 +922,7 @@ internal fun SessionExecutionScreen(
                 onAdjust = { adjustActiveDrill(it) },
                 onCompleteDrill = { completeActiveDrill() },
                 onSelectDrill = { startDrill(it) },
+                onReopenDrill = { reopenDrill(it) },
                 onOpenDrillControls = { onCoachPageChange("DRILL") },
                 onViewAllObservations = { onCoachPageChange("OBSERVATIONS") },
                 onPauseSession = { pauseSession() },
@@ -822,24 +935,41 @@ internal fun SessionExecutionScreen(
                         drillNotesDirty = true
                     }
                 },
-                onEndSession = { onCoachPageChange("END") },
-                onFinishSession = {
-                    onCoachPageChange("REVIEW")
-                    val finalDrillSeconds = activeDrillElapsed()
-                    activeDrillId?.let { currentId ->
-                        drillRows = drillRows.map { drill ->
-                            if (drill.id == currentId) {
-                                drill.copy(actualMinutes = ((finalDrillSeconds + 59) / 60).coerceIn(1, 600))
-                            } else drill
-                        }
-                    }
-                    activeDrillElapsedSeconds = finalDrillSeconds
-                    activeDrillStartedAt = null
-                    activeDrillPaused = true
-                    onSave(payload(true), JSONObject().also { notes ->
-                        playerNotes.forEach { (id, note) -> if (note.isNotBlank()) notes.put(id, note) }
-                    }, postNotes, true)
+                onEndSession = { finishSession() },
+                quickNoteText = when (coachPage) {
+                    "WENT_WELL" -> wentWell
+                    "CHALLENGE" -> challenges
+                    "ADJUSTMENT" -> nextAdjustments
+                    else -> ""
                 },
+                quickNoteSaving = isSaving || quickNotesDirty,
+                onQuickNoteChange = { text ->
+                    when (coachPage) {
+                        "WENT_WELL" -> wentWell = text
+                        "CHALLENGE" -> challenges = text
+                        "ADJUSTMENT" -> nextAdjustments = text
+                    }
+                    quickNotesDirty = true
+                },
+                onOpenQuickNote = { onCoachPageChange(it) },
+                incidents = incidents,
+                onAddIncident = { category, note ->
+                    incidents = incidents + ExecutionIncident(
+                        UUID.randomUUID().toString(),
+                        Instant.now().toString(),
+                        category.trim().ifBlank { "Other" },
+                        listOfNotNull(
+                            note.trim(),
+                            drillRows.firstOrNull { it.id == activeDrillId }?.title?.let { "(during $it)" }
+                        ).joinToString(" ")
+                    )
+                    quickNotesDirty = true
+                },
+                onRemoveIncident = { incident ->
+                    incidents = incidents.filterNot { it.id == incident.id }
+                    quickNotesDirty = true
+                },
+                onFinishSession = { finishSession() },
                 onSaveProgress = { saveProgress() }
             )
         }
@@ -849,39 +979,17 @@ internal fun SessionExecutionScreen(
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val isTablet = maxWidth >= 600.dp
+            val downloadReport = {
+                reportError = runCatching {
+                    openClubExport(context, buildReportFile(), "application/pdf", "Open PDF report")
+                }.exceptionOrNull()?.message.orEmpty()
+            }
+            val shareReport = {
+                reportError = runCatching {
+                    shareClubExport(context, buildReportFile(), "application/pdf", "Share PDF report")
+                }.exceptionOrNull()?.message.orEmpty()
+            }
             Column(Modifier.fillMaxSize()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    shadowElevation = 4.dp
-                ) {
-                    Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = {
-                            reportError = runCatching {
-                                openClubExport(context, buildReportFile(), "application/pdf", "Open PDF report")
-                            }.exceptionOrNull()?.message.orEmpty()
-                        }) {
-                            Icon(Icons.Outlined.Download, contentDescription = "Download PDF report", tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(onClick = {
-                            reportError = runCatching {
-                                shareClubExport(context, buildReportFile(), "application/pdf", "Share PDF report")
-                            }.exceptionOrNull()?.message.orEmpty()
-                        }) {
-                            Icon(Icons.Outlined.Share, contentDescription = "Share PDF report", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    if (reportError.isNotBlank()) {
-                        Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 14.dp))
-                    }
-                    }
-                }
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -952,59 +1060,64 @@ internal fun SessionExecutionScreen(
                         }
                     }
                     item {
-                        IncidentsCard(
-                            incidents = incidents,
-                            category = incidentCategory,
-                            onCategoryChange = { incidentCategory = it },
-                            note = incidentNote,
-                            onNoteChange = { incidentNote = it },
-                            readOnly = readOnly,
-                            onAdd = {
-                                if (incidentNote.isNotBlank()) {
-                                    incidents = incidents + ExecutionIncident(
-                                        UUID.randomUUID().toString(),
-                                        Instant.now().toString(),
-                                        incidentCategory.trim().ifBlank { "Other" },
-                                        incidentNote.trim()
-                                    )
-                                    incidentNote = ""
-                                }
+                        ReviewTwoColumns(
+                            isTablet = isTablet,
+                            left = { m ->
+                                PlayerNotesCard(
+                                    players = assignedPlayers,
+                                    playerNotes = playerNotes,
+                                    saving = isSaving,
+                                    onSave = { saveProgress() },
+                                    modifier = m
+                                )
                             },
-                            onRemove = { incident -> incidents = incidents.filterNot { it.id == incident.id } }
-                        )
-                    }
-                    item {
-                        PlayerNotesCard(
-                            players = assignedPlayers,
-                            playerNotes = playerNotes,
-                            postNotes = postNotes,
-                            onPostNotesChange = { postNotes = it },
-                            readOnly = false
-                        )
-                    }
-                    item {
-                        EvaluationCard(
-                            objectives = objectives,
-                            onObjectivesChange = { objectives = it },
-                            engagement = engagement,
-                            onEngagementChange = { engagement = it },
-                            wentWell = wentWell,
-                            onWentWellChange = { wentWell = it },
-                            challenges = challenges,
-                            onChallengesChange = { challenges = it },
-                            nextAdjustments = nextAdjustments,
-                            onNextAdjustmentsChange = { nextAdjustments = it },
-                            readOnly = false
-                        )
-                    }
-                    if (readOnly) {
-                        item {
-                            Button(onClick = { saveProgress() }, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.padding(horizontal = 3.dp))
-                                Text(if (isSaving) "Saving…" else "Save evaluation")
+                            right = { m ->
+                                PlayerObservationsCard(players = assignedPlayers, observations = observations, modifier = m)
                             }
-                        }
+                        )
+                    }
+                    item {
+                        ReviewTwoColumns(
+                            isTablet = isTablet,
+                            left = { m ->
+                                IncidentsCard(
+                                    incidents = incidents,
+                                    category = incidentCategory,
+                                    onCategoryChange = { incidentCategory = it },
+                                    note = incidentNote,
+                                    onNoteChange = { incidentNote = it },
+                                    readOnly = readOnly,
+                                    onAdd = {
+                                        if (incidentNote.isNotBlank()) {
+                                            incidents = incidents + ExecutionIncident(
+                                                UUID.randomUUID().toString(),
+                                                Instant.now().toString(),
+                                                incidentCategory.trim().ifBlank { "Other" },
+                                                incidentNote.trim()
+                                            )
+                                            incidentNote = ""
+                                        }
+                                    },
+                                    onRemove = { incident -> incidents = incidents.filterNot { it.id == incident.id } },
+                                    modifier = m
+                                )
+                            },
+                            right = { m ->
+                                EvaluationCard(
+                                    wentWell = wentWell,
+                                    onWentWellChange = { wentWell = it },
+                                    challenges = challenges,
+                                    onChallengesChange = { challenges = it },
+                                    nextAdjustments = nextAdjustments,
+                                    onNextAdjustmentsChange = { nextAdjustments = it },
+                                    postNotes = postNotes,
+                                    onPostNotesChange = { postNotes = it },
+                                    saving = isSaving,
+                                    onSave = { saveProgress() },
+                                    modifier = m
+                                )
+                            }
+                        )
                     }
                     if (session.isExecuted) {
                         item {
@@ -1020,7 +1133,10 @@ internal fun SessionExecutionScreen(
                                 onAddToAdjustments = { items ->
                                     nextAdjustments = (listOf(nextAdjustments) + items.map { "- $it" })
                                         .filter(String::isNotBlank).joinToString("\n")
-                                }
+                                },
+                                onDownload = downloadReport,
+                                onShare = shareReport,
+                                reportError = reportError
                             )
                         }
                         if (aiEvaluation != null) {
@@ -1041,11 +1157,25 @@ internal fun SessionExecutionScreen(
                             }
                         }
                     }
+                    if (!session.isExecuted) {
+                        item {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ReportActionButtons(onDownload = downloadReport, onShare = shareReport)
+                            }
+                        }
+                        if (reportError.isNotBlank()) {
+                            item { Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                        }
+                    }
                     if (saveError.isNotBlank()) {
                         item { Text(saveError, color = MaterialTheme.colorScheme.error) }
                     }
                 }
-                Surface(
+                if (!readOnly) Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 3.dp,
@@ -1053,14 +1183,9 @@ internal fun SessionExecutionScreen(
                 ) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = if (readOnly) Arrangement.End else Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
                     ) {
-                        OutlinedButton(onClick = onDismiss, enabled = !isSaving) {
-                            Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.padding(horizontal = 3.dp))
-                            Text("Close")
-                        }
-                        if (!readOnly) {
+                        run {
                             OutlinedButton(onClick = { saveProgress() }, enabled = !isSaving) {
                                 Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.padding(horizontal = 3.dp))
@@ -1145,7 +1270,7 @@ private fun LiveSessionPreStartScreen(
     onStart: () -> Unit
 ) {
     val checklistDone = PreparationChecklist.count { (key, _) -> checklist[key] == true }
-    val presentCount = players.count { attendance[it.id] == "PRESENT" }
+    val presentCount = players.count { attendance[it.id] in setOf("PRESENT", "LATE") }
     val startLabel = "Start session"
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -1159,21 +1284,21 @@ private fun LiveSessionPreStartScreen(
                     vertical = 12.dp
                 )
                 ) {
-                    if (isSaving || saveError.isNotBlank()) {
+                    if (saveError.isNotBlank()) {
                         item {
                             Text(
-                                if (saveError.isNotBlank()) saveError else "Saving preparation and attendance…",
-                                color = if (saveError.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp
+                                saveError,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 15.sp
                             )
                         }
                     }
                     if (!ready) {
                         item {
                             Text(
-                                "Attendance changes are saved automatically.",
+                                "Checklist and attendance changes are saved automatically.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
+                                fontSize = 14.sp
                             )
                         }
                     }
@@ -1181,7 +1306,7 @@ private fun LiveSessionPreStartScreen(
                     if (isTablet) {
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                PreparationChecklistCard(checklist, checklistDone, Modifier.weight(1f))
+                                PreparationChecklistCard(checklist, checklistDone, Modifier.weight(1f), onAttendanceChanged)
                                 SquadAttendanceCard(players, attendance, Modifier.weight(1f), onAttendanceChanged)
                             }
                         }
@@ -1192,7 +1317,7 @@ private fun LiveSessionPreStartScreen(
                             }
                         }
                     } else {
-                        item { PreparationChecklistCard(checklist, checklistDone) }
+                        item { PreparationChecklistCard(checklist, checklistDone, onChanged = onAttendanceChanged) }
                         item { SquadAttendanceCard(players, attendance, onAttendanceChanged = onAttendanceChanged) }
                         item { SessionFocusCard(session) }
                         item { PlannedDrillsCard(drills) }
@@ -1203,39 +1328,37 @@ private fun LiveSessionPreStartScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = onBack) { Text("Cancel") }
+                            TextButton(onClick = onBack) { Text("Cancel", fontSize = 17.sp) }
                             Button(onClick = onProceed, enabled = canStart) {
-                                Text(startLabel)
+                                Text(startLabel, fontSize = 17.sp)
                                 Spacer(Modifier.width(6.dp))
-                                Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
                         }
                     }
                 } else {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().then(if (isTablet) Modifier.padding(horizontal = 48.dp) else Modifier),
-                            shape = RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .then(if (isTablet) Modifier.padding(horizontal = 48.dp) else Modifier)
+                                .padding(if (isTablet) 24.dp else 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(if (isTablet) 24.dp else 16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
                                 Surface(
+                                    onClick = onStart,
+                                    enabled = canStart,
                                     shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                    color = if (canStart) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                 ) {
                                     Icon(
                                         Icons.Outlined.PlayArrow,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(12.dp).size(30.dp)
+                                        contentDescription = startLabel,
+                                        tint = if (canStart) Color.White else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(18.dp).size(44.dp)
                                     )
                                 }
-                                Text("Ready to start?", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Ready to start?", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                                 if (isTablet) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         PreStartMetric("Players present", "$presentCount/${players.size}", Icons.Outlined.Groups, Modifier.weight(1f))
@@ -1258,23 +1381,11 @@ private fun LiveSessionPreStartScreen(
                                 ) {
                                     Text(
                                         "Session timer will start automatically when you begin.",
-                                        modifier = Modifier.padding(12.dp),
+                                        modifier = Modifier.padding(14.dp),
                                         color = Color(0xFF267857),
-                                        fontSize = 12.sp
+                                        fontSize = 16.sp
                                     )
                                 }
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                                    Button(onClick = onStart, enabled = canStart, modifier = Modifier.weight(1.4f)) {
-                                        Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(startLabel)
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -1287,22 +1398,39 @@ private fun LiveSessionPreStartScreen(
 private fun PreparationChecklistCard(
     checklist: androidx.compose.runtime.snapshots.SnapshotStateMap<String, Boolean>,
     checklistDone: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onChanged: () -> Unit = {}
 ) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Preparation checklist  ·  $checklistDone/${PreparationChecklist.size}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            Text(
+                "Preparation checklist  ·  $checklistDone/${PreparationChecklist.size}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 19.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(6.dp))
             PreparationChecklist.forEach { (key, label) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = checklist[key] == true,
-                        onCheckedChange = { checklist[key] = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFF19A66A),
-                            checkmarkColor = Color.White
-                        )
+                val checked = checklist[key] == true
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            checklist[key] = !checked
+                            onChanged()
+                        }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        if (checked) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = if (checked) "Done" else "Not done",
+                        tint = if (checked) Color(0xFF19A66A) else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(22.dp)
                     )
-                    Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1316,28 +1444,119 @@ private fun SquadAttendanceCard(
     modifier: Modifier = Modifier,
     onAttendanceChanged: () -> Unit = {}
 ) {
-    val presentCount = players.count { attendance[it.id] == "PRESENT" }
+    val presentCount = players.count { attendance[it.id] in setOf("PRESENT", "LATE") }
+    var query by remember { mutableStateOf("") }
+    val visiblePlayers = remember(players, query) {
+        val q = query.trim()
+        if (q.isEmpty()) players else players.filter { it.name.contains(q, ignoreCase = true) }
+    }
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Squad attendance  ·  $presentCount/${players.size} present", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                "Squad attendance  ·  $presentCount/${players.size} present",
+                fontWeight = FontWeight.Bold,
+                fontSize = 19.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             if (players.isEmpty()) {
-                Text("No players are assigned to this session.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No players are assigned to this session.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                players.forEach { player ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = attendance[player.id] == "PRESENT",
-                            onCheckedChange = { present ->
-                                attendance[player.id] = if (present) "PRESENT" else "ABSENT"
-                                onAttendanceChanged()
+                val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                    if (result.resultCode == Activity.RESULT_OK) {
+                        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+                            ?.takeIf(String::isNotBlank)?.let { query = it }
+                    }
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
+                        .padding(start = 12.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Outlined.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (query.isEmpty()) {
+                            Text("Search players", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                        }
+                        BasicTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Clear search", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a player name")
                             }
-                        )
-                        Text(player.name, modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text(
-                            if (attendance[player.id] == "PRESENT") "Present" else "Not marked",
-                            fontSize = 11.sp,
-                            color = if (attendance[player.id] == "PRESENT") Color(0xFF25835D) else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            try { speechLauncher.launch(intent) } catch (_: ActivityNotFoundException) { }
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.Mic, contentDescription = "Search by voice", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    }
+                }
+                val listModifier = if (players.size > 10) {
+                    Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())
+                } else Modifier.fillMaxWidth()
+                Column(listModifier) {
+                    if (visiblePlayers.isEmpty()) {
+                        Text("No players match \"${query.trim()}\".", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+                    }
+                    visiblePlayers.forEachIndexed { index, player ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                player.name,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            listOf(
+                                Triple("PRESENT", "Present", Color(0xFF19A66A)),
+                                Triple("LATE", "Late", Color(0xFFD98A00)),
+                                Triple("ABSENT", "Absent", Color(0xFFD64545))
+                            ).forEach { (value, label, accent) ->
+                                val selected = attendance[player.id] == value
+                                Text(
+                                    label,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(if (selected) accent else Color.Transparent)
+                                        .border(1.dp, if (selected) accent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                                        .clickable {
+                                            attendance[player.id] = value
+                                            onAttendanceChanged()
+                                        }
+                                        .padding(horizontal = 11.dp, vertical = 4.dp),
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (index < visiblePlayers.lastIndex) {
+                            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        }
                     }
                 }
             }
@@ -1349,11 +1568,11 @@ private fun SquadAttendanceCard(
 private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Session guidance", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("Session guidance", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface)
             if (session.safety.isEmpty()) {
-                Text("No additional safety guidance provided.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No additional safety guidance provided.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                session.safety.forEach { Text("• $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                session.safety.forEach { Text("• $it", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }
@@ -1363,16 +1582,16 @@ private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = 
 private fun PlannedDrillsCard(drills: List<ExecutionDrill>, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Planned drills (${drills.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("Planned drills (${drills.size})", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface)
             if (drills.isEmpty()) {
-                Text("No drills are planned for this session.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No drills are planned for this session.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 drills.forEachIndexed { index, drill ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                         Column(Modifier.weight(1f)) {
-                            Text(drill.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("${drill.plannedMinutes} min", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(drill.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("${drill.plannedMinutes} min", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1390,14 +1609,14 @@ private fun PreStartMetric(
 ) {
     Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = Color(0xFFF7F8FD)) {
         Row(
-            Modifier.fillMaxWidth().padding(10.dp),
+            Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             Column(Modifier.weight(1f)) {
-                Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }
@@ -1415,36 +1634,51 @@ private fun PreparationCard(
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Preparation checklist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Preparation checklist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Spacer(Modifier.height(4.dp))
             PreparationChecklist.forEach { (key, label) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = checklist[key] == true, onCheckedChange = { checklist[key] = it }, enabled = !readOnly)
-                    Text(label, style = MaterialTheme.typography.bodySmall)
+                val checked = checklist[key] == true
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !readOnly) { checklist[key] = !checked }
+                        .padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        if (checked) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = if (checked) "Done" else "Not done",
+                        tint = if (checked) Color(0xFF19A66A) else MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Status: ${status.replace('_', ' ')}", fontWeight = FontWeight.Medium)
-                if (status == "PREPARING" && !readOnly) {
+            if (status == "PREPARING" && !readOnly) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Status: ${status.replace('_', ' ')}", fontWeight = FontWeight.Medium, fontSize = 15.sp)
                     Button(onClick = onStart, enabled = canStart) {
                         Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.padding(horizontal = 3.dp))
                         Text("Start session")
                     }
                 }
-            }
-            if (!canStart) {
-                Text(
-                    "Complete the preparation checklist to start before $sessionDate, or wait until then.",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp
-                )
-            } else if (!onScheduleDate) {
-                Text(
-                    "Checklist complete — starting now will be recorded as earlier than the scheduled date ($sessionDate).",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    fontSize = 12.sp
-                )
+                if (!canStart) {
+                    Text(
+                        "Complete the preparation checklist to start before $sessionDate, or wait until then.",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp
+                    )
+                } else if (!onScheduleDate) {
+                    Text(
+                        "Checklist complete — starting now will be recorded as earlier than the scheduled date ($sessionDate).",
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
     }
@@ -1458,35 +1692,48 @@ private fun AttendanceTable(
     modifier: Modifier = Modifier
 ) {
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Attendance", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Attendance", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Spacer(Modifier.height(4.dp))
             if (players.isEmpty()) {
-                Text("No players assigned to this session yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("No players assigned to this session yet.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             } else {
-                Row(Modifier.fillMaxWidth()) {
-                    Text("Player", Modifier.weight(1.4f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    listOf("Present", "Late", "Absent").forEach { label ->
-                        Text(label, Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                val order = listOf("PRESENT", "LATE", "ABSENT")
+                players.forEachIndexed { index, player ->
+                    val value = attendance[player.id]
+                    val (label, tint) = when (value) {
+                        "PRESENT" -> "Present" to Color(0xFF159B72)
+                        "LATE" -> "Late" to Color(0xFFE28A18)
+                        "ABSENT" -> "Absent" to Color(0xFFE84A54)
+                        else -> "Not marked" to Color(0xFF8791A8)
                     }
-                }
-                HorizontalDivider()
-                players.forEach { player ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(player.name, Modifier.weight(1.4f), fontSize = 13.sp)
-                        listOf("PRESENT", "LATE", "ABSENT").forEach { value ->
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                val selected = attendance[player.id] == value
-                                IconButton(onClick = { attendance[player.id] = value }, enabled = !readOnly) {
-                                    Icon(
-                                        if (selected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                                        contentDescription = value,
-                                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(player.name, Modifier.weight(1f), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = tint.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, tint.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable(enabled = !readOnly) {
+                                    attendance[player.id] = order[(order.indexOf(value) + 1) % order.size]
                                 }
-                            }
+                        ) {
+                            Text(
+                                label,
+                                color = tint,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
                         }
                     }
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    if (index < players.lastIndex) {
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                    }
                 }
             }
         }
@@ -1501,50 +1748,56 @@ private fun DrillCard(
     onInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val (statusLabel, statusTint) = if (drill.completed) "Completed" to Color(0xFF159B72) else "Not completed" to Color(0xFF8791A8)
+    val overrun = drill.plannedMinutes > 0 && drill.actualMinutes > drill.plannedMinutes
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(drill.title, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    drill.title,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = statusTint.copy(alpha = 0.12f),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(enabled = !readOnly) { onChange(drill.copy(completed = !drill.completed)) }
+                ) {
+                    Text(
+                        statusLabel,
+                        color = statusTint,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
                 IconButton(onClick = onInfo, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Outlined.Info, contentDescription = "Drill setup info", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Outlined.Info, contentDescription = "Drill setup info", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = drill.plannedMinutes.toString(),
-                    onValueChange = { value ->
-                        val minutes = value.filter(Char::isDigit).toIntOrNull() ?: 0
-                        onChange(drill.copy(plannedMinutes = minutes))
-                    },
-                    label = { Text("Planned min") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    enabled = !readOnly
-                )
-                OutlinedTextField(
-                    value = drill.actualMinutes.toString(),
-                    onValueChange = { value ->
-                        val minutes = value.filter(Char::isDigit).toIntOrNull() ?: 0
-                        onChange(drill.copy(actualMinutes = minutes))
-                    },
-                    label = { Text("Actual min") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    enabled = !readOnly
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Outlined.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                Text(
+                    "${drill.actualMinutes} of ${drill.plannedMinutes} min",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (overrun) Color(0xFFE28A18) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = drill.completed, onCheckedChange = { done -> onChange(drill.copy(completed = done)) }, enabled = !readOnly)
-                Text("Completed")
+            if (drill.notes.isNotBlank()) {
+                Text(
+                    drill.notes,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            OutlinedTextField(
-                drill.notes,
-                { note -> onChange(drill.copy(notes = note)) },
-                label = { Text("Drill notes") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 1,
-                enabled = !readOnly
-            )
         }
     }
 }
@@ -1582,6 +1835,78 @@ private fun DrillInfoDialog(execution: ExecutionDrill, drill: Drill?, onDismiss:
 }
 
 @Composable
+private fun ReviewTwoColumns(
+    isTablet: Boolean,
+    left: @Composable (Modifier) -> Unit,
+    right: @Composable (Modifier) -> Unit
+) {
+    if (isTablet) {
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            left(Modifier.weight(1f).fillMaxHeight())
+            right(Modifier.weight(1f).fillMaxHeight())
+        }
+    } else {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            left(Modifier.fillMaxWidth())
+            right(Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun ReviewPanel(
+    title: String,
+    modifier: Modifier = Modifier,
+    action: @Composable (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                action?.invoke()
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ReviewEmptyText(text: String) {
+    Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+}
+
+@Composable
+private fun ReviewTag(label: String, tint: Color) {
+    Surface(shape = RoundedCornerShape(50), color = tint.copy(alpha = 0.12f)) {
+        Text(
+            label,
+            color = tint,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun ReviewEditAction(editing: Boolean, saving: Boolean, onToggle: () -> Unit) {
+    if (editing) {
+        TextButton(onClick = onToggle, enabled = !saving, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text(if (saving) "Saving…" else "Save", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Outlined.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
 private fun IncidentsCard(
     incidents: List<ExecutionIncident>,
     category: String,
@@ -1590,46 +1915,69 @@ private fun IncidentsCard(
     onNoteChange: (String) -> Unit,
     readOnly: Boolean,
     onAdd: () -> Unit,
-    onRemove: (ExecutionIncident) -> Unit
+    onRemove: (ExecutionIncident) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Incidents", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    category,
-                    onCategoryChange,
-                    label = { Text("Category") },
-                    modifier = Modifier.weight(0.75f),
-                    singleLine = true,
-                    enabled = !readOnly
-                )
-                OutlinedTextField(
-                    note,
-                    onNoteChange,
-                    label = { Text("Incident note") },
-                    modifier = Modifier.weight(1.25f),
-                    singleLine = true,
-                    enabled = !readOnly
-                )
-            }
-            if (!readOnly) {
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text("Add incident")
+    ReviewPanel("Incidents", modifier) {
+        if (incidents.isEmpty()) ReviewEmptyText("No incidents recorded.")
+        incidents.forEachIndexed { index, incident ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ReviewTag(incident.category.ifBlank { "Other" }, Color(0xFFE84A54))
+                Column(Modifier.weight(1f)) {
+                    Text(incident.note, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                    formatObservationClock(incident.time).takeIf(String::isNotBlank)?.let {
+                        Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                    }
                 }
-            }
-            incidents.forEach { incident ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${incident.category}: ${incident.note}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                    if (!readOnly) {
-                        IconButton(onClick = { onRemove(incident) }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Outlined.Delete, contentDescription = "Remove incident")
-                        }
+                if (!readOnly) {
+                    IconButton(onClick = { onRemove(incident) }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Remove incident", modifier = Modifier.size(18.dp))
                     }
                 }
             }
+            if (index < incidents.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        }
+        if (!readOnly) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(category, onCategoryChange, label = { Text("Category") }, modifier = Modifier.weight(0.7f), singleLine = true)
+                OutlinedTextField(note, onNoteChange, label = { Text("Incident note") }, modifier = Modifier.weight(1.3f), singleLine = true)
+                IconButton(onClick = onAdd) {
+                    Icon(Icons.Outlined.Add, contentDescription = "Add incident", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerObservationsCard(
+    players: List<ClubMember>,
+    observations: List<SessionObservation>,
+    modifier: Modifier = Modifier
+) {
+    val names = players.associate { it.id to it.name }
+    val individual = observations.filter { !it.playerId.isNullOrBlank() }.sortedBy { it.createdAt }
+    ReviewPanel("Coach observations", modifier) {
+        if (individual.isEmpty()) ReviewEmptyText("No individual player observations recorded.")
+        individual.forEachIndexed { index, observation ->
+            val name = observation.playerName?.takeIf(String::isNotBlank) ?: names[observation.playerId] ?: "Player"
+            val meta = listOfNotNull(
+                observation.drillTitle?.takeIf(String::isNotBlank),
+                formatObservationClock(observation.createdAt).takeIf(String::isNotBlank)
+            ).joinToString(" · ")
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
+                    ReviewTag(observation.category.lowercase().replaceFirstChar(Char::uppercase), MaterialTheme.colorScheme.primary)
+                }
+                Text(observation.text, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                if (meta.isNotBlank()) Text(meta, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+            }
+            if (index < individual.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         }
     }
 }
@@ -1638,88 +1986,169 @@ private fun IncidentsCard(
 private fun PlayerNotesCard(
     players: List<ClubMember>,
     playerNotes: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
-    postNotes: String,
-    onPostNotesChange: (String) -> Unit,
-    readOnly: Boolean
+    saving: Boolean,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Player notes", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+    var editing by remember { mutableStateOf(false) }
+    var editVersion by remember { mutableStateOf(0) }
+    val currentOnSave by rememberUpdatedState(onSave)
+    LaunchedEffect(editVersion) {
+        if (editVersion == 0) return@LaunchedEffect
+        delay(800)
+        currentOnSave()
+    }
+    var speechTarget by remember { mutableStateOf<String?>(null) }
+    var speechError by remember { mutableStateOf("") }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val target = speechTarget
+        if (result.resultCode == Activity.RESULT_OK && target != null) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                playerNotes[target] = listOf(playerNotes[target].orEmpty().trim(), spoken).filter(String::isNotBlank).joinToString("\n")
+                editVersion++
+                speechError = ""
+            } else speechError = "No speech was recognized. Try again."
+        }
+        speechTarget = null
+    }
+    ReviewPanel(
+        "Player notes",
+        modifier,
+        action = if (players.isEmpty()) null else ({
+            if (editing) {
+                Text(
+                    if (saving) "Saving…" else "Done",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            currentOnSave()
+                            editing = false
+                        }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            } else {
+                ReviewEditAction(editing = false, saving = saving) { editing = true }
+            }
+        })
+    ) {
+        if (editing) {
+            Text(
+                if (saving) "Saving…" else "Changes save automatically",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+            )
             players.forEach { player ->
                 OutlinedTextField(
                     value = playerNotes[player.id].orEmpty(),
-                    onValueChange = { playerNotes[player.id] = it },
-                    label = { Text("${player.name} · individual note") },
+                    onValueChange = {
+                        playerNotes[player.id] = it
+                        editVersion++
+                    },
+                    label = { Text(player.name) },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    enabled = !readOnly
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            speechTarget = player.id
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a note for ${player.name}")
+                            }
+                            try {
+                                speechLauncher.launch(intent)
+                            } catch (_: ActivityNotFoundException) {
+                                speechTarget = null
+                                speechError = "Speech recognition is not available on this device."
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Mic, contentDescription = "Speak note for ${player.name}", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 )
             }
-            OutlinedTextField(
-                postNotes,
-                onPostNotesChange,
-                label = { Text("Session observations") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                enabled = !readOnly
-            )
+            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+        } else {
+            val withNotes = players.mapNotNull { player ->
+                playerNotes[player.id]?.trim()?.takeIf(String::isNotBlank)?.let { player.name to it }
+            }
+            if (withNotes.isEmpty()) ReviewEmptyText("No player notes yet. Tap edit to add.")
+            withNotes.forEachIndexed { index, (name, note) ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(note, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                }
+                if (index < withNotes.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            }
         }
     }
 }
 
 @Composable
 private fun EvaluationCard(
-    objectives: String,
-    onObjectivesChange: (String) -> Unit,
-    engagement: Int,
-    onEngagementChange: (Int) -> Unit,
     wentWell: String,
     onWentWellChange: (String) -> Unit,
     challenges: String,
     onChallengesChange: (String) -> Unit,
     nextAdjustments: String,
     onNextAdjustmentsChange: (String) -> Unit,
-    readOnly: Boolean
+    postNotes: String,
+    onPostNotesChange: (String) -> Unit,
+    saving: Boolean,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Evaluation", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-            Text("Objectives met", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("YES", "PARTIAL", "NO").forEach { value ->
-                    val selected = objectives == value
-                    if (selected) {
-                        Button(onClick = { onObjectivesChange(value) }, enabled = !readOnly) { Text(value) }
-                    } else {
-                        OutlinedButton(onClick = { onObjectivesChange(value) }, enabled = !readOnly) { Text(value) }
-                    }
-                }
+    var editing by remember { mutableStateOf(false) }
+    val rows = listOf(
+        Triple("Went well", Color(0xFF159B72), wentWell to onWentWellChange),
+        Triple("Challenge", Color(0xFFE84A54), challenges to onChallengesChange),
+        Triple("Adjustment", Color(0xFFE28A18), nextAdjustments to onNextAdjustmentsChange),
+        Triple("Summary", Color(0xFF6C4DF6), postNotes to onPostNotesChange)
+    )
+    ReviewPanel(
+        "Session notes",
+        modifier,
+        action = {
+            ReviewEditAction(editing, saving) {
+                if (editing) onSave()
+                editing = !editing
             }
-            Text("Engagement: $engagement / 5", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                (1..5).forEach { value ->
-                    val selected = engagement == value
-                    Surface(
-                        onClick = { onEngagementChange(value) },
-                        enabled = !readOnly,
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                value.toString(),
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-            OutlinedTextField(wentWell, onWentWellChange, label = { Text("What went well") }, modifier = Modifier.fillMaxWidth(), minLines = 2, enabled = !readOnly)
-            OutlinedTextField(challenges, onChallengesChange, label = { Text("Challenges") }, modifier = Modifier.fillMaxWidth(), minLines = 2, enabled = !readOnly)
-            OutlinedTextField(nextAdjustments, onNextAdjustmentsChange, label = { Text("Next adjustments") }, modifier = Modifier.fillMaxWidth(), minLines = 2, enabled = !readOnly)
         }
+    ) {
+        if (editing) {
+            rows.forEach { (label, _, field) ->
+                OutlinedTextField(
+                    value = field.first,
+                    onValueChange = field.second,
+                    label = { Text(label) },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp)
+                )
+            }
+        } else {
+            val filled = rows.filter { it.third.first.isNotBlank() }
+            if (filled.isEmpty()) ReviewEmptyText("No session notes yet. Tap edit to add.")
+            filled.forEachIndexed { index, (label, tint, field) ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    ReviewTag(label, tint)
+                    Text(field.first.trim(), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                }
+                if (index < filled.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportActionButtons(onDownload: () -> Unit, onShare: () -> Unit) {
+    IconButton(onClick = onDownload) {
+        Icon(Icons.Outlined.Download, contentDescription = "Download PDF report", tint = MaterialTheme.colorScheme.primary)
+    }
+    IconButton(onClick = onShare) {
+        Icon(Icons.Outlined.Share, contentDescription = "Share PDF report", tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -1729,7 +2158,10 @@ private fun AiAnalysisCard(
     busy: Boolean,
     error: String,
     onRun: () -> Unit,
-    onAddToAdjustments: (List<String>) -> Unit
+    onAddToAdjustments: (List<String>) -> Unit,
+    onDownload: () -> Unit,
+    onShare: () -> Unit,
+    reportError: String
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1739,12 +2171,17 @@ private fun AiAnalysisCard(
                     Spacer(Modifier.padding(horizontal = 3.dp))
                     Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
-                Button(onClick = onRun, enabled = !busy) {
-                    Icon(if (evaluation != null) Icons.Outlined.Refresh else Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text(if (busy) "Analysing…" else if (evaluation != null) "Re-run AI analysis" else "Run AI analysis")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = onRun, enabled = !busy) {
+                        Icon(if (evaluation != null) Icons.Outlined.Refresh else Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.padding(horizontal = 3.dp))
+                        Text(if (busy) "Analysing…" else "Analyse")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    ReportActionButtons(onDownload = onDownload, onShare = onShare)
                 }
             }
+            if (reportError.isNotBlank()) Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             Text(
                 "Gemini reviews player notes, attendance, drill timings, disruptions and evaluation, then suggests improvements and a follow-up session.",
                 fontSize = 12.sp,
@@ -1962,10 +2399,18 @@ private fun FollowUpCard(
                 onAdjust: (Int) -> Unit,
                 onCompleteDrill: () -> Unit,
                 onSelectDrill: (ExecutionDrill) -> Unit,
+                onReopenDrill: (ExecutionDrill) -> Unit,
                 onOpenDrillControls: () -> Unit,
                 onPauseSession: () -> Unit,
                 onResumeSession: () -> Unit,
                 onDrillNotesChange: (String) -> Unit,
+                quickNoteText: String,
+                quickNoteSaving: Boolean,
+                onQuickNoteChange: (String) -> Unit,
+                onOpenQuickNote: (String) -> Unit,
+                incidents: List<ExecutionIncident>,
+                onAddIncident: (String, String) -> Unit,
+                onRemoveIncident: (ExecutionIncident) -> Unit,
                 onEndSession: () -> Unit,
                 onFinishSession: () -> Unit,
                 onSaveProgress: () -> Unit
@@ -1988,6 +2433,7 @@ private fun FollowUpCard(
                         onPauseSession = onPauseSession,
                         onResumeSession = onResumeSession,
                         onOpenObservation = onOpenObservation,
+                        onOpenQuickNote = onOpenQuickNote,
                         onOpenDrillControls = onOpenDrillControls,
                         onEndSession = onEndSession,
                         onViewAllObservations = onViewAllObservations,
@@ -2003,71 +2449,46 @@ private fun FollowUpCard(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 28.dp)
                     ) {
                     when (page) {
+                        "WENT_WELL", "CHALLENGE", "ADJUSTMENT" -> item {
+                            QuickNotePanel(
+                                kind = page,
+                                text = quickNoteText,
+                                saving = quickNoteSaving,
+                                saveError = saveError,
+                                drillTitle = activeDrill?.title,
+                                onTextChange = onQuickNoteChange,
+                                onClose = onBack
+                            )
+                        }
+                        "INCIDENT" -> item {
+                            IncidentEntryPanel(
+                                incidents = incidents,
+                                saving = quickNoteSaving,
+                                saveError = saveError,
+                                drillTitle = activeDrill?.title,
+                                onAdd = onAddIncident,
+                                onRemove = onRemoveIncident,
+                                onClose = onBack
+                            )
+                        }
                         "OBSERVATION" -> item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(onClick = onBack) { Text("‹  Back to live session") }
-                                CoachCard {
-                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("New observation", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                                        Text("Notes save automatically as you type.", color = CoachMuted, fontSize = 12.sp)
-                                        Text("WHO IS THIS FOR?", color = CoachMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            listOf("INDIVIDUAL", "GROUP", "SQUAD").forEach { option ->
-                                                CoachChip(option.lowercase().replaceFirstChar(Char::uppercase), observationScope == option) {
-                                                    onObservationScopeChange(option)
-                                                }
-                                            }
-                                        }
-                                        if (observationScope == "INDIVIDUAL") {
-                                            Text("Choose a player to save this individual observation.", color = CoachMuted, fontSize = 11.sp)
-                                            if (players.isEmpty()) {
-                                                Text("No players are assigned to this session.", color = MaterialTheme.colorScheme.error)
-                                            } else {
-                                                players.forEach { player ->
-                                                    Surface(
-                                                        onClick = { onObservationPlayerChange(player.id) },
-                                                        color = if (observationPlayerId == player.id) Color(0xFFECE9FF) else Color(0xFFF7F8FC),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ) {
-                                                        Text(player.name, modifier = Modifier.fillMaxWidth().padding(10.dp), color = CoachInk)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Text("CATEGORY", color = CoachMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        listOf("TECHNIQUE", "TACTICAL", "PHYSICAL", "BEHAVIOUR", "PROGRESS", "SAFETY").chunked(3).forEach { row ->
-                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                row.forEach { option ->
-                                                    CoachChip(option.lowercase().replaceFirstChar(Char::uppercase), observationCategory == option) {
-                                                        onObservationCategoryChange(option)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        activeDrill?.let {
-                                            Text("Linked to drill: ${it.title}", color = Color(0xFF5943D6), fontSize = 12.sp)
-                                        }
-                                        OutlinedTextField(
-                                            value = observationText,
-                                            onValueChange = onObservationTextChange,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            minLines = 4,
-                                            label = { Text("Observation") },
-                                            placeholder = { Text("What did you notice?") }
-                                        )
-                                        when {
-                                            observationSaving -> Text("Saving…", color = CoachMuted, fontSize = 12.sp)
-                                            observationError.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(observationError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                                                TextButton(onClick = onRetryObservation) { Text("Retry") }
-                                            }
-                                            observationSavedAt.isNotBlank() -> Text("Saved automatically", color = Color(0xFF25835D), fontSize = 12.sp)
-                                            observationText.isNotBlank() -> Text("Saving automatically…", color = CoachMuted, fontSize = 12.sp)
-                                        }
-                                        Text("No save button needed — your note is saved automatically.", color = CoachMuted, fontSize = 11.sp)
-                                    }
-                                }
-                            }
+                            ObservationEntryPanel(
+                                players = players,
+                                observationScope = observationScope,
+                                observationCategory = observationCategory,
+                                observationPlayerId = observationPlayerId,
+                                observationText = observationText,
+                                observationSaving = observationSaving,
+                                observationError = observationError,
+                                observationSavedAt = observationSavedAt,
+                                activeDrillTitle = activeDrill?.title,
+                                onClose = onBack,
+                                onScopeChange = onObservationScopeChange,
+                                onCategoryChange = onObservationCategoryChange,
+                                onPlayerChange = onObservationPlayerChange,
+                                onTextChange = onObservationTextChange,
+                                onRetry = onRetryObservation
+                            )
                         }
                         "DRILL" -> item {
                             DrillControlsTabletCard(
@@ -2085,7 +2506,9 @@ private fun FollowUpCard(
                                 onPause = onPause,
                                 onResume = onResume,
                                 onComplete = onCompleteDrill,
-                                onSelectNext = { drill -> onSelectDrill(drill) }
+                                onSelectNext = { drill -> onSelectDrill(drill) },
+                                onReopen = onReopenDrill,
+                                onAddObservation = { onOpenObservation("GROUP", "TECHNIQUE") }
                             )
                         }
                         "END" -> item {
@@ -2110,11 +2533,8 @@ private fun FollowUpCard(
                             }
                         }
                         "OBSERVATIONS" -> item {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(onClick = onBack) { Text("‹  Back to live session") }
-                                AllSessionObservationsCard(observations, observationLoadError) {
-                                    coroutineScope.launch { onReloadObservations() }
-                                }
+                            AllSessionObservationsCard(observations, observationLoadError) {
+                                coroutineScope.launch { onReloadObservations() }
                             }
                         }
                         else -> {
@@ -2150,15 +2570,13 @@ private fun FollowUpCard(
                                             if (activeDrill != null) {
                                                 OutlinedButton(
                                                     onClick = onOpenDrillControls,
-                                                    enabled = !sessionPaused,
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) {
-                                                    Text(if (sessionPaused) "Drill controls unavailable while paused" else if (paused) "Resume drill" else "Drill controls")
+                                                    Text(if (paused || sessionPaused) "Resume drill" else "Drill controls")
                                                 }
                                             } else {
                                                 Button(
                                                     onClick = onOpenDrillControls,
-                                                    enabled = !sessionPaused,
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) { Text("Choose a drill") }
                                             }
@@ -2308,6 +2726,7 @@ private fun SessionLiveDashboardLayout(
     onPauseSession: () -> Unit,
     onResumeSession: () -> Unit,
     onOpenObservation: (String, String) -> Unit,
+    onOpenQuickNote: (String) -> Unit,
     onOpenDrillControls: () -> Unit,
     onEndSession: () -> Unit,
     onViewAllObservations: () -> Unit,
@@ -2340,6 +2759,7 @@ private fun SessionLiveDashboardLayout(
                     onPauseSession = onPauseSession,
                     onResumeSession = onResumeSession,
                     onOpenObservation = onOpenObservation,
+                    onOpenQuickNote = onOpenQuickNote,
                     onOpenDrillControls = onOpenDrillControls,
                     onEndSession = onEndSession
                 )
@@ -2373,6 +2793,7 @@ private fun SessionLiveDashboardLayout(
                         onPauseSession = onPauseSession,
                         onResumeSession = onResumeSession,
                         onOpenObservation = onOpenObservation,
+                        onOpenQuickNote = onOpenQuickNote,
                         onOpenDrillControls = onOpenDrillControls,
                         onEndSession = onEndSession
                     )
@@ -2407,6 +2828,7 @@ private fun SessionLivePrimaryPane(
     onPauseSession: () -> Unit,
     onResumeSession: () -> Unit,
     onOpenObservation: (String, String) -> Unit,
+    onOpenQuickNote: (String) -> Unit,
     onOpenDrillControls: () -> Unit,
     onEndSession: () -> Unit
 ) {
@@ -2426,7 +2848,7 @@ private fun SessionLivePrimaryPane(
                     Text(
                         if (sessionPaused) "Session paused" else "Session in progress",
                         color = if (sessionPaused) Color(0xFF9D6A18) else Color(0xFF18875F),
-                        fontSize = 12.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -2434,32 +2856,43 @@ private fun SessionLivePrimaryPane(
                     Text(
                         formatElapsedClock(sessionSeconds),
                         color = Color(0xFF111A45),
-                        fontSize = 28.sp,
-                        lineHeight = 32.sp,
+                        fontSize = 31.sp,
+                        lineHeight = 35.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
                         "/ ${session.durationMinutes} min",
                         modifier = Modifier.padding(bottom = 3.dp),
                         color = Color(0xFF64708F),
-                        fontSize = 12.sp
+                        fontSize = 15.sp
                     )
                 }
             }
             Surface(
                 onClick = if (sessionPaused) onResumeSession else onPauseSession,
                 enabled = !isSaving,
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White.copy(alpha = 0.9f),
-                border = BorderStroke(1.dp, Color(0xFFE1E7F5)),
-                shadowElevation = 1.dp
+                shape = RoundedCornerShape(50),
+                color = if (sessionPaused) Color(0xFF19A66A) else Color(0xFF563DE1),
+                shadowElevation = 3.dp
             ) {
-                Icon(
-                    if (sessionPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                    contentDescription = if (sessionPaused) "Resume session" else "Pause session",
-                    tint = Color(0xFF563DE1),
-                    modifier = Modifier.padding(10.dp).size(20.dp)
-                )
+                Row(
+                    Modifier.height(60.dp).padding(horizontal = 26.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        if (sessionPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Text(
+                        if (sessionPaused) "Resume" else "Pause",
+                        color = Color.White,
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
@@ -2468,7 +2901,7 @@ private fun SessionLivePrimaryPane(
             position = drillPosition,
             count = drillCount,
             elapsedSeconds = activeDrillSeconds,
-            enabled = !sessionPaused,
+            enabled = true,
             onOpen = onOpenDrillControls
         )
 
@@ -2489,7 +2922,7 @@ private fun SessionLivePrimaryPane(
                     icon = Icons.Outlined.Star,
                     tint = Color(0xFF159B72),
                     background = Color(0xFFE9F8F1)
-                ) { onOpenObservation("SQUAD", "PROGRESS") }
+                ) { onOpenQuickNote("WENT_WELL") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 QuickCaptureTile(
@@ -2499,15 +2932,15 @@ private fun SessionLivePrimaryPane(
                     icon = Icons.Outlined.Warning,
                     tint = Color(0xFFE84A54),
                     background = Color(0xFFFFF0F0)
-                ) { onOpenObservation("SQUAD", "BEHAVIOUR") }
+                ) { onOpenQuickNote("CHALLENGE") }
                 QuickCaptureTile(
                     modifier = Modifier.weight(1f),
-                    title = "Adjustment",
-                    subtitle = "Quick note",
-                    icon = Icons.Outlined.Lightbulb,
+                    title = "Incident",
+                    subtitle = "Injury, weather…",
+                    icon = Icons.Outlined.HealthAndSafety,
                     tint = Color(0xFFE28A18),
                     background = Color(0xFFFFF6E6)
-                ) { onOpenObservation("SQUAD", "TACTICAL") }
+                ) { onOpenQuickNote("INCIDENT") }
             }
         }
 
@@ -2524,12 +2957,11 @@ private fun SessionLivePrimaryPane(
                 label = "Drill controls",
                 icon = Icons.Outlined.List,
                 tint = Color(0xFF644BE5),
-                onClick = onOpenDrillControls,
-                enabled = !sessionPaused
+                onClick = onOpenDrillControls
             )
         }
-        if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = 12.sp)
-        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+        if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = 15.sp)
+        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
     }
 }
 
@@ -2556,19 +2988,19 @@ private fun ActiveDrillSummaryCard(
                         Icons.Outlined.List,
                         contentDescription = null,
                         tint = Color(0xFF6045E2),
-                        modifier = Modifier.padding(8.dp).size(19.dp)
+                        modifier = Modifier.padding(9.dp).size(23.dp)
                     )
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
                         if (drill == null) "Current drill" else "Current drill $position / $count",
                         color = Color(0xFF64708F),
-                        fontSize = 11.sp
+                        fontSize = 14.sp
                     )
                     Text(
                         drill?.title ?: "No active drill",
                         color = Color(0xFF17204A),
-                        fontSize = 15.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -2577,9 +3009,9 @@ private fun ActiveDrillSummaryCard(
                 Text(
                     drill?.let { "${formatCoachTime(elapsedSeconds)} / ${formatCoachTime(it.plannedMinutes * 60)}" } ?: "Choose",
                     color = Color(0xFF64708F),
-                    fontSize = 11.sp
+                    fontSize = 14.sp
                 )
-                Icon(Icons.Outlined.PlayArrow, contentDescription = "Drill controls", tint = Color(0xFF3F4D7C), modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.PlayArrow, contentDescription = "Drill controls", tint = Color(0xFF3F4D7C), modifier = Modifier.size(22.dp))
             }
             val progress = if (drill == null || drill.plannedMinutes <= 0) 0f
             else (elapsedSeconds.toFloat() / (drill.plannedMinutes * 60)).coerceIn(0f, 1f)
@@ -2608,7 +3040,9 @@ private fun DrillControlsTabletCard(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onComplete: () -> Unit,
-    onSelectNext: (ExecutionDrill) -> Unit
+    onSelectNext: (ExecutionDrill) -> Unit,
+    onReopen: (ExecutionDrill) -> Unit,
+    onAddObservation: () -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth >= 600.dp) {
@@ -2631,14 +3065,16 @@ private fun DrillControlsTabletCard(
                     onAdjust = onAdjust,
                     onPause = onPause,
                     onResume = onResume,
-                    onComplete = onComplete
+                    onComplete = onComplete,
+                    onAddObservation = onAddObservation
                 )
                 NextDrillsPanel(
                     modifier = Modifier.weight(0.9f),
                     drills = sessionDrills,
                     activeDrillId = activeDrill?.id,
                     isSaving = isSaving,
-                    onSelectNext = onSelectNext
+                    onSelectNext = onSelectNext,
+                    onReopen = onReopen
                 )
             }
         } else {
@@ -2657,14 +3093,16 @@ private fun DrillControlsTabletCard(
                     onAdjust = onAdjust,
                     onPause = onPause,
                     onResume = onResume,
-                    onComplete = onComplete
+                    onComplete = onComplete,
+                    onAddObservation = onAddObservation
                 )
                 NextDrillsPanel(
                     modifier = Modifier.fillMaxWidth(),
                     drills = sessionDrills,
                     activeDrillId = activeDrill?.id,
                     isSaving = isSaving,
-                    onSelectNext = onSelectNext
+                    onSelectNext = onSelectNext,
+                    onReopen = onReopen
                 )
             }
         }
@@ -2686,7 +3124,8 @@ private fun CurrentDrillControlPanel(
     onAdjust: (Int) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    onAddObservation: () -> Unit
 ) {
     val context = LocalContext.current
     var speechError by remember { mutableStateOf("") }
@@ -2743,7 +3182,7 @@ private fun CurrentDrillControlPanel(
                     activeDrill?.title ?: "All planned drills complete",
                     modifier = Modifier.weight(1f),
                     color = Color(0xFF17204A),
-                    fontSize = 18.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2759,10 +3198,10 @@ private fun CurrentDrillControlPanel(
                         Text(
                             formatCoachTime(remainingSeconds),
                             color = Color(0xFF263B75),
-                            fontSize = 20.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text("remaining", color = Color(0xFF66728F), fontSize = 14.sp)
+                        Text("remaining", color = Color(0xFF66728F), fontSize = 15.sp)
                     }
                 }
             }
@@ -2780,44 +3219,50 @@ private fun CurrentDrillControlPanel(
                             .background(Color(0xFF684BFA))
                     )
                 }
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val actionWidth = minOf(170.dp, (maxWidth - 8.dp) / 2)
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                    ) {
-                        DrillTabletAction(
-                            modifier = Modifier.width(actionWidth),
-                            label = if (paused) "Resume" else "Pause",
-                            icon = if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                            color = Color(0xFFEEEAFE),
-                            tint = Color(0xFF644BEA),
-                            enabled = !isSaving,
-                            onClick = if (paused) onResume else onPause
-                        )
-                        DrillTabletAction(
-                            modifier = Modifier.width(actionWidth),
-                            label = "Complete",
-                            icon = Icons.Outlined.CheckCircle,
-                            color = Color(0xFFE2F5ED),
-                            tint = Color(0xFF159B72),
-                            enabled = !isSaving,
-                            onClick = onComplete
-                        )
-                    }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DrillTabletAction(
+                        modifier = Modifier.weight(1f),
+                        label = if (paused) "Resume" else "Pause",
+                        icon = if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                        color = Color(0xFFEEEAFE),
+                        tint = Color(0xFF644BEA),
+                        enabled = !isSaving,
+                        onClick = if (paused) onResume else onPause
+                    )
+                    DrillTabletAction(
+                        modifier = Modifier.weight(1f),
+                        label = "Complete",
+                        icon = Icons.Outlined.CheckCircle,
+                        color = Color(0xFFE2F5ED),
+                        tint = Color(0xFF159B72),
+                        enabled = !isSaving,
+                        onClick = onComplete
+                    )
+                    DrillTabletAction(
+                        modifier = Modifier.weight(1f),
+                        label = "Observation",
+                        icon = Icons.Outlined.Add,
+                        color = Color(0xFFEAF1FF),
+                        tint = Color(0xFF2F6FE4),
+                        enabled = true,
+                        onClick = onAddObservation
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "Add minutes",
                         modifier = Modifier.weight(1f),
                         color = Color(0xFF27365F),
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         if (addedMinutes == 0) "1–20 min" else "+$addedMinutes min",
                         color = Color(0xFF644BEA),
-                        fontSize = 16.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -2846,8 +3291,8 @@ private fun CurrentDrillControlPanel(
                     shape = RoundedCornerShape(9.dp),
                     minLines = 1,
                     maxLines = 2,
-                    label = { Text("Drill notes", fontSize = 16.sp) },
-                    placeholder = { Text("Add notes about this drill", fontSize = 15.sp) },
+                    label = { Text("Drill notes", fontSize = 17.sp) },
+                    placeholder = { Text("Add notes about this drill", fontSize = 16.sp) },
                     trailingIcon = {
                         IconButton(onClick = {
                             speechError = ""
@@ -2867,14 +3312,14 @@ private fun CurrentDrillControlPanel(
                             Icon(Icons.Outlined.Mic, contentDescription = "Speak drill notes")
                         }
                     },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp)
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp)
                 )
                 if (speechError.isNotBlank()) {
-                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
+                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
                 }
             }
-            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 14.sp)
-            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
+            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 15.sp)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
         }
     }
 }
@@ -2885,7 +3330,8 @@ private fun NextDrillsPanel(
     drills: List<Pair<Int, ExecutionDrill>>,
     activeDrillId: String?,
     isSaving: Boolean,
-    onSelectNext: (ExecutionDrill) -> Unit
+    onSelectNext: (ExecutionDrill) -> Unit,
+    onReopen: (ExecutionDrill) -> Unit
 ) {
     Surface(
         modifier = modifier,
@@ -2897,20 +3343,49 @@ private fun NextDrillsPanel(
             Modifier.fillMaxWidth().padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Session drills (${drills.size})", color = Color(0xFF53617F), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Session drills (${drills.size})", color = Color(0xFF53617F), fontSize = 19.sp, fontWeight = FontWeight.Bold)
             if (drills.isEmpty()) {
-                Text("No drills planned for this session", color = Color(0xFF74809A), fontSize = 16.sp)
+                Text("No drills planned for this session", color = Color(0xFF74809A), fontSize = 17.sp)
             } else {
                 drills.forEach { (number, drill) ->
                     val isCurrent = drill.id == activeDrillId
                     val canStart = !drill.completed && !isCurrent
-                    Surface(
-                        onClick = { if (canStart) onSelectNext(drill) },
-                        enabled = !isSaving && canStart,
-                        shape = RoundedCornerShape(9.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(1.dp, Color(0xFFE8ECF6))
-                    ) {
+                    var holding by remember(drill.id) { mutableStateOf(false) }
+                    val currentDrill by rememberUpdatedState(drill)
+                    val currentOnReopen by rememberUpdatedState(onReopen)
+                    val holdScope = rememberCoroutineScope()
+                    val holdProgress by animateFloatAsState(
+                        targetValue = if (holding) 1f else 0f,
+                        animationSpec = tween(durationMillis = if (holding) ReopenHoldMillis.toInt() else 150, easing = LinearEasing),
+                        label = "reopenHold"
+                    )
+                    val rowModifier = if (drill.completed) {
+                        Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .pointerInput(drill.id, isSaving) {
+                                if (isSaving) return@pointerInput
+                                detectTapGestures(onPress = {
+                                    holding = true
+                                    val timer = holdScope.launch {
+                                        delay(ReopenHoldMillis)
+                                        holding = false
+                                        currentOnReopen(currentDrill)
+                                    }
+                                    tryAwaitRelease()
+                                    timer.cancel()
+                                    holding = false
+                                })
+                            }
+                    } else Modifier
+                    val rowContent: @Composable () -> Unit = {
+                        Box {
+                        if (holdProgress > 0f) {
+                            Box(
+                                Modifier.matchParentSize().drawBehind {
+                                    drawRect(Color(0xFFEDE9FF), size = size.copy(width = size.width * holdProgress))
+                                }
+                            )
+                        }
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2918,27 +3393,28 @@ private fun NextDrillsPanel(
                         ) {
                             Surface(shape = RoundedCornerShape(50), color = Color(0xFFE8E7FF)) {
                                 Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-                                    Text("$number", color = Color(0xFF5342D2), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("$number", color = Color(0xFF5342D2), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(
                                     drill.title,
                                     color = Color(0xFF26324F),
-                                    fontSize = 16.sp,
+                                    fontSize = 17.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 val drillStatus = when {
                                     isCurrent -> "Current drill"
-                                    drill.completed -> "Completed"
+                                    holding -> "Keep holding to reopen…"
+                                    drill.completed -> "Completed · hold 3s to reopen"
                                     else -> "${drill.plannedMinutes} min"
                                 }
                                 Text(
                                     drillStatus,
                                     color = if (drill.completed) Color(0xFF25835D) else Color(0xFF74809A),
-                                    fontSize = 14.sp
+                                    fontSize = 15.sp
                                 )
                             }
                             when {
@@ -2948,7 +3424,7 @@ private fun NextDrillsPanel(
                                     tint = Color(0xFF25835D),
                                     modifier = Modifier.size(20.dp)
                                 )
-                                isCurrent -> Text("Now", color = Color(0xFF644BEA), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                isCurrent -> Text("Now", color = Color(0xFF644BEA), fontSize = 15.sp, fontWeight = FontWeight.Bold)
                                 else -> Icon(
                                     Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                                     contentDescription = "Start ${drill.title}",
@@ -2957,12 +3433,34 @@ private fun NextDrillsPanel(
                                 )
                             }
                         }
+                        }
+                    }
+                    val rowBorder = BorderStroke(1.dp, if (holding) Color(0xFF644BEA) else Color(0xFFE8ECF6))
+                    if (canStart) {
+                        Surface(
+                            onClick = { onSelectNext(drill) },
+                            enabled = !isSaving,
+                            shape = RoundedCornerShape(9.dp),
+                            color = Color.Transparent,
+                            border = rowBorder,
+                            content = rowContent
+                        )
+                    } else {
+                        Surface(
+                            modifier = rowModifier,
+                            shape = RoundedCornerShape(9.dp),
+                            color = Color.Transparent,
+                            border = rowBorder,
+                            content = rowContent
+                        )
                     }
                 }
             }
         }
     }
 }
+
+private const val ReopenHoldMillis = 3000L
 
 @Composable
 private fun DrillTabletAction(
@@ -2991,7 +3489,7 @@ private fun DrillTabletAction(
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(label, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = tint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -3008,20 +3506,20 @@ private fun QuickCaptureTile(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(68.dp),
         shape = RoundedCornerShape(14.dp),
         color = background.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, tint.copy(alpha = 0.08f))
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(title, color = tint, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(subtitle, color = Color(0xFF72809E), fontSize = 11.sp, maxLines = 1)
+                Text(title, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle, color = Color(0xFF72809E), fontSize = 14.sp, maxLines = 1)
             }
         }
     }
@@ -3039,15 +3537,15 @@ private fun SessionOutlineAction(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(40.dp),
+        modifier = modifier.height(52.dp),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, tint.copy(alpha = 0.7f)),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = tint),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(6.dp))
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -3072,23 +3570,23 @@ private fun RecentObservationsPane(
                     "Recent observations",
                     modifier = Modifier.weight(1f),
                     color = Color(0xFF18204A),
-                    fontSize = 16.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold
                 )
                 TextButton(onClick = onViewAll) {
-                    Text("View all ›", color = Color(0xFF6349E8), fontSize = 12.sp)
+                    Text("View all ›", color = Color(0xFF6349E8), fontSize = 15.sp)
                 }
             }
             if (loadError.isNotBlank()) {
-                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                TextButton(onClick = onReload) { Text("Retry", fontSize = 13.sp) }
+                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+                TextButton(onClick = onReload) { Text("Retry", fontSize = 16.sp) }
             } else if (observations.isEmpty()) {
-                Text("No observations yet.", color = CoachMuted, fontSize = 13.sp)
+                Text("No observations yet.", color = CoachMuted, fontSize = 16.sp)
                 OutlinedButton(
                     onClick = onAdd,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
-                ) { Text("Add observation", fontSize = 13.sp) }
+                ) { Text("Add observation", fontSize = 16.sp) }
             } else {
                 observations.take(3).forEachIndexed { index, observation ->
                     ObservationListRow(observation)
@@ -3105,14 +3603,14 @@ private fun AllSessionObservationsCard(
     loadError: String,
     onReload: () -> Unit
 ) {
-    CoachCard {
+    Column(Modifier.padding(horizontal = 4.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("All observations", color = CoachInk, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("All observations", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
             if (loadError.isNotBlank()) {
-                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
                 TextButton(onClick = onReload) { Text("Retry") }
             } else if (observations.isEmpty()) {
-                Text("No observations recorded for this session.", color = CoachMuted, fontSize = 12.sp)
+                Text("No observations recorded for this session.", color = CoachMuted, fontSize = 15.sp)
             } else {
                 observations.forEachIndexed { index, observation ->
                     ObservationListRow(observation)
@@ -3146,32 +3644,611 @@ private fun ObservationListRow(observation: SessionObservation) {
         else -> Color(0xFF5C47CF)
     }
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(formatObservationClock(observation.createdAt), color = Color(0xFF8791A8), fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+        Text(formatObservationClock(observation.createdAt), color = Color(0xFF8791A8), fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
         Surface(shape = RoundedCornerShape(50), color = avatarColor, modifier = Modifier.size(30.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                Text(initials, color = categoryColor, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text(initials, color = categoryColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Surface(shape = RoundedCornerShape(20.dp), color = categoryColor.copy(alpha = 0.1f), modifier = Modifier.align(Alignment.Start)) {
-                Text(
-                    observation.category.lowercase().replaceFirstChar(Char::uppercase),
-                    color = categoryColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(20.dp), color = categoryColor.copy(alpha = 0.1f)) {
+                    Text(
+                        observation.category.lowercase().replaceFirstChar(Char::uppercase),
+                        color = categoryColor,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
+                }
+                observation.drillTitle?.takeIf(String::isNotBlank)?.let { drill ->
+                    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFF1F3F8)) {
+                        Text(
+                            drill,
+                            color = Color(0xFF52607F),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }
             }
             Text(
                 observation.text,
                 color = Color(0xFF52607F),
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
+                fontSize = 15.sp,
+                lineHeight = 19.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
         }
         Icon(Icons.Outlined.MoreVert, contentDescription = "Observation options", tint = Color(0xFF7E89A2), modifier = Modifier.size(18.dp).padding(top = 3.dp))
+    }
+}
+
+@Composable
+private fun QuickNotePanel(
+    kind: String,
+    text: String,
+    saving: Boolean,
+    saveError: String,
+    drillTitle: String?,
+    onTextChange: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    data class NoteStyle(val title: String, val prompt: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val tint: Color, val background: Color)
+    val style = when (kind) {
+        "CHALLENGE" -> NoteStyle("Challenge", "What was difficult or didn't work?", Icons.Outlined.Warning, Color(0xFFE84A54), Color(0xFFFFF0F0))
+        "ADJUSTMENT" -> NoteStyle("Adjustment", "What would you change next time?", Icons.Outlined.Lightbulb, Color(0xFFE28A18), Color(0xFFFFF6E6))
+        else -> NoteStyle("Went well", "What worked well in this session?", Icons.Outlined.Star, Color(0xFF159B72), Color(0xFFE9F8F1))
+    }
+    val currentText by rememberUpdatedState(text)
+    var speechError by remember { mutableStateOf("") }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                onTextChange(listOf(currentText.trim(), spoken).filter(String::isNotBlank).joinToString("\n"))
+                speechError = ""
+            } else speechError = "No speech was recognized. Try again."
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, Color(0xFFE6E9F4))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = RoundedCornerShape(12.dp), color = style.background) {
+                    Icon(style.icon, contentDescription = null, tint = style.tint, modifier = Modifier.padding(10.dp).size(26.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(style.title, color = style.tint, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        drillTitle?.let { "${style.prompt}  ·  $it" } ?: style.prompt,
+                        color = CoachMuted,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close ${style.title} note", tint = CoachInk, modifier = Modifier.size(24.dp))
+                }
+            }
+            OutlinedTextField(
+                value = text,
+                onValueChange = onTextChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 6,
+                shape = RoundedCornerShape(12.dp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, color = CoachInk),
+                placeholder = { Text(style.prompt, fontSize = 17.sp) },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your ${style.title.lowercase()} note")
+                        }
+                        try {
+                            speechLauncher.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            speechError = "Speech recognition is not available on this device."
+                        }
+                    }) {
+                        Icon(Icons.Outlined.Mic, contentDescription = "Speak ${style.title} note", tint = style.tint)
+                    }
+                }
+            )
+            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            when {
+                saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                saving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                text.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
+                    Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = 14.sp)
+                }
+                else -> Text("Notes save automatically as you type.", color = CoachMuted, fontSize = 14.sp)
+            }
+        }
+    }
+}
+
+private val IncidentCategories = listOf("Injury", "Weather", "Equipment", "Behaviour", "Facility", "Other")
+
+@Composable
+private fun IncidentEntryPanel(
+    incidents: List<ExecutionIncident>,
+    saving: Boolean,
+    saveError: String,
+    drillTitle: String?,
+    onAdd: (String, String) -> Unit,
+    onRemove: (ExecutionIncident) -> Unit,
+    onClose: () -> Unit
+) {
+    val tint = Color(0xFFE28A18)
+    var category by remember { mutableStateOf("Injury") }
+    var note by remember { mutableStateOf("") }
+    val currentNote by rememberUpdatedState(note)
+    var speechError by remember { mutableStateOf("") }
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                note = listOf(currentNote.trim(), spoken).filter(String::isNotBlank).joinToString(" ")
+                speechError = ""
+            } else speechError = "No speech was recognized. Try again."
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, Color(0xFFE6E9F4))
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFFFF6E6)) {
+                    Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(26.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Incident", color = tint, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        drillTitle?.let { "What happened?  ·  $it" } ?: "What happened?",
+                        color = CoachMuted,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Close incident", tint = CoachInk, modifier = Modifier.size(24.dp))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                IncidentCategories.forEach { option ->
+                    val selected = option == category
+                    Text(
+                        option,
+                        color = if (selected) Color.White else CoachInk,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(if (selected) tint else Color(0xFFF3F5FA))
+                            .clickable { category = option }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+                shape = RoundedCornerShape(12.dp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, color = CoachInk),
+                placeholder = { Text("Describe the incident", fontSize = 17.sp) },
+                trailingIcon = {
+                    IconButton(onClick = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe the incident")
+                        }
+                        try {
+                            speechLauncher.launch(intent)
+                        } catch (_: ActivityNotFoundException) {
+                            speechError = "Speech recognition is not available on this device."
+                        }
+                    }) {
+                        Icon(Icons.Outlined.Mic, contentDescription = "Speak incident", tint = tint)
+                    }
+                }
+            )
+            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    when {
+                        saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                        saving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                        incidents.isNotEmpty() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
+                            Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = 14.sp)
+                        }
+                    }
+                }
+                Button(
+                    onClick = {
+                        onAdd(category, note)
+                        note = ""
+                    },
+                    enabled = note.isNotBlank(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = tint)
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Log incident", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            if (incidents.isNotEmpty()) {
+                HorizontalDivider(color = Color(0xFFE8ECF6))
+                Text("Logged this session", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                incidents.asReversed().forEach { incident ->
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(formatObservationClock(incident.time), color = Color(0xFF8791A8), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(
+                            incident.category,
+                            color = tint,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(tint.copy(alpha = 0.1f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                        Text(incident.note, color = Color(0xFF52607F), fontSize = 15.sp, modifier = Modifier.weight(1f).padding(top = 3.dp))
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = "Remove incident",
+                            tint = Color(0xFF7E89A2),
+                            modifier = Modifier.size(22.dp).clickable { onRemove(incident) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val ObservationTypes = listOf(
+    Triple("TECHNIQUE", "Technique", Icons.Outlined.SportsCricket),
+    Triple("TACTICAL", "Tactical", Icons.Outlined.Insights),
+    Triple("PHYSICAL", "Physical", Icons.Outlined.FitnessCenter),
+    Triple("BEHAVIOUR", "Behaviour", Icons.Outlined.EmojiPeople),
+    Triple("PROGRESS", "Progress", Icons.Outlined.TrendingUp),
+    Triple("SAFETY", "Safety", Icons.Outlined.HealthAndSafety)
+)
+
+private const val ObservationListenSeconds = 30
+
+@Composable
+private fun ObservationEntryPanel(
+    players: List<ClubMember>,
+    observationScope: String,
+    observationCategory: String,
+    observationPlayerId: String?,
+    observationText: String,
+    observationSaving: Boolean,
+    observationError: String,
+    observationSavedAt: String,
+    activeDrillTitle: String?,
+    onClose: () -> Unit,
+    onScopeChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onPlayerChange: (String?) -> Unit,
+    onTextChange: (String) -> Unit,
+    onRetry: () -> Unit
+) {
+    val accent = Color(0xFF5B3FE4)
+    val divider = Color(0xFFE6E9F4)
+    val fallbackScope = remember { if (observationScope == "INDIVIDUAL") "SQUAD" else observationScope }
+    val context = LocalContext.current
+    val currentText by rememberUpdatedState(observationText)
+    val currentOnTextChange by rememberUpdatedState(onTextChange)
+    var listening by remember { mutableStateOf(false) }
+    var remainingSeconds by remember { mutableIntStateOf(ObservationListenSeconds) }
+    var speechLevel by remember { mutableStateOf(0f) }
+    var speechError by remember { mutableStateOf("") }
+    var dictationBase by remember { mutableStateOf("") }
+    val recognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context) else null
+    }
+    val recognizerIntent = remember {
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+    }
+    fun joinDictation(base: String, spoken: String) =
+        listOf(base.trim(), spoken.trim()).filter(String::isNotBlank).joinToString(" ")
+
+    fun startListening() {
+        if (recognizer == null) {
+            speechError = "Speech recognition is not available on this device."
+            return
+        }
+        speechError = ""
+        dictationBase = currentText
+        remainingSeconds = ObservationListenSeconds
+        listening = true
+        recognizer.startListening(recognizerIntent)
+    }
+
+    fun stopListening() {
+        listening = false
+        speechLevel = 0f
+        recognizer?.stopListening()
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startListening() else speechError = "Microphone permission is needed for voice notes."
+    }
+
+    DisposableEffect(recognizer) {
+        recognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {
+                speechLevel = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+            }
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                if (!listening) return
+                val recoverable = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                if (recoverable && remainingSeconds > 0) {
+                    recognizer.startListening(recognizerIntent)
+                } else {
+                    listening = false
+                    speechLevel = 0f
+                    if (!recoverable) speechError = "Voice input stopped. Tap to try again."
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                dictationBase = joinDictation(dictationBase, spoken)
+                currentOnTextChange(dictationBase)
+                if (listening && remainingSeconds > 0) recognizer.startListening(recognizerIntent)
+                else {
+                    listening = false
+                    speechLevel = 0f
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                if (partial.isNotBlank()) currentOnTextChange(joinDictation(dictationBase, partial))
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        onDispose { recognizer?.destroy() }
+    }
+
+    LaunchedEffect(listening) {
+        while (listening && remainingSeconds > 0) {
+            delay(1000)
+            remainingSeconds--
+        }
+        if (listening) stopListening()
+    }
+
+    fun toggleListening() {
+        if (listening) {
+            stopListening()
+        } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startListening()
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, divider)
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val isTablet = maxWidth >= 600.dp
+            val playersList: @Composable (Modifier) -> Unit = { modifier ->
+                Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Players", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+                    if (players.isEmpty()) {
+                        Text("No players are assigned to this session.", color = CoachMuted, fontSize = 14.sp)
+                    }
+                    players.forEach { player ->
+                        val selected = observationScope == "INDIVIDUAL" && observationPlayerId == player.id
+                        Surface(
+                            onClick = {
+                                if (selected) {
+                                    onPlayerChange(null)
+                                    onScopeChange(fallbackScope)
+                                } else {
+                                    onScopeChange("INDIVIDUAL")
+                                    onPlayerChange(player.id)
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) Color(0xFFEEEBFF) else Color.Transparent
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                val initials = player.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2)
+                                    .mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
+                                Surface(shape = RoundedCornerShape(50), color = Color(0xFFE5EFFF), modifier = Modifier.size(38.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(initials, color = Color(0xFF3F5BA8), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
+                                }
+                                Text(
+                                    player.name,
+                                    color = if (selected) accent else CoachInk,
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            val entryColumn: @Composable (Modifier) -> Unit = { modifier ->
+                Column(modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Observation type", modifier = Modifier.weight(1f), color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        IconButton(onClick = {
+                            if (listening) stopListening()
+                            onClose()
+                        }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close observation", tint = CoachInk, modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    ObservationTypes.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { (value, label, icon) ->
+                                val selected = observationCategory == value
+                                Surface(
+                                    onClick = { onCategoryChange(value) },
+                                    modifier = Modifier.weight(1f).height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) accent else Color.White,
+                                    border = BorderStroke(1.dp, if (selected) accent else divider)
+                                ) {
+                                    Row(
+                                        Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(icon, contentDescription = null, tint = if (selected) Color.White else Color(0xFF59647A), modifier = Modifier.size(20.dp))
+                                        Text(
+                                            label,
+                                            color = if (selected) Color.White else Color(0xFF3B4560),
+                                            fontSize = 15.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Surface(
+                        onClick = { toggleListening() },
+                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFF4F2FE)
+                    ) {
+                        Box(Modifier.fillMaxSize()) {
+                            Text(
+                                "%d:%02d".format(remainingSeconds / 60, remainingSeconds % 60),
+                                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                                color = CoachMuted,
+                                fontSize = 14.sp
+                            )
+                            Column(
+                                Modifier.align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                if (listening) {
+                                    ObservationWaveform(level = speechLevel, color = accent)
+                                } else {
+                                    Icon(Icons.Outlined.Mic, contentDescription = null, tint = accent, modifier = Modifier.size(40.dp))
+                                }
+                                Text(
+                                    if (listening) "Listening…" else "Tap to speak",
+                                    color = accent,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                    if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = observationText,
+                        onValueChange = onTextChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = CoachInk),
+                        placeholder = { Text("What did you notice?", fontSize = 16.sp) }
+                    )
+                    when {
+                        observationScope == "INDIVIDUAL" && observationPlayerId == null ->
+                            Text("Choose a player to save this observation.", color = CoachMuted, fontSize = 14.sp)
+                        observationSaving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                        observationError.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(observationError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                            TextButton(onClick = onRetry) { Text("Retry", fontSize = 14.sp) }
+                        }
+                        observationSavedAt.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
+                            Text(
+                                listOfNotNull("Saved", formatObservationClock(observationSavedAt).ifBlank { null }, activeDrillTitle).joinToString("  ·  "),
+                                color = Color(0xFF4F5B78),
+                                fontSize = 14.sp
+                            )
+                        }
+                        observationText.isNotBlank() -> Text("Saving automatically…", color = CoachMuted, fontSize = 14.sp)
+                    }
+                }
+            }
+            if (isTablet) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+                    playersList(Modifier.weight(0.34f).padding(horizontal = 14.dp))
+                    entryColumn(
+                        Modifier.weight(0.66f)
+                            .drawBehind {
+                                drawLine(divider, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 1.dp.toPx())
+                            }
+                            .padding(horizontal = 18.dp)
+                    )
+                }
+            } else {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    entryColumn(Modifier.fillMaxWidth())
+                    HorizontalDivider(color = divider)
+                    playersList(Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ObservationWaveform(level: Float, color: Color) {
+    val pattern = listOf(0.35f, 0.6f, 0.85f, 1f, 0.7f, 0.95f, 0.55f, 0.8f, 0.4f)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        pattern.forEach { factor ->
+            Box(
+                Modifier
+                    .width(5.dp)
+                    .height((10f + 34f * factor * (0.35f + 0.65f * level)).dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(color)
+            )
+        }
     }
 }
 

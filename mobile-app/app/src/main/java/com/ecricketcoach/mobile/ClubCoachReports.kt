@@ -190,8 +190,14 @@ data class SessionReportSection(
     val tableRows: List<List<String>>? = null,
     val columnWeights: List<Float>? = null,
     /** Renders the heading as a small grey label without a rule (used by the assessment report). */
-    val compactHeading: Boolean = false
+    val compactHeading: Boolean = false,
+    /** When set, rendered instead of [lines] with per-line styling. */
+    val styledLines: List<ReportLine>? = null
 )
+
+enum class ReportLineStyle { LABEL, ITALIC_LABEL, UNDERLINED, BODY, BULLET }
+
+data class ReportLine(val text: String, val style: ReportLineStyle = ReportLineStyle.BODY)
 
 private fun wrapLine(paint: Paint, text: String, maxWidth: Float): List<String> {
     if (text.isBlank()) return listOf("")
@@ -334,6 +340,12 @@ private fun renderSessionReportPdf(
     val tableRowAltPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportRowAlt; style = Paint.Style.FILL }
     val tableCellPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; textSize = 10f }
     val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; textSize = 11f }
+    val italicLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = ReportTextLabel
+        textSize = 11f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
+    }
+    val underlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextDark; strokeWidth = 0.6f }
     val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ReportTextGray; textSize = 9f }
 
     var pageNumber = 1
@@ -460,6 +472,39 @@ private fun renderSessionReportPdf(
         if (section.compactHeading) drawCompactHeading(section.heading) else drawSectionHeading(section.heading)
         if (section.tableHeaders != null) {
             drawTable(section.tableHeaders, section.tableRows.orEmpty(), section.columnWeights)
+        } else if (section.styledLines != null) {
+            section.styledLines.forEach { line ->
+                when (line.style) {
+                    ReportLineStyle.LABEL, ReportLineStyle.ITALIC_LABEL -> {
+                        val paint = if (line.style == ReportLineStyle.LABEL) labelPaint else italicLabelPaint
+                        ensureSpace(15f)
+                        canvas.drawText(line.text, marginX, y, paint)
+                        y += 14f
+                    }
+                    ReportLineStyle.UNDERLINED -> {
+                        wrapLine(bodyPaint, line.text, contentWidth).forEach { wrapped ->
+                            ensureSpace(17f)
+                            canvas.drawText(wrapped, marginX, y, bodyPaint)
+                            canvas.drawLine(marginX, y + 3f, marginX + bodyPaint.measureText(wrapped), y + 3f, underlinePaint)
+                            y += 17f
+                        }
+                    }
+                    ReportLineStyle.BULLET -> {
+                        val indent = 12f
+                        wrapLine(bodyPaint, line.text, contentWidth - indent).forEachIndexed { index, wrapped ->
+                            ensureSpace(15f)
+                            if (index == 0) canvas.drawText("•", marginX + 2f, y, bodyPaint)
+                            canvas.drawText(wrapped, marginX + indent, y, bodyPaint)
+                            y += 15f
+                        }
+                    }
+                    ReportLineStyle.BODY -> wrapLine(bodyPaint, line.text, contentWidth).forEach { wrapped ->
+                        ensureSpace(15f)
+                        canvas.drawText(wrapped, marginX, y, bodyPaint)
+                        y += 15f
+                    }
+                }
+            }
         } else if (section.lines.isEmpty()) {
             ensureSpace(15f)
             canvas.drawText("-  None", marginX, y, bodyPaint)

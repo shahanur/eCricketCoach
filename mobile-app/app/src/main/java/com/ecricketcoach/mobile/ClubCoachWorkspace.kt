@@ -882,9 +882,18 @@ internal fun ClubCoachWorkspace(
                     onToggleTheme,
                     onSignOut,
                     activeSession = executingSession,
-                    activeSessionPageTitle = if (executionCoachPage == "DRILL") "Drill controls" else null,
+                    activeSessionPageTitle = when (executionCoachPage) {
+                        "DRILL" -> "Drill controls"
+                        "OBSERVATION" -> "New observation"
+                        "OBSERVATIONS" -> "Observations"
+                        "WENT_WELL" -> "Went well"
+                        "CHALLENGE" -> "Challenge"
+                        "ADJUSTMENT" -> "Adjustment"
+                        "INCIDENT" -> "Incident"
+                        else -> null
+                    },
                     onSessionBack = {
-                        if (executionCoachPage == "DRILL") {
+                        if (executionCoachPage in setOf("DRILL", "OBSERVATION", "OBSERVATIONS", "WENT_WELL", "CHALLENGE", "ADJUSTMENT", "INCIDENT")) {
                             executionCoachPage = "LIVE"
                         } else {
                             executingSession = null
@@ -1059,9 +1068,16 @@ internal fun ClubCoachWorkspace(
                                     .put("complete", complete)
                                 val updated = api.saveSessionExecution(token, activeExecution.id, update)
                                 sessions = sessions.map { if (it.id == updated.id) updated else it }
-                                executingSession = if (complete) null else updated
-                                refresh()
-                                if (complete) notice = "Session completed and saved."
+                                executingSession = when {
+                                    complete -> null
+                                    executingSession?.id == updated.id -> updated
+                                    else -> executingSession
+                                }
+                                if (complete) executionCoachPage = "LIVE"
+                                if (complete) {
+                                    refresh()
+                                    notice = "Session completed and saved."
+                                }
                             } catch (failure: IOException) {
                                 try {
                                     val mutation = OfflineMutation(
@@ -1080,6 +1096,7 @@ internal fun ClubCoachWorkspace(
                                     store.enqueueMutation(mutation)
                                     reloadQueue()
                                     executingSession = null
+                                    executionCoachPage = "LIVE"
                                     notice = if (complete) {
                                         "Completion is queued on this device. The session is not delivered until the server confirms synchronization."
                                     } else {
@@ -1276,6 +1293,13 @@ internal fun ClubCoachWorkspace(
                         executionError = ""
                         try {
                             executingSession = api.getCoachSessionExecution(token, session.id)
+                            sessionObservations = emptyList()
+                            sessionObservationsError = ""
+                            try {
+                                sessionObservations = api.getSessionObservations(token, session.id)
+                            } catch (failure: Exception) {
+                                sessionObservationsError = failure.message ?: "Unable to load session observations."
+                            }
                         } catch (failure: Exception) {
                             error = failure.message ?: "Unable to load this completed session."
                         }
@@ -3580,19 +3604,9 @@ private fun SessionCard(
     var safetyExpanded by remember(session.id) { mutableStateOf(false) }
     val statusColor = sessionStatusColor(session)
     val thumbnailDrill = allDrills.firstOrNull { drill -> drill.id in session.drillIds && !drill.imageUrl.isNullOrBlank() }
-    val executionDrillLog = session.executionLog?.optJSONArray("drillLog")
-    val plannedDrillTitles = if (executionDrillLog != null) {
-        (0 until executionDrillLog.length()).map { index ->
-            val row = executionDrillLog.getJSONObject(index)
-            val drillId = row.optString("drillId").takeIf { it.isNotBlank() && it != "null" }
-            row.optString("title").takeIf(String::isNotBlank)
-                ?: allDrills.firstOrNull { it.id == drillId }?.title
-                ?: "Planned drill"
-        }
-    } else {
-        session.drillIds.distinct().map { drillId ->
-            allDrills.firstOrNull { it.id == drillId }?.title ?: "Unknown Drill"
-        } + "Cool-down and debrief"
+    val plannedDrillIds = session.drillIds.distinct()
+    val plannedDrillTitles = plannedDrillIds.map { drillId ->
+        allDrills.firstOrNull { it.id == drillId }?.title ?: "Unknown Drill"
     }
     Card(
         modifier = modifier,
@@ -3683,7 +3697,7 @@ private fun SessionCard(
             val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${plannedDrillTitles.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("${plannedDrillIds.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
@@ -3693,7 +3707,7 @@ private fun SessionCard(
                         SessionIconAction(Icons.Outlined.Delete, "Delete", onDelete, danger = true)
                     }
                     if (canManage && !session.isPublished && !session.isExecuted) SessionIconAction(Icons.Outlined.Publish, "Publish", { onPublish(session) })
-                    if (canCoachSessions && session.isAssignedTo(userId) && !session.isExecuted) SessionIconAction(Icons.Outlined.PlayArrow, "Run", { onExecute(session) })
+                    if (canCoachSessions && session.isAssignedTo(userId) && session.isPublished && !session.isExecuted) SessionIconAction(Icons.Outlined.PlayArrow, "Run", { onExecute(session) })
                     if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) SessionIconAction(Icons.Outlined.Visibility, "Review", { onReview(session) })
                 }
             }
