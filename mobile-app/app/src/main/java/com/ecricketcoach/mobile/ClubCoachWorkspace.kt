@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -3967,10 +3968,13 @@ private fun AssessmentsPanel(
             title = { Text("Delete assessment?") },
             text = { Text("Permanently delete '${assessment.title}' for ${assessment.playerName}? This cannot be undone.") },
             confirmButton = {
-                Button(onClick = {
-                    deleteTarget = null
-                    onDelete(assessment)
-                }) { Text("Delete assessment") }
+                Button(
+                    onClick = {
+                        deleteTarget = null
+                        onDelete(assessment)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                ) { Text("Delete assessment") }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep assessment") } }
         )
@@ -4031,7 +4035,7 @@ private fun AssessmentCard(
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(text = { Text("Edit") }, leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) }, onClick = { menuOpen = false; onEdit(assessment) })
-                        if (assessment.status == "SCHEDULED") DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; onDelete() })
+                        DropdownMenuItem(text = { Text("Delete") }, leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }, onClick = { menuOpen = false; onDelete() })
                     }
                 }
             }
@@ -4043,6 +4047,7 @@ private fun AssessmentCard(
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.End)) {
+                AssessmentActionButton("Delete", Icons.Outlined.Delete, Color(0xFFDC2626), onClick = onDelete)
                 AssessmentActionButton("Edit", Icons.Outlined.Edit, Color(0xFF2679F4), onClick = { onEdit(assessment) })
                 when (assessment.status) {
                     "SCHEDULED" -> AssessmentActionButton("Start", Icons.Outlined.PlayArrow, Color(0xFF7541E8), onClick = { onStart(assessment) }, primary = true)
@@ -4103,9 +4108,7 @@ private fun EditAssessmentPanel(
                     if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
-                        if (assessment.status == "SCHEDULED") {
-                            WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
-                        }
+                        WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
                         WorkspaceAction(
                             "Save",
                             Icons.Outlined.CheckCircle,
@@ -4124,7 +4127,10 @@ private fun EditAssessmentPanel(
             title = { Text("Delete assessment?") },
             text = { Text("Permanently delete '${assessment.title}' for ${assessment.playerName}? This cannot be undone.") },
             confirmButton = {
-                Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete assessment") }
+                Button(
+                    onClick = { deleteConfirm = false; onDelete() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                ) { Text("Delete assessment") }
             },
             dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep assessment") } }
         )

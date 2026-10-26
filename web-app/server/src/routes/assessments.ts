@@ -337,10 +337,6 @@ assessmentRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response)
       res.status(404).json({ error: 'Assessment not found.' });
       return;
     }
-    if (assessment.status !== 'SCHEDULED') {
-      res.status(409).json({ error: 'Only scheduled assessments can be deleted.' });
-      return;
-    }
     await prisma.playerAssessment.delete({ where: { id: assessment.id } });
     res.json({ success: true });
   } catch (error) {
