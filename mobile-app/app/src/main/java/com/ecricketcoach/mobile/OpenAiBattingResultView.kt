@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Refresh
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -825,6 +827,26 @@ internal fun PastBattingReviews(
     var error by remember(playerId) { mutableStateOf("") }
     var refresh by remember(playerId) { mutableIntStateOf(0) }
     var showAll by remember(playerId) { mutableStateOf(false) }
+    var downloadingId by remember(playerId) { mutableStateOf<String?>(null) }
+    var pdfError by remember(playerId) { mutableStateOf("") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val downloadPdf: (String) -> Unit = { reportId ->
+        downloadingId = reportId
+        pdfError = ""
+        scope.launch {
+            try {
+                val file = downloadBattingReviewPdf(context, api, token, reportId, playerName)
+                openClubExport(context, file, "application/pdf", "Open batting review PDF")
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                pdfError = failure.message ?: "The PDF report could not be prepared."
+            } finally {
+                downloadingId = null
+            }
+        }
+    }
 
     LaunchedEffect(playerId, refresh, activeReportId) {
         loading = true
@@ -870,7 +892,15 @@ internal fun PastBattingReviews(
                     visible.chunked(columns).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             row.forEach { report ->
-                                PastReviewRow(report, report.reportId == activeReportId, busy, Modifier.weight(1f)) {
+                                PastReviewRow(
+                                    report,
+                                    report.reportId == activeReportId,
+                                    busy,
+                                    downloading = downloadingId == report.reportId,
+                                    downloadEnabled = downloadingId == null,
+                                    onDownload = { downloadPdf(report.reportId) },
+                                    modifier = Modifier.weight(1f)
+                                ) {
                                     onOpen(report.reportId)
                                 }
                             }
@@ -882,6 +912,7 @@ internal fun PastBattingReviews(
                             Text(if (showAll) "Show fewer" else "Show all ${reports.size}", fontSize = 12.sp)
                         }
                     }
+                    if (pdfError.isNotBlank()) Text(pdfError, fontSize = 12.sp, color = Rose.tone())
                 }
             }
         }
@@ -894,6 +925,9 @@ private fun PastReviewRow(
     report: OpenAiBattingReportSummary,
     active: Boolean,
     busy: Boolean,
+    downloading: Boolean,
+    downloadEnabled: Boolean,
+    onDownload: () -> Unit,
     modifier: Modifier,
     onClick: () -> Unit
 ) {
@@ -948,7 +982,31 @@ private fun PastReviewRow(
                     )
                 }
             }
-            if (active) Pill("Showing", Violet)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (active) Pill("Showing", Violet)
+                Surface(
+                    onClick = onDownload,
+                    enabled = downloadEnabled,
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, Violet.tone().copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (downloading) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Violet.tone())
+                        else Icon(Icons.Outlined.Download, contentDescription = null, tint = Violet.tone(), modifier = Modifier.size(14.dp))
+                        Text(
+                            if (downloading) "Preparing" else "PDF",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Violet.tone().copy(alpha = if (downloadEnabled || downloading) 1f else 0.5f)
+                        )
+                    }
+                }
+            }
         }
     }
 }

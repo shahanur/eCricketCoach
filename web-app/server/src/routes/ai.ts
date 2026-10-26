@@ -13,6 +13,7 @@ import { prisma } from '../config/prisma.js';
 import { analyzeBattingVideoWithOpenAI, OpenAiBattingAnalysis, OpenAiBattingAnalysisError } from '../services/openAiBattingAnalysisService.js';
 import { createAndPersistBattingReport, isBattingReportArtifactName, persistBattingCoachReview, persistOpenAiPoseOverlay, StoredReportArtifact } from '../services/openAiBattingReportArtifacts.js';
 import { analyzeVideoKineticsWithCape } from '../services/openAiCapeKinetics.js';
+import { buildBattingReportPdf } from '../services/assessmentReportPdf.js';
 
 export const aiRouter = Router();
 
@@ -550,6 +551,36 @@ aiRouter.post(
       }
       console.error('OpenAI batting video analysis failed:', error);
       return res.status(502).json({ error: 'openai_analysis_failed', message: 'The batting video could not be analysed. Please try again.' });
+    }
+  }
+);
+
+// Server-rendered movement and technique PDF for a saved batting review, shared by the web and mobile apps.
+aiRouter.get(
+  '/analyze/openai-batting/:reportId/report.pdf',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const reportId = req.params.reportId;
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(404).json({ error: 'report_not_found' });
+    try {
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: req.user!.tenantId },
+        select: { id: true, playerId: true, playerName: true, createdAt: true, analysis: true, artifacts: true }
+      });
+      if (!report || !report.playerId) return res.status(404).json({ error: 'report_not_found' });
+      const player = await resolveBattingReportPlayer(req, res, report.playerId);
+      if (!player) return;
+      const playerName = report.playerName || 'Player';
+      const pdf = await buildBattingReportPdf(report, playerName, report.createdAt);
+      const safePlayerName = playerName.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'player';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="ecricketcoach-movement-technique-${safePlayerName}-${report.createdAt.toISOString().slice(0, 10)}.pdf"`);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(pdf);
+    } catch (error) {
+      console.error('OpenAI batting report PDF failed:', error);
+      return res.status(500).json({ error: 'report_pdf_failed', message: 'The PDF report could not be prepared.' });
     }
   }
 );

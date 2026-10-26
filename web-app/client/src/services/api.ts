@@ -431,6 +431,15 @@ export const api = {
     return { blob: await res.blob(), fileName };
   },
 
+  // Server-rendered movement and technique PDF for a saved batting review, shared with the mobile app.
+  async downloadOpenAiBattingReportPdf(reportId: string): Promise<{ blob: Blob; fileName: string }> {
+    const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/${encodeURIComponent(reportId)}/report.pdf`, { headers: bearerHeader() });
+    if (!res.ok) throw await responseError(res, 'The PDF report could not be prepared.');
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const fileName = disposition.match(/filename="?([^";]+)"?/)?.[1] || `movement-technique-${reportId}.pdf`;
+    return { blob: await res.blob(), fileName };
+  },
+
   // Server-built report shared with the mobile app; batting assessments include the linked video review with images.
   async downloadPlayerAssessmentReport(assessmentId: string): Promise<{ blob: Blob; fileName: string }> {
     const res = await fetch(`${API_BASE}/club/assessments/${encodeURIComponent(assessmentId)}/report.pdf`, { headers: bearerHeader() });

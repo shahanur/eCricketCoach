@@ -261,6 +261,16 @@ suspend fun downloadAssessmentReportPdf(context: Context, api: CoachApi, token: 
     }
 }
 
+/** Downloads the server-built PDF for a saved batting video review. */
+suspend fun downloadBattingReviewPdf(context: Context, api: CoachApi, token: String, reportId: String, playerName: String): File {
+    val bytes = api.downloadOpenAiBattingReportPdf(token, reportId)
+    return withContext(Dispatchers.IO) {
+        val safeName = "movement-technique-$playerName"
+            .replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifBlank { "movement-technique" }
+        File(exportDirectory(context), "$safeName-${reportId.take(8)}.pdf").apply { writeBytes(bytes) }
+    }
+}
+
 /** Lays out the session report once; pass [totalPages] on the second pass to print "Page X of Y" footers. */
 private fun renderSessionReportPdf(
     title: String,

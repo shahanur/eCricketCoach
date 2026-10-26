@@ -15,7 +15,6 @@ import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
 import { TrainingTemplatePicker } from '../common/TrainingTemplatePicker';
 import { readDrillImage } from '../../utils/drillImage';
-import { downloadBattingTechniquePdf } from '../../utils/battingTechniquePdf';
 
 const SHOW_AIHUB = false;
 const SHOW_BIOMECHANICAL_AI_BUTTON = false;
@@ -3706,10 +3705,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                             setDownloadingHistoryPdfId(entry.reportId);
                             setHistoryPdfError(null);
                             try {
-                              const report = await api.getLatestOpenAiBattingAnalysis(selectedAnalysisPlayer, entry.reportId);
-                              if (!report) throw new Error('The selected saved analysis could not be loaded.');
-                              const playerName = clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Player';
-                              downloadBattingTechniquePdf(report, playerName);
+                              const { blob, fileName } = await api.downloadOpenAiBattingReportPdf(entry.reportId);
+                              const url = URL.createObjectURL(blob);
+                              const anchor = document.createElement('a');
+                              anchor.href = url;
+                              anchor.download = fileName;
+                              anchor.click();
+                              URL.revokeObjectURL(url);
                             } catch (error) {
                               setHistoryPdfError(error instanceof Error ? error.message : 'The PDF report could not be prepared.');
                             } finally {

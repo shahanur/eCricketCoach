@@ -105,7 +105,7 @@ function assessmentBlocks(assessment: AssessmentReportInput): Block[] {
   return blocks;
 }
 
-async function battingBlocks(report: BattingReportInput): Promise<Block[]> {
+async function battingBlocks(report: BattingReportInput, heading = 'Batting video review - Movement and technique'): Promise<Block[]> {
   const analysis = asRow(report.analysis);
   const request = asRow(analysis.requestMetadata);
   const contact = asRow(analysis.contact);
@@ -135,7 +135,7 @@ async function battingBlocks(report: BattingReportInput): Promise<Block[]> {
 
   const handedness = asText(request.batterHandedness);
   const blocks: Block[] = [
-    { type: 'heading', text: 'Batting video review - Movement and technique' },
+    { type: 'heading', text: heading },
     {
       type: 'facts',
       items: [
@@ -371,4 +371,10 @@ export async function buildAssessmentReportPdf(assessment: AssessmentReportInput
   const blocks = assessmentBlocks(assessment);
   if (batting) blocks.push(...await battingBlocks(batting));
   return renderPdf('Player Assessment Report', `${assessment.playerName} - ${assessment.title}`, blocks);
+}
+
+/** Builds the standalone movement and technique PDF for a saved batting video review. */
+export async function buildBattingReportPdf(report: BattingReportInput, playerName: string, createdAt: Date): Promise<Buffer> {
+  const blocks = await battingBlocks(report, 'Movement and technique');
+  return renderPdf('Movement and Technique', `${playerName || 'Player'} - ${createdAt.toISOString().slice(0, 10)}`, blocks);
 }

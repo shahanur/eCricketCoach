@@ -845,6 +845,11 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         requestBytes("/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}/report.pdf", token)
     }
 
+    /** Server-built movement and technique PDF for a saved batting review (shared with the web app). */
+    suspend fun downloadOpenAiBattingReportPdf(token: String, reportId: String): ByteArray = withContext(Dispatchers.IO) {
+        requestBytes("/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}/report.pdf", token)
+    }
+
     suspend fun schedulePlayerAssessment(token: String, assessment: JSONObject): PlayerAssessment =
         withContext(Dispatchers.IO) {
             JSONObject(request("/api/club/assessments", token, assessment)).toPlayerAssessment()
