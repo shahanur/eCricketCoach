@@ -146,6 +146,7 @@ model TrainingSession {
   assignedPlayerIds Json?  @default("[]") @map("assigned_player_ids")
   title           String
   sessionDate     String   @map("session_date")
+  sessionTime     String?  @map("session_time")
   durationMinutes Int      @default(90) @map("duration_minutes")
   safety          String[] @default([])
   isPublished     Boolean  @default(false) @map("is_published")
@@ -312,6 +313,7 @@ model OpenAiBattingReport {
   createdById     String   @map("created_by_id")
   playerId        String?  @map("player_id")
   playerName      String?  @map("player_name")
+  assessmentId    String?  @map("assessment_id")
   sourceSha256    String   @map("source_sha256")
   sourceType      String?  @map("source_type")
   sourceName      String?  @map("source_name")
@@ -325,6 +327,7 @@ model OpenAiBattingReport {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, playerId, createdAt])
+  @@index([tenantId, assessmentId, createdAt])
   @@map("openai_batting_reports")
 }
 

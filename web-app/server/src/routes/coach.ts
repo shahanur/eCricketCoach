@@ -612,7 +612,7 @@ coachRouter.post('/sessions/:id/follow-up', async (req: AuthenticatedRequest, re
       return;
     }
 
-    const { title, sessionDate, durationMinutes, drillIds, recommendedDrillIndexes } = req.body || {};
+    const { title, sessionDate, sessionTime, durationMinutes, drillIds, recommendedDrillIndexes } = req.body || {};
     const cleanTitle = text(title, 200).trim();
     const earliestLocalDate = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString().slice(0, 10);
     if (!cleanTitle) {
@@ -621,6 +621,11 @@ coachRouter.post('/sessions/:id/follow-up', async (req: AuthenticatedRequest, re
     }
     if (typeof sessionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sessionDate) || sessionDate < earliestLocalDate) {
       res.status(400).json({ error: 'Choose a valid date from today onwards.' });
+      return;
+    }
+    if (sessionTime !== undefined && sessionTime !== null && sessionTime !== '' &&
+      (typeof sessionTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(sessionTime))) {
+      res.status(400).json({ error: 'Choose a valid start time (HH:mm).' });
       return;
     }
     if (
@@ -689,6 +694,7 @@ coachRouter.post('/sessions/:id/follow-up', async (req: AuthenticatedRequest, re
       assignedPlayerIds: Array.isArray(source.assignedPlayerIds) ? source.assignedPlayerIds : [],
       title: cleanTitle,
       sessionDate,
+      sessionTime: typeof sessionTime === 'string' && sessionTime ? sessionTime : null,
       durationMinutes: minutes(durationMinutes) || source.durationMinutes,
       safety: source.safety,
       drillIds: allDrillIds,

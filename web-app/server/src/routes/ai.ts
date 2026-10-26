@@ -264,6 +264,7 @@ aiRouter.get(
     if (!playerId) return res.status(400).json({ error: 'player_required', message: 'Select a player to load their latest batting review.' });
     const reportId = typeof req.query.reportId === 'string' ? req.query.reportId.trim() : '';
     if (reportId && !/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(400).json({ error: 'invalid_report_id' });
+    const assessmentId = typeof req.query.assessmentId === 'string' ? req.query.assessmentId.trim().slice(0, 100) : '';
 
     const user = req.user!;
     try {
@@ -271,7 +272,12 @@ aiRouter.get(
       if (!player) return;
 
       const report = await prisma.openAiBattingReport.findFirst({
-        where: { tenantId: user.tenantId, playerId: player.id, ...(reportId ? { id: reportId } : {}) },
+        where: {
+          tenantId: user.tenantId,
+          playerId: player.id,
+          ...(reportId ? { id: reportId } : {}),
+          ...(assessmentId ? { assessmentId } : {})
+        },
         orderBy: { createdAt: 'desc' },
         select: { id: true, playerName: true, createdAt: true, sourceType: true, sourceName: true, analysis: true, artifacts: true }
       });
@@ -345,6 +351,7 @@ aiRouter.post(
     const file = (req as Request & { file?: Express.Multer.File }).file;
     const driveFileId = typeof req.body?.driveFileId === 'string' ? req.body.driveFileId.trim() : '';
     const playerId = typeof req.body?.playerId === 'string' ? req.body.playerId.trim() : '';
+    const assessmentId = typeof req.body?.assessmentId === 'string' ? req.body.assessmentId.trim() : '';
     const body = (req.body || {}) as Record<string, unknown>;
     const shotType = readPromptEnum(readBodyAlias(body, 'shotType', 'shot_type'), ['front_foot_drive', 'front_foot_defence', 'unknown'] as const, 'unknown');
     const batterHandedness = readPromptEnum(readBodyAlias(body, 'batterHandedness', 'batter_handedness'), ['right', 'left', 'unknown'] as const, 'unknown');
@@ -418,6 +425,21 @@ aiRouter.post(
         if (!player) return res.status(404).json({ error: 'player_not_found', message: 'The selected player is not active in this club.' });
         playerName = player.name;
       }
+      if (assessmentId) {
+        const assessment = await prisma.playerAssessment.findFirst({ where: { id: assessmentId, clubId: user.tenantId } });
+        if (!assessment || (user.role !== 'CLUB_ADMIN' && assessment.coachId !== user.userId)) {
+          return res.status(404).json({ error: 'assessment_not_found', message: 'The assessment was not found.' });
+        }
+        if (assessment.playerId !== playerId) {
+          return res.status(400).json({ error: 'assessment_player_mismatch', message: 'The video review player must match the assessment player.' });
+        }
+        if (assessment.discipline !== 'BATTING') {
+          return res.status(409).json({ error: 'assessment_not_batting', message: 'Batting video review is available for batting assessments only.' });
+        }
+        if (assessment.status === 'COMPLETED') {
+          return res.status(409).json({ error: 'assessment_completed', message: 'Videos can only be reviewed before the assessment is completed.' });
+        }
+      }
 
       let videoBuffer: Buffer;
       let sourceName: string | null = null;
@@ -485,6 +507,7 @@ aiRouter.post(
             createdById: user.userId,
             playerId: playerId || null,
             playerName,
+            assessmentId: assessmentId || null,
             sourceSha256: analysis.sourceSha256,
             sourceType: file ? 'LOCAL_UPLOAD' : 'GOOGLE_DRIVE',
             sourceName,

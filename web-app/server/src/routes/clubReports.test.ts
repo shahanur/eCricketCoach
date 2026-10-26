@@ -41,7 +41,7 @@ function sessionFixture(): NonNullable<Awaited<ReturnType<typeof clubRouteQuerie
     id: 'session-a', clubId: 'club-a', title: 'Training', squadId: null, squadName: 'All players',
     coachId: 'coach-a', coachName: 'Coach A', coordinatorCoachId: 'coordinator-a',
     coordinatorCoachName: 'Coordinator A', assistantCoachId: 'assistant-a', assistantCoachName: 'Assistant A',
-    sessionDate: '2026-10-09', durationMinutes: 60, safety: [], isPublished: true, isExecuted: false,
+    sessionDate: '2026-10-09', sessionTime: null, durationMinutes: 60, safety: [], isPublished: true, isExecuted: false,
     drillCount: 1, drillIds: ['drill-a'], assignedPlayerIds: ['player-a'], playerNotes: {},
     postNotes: null, aiEvaluation: null, executionLog: null
   };

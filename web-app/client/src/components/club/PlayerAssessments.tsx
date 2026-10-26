@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { AssessmentMetric, AuthUser, ClubMember, PlayerAssessment, TrainingSession, VideoAnalysisResult } from '../../types';
 import { downloadPdfReport, PdfBlock } from '../../utils/pdfReport';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
+import { AssessmentBattingReview } from './AssessmentBattingReview';
 import { PlayerVideoAnalyses } from './PlayerVideoAnalyses';
 
 const METRICS: Record<string, string[]> = {
@@ -14,6 +15,8 @@ const METRICS: Record<string, string[]> = {
 };
 
 const today = new Date().toISOString().slice(0, 10);
+// CAPE assessment video analysis is disabled for now; the OpenAI batting review is used instead.
+const SHOW_CAPE_ASSESSMENT = false;
 
 interface PlayerAssessmentsProps {
   currentUser: AuthUser;
@@ -755,12 +758,23 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                 </div>
               )}
 
-              <CapeAnalysisPanel
-                assessmentId={selectedAssessment.id}
-                discipline={selectedAssessment.discipline}
-                canSubmit={selectedAssessment.status !== 'COMPLETED' && canEdit}
-                canAssignDrills={currentUser.roles.some(role => role === 'CLUB_ADMIN' || role === 'COACH')}
-              />
+              {SHOW_CAPE_ASSESSMENT ? (
+                <CapeAnalysisPanel
+                  assessmentId={selectedAssessment.id}
+                  discipline={selectedAssessment.discipline}
+                  canSubmit={selectedAssessment.status !== 'COMPLETED' && canEdit}
+                  canAssignDrills={currentUser.roles.some(role => role === 'CLUB_ADMIN' || role === 'COACH')}
+                />
+              ) : (
+                <AssessmentBattingReview
+                  key={selectedAssessment.id}
+                  assessmentId={selectedAssessment.id}
+                  playerId={selectedAssessment.playerId}
+                  playerName={selectedAssessment.playerName}
+                  discipline={selectedAssessment.discipline}
+                  canSubmit={selectedAssessment.status !== 'COMPLETED' && canEdit}
+                />
+              )}
 
               {selectedAssessment.status !== 'SCHEDULED' && (
                 <>

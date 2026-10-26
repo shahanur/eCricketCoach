@@ -796,6 +796,7 @@ export const api = {
     videoFile?: File;
     driveFileId?: string;
     playerId?: string;
+    assessmentId?: string;
     contactTimestampSeconds?: number;
     startTimeSeconds?: number;
     endTimeSeconds?: number;
@@ -822,6 +823,7 @@ export const api = {
       const formData = new FormData();
       formData.append('file', payload.videoFile, payload.videoFile.name);
       if (payload.playerId) formData.append('playerId', payload.playerId);
+      if (payload.assessmentId) formData.append('assessmentId', payload.assessmentId);
       if (payload.contactTimestampSeconds !== undefined) formData.append('contactTimestampSeconds', String(payload.contactTimestampSeconds));
       if (payload.startTimeSeconds !== undefined) formData.append('startTimeSeconds', String(payload.startTimeSeconds));
       if (payload.endTimeSeconds !== undefined) formData.append('endTimeSeconds', String(payload.endTimeSeconds));
@@ -844,6 +846,7 @@ export const api = {
         body: JSON.stringify({
           driveFileId: payload.driveFileId,
           playerId: payload.playerId,
+          assessmentId: payload.assessmentId,
           contactTimestampSeconds: payload.contactTimestampSeconds,
           startTimeSeconds: payload.startTimeSeconds,
           endTimeSeconds: payload.endTimeSeconds,
@@ -896,9 +899,11 @@ export const api = {
   },
 
   // Loads the player's latest saved batting review, or a specific one when reportId is given.
-  async getLatestOpenAiBattingAnalysis(playerId: string, reportId?: string): Promise<OpenAiBattingAnalysis | null> {
+  // assessmentId limits the lookup to reviews linked to that assessment.
+  async getLatestOpenAiBattingAnalysis(playerId: string, reportId?: string, assessmentId?: string): Promise<OpenAiBattingAnalysis | null> {
     const query = new URLSearchParams({ playerId });
     if (reportId) query.set('reportId', reportId);
+    if (assessmentId) query.set('assessmentId', assessmentId);
     const res = await fetch(`${API_BASE}/videos/analyze/openai-batting/latest?${query}`, {
       headers: authenticatedHeaders()
     });

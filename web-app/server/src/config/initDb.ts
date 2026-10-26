@@ -304,6 +304,8 @@ export async function initDb() {
     `ALTER TABLE cape_jobs ADD COLUMN IF NOT EXISTS gemini_request JSONB`,
     `ALTER TABLE openai_batting_reports ADD COLUMN IF NOT EXISTS source_type VARCHAR(30)`,
     `ALTER TABLE openai_batting_reports ADD COLUMN IF NOT EXISTS source_name TEXT`,
+    `ALTER TABLE openai_batting_reports ADD COLUMN IF NOT EXISTS assessment_id VARCHAR(100)`,
+    `CREATE INDEX IF NOT EXISTS openai_batting_reports_tenant_id_assessment_id_created_at_idx ON openai_batting_reports (tenant_id, assessment_id, created_at)`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coach_id`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coach_name`,
     `ALTER TABLE squads DROP COLUMN IF EXISTS coordinator_coach_id`,
@@ -328,6 +330,7 @@ export async function initDb() {
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS is_executed BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS player_notes JSONB DEFAULT '{}'`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS execution_log JSONB`,
+    `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS session_time VARCHAR(5)`,
     `ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS safety TEXT[] NOT NULL DEFAULT '{}'`,
     `ALTER TABLE club_members ADD COLUMN IF NOT EXISTS squads TEXT[] NOT NULL DEFAULT '{}'`,
     // Backfill multi-squad membership from the legacy single-squad column.

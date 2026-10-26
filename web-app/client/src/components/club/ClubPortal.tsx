@@ -8,8 +8,8 @@ import { PlayerAssessments } from './PlayerAssessments';
 import { CapeAnalysisPanel } from './CapeAnalysisPanel';
 import { AnalysisComparison } from './AnalysisComparison';
 import { AihubAnalysisPanel } from './AihubAnalysisPanel';
-import { CroppedPoseOverlayPanel } from './CroppedPoseOverlayPanel';
-import { OpenAiCapeCalibrationPicker } from './OpenAiCapeCalibrationPicker';
+import { OpenAiBattingReviewForm } from './OpenAiBattingReviewForm';
+import { OpenAiBattingReviewResult } from './OpenAiBattingReviewResult';
 import type { CapeJob } from '../../types';
 import { UserPlus, Users, Calendar, X, Search, Filter, Video, Award, CheckCircle2, Play, Upload, Cloud, Check, AlertCircle, RefreshCw, Folder, Star, Pencil, Trash2, Download, Settings, Copy } from 'lucide-react';
 import { downloadCertificatePdf } from '../../utils/certificatePdf';
@@ -19,10 +19,6 @@ import { downloadBattingTechniquePdf } from '../../utils/battingTechniquePdf';
 
 const SHOW_AIHUB = false;
 const SHOW_BIOMECHANICAL_AI_BUTTON = false;
-const OPENAI_BATTING_PRIORITIES = [
-  ['footwork', 'Footwork'], ['head_alignment', 'Head alignment'], ['contact', 'Contact'],
-  ['joint_angles', 'Joint angles'], ['bat_path', 'Bat path'], ['extension', 'Extension'], ['follow_through', 'Follow-through']
-] as const;
 function getSessionStatus(session: TrainingSession) {
   if (session.isExecuted || session.executionLog?.status === 'COMPLETED') return 'COMPLETED';
   if (session.executionLog?.status === 'IN_PROGRESS') return 'IN_PROGRESS';
@@ -284,16 +280,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [openAiBattingAnalysisError, setOpenAiBattingAnalysisError] = useState<string | null>(null);
   const [isLoadingSavedOpenAiAnalysis, setIsLoadingSavedOpenAiAnalysis] = useState(false);
   const openAiAnalysisGeneration = useRef(0);
-  const [openAiCoachReviewNote, setOpenAiCoachReviewNote] = useState('');
-  const [openAiFindingReviews, setOpenAiFindingReviews] = useState<Record<number, { status: 'accepted' | 'revised' | 'not_applicable' | ''; note: string }>>({});
-  const [isSavingOpenAiCoachReview, setIsSavingOpenAiCoachReview] = useState(false);
-  const [openAiCoachReviewMessage, setOpenAiCoachReviewMessage] = useState<string | null>(null);
-  const [openAiShotType, setOpenAiShotType] = useState<'front_foot_drive' | 'front_foot_defence' | 'unknown'>('unknown');
-  const [openAiBatterHandedness, setOpenAiBatterHandedness] = useState<'right' | 'left' | 'unknown'>('unknown');
-  const [openAiCameraView, setOpenAiCameraView] = useState<'front_on' | 'side_on' | 'three_quarter' | 'unknown'>('unknown');
-  const [openAiPlaybackSpeed, setOpenAiPlaybackSpeed] = useState<'real_time' | 'slow_motion' | 'unknown'>('unknown');
-  const [openAiCaptureFps, setOpenAiCaptureFps] = useState('');
-  const [openAiPriorities, setOpenAiPriorities] = useState<string[]>(OPENAI_BATTING_PRIORITIES.map(([key]) => key));
+  const openAiRunGeneration = useRef(0);
   const [kinematicsResult, setKinematicsResult] = useState<{
     discipline: string;
     timestampMs: number;
@@ -353,9 +340,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     const generation = ++openAiAnalysisGeneration.current;
     setOpenAiBattingAnalysis(null);
     setOpenAiBattingAnalysisError(null);
-    setOpenAiCoachReviewNote('');
-    setOpenAiFindingReviews({});
-    setOpenAiCoachReviewMessage(null);
     if (!playerId) {
       setIsLoadingSavedOpenAiAnalysis(false);
       return;
@@ -365,11 +349,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       .then(saved => {
         if (generation === openAiAnalysisGeneration.current) {
           setOpenAiBattingAnalysis(saved);
-          setOpenAiCoachReviewNote(saved?.coachReview?.note ?? '');
-          setOpenAiFindingReviews(Object.fromEntries((saved?.coachReview?.findings ?? []).map(finding => [finding.findingIndex, {
-            status: finding.status,
-            note: finding.note
-          }])));
         }
       })
       .catch(error => {
@@ -398,25 +377,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       ? null
       : Math.round(openAiBattingAnalysis.contact.selectedTimestampSeconds * openAiBattingAnalysis.video.fps))
     : null;
-  const openAiFindingList = openAiBattingAnalysis
-    ? [...openAiBattingAnalysis.errors, ...openAiBattingAnalysis.observations]
-    : [];
-  const saveOpenAiCoachReview = async () => {
-    if (!openAiBattingAnalysis?.reportId) return;
-    setIsSavingOpenAiCoachReview(true);
-    setOpenAiCoachReviewMessage(null);
-    try {
-      const findings = Object.entries(openAiFindingReviews)
-        .filter(([, review]) => review.status !== '')
-        .map(([findingIndex, review]) => ({ findingIndex: Number(findingIndex), status: review.status as 'accepted' | 'revised' | 'not_applicable', note: review.note }));
-      await api.saveOpenAiBattingReview(openAiBattingAnalysis.reportId, { note: openAiCoachReviewNote, findings });
-      setOpenAiCoachReviewMessage('Coach review saved. The downloadable JSON, Markdown, and ZIP were refreshed.');
-    } catch (error) {
-      setOpenAiCoachReviewMessage(error instanceof Error ? error.message : 'Could not save coach review.');
-    } finally {
-      setIsSavingOpenAiCoachReview(false);
-    }
-  };
   const [lastAnalysisId, setLastAnalysisId] = useState<string | null>(null);
   const [aihubDurationMs, setAihubDurationMs] = useState<number | null>(null);
   const [comparisonCapeJob, setComparisonCapeJob] = useState<CapeJob | null>(null);
@@ -430,17 +390,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [driveVideoFiles, setDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [modalDriveVideoFiles, setModalDriveVideoFiles] = useState<DriveVideoFile[]>([]);
   const [selectedDriveVideo, setSelectedDriveVideo] = useState<string>('');
-  const [openAiContactSelectionMode, setOpenAiContactSelectionMode] = useState<'AI' | 'MANUAL'>('AI');
-  const [openAiUseCapeKinetics, setOpenAiUseCapeKinetics] = useState(false);
-  const [openAiCapeCalibrationPoints, setOpenAiCapeCalibrationPoints] = useState<[number, number][]>([]);
-  const [openAiVideoPreviewUrl, setOpenAiVideoPreviewUrl] = useState<string | null>(null);
-  const [openAiVideoPreviewLoading, setOpenAiVideoPreviewLoading] = useState(false);
-  const [openAiVideoPreviewError, setOpenAiVideoPreviewError] = useState<string | null>(null);
-  const [openAiVideoDuration, setOpenAiVideoDuration] = useState(0);
-  const [openAiSelectedContactTimestamp, setOpenAiSelectedContactTimestamp] = useState<number | null>(null);
-  const [openAiAnalysisStartSeconds, setOpenAiAnalysisStartSeconds] = useState(0);
-  const [openAiAnalysisEndSeconds, setOpenAiAnalysisEndSeconds] = useState(0);
-  const openAiVideoRef = useRef<HTMLVideoElement | null>(null);
   const [driveVideosError, setDriveVideosError] = useState<string | null>(null);
   const [modalDriveVideosError, setModalDriveVideosError] = useState<string | null>(null);
   const [isSyncingDriveTab, setIsSyncingDriveTab] = useState(false);
@@ -448,52 +397,6 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [isDriveConnected, setIsDriveConnected] = useState(false);
   const [driveEmail, setDriveEmail] = useState<string>('');
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
-
-  useEffect(() => {
-    setOpenAiVideoPreviewUrl(null);
-    setOpenAiVideoDuration(0);
-    setOpenAiSelectedContactTimestamp(null);
-    setOpenAiAnalysisStartSeconds(0);
-    setOpenAiAnalysisEndSeconds(0);
-    setOpenAiVideoPreviewError(null);
-    if (openAiContactSelectionMode !== 'MANUAL') {
-      setOpenAiVideoPreviewLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    const setPreview = (blob: Blob) => {
-      if (cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setOpenAiVideoPreviewUrl(objectUrl);
-      setOpenAiVideoPreviewLoading(false);
-    };
-
-    setOpenAiVideoPreviewLoading(true);
-    if (videoSourceMode === 'LOCAL_UPLOAD' && uploadedVideoFile) {
-      setPreview(uploadedVideoFile);
-    } else if (videoSourceMode === 'GOOGLE_DRIVE' && selectedDriveVideo) {
-      api.fetchDriveVideo(selectedDriveVideo)
-        .then(setPreview)
-        .catch((error: any) => {
-          if (cancelled) return;
-          setOpenAiVideoPreviewError(error?.message || 'Could not load this Drive video preview.');
-          setOpenAiVideoPreviewLoading(false);
-        });
-    } else {
-      setOpenAiVideoPreviewLoading(false);
-    }
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [openAiContactSelectionMode, videoSourceMode, uploadedVideoFile, selectedDriveVideo]);
-
-  useEffect(() => {
-    setOpenAiCapeCalibrationPoints([]);
-  }, [videoSourceMode, uploadedVideoFile, selectedDriveVideo]);
 
   const handleDisconnectDrive = async () => {
     try {
@@ -3381,220 +3284,28 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
             </div>
             )}
 
-            <div className="rounded-xl border border-violet-400/25 bg-violet-500/5 p-3 space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-violet-200">Batting video review</h4>
-                  <p className="text-[11px] text-slate-400">Review a shot, choose the contact point, and get clear feedback to guide the next practice session.</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isOpenAiBattingAnalysisRunning || analysisDiscipline !== 'BATTING' ||
-                    (videoSourceMode === 'LOCAL_UPLOAD' ? !uploadedVideoFile : !selectedDriveVideo) ||
-                    (openAiUseCapeKinetics && openAiCapeCalibrationPoints.length !== 4) ||
-                    (openAiContactSelectionMode === 'MANUAL' &&
-                    (openAiVideoPreviewLoading || !openAiVideoPreviewUrl || openAiVideoDuration <= 0 ||
-                      openAiAnalysisEndSeconds <= openAiAnalysisStartSeconds || openAiSelectedContactTimestamp === null ||
-                      openAiSelectedContactTimestamp < openAiAnalysisStartSeconds || openAiSelectedContactTimestamp > openAiAnalysisEndSeconds))}
-                  onClick={async () => {
-                    const generation = ++openAiAnalysisGeneration.current;
-                    setIsOpenAiBattingAnalysisRunning(true);
-                    setOpenAiBattingAnalysisError(null);
-                    setOpenAiBattingAnalysis(null);
-                    setOpenAiCoachReviewNote('');
-                    setOpenAiFindingReviews({});
-                    setOpenAiCoachReviewMessage(null);
-                    try {
-                      const result = await api.analyzeOpenAiBatting({
-                        videoFile: videoSourceMode === 'LOCAL_UPLOAD' ? uploadedVideoFile || undefined : undefined,
-                        driveFileId: videoSourceMode === 'GOOGLE_DRIVE' ? selectedDriveVideo || undefined : undefined,
-                        playerId: selectedAnalysisPlayer || undefined,
-                        shotType: openAiShotType,
-                        batterHandedness: openAiBatterHandedness,
-                        cameraView: openAiCameraView,
-                        playbackSpeed: openAiPlaybackSpeed,
-                        captureFps: openAiCaptureFps ? Number(openAiCaptureFps) : null,
-                        priorities: openAiPriorities,
-                        capeCalibrationPoints: openAiUseCapeKinetics ? openAiCapeCalibrationPoints : undefined,
-                        contactTimestampSeconds: openAiContactSelectionMode === 'MANUAL'
-                          ? openAiSelectedContactTimestamp ?? undefined
-                          : undefined,
-                        startTimeSeconds: openAiContactSelectionMode === 'MANUAL' ? openAiAnalysisStartSeconds : undefined,
-                        endTimeSeconds: openAiContactSelectionMode === 'MANUAL' ? openAiAnalysisEndSeconds : undefined
-                      });
-                      if (generation === openAiAnalysisGeneration.current) {
-                        setOpenAiBattingAnalysis(result.analysis);
-                        if (selectedAnalysisPlayer) fetchOpenAiReportHistory(selectedAnalysisPlayer);
-                      }
-                    } catch (err: any) {
-                      setOpenAiBattingAnalysisError(err instanceof Error ? err.message : 'The batting review could not be completed. Please try again.');
-                    } finally {
-                      setIsOpenAiBattingAnalysisRunning(false);
-                    }
-                  }}
-                  className="shrink-0 rounded-lg bg-violet-400 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isOpenAiBattingAnalysisRunning ? 'Preparing your review…' : 'Review batting'}
-                </button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                <label className="text-[11px] text-slate-400">Shot type
-                  <select value={openAiShotType} onChange={event => setOpenAiShotType(event.target.value as typeof openAiShotType)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
-                    <option value="unknown">Identify if visible</option><option value="front_foot_drive">Front-foot drive</option><option value="front_foot_defence">Front-foot defence</option>
-                  </select>
-                </label>
-                <label className="text-[11px] text-slate-400">Batter handedness
-                  <select value={openAiBatterHandedness} onChange={event => setOpenAiBatterHandedness(event.target.value as typeof openAiBatterHandedness)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
-                    <option value="unknown">Unknown</option><option value="right">Right-handed</option><option value="left">Left-handed</option>
-                  </select>
-                </label>
-                <label className="text-[11px] text-slate-400">Camera view
-                  <select value={openAiCameraView} onChange={event => setOpenAiCameraView(event.target.value as typeof openAiCameraView)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
-                    <option value="unknown">Unknown</option><option value="front_on">Front-on</option><option value="side_on">Side-on</option><option value="three_quarter">Three-quarter</option>
-                  </select>
-                </label>
-                <label className="text-[11px] text-slate-400">Playback speed
-                  <select value={openAiPlaybackSpeed} onChange={event => setOpenAiPlaybackSpeed(event.target.value as typeof openAiPlaybackSpeed)} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
-                    <option value="unknown">Unknown</option><option value="real_time">Real-time</option><option value="slow_motion">Slow motion</option>
-                  </select>
-                </label>
-                <label className="text-[11px] text-slate-400">Video frame rate (optional)
-                  <input type="number" min="1" max="1000" step="any" value={openAiCaptureFps} onChange={event => setOpenAiCaptureFps(event.target.value)} placeholder="Unknown" className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white placeholder:text-slate-600" />
-                </label>
-              </div>
-              <fieldset className="rounded-md border border-slate-800 px-3 py-2">
-                <legend className="px-1 text-[11px] font-semibold text-slate-400">Coaching priorities</legend>
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {OPENAI_BATTING_PRIORITIES.map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                      <input type="checkbox" checked={openAiPriorities.includes(key)} onChange={event => setOpenAiPriorities(current => event.target.checked ? [...current, key] : current.filter(item => item !== key))} className="accent-violet-400" />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <div className="space-y-2 rounded-lg border border-violet-400/15 bg-slate-950/60 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-semibold text-slate-300">Contact point:</span>
-                  <button
-                    type="button"
-                    aria-pressed={openAiContactSelectionMode === 'AI'}
-                    onClick={() => setOpenAiContactSelectionMode('AI')}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${openAiContactSelectionMode === 'AI' ? 'bg-violet-400 text-slate-950' : 'border border-slate-700 text-slate-300 hover:text-white'}`}
-                  >
-                    Suggest contact point
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={openAiContactSelectionMode === 'MANUAL'}
-                    onClick={() => setOpenAiContactSelectionMode('MANUAL')}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ${openAiContactSelectionMode === 'MANUAL' ? 'bg-violet-400 text-slate-950' : 'border border-slate-700 text-slate-300 hover:text-white'}`}
-                  >
-                    Choose manually
-                  </button>
-                </div>
-                {openAiContactSelectionMode === 'MANUAL' && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] text-slate-400">Set the shot start and end, then choose the contact point inside that range. Drag the video timeline or the Contact point slider.</p>
-                    {openAiVideoPreviewLoading && <p role="status" className="text-xs text-violet-200">Loading video preview…</p>}
-                    {openAiVideoPreviewError && <p role="alert" className="text-xs text-rose-300">{openAiVideoPreviewError}</p>}
-                    {openAiVideoPreviewUrl && (
-                      <>
-                        <video
-                          ref={openAiVideoRef}
-                          src={openAiVideoPreviewUrl}
-                          controls
-                          preload="metadata"
-                          className="max-h-72 w-full rounded-lg bg-black"
-                          onLoadedMetadata={event => {
-                            const duration = Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0;
-                            setOpenAiVideoDuration(duration);
-                            setOpenAiAnalysisEndSeconds(duration);
-                            setOpenAiSelectedContactTimestamp(event.currentTarget.currentTime || 0);
-                          }}
-                          onTimeUpdate={event => {
-                            const time = event.currentTarget.currentTime;
-                            if (time >= openAiAnalysisStartSeconds && time <= openAiAnalysisEndSeconds) {
-                              setOpenAiSelectedContactTimestamp(time);
-                            }
-                          }}
-                          onError={() => setOpenAiVideoPreviewError('This video format cannot be previewed in the browser. Try MP4 or WEBM.')}
-                        />
-                        {openAiVideoDuration > 0 && (
-                          <div>
-                            <div className="space-y-2 mb-3 rounded-md border border-slate-800 bg-slate-900/70 p-2">
-                              <p className="text-[11px] font-semibold text-slate-300">Shot range to analyse</p>
-                              {([
-                                { id: 'openai-range-start', label: 'Start', value: openAiAnalysisStartSeconds, update: setOpenAiAnalysisStartSeconds, min: 0, max: openAiAnalysisEndSeconds },
-                                { id: 'openai-range-end', label: 'End', value: openAiAnalysisEndSeconds, update: setOpenAiAnalysisEndSeconds, min: openAiAnalysisStartSeconds, max: openAiVideoDuration }
-                              ] as const).map(range => (
-                                <label key={range.id} htmlFor={range.id} className="block text-[10px] text-slate-400">
-                                  <span className="flex justify-between"><span>{range.label} frame</span><span className="font-mono text-violet-200">{`${Math.floor(range.value / 60)}:${(range.value % 60).toFixed(2).padStart(5, '0')}`}</span></span>
-                                  <input id={range.id} type="range" min={range.min} max={range.max} step="0.01" value={range.value}
-                                    onChange={event => {
-                                      const time = Number(event.target.value);
-                                      range.update(time);
-                                      if (range.id === 'openai-range-start' && (openAiSelectedContactTimestamp ?? 0) < time) setOpenAiSelectedContactTimestamp(time);
-                                      if (range.id === 'openai-range-end' && (openAiSelectedContactTimestamp ?? 0) > time) setOpenAiSelectedContactTimestamp(time);
-                                    }}
-                                    className="w-full accent-violet-400" />
-                                </label>
-                              ))}
-                            </div>
-                            <label htmlFor="openai-contact-time" className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
-                              <span>Contact point</span>
-                              <span className="font-mono text-violet-200">
-                                {(() => {
-                                  const time = openAiSelectedContactTimestamp ?? 0;
-                                  return `${Math.floor(time / 60)}:${(time % 60).toFixed(2).padStart(5, '0')}`;
-                                })()}
-                              </span>
-                            </label>
-                            <input
-                              id="openai-contact-time"
-                              type="range"
-                              min={openAiAnalysisStartSeconds}
-                              max={Math.max(openAiAnalysisStartSeconds, openAiAnalysisEndSeconds)}
-                              step="0.01"
-                              value={Math.min(openAiSelectedContactTimestamp ?? 0, openAiVideoDuration)}
-                              onChange={event => {
-                                const time = Number(event.target.value);
-                                if (openAiVideoRef.current) openAiVideoRef.current.currentTime = time;
-                                setOpenAiSelectedContactTimestamp(time);
-                              }}
-                              className="mt-1 w-full accent-violet-400"
-                            />
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
-                <label className="flex items-start gap-2 text-xs text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={openAiUseCapeKinetics}
-                    onChange={event => setOpenAiUseCapeKinetics(event.target.checked)}
-                    className="mt-0.5 accent-emerald-400"
-                  />
-                  <span><strong>Include ball and bat measurements</strong><span className="mt-0.5 block text-[10px] text-slate-400">Add estimates for ball speed and bat movement. Mark the four corners of the pitch for more accurate ball measurements.</span></span>
-                </label>
-                {openAiUseCapeKinetics && (
-                  <OpenAiCapeCalibrationPicker
-                    source={videoSourceMode === 'LOCAL_UPLOAD'
-                      ? (uploadedVideoFile ? { file: uploadedVideoFile } : null)
-                      : (selectedDriveVideo ? { driveFileId: selectedDriveVideo } : null)}
-                    points={openAiCapeCalibrationPoints}
-                    onChange={setOpenAiCapeCalibrationPoints}
-                  />
-                )}
-              </div>
+            <OpenAiBattingReviewForm
+              source={videoSourceMode === 'LOCAL_UPLOAD'
+                ? (uploadedVideoFile ? { file: uploadedVideoFile } : null)
+                : (selectedDriveVideo ? { driveFileId: selectedDriveVideo } : null)}
+              playerId={selectedAnalysisPlayer}
+              disabled={analysisDiscipline !== 'BATTING'}
+              onRunningChange={setIsOpenAiBattingAnalysisRunning}
+              onStart={() => {
+                openAiRunGeneration.current = ++openAiAnalysisGeneration.current;
+                setOpenAiBattingAnalysisError(null);
+                setOpenAiBattingAnalysis(null);
+              }}
+              onComplete={analysis => {
+                if (openAiRunGeneration.current !== openAiAnalysisGeneration.current) return;
+                setOpenAiBattingAnalysis(analysis);
+                if (selectedAnalysisPlayer) fetchOpenAiReportHistory(selectedAnalysisPlayer);
+              }}
+            >
               {analysisDiscipline !== 'BATTING' && <p className="text-[11px] text-amber-300">Batting review is available for batting videos.</p>}
               {openAiBattingAnalysisError && <p role="alert" className="text-xs text-rose-300">{openAiBattingAnalysisError}</p>}
-                  {isLoadingSavedOpenAiAnalysis && <p role="status" className="text-xs text-slate-400">Loading this player’s latest review…</p>}
-            </div>
+              {isLoadingSavedOpenAiAnalysis && <p role="status" className="text-xs text-slate-400">Loading this player’s latest review…</p>}
+            </OpenAiBattingReviewForm>
 
             {/* Optional comparison panel is disabled by default. */}
             <div className={SHOW_AIHUB ? 'engine-comparison rounded-xl border border-sky-200 p-3 space-y-3' : 'space-y-3'}>
@@ -3750,127 +3461,13 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
           )}
 
           {openAiBattingAnalysis && (
-            <div ref={battingReviewRef} className="scroll-mt-4 rounded-xl border border-violet-400/30 bg-slate-950 p-5 space-y-4">
-              <div className="flex flex-col gap-2 border-b border-slate-800 pb-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-white">Batting review</h4>
-                  <p className="text-xs text-slate-400">
-                    {clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="w-fit rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200">
-                    {openAiBattingAnalysis.contact.status === 'DETECTED' ? 'Contact visible'
-                      : openAiBattingAnalysis.contact.status === 'LIKELY' ? 'Contact likely'
-                        : openAiBattingAnalysis.contact.status === 'UNCERTAIN' ? 'Contact unclear' : 'Contact not visible'}
-                  </span>
-                </div>
-              </div>
-
-              {openAiBattingAnalysis.reportId && (
-                <section className="space-y-3 rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
-                  <div>
-                    <h5 className="text-xs font-bold uppercase tracking-wide text-emerald-200">Coach review</h5>
-                    <p className="mt-1 text-[11px] text-slate-400">Mark findings and add your coaching note. Your notes will be added to the report.</p>
-                  </div>
-                  {openAiFindingList.map((finding, findingIndex) => (
-                    <div key={`${finding.title}-${findingIndex}`} className="grid gap-2 rounded-md border border-slate-800 bg-slate-950 p-3 md:grid-cols-[1fr_160px]">
-                      <div>
-                        <p className="text-xs font-semibold text-white">{finding.title}</p>
-                        <p className="mt-1 text-xs text-slate-300">{finding.coachingImplication}</p>
-                        {finding.coachingCue && <p className="mt-1 text-xs text-violet-200">Cue: {finding.coachingCue}</p>}
-                        {finding.drill && <p className="mt-1 text-xs text-emerald-200">Drill: {finding.drill}</p>}
-                        <details className="mt-2 text-[10px] text-slate-500">
-                          <summary className="cursor-pointer">Advanced details · evidence</summary>
-                          <p className="mt-1">{finding.observation}</p>
-                          {finding.alternativeExplanation && <p className="mt-1">Alternative explanation: {finding.alternativeExplanation}</p>}
-                          <p className="mt-1">Evidence references: {finding.frameIndices.join(', ') || 'not cited'} · {finding.confidence} confidence</p>
-                        </details>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-[10px] text-slate-400">Review decision
-                          <select value={openAiFindingReviews[findingIndex]?.status ?? ''} onChange={event => {
-                            const status = event.target.value as 'accepted' | 'revised' | 'not_applicable' | '';
-                            setOpenAiFindingReviews(current => ({ ...current, [findingIndex]: { status, note: current[findingIndex]?.note ?? '' } }));
-                          }} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
-                            <option value="">Not reviewed</option><option value="accepted">Accepted</option><option value="revised">Revised</option><option value="not_applicable">Not applicable</option>
-                          </select>
-                        </label>
-                        <input value={openAiFindingReviews[findingIndex]?.note ?? ''} onChange={event => setOpenAiFindingReviews(current => ({ ...current, [findingIndex]: { status: current[findingIndex]?.status ?? '', note: event.target.value } }))} maxLength={1000} placeholder="Coach correction or note" className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-white placeholder:text-slate-600" />
-                      </div>
-                    </div>
-                  ))}
-                  <textarea value={openAiCoachReviewNote} onChange={event => setOpenAiCoachReviewNote(event.target.value)} maxLength={3000} rows={3} placeholder="Overall coach note, context, or next-session focus" className="w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-xs text-white placeholder:text-slate-600" />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <button onClick={() => void saveOpenAiCoachReview()} disabled={isSavingOpenAiCoachReview} className="rounded-lg bg-emerald-400 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">{isSavingOpenAiCoachReview ? 'Saving…' : 'Save coach review'}</button>
-                    {openAiCoachReviewMessage && <p role="status" className="text-xs text-emerald-200">{openAiCoachReviewMessage}</p>}
-                  </div>
-                </section>
-              )}
-
-              {(!openAiBattingAnalysis.restoredFromReport || openAiBattingAnalysis.poseOverlayResult) && (
-                <CroppedPoseOverlayPanel
-                  imageDataUrl={openAiBattingAnalysis.croppedContactImageDataUrl}
-                  analysis={openAiBattingAnalysis}
-                  playerName={clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Player'}
-                  sequenceFrames={openAiBattingAnalysis.poseSequenceFrames}
-                  savedResult={openAiBattingAnalysis.poseOverlayResult}
-                  onPoseOverlaySaved={(result, artifactNames) => setOpenAiBattingAnalysis(current => current
-                    ? { ...current, poseOverlayResult: result, artifactNames }
-                    : current)}
-                />
-              )}
-
-              {/* <details className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-slate-300">Advanced details · frame-by-frame measurements</summary>
-              {openAiBattingAnalysis.jointAngles.some(angle => angle.status === 'calculated') && (
-                <div className="overflow-x-auto rounded-lg border border-slate-800">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Joint</th><th className="p-2">Side</th><th className="p-2">Projected angle</th><th className="p-2">Confidence</th><th className="p-2">Frame</th><th className="p-2">Limitations</th></tr></thead>
-                    <tbody>{openAiBattingAnalysis.jointAngles.map(angle => (
-                      <tr key={`${angle.phase}-${angle.frameIndex}-${angle.joint}-${angle.side}`} className="border-t border-slate-800 text-slate-300">
-                        <td className="p-2 capitalize">{angle.phase.replace(/_/g, ' ')}</td>
-                        <td className="p-2 capitalize">{angle.joint}</td><td className="p-2 capitalize">{angle.side}</td>
-                        <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `≈${Math.round(angle.angleDegrees)}°`}</td>
-                        <td className="p-2">{Math.round(angle.confidence * 100)}%</td>
-                        <td className="p-2">{angle.frameId} · {angle.timestampSeconds.toFixed(3)} s</td>
-                        <td className="max-w-xs p-2 text-[10px] text-slate-500">{angle.limitations.join(' ')}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                  <p className="px-2 pb-2 text-[10px] text-slate-500">Application-calculated image-plane estimates from visual landmarks; not 3D or clinical angles.</p>
-                </div>
-              )}
-
-              {(openAiBattingAnalysis.contactBatAngle || openAiBattingAnalysis.batAngles?.some(angle => angle.status === 'calculated')) && (
-                <div className="overflow-x-auto rounded-lg border border-slate-800">
-                  {openAiBattingAnalysis.contactBatAngle && (
-                    <p className="p-2 text-xs text-slate-300">
-                      Bat angle at contact (frame {openAiBattingAnalysis.contactBatAngle.frameIndex}): <span className="font-semibold">≈{Math.round(openAiBattingAnalysis.contactBatAngle.angleDegrees)}° from vertical</span>
-                      {openAiBattingAnalysis.contactBatAngle.method === 'hands_to_toe' && <span className="text-slate-500"> · grip to bat toe (handle hidden by the hands)</span>}
-                      {openAiBattingAnalysis.contactBatAngle.method === 'wrists_to_contact' && <span className="text-slate-500"> · estimated from hands to contact point</span>}
-                    </p>
-                  )}
-                  {!!openAiBattingAnalysis.batAngles?.length && (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900 text-slate-400"><tr><th className="p-2">Phase</th><th className="p-2">Projected bat angle</th><th className="p-2">Visibility</th><th className="p-2">Confidence</th><th className="p-2">Frame</th></tr></thead>
-                      <tbody>{openAiBattingAnalysis.batAngles.map(angle => (
-                        <tr key={`bat-${angle.phase}-${angle.frameIndex}`} className="border-t border-slate-800 text-slate-300">
-                          <td className="p-2 capitalize">{angle.phase.replace(/_/g, ' ')}</td>
-                          <td className="p-2">{angle.angleDegrees === null ? 'Unassessable' : `≈${Math.round(angle.angleDegrees)}°`}</td>
-                          <td className="p-2 capitalize">{angle.visibility.replace(/_/g, ' ')}</td>
-                          <td className="p-2">{Math.round(angle.confidence * 100)}%</td>
-                          <td className="p-2">{angle.frameId} · {angle.timestampSeconds.toFixed(3)} s</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  )}
-                  <p className="px-2 pb-2 text-[10px] text-slate-500">Handle-to-toe direction from straight down in the image (0° = bat hanging below the hands, above 90° = toe above the hands), CAPE's convention. 2D estimate; not a bat face or lie angle.</p>
-                </div>
-              )}
-              </details> */}
-
-            </div>
+            <OpenAiBattingReviewResult
+              key={openAiBattingAnalysis.reportId ?? 'unsaved'}
+              containerRef={battingReviewRef}
+              analysis={openAiBattingAnalysis}
+              playerName={clubMembers.find(member => member.id === selectedAnalysisPlayer)?.name || 'Selected player'}
+              onAnalysisChange={setOpenAiBattingAnalysis}
+            />
           )}
 
           {/* Legacy compact AIHub result retained for reference during the UI migration.
