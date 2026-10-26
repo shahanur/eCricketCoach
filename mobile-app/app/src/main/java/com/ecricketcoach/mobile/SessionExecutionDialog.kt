@@ -2314,8 +2314,10 @@ private fun IncidentsCard(
         }
         if (!readOnly) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(category, onCategoryChange, label = { Text("Category") }, modifier = Modifier.weight(0.7f), singleLine = true)
-                OutlinedTextField(note, onNoteChange, label = { Text("Incident note") }, modifier = Modifier.weight(1.3f), singleLine = true)
+                OutlinedTextField(category, onCategoryChange, label = { Text("Category") }, modifier = Modifier.weight(0.7f), singleLine = true,
+                    trailingIcon = { VoiceMicButton(category, onCategoryChange, "Say the incident category", singleLine = true, replace = true) })
+                OutlinedTextField(note, onNoteChange, label = { Text("Incident note") }, modifier = Modifier.weight(1.3f), singleLine = true,
+                    trailingIcon = { VoiceMicButton(note, onNoteChange, "Speak the incident note", singleLine = true) })
                 IconButton(onClick = onAdd) {
                     Icon(Icons.Outlined.Add, contentDescription = "Add incident", tint = MaterialTheme.colorScheme.primary)
                 }
@@ -2496,7 +2498,8 @@ private fun EvaluationCard(
                     onValueChange = field.second,
                     label = { Text(label) },
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp)
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                    trailingIcon = { VoiceMicButton(field.first, field.second, "Speak ${label.lowercase()}") }
                 )
             }
         } else {
@@ -2644,7 +2647,16 @@ private fun FollowUpCard(
                             { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
                             label = { Text("Title") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            trailingIcon = {
+                                VoiceMicButton(
+                                    draft.optString("title"),
+                                    { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
+                                    "Say the session title",
+                                    singleLine = true,
+                                    replace = true
+                                )
+                            }
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             DateField(

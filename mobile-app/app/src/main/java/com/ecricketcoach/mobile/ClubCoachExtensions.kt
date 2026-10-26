@@ -131,6 +131,7 @@ internal fun ClubDrillsPanel(
                 onValueChange = { search = it },
                 label = { Text("Search title, focus, setup") },
                 singleLine = true,
+                trailingIcon = { VoiceMicButton(search, { search = it }, "Say a drill to search", singleLine = true, replace = true) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -256,14 +257,17 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
         text = {
             Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 HorizontalDivider()
-                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true)
+                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true,
+                    trailingIcon = { VoiceMicButton(title, { title = it }, "Say the drill title", singleLine = true, replace = true) })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     DrillSelectField("Discipline", discipline, ExtensionDisciplines, { discipline = it }, Modifier.weight(1f))
                     DrillSelectField("Context", contextType, listOf("INDIVIDUAL", "GROUP"), { contextType = it }, Modifier.weight(1f))
                 }
-                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill Set Focus") }, singleLine = true)
+                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill Set Focus") }, singleLine = true,
+                    trailingIcon = { VoiceMicButton(skillSet, { skillSet = it }, "Say the skill set focus", singleLine = true, replace = true) })
                 OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, label = { Text("Duration in minutes") }, singleLine = true)
-                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup Instructions") }, minLines = 3)
+                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup Instructions") }, minLines = 3,
+                    trailingIcon = { VoiceMicButton(instructions, { instructions = it }, "Speak the setup instructions") })
                 Text("Setup Image (optional)", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }) { Text("Choose file") }
@@ -327,12 +331,15 @@ private fun CreateClubDrillDialog(
         title = { Text("Add custom drill") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true)
-                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill focus") }, singleLine = true)
+                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true,
+                    trailingIcon = { VoiceMicButton(title, { title = it }, "Say the drill title", singleLine = true, replace = true) })
+                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill focus") }, singleLine = true,
+                    trailingIcon = { VoiceMicButton(skillSet, { skillSet = it }, "Say the skill focus", singleLine = true, replace = true) })
                 PickerRow("Discipline: $discipline", ExtensionDisciplines) { discipline = it }
                 PickerRow("Context: $context", listOf("INDIVIDUAL", "GROUP")) { context = it }
                 OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, label = { Text("Duration in minutes") }, singleLine = true)
-                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup instructions") }, minLines = 2)
+                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup instructions") }, minLines = 2,
+                    trailingIcon = { VoiceMicButton(instructions, { instructions = it }, "Speak the setup instructions") })
             }
         },
         confirmButton = {
@@ -410,7 +417,8 @@ internal fun PromotePlayerDialog(
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Current level: ${player.currentLevel}")
                 PickerRow("New level: $selectedLevel", PlayerLevels) { selectedLevel = it }
-                OutlinedTextField(notes, { notes = it }, label = { Text("Coach notes") }, minLines = 2)
+                OutlinedTextField(notes, { notes = it }, label = { Text("Coach notes") }, minLines = 2,
+                    trailingIcon = { VoiceMicButton(notes, { notes = it }, "Speak coach notes") })
                 Text("A certificate will be issued when the promotion is saved.", fontSize = 12.sp)
             }
         },

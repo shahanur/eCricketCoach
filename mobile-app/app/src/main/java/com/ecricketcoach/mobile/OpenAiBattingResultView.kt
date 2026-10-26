@@ -355,7 +355,8 @@ private fun CoachReviewSection(api: CoachApi, token: String, analysis: OpenAiBat
             minLines = 2,
             maxLines = 5,
             textStyle = MaterialTheme.typography.bodySmall,
-            placeholder = { Text("Overall coach note, context, or next-session focus", fontSize = 12.sp) }
+            placeholder = { Text("Overall coach note, context, or next-session focus", fontSize = 12.sp) },
+            trailingIcon = { VoiceMicButton(coachNote, { coachNote = it.take(3000) }, "Speak the overall coach note") }
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -438,7 +439,8 @@ private fun FindingCard(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,
-                placeholder = { Text("Coach correction or note", fontSize = 11.sp) }
+                placeholder = { Text("Coach correction or note", fontSize = 11.sp) },
+                trailingIcon = { VoiceMicButton(note, onNote, "Speak a coach correction", singleLine = true) }
             )
         }
     }

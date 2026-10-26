@@ -374,8 +374,10 @@ private fun WorkspaceField(
     label: String,
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    voice: Boolean = true
 ) {
+    val isEmail = label.contains("email", ignoreCase = true)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -383,6 +385,19 @@ private fun WorkspaceField(
         modifier = modifier,
         singleLine = singleLine,
         enabled = enabled,
+        trailingIcon = if (voice) {
+            {
+                VoiceMicButton(
+                    current = value,
+                    onValueChange = onValueChange,
+                    prompt = "Speak ${label.trimEnd('*', ' ', '…').lowercase()}",
+                    enabled = enabled,
+                    singleLine = singleLine,
+                    replace = singleLine,
+                    transform = if (isEmail) ::spokenEmailAddress else { text -> text }
+                )
+            }
+        } else null,
         shape = RoundedCornerShape(14.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -2783,7 +2798,16 @@ private fun MembersPanel(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text(if (showingPlayers) "Search players" else "Search club staff") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) }
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = {
+                    VoiceMicButton(
+                        current = search,
+                        onValueChange = { if (showingPlayers) playerSearch = it else staffSearch = it },
+                        prompt = if (showingPlayers) "Say a player name" else "Say a staff name",
+                        singleLine = true,
+                        replace = true
+                    )
+                }
             )
         }
         if (memberActionError.isNotBlank()) {
@@ -2903,11 +2927,19 @@ private fun MembersPanel(
 
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text("Full Name *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                OutlinedTextField(editName, { editName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+                                OutlinedTextField(
+                                    editName, { editName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp),
+                                    trailingIcon = { VoiceMicButton(editName, { editName = it }, "Say the full name", singleLine = true, replace = true) }
+                                )
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text("Email Address *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                OutlinedTextField(editEmail, { editEmail = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp))
+                                OutlinedTextField(
+                                    editEmail, { editEmail = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp),
+                                    trailingIcon = {
+                                        VoiceMicButton(editEmail, { editEmail = it }, "Say the email address", singleLine = true, replace = true, transform = ::spokenEmailAddress)
+                                    }
+                                )
                             }
                             if (editRole == "PLAYER") {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -3244,6 +3276,7 @@ private fun SquadSearchField(value: String, onValueChange: (String) -> Unit, mod
         singleLine = true,
         placeholder = { Text("Search squads…", fontSize = 13.sp) },
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(19.dp)) },
+        trailingIcon = { VoiceMicButton(value, onValueChange, "Say a squad name", singleLine = true, replace = true) },
         shape = RoundedCornerShape(16.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -4376,7 +4409,7 @@ private fun SessionDetailsCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DateField(date, onDateChange, "Date", Modifier.weight(1f), enabled = !isSaving)
-                WorkspaceField(duration, onDurationChange, "Duration in minutes", Modifier.weight(1f), enabled = !isSaving)
+                WorkspaceField(duration, onDurationChange, "Duration in minutes", Modifier.weight(1f), enabled = !isSaving, voice = false)
             }
             WorkspaceField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
             Text("Planned Drills (${session.drillIds.size})", fontWeight = FontWeight.SemiBold)
@@ -4686,7 +4719,7 @@ private fun ScheduleSessionPanel(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 DateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
-                                WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (minutes)", Modifier.weight(1f), enabled = !isSaving)
+                                WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (minutes)", Modifier.weight(1f), enabled = !isSaving, voice = false)
                             }
                             WorkspaceField(safety, { safety = it }, "Session safety (one instruction per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
                             Text("Planned Drills (${drillIds.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)

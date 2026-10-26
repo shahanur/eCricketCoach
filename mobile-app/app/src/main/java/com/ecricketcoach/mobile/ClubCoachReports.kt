@@ -658,7 +658,8 @@ internal fun ClubReportsPanel(
                 DateField(fromDate, { fromDate = it }, "From", Modifier.weight(1f))
                 DateField(throughDate, { throughDate = it }, "Through", Modifier.weight(1f))
             }
-            OutlinedTextField(squad, { squad = it }, label = { Text("Filter squad") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(squad, { squad = it }, label = { Text("Filter squad") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                trailingIcon = { VoiceMicButton(squad, { squad = it }, "Say a squad name", singleLine = true, replace = true) })
             if (!validRange) Text("Enter valid dates and make sure the start date is not after the end date.", color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = rows.isNotEmpty() && validRange, onClick = {
@@ -798,8 +799,10 @@ internal fun CertificatesPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text("Certificates", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(query, { query = it }, label = { Text("Filter player, level or number") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            OutlinedTextField(discipline, { discipline = it }, label = { Text("Filter discipline") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            OutlinedTextField(query, { query = it }, label = { Text("Filter player, level or number") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                trailingIcon = { VoiceMicButton(query, { query = it }, "Say a player, level or number", singleLine = true, replace = true) })
+            OutlinedTextField(discipline, { discipline = it }, label = { Text("Filter discipline") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                trailingIcon = { VoiceMicButton(discipline, { discipline = it }, "Say a discipline", singleLine = true, replace = true) })
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DateField(issuedFrom, { issuedFrom = it }, "Issued from", Modifier.weight(1f))
                 DateField(issuedThrough, { issuedThrough = it }, "Issued through", Modifier.weight(1f))
