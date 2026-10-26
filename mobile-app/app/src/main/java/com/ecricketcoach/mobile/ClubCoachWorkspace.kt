@@ -882,6 +882,8 @@ internal fun ClubCoachWorkspace(
                     onToggleTheme,
                     onSignOut,
                     activeSession = executingSession,
+                    activeAssessment = activeAssessment.takeIf { tab == "Assessment" },
+                    onAssessmentBack = { activeAssessment = null; tab = "Assessments" },
                     activeSessionPageTitle = when (executionCoachPage) {
                         "DRILL" -> "Drill controls"
                         "OBSERVATION" -> "New observation"
@@ -1614,10 +1616,6 @@ internal fun ClubCoachWorkspace(
                                 driveEmail = ""
                                 driveVideos = emptyList()
                             },
-                            onAssessmentUpdated = { updated ->
-                                assessments = assessments.map { if (it.id == updated.id) updated else it }
-                                if (activeAssessment?.id == updated.id) activeAssessment = updated
-                            },
                             onNotice = { notice = it }
                         )
                     }
@@ -2052,6 +2050,8 @@ private fun EkotaWorkspaceHeader(
     onToggleTheme: () -> Unit,
     onSignOut: () -> Unit,
     activeSession: ClubTrainingSession? = null,
+    activeAssessment: PlayerAssessment? = null,
+    onAssessmentBack: () -> Unit = {},
     activeSessionPageTitle: String? = null,
     onSessionBack: (() -> Unit)? = null
 ) {
@@ -2149,6 +2149,60 @@ private fun EkotaWorkspaceHeader(
                                     color = EkotaOverviewColors.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    } else if (activeAssessment != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = EkotaOverviewColors.surface,
+                                border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                                modifier = Modifier.size(44.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    IconButton(onClick = onAssessmentBack) {
+                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to assessments", tint = EkotaOverviewColors.primary, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                            }
+                            Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "${activeAssessment.playerName} · ${activeAssessment.discipline}".uppercase(),
+                                    color = EkotaOverviewColors.primary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        activeAssessment.title,
+                                        color = EkotaOverviewColors.onSurface,
+                                        fontSize = 23.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Text(
+                                        activeAssessment.status.replace('_', ' '),
+                                        color = EkotaOverviewColors.primary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier
+                                            .background(EkotaOverviewColors.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Text(
+                                    activeAssessment.scheduledDate +
+                                        (activeAssessment.scheduledTime?.let { " at $it" } ?: "") +
+                                        (activeAssessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
+                                    color = EkotaOverviewColors.onSurfaceVariant,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
@@ -3926,16 +3980,21 @@ private fun AssessmentCard(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Surface(shape = CircleShape, color = avatarColor, modifier = Modifier.size(42.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = CircleShape, color = avatarColor, modifier = Modifier.size(38.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(initials, color = Color(0xFF29385D), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                    Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(assessment.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Surface(shape = RoundedCornerShape(50), color = disciplineColor.copy(alpha = 0.11f)) {
+                            Text(assessment.discipline, color = disciplineColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                        }
+                    }
+                    Text(assessment.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
@@ -3947,17 +4006,13 @@ private fun AssessmentCard(
                     }
                 }
             }
-            Surface(shape = RoundedCornerShape(50), color = disciplineColor.copy(alpha = 0.11f), modifier = Modifier.align(Alignment.Start)) {
-                Text(assessment.discipline, color = disciplineColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
-            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
-                Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
-                    Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                    Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.End)) {
                 AssessmentActionButton("Edit", Icons.Outlined.Edit, Color(0xFF2679F4), onClick = { onEdit(assessment) })
                 when (assessment.status) {
@@ -3979,9 +4034,9 @@ private fun AssessmentActionButton(
     onClick: () -> Unit
 ) {
     Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = if (primary) accent else accent.copy(alpha = 0.1f)) {
-        Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = if (primary) Color.White else accent, modifier = Modifier.size(16.dp))
-            Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = if (primary) Color.White else accent, modifier = Modifier.size(17.dp))
+            Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
     }
 }
@@ -4831,48 +4886,11 @@ private fun AssessmentRunPanel(
 
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
-        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item {
-                Row(verticalAlignment = Alignment.Top) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                    Column(Modifier.weight(1f).padding(top = 4.dp)) {
-                        Text(
-                            "${assessment.playerName} · ${assessment.discipline}".uppercase(),
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(assessment.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
-                        Text(
-                            assessment.scheduledDate +
-                                (assessment.scheduledTime?.let { " at $it" } ?: "") +
-                                (assessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                    Text(
-                        assessment.status.replace('_', ' '),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), modifier = Modifier.padding(top = 8.dp))
-            }
-            item {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("Performance ratings", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(
-                        "  (1 = needs work, 5 = strong)",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Performance ratings", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text("  (1 = needs work, 5 = strong)", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             items(names, key = { "metric-$it" }) { name ->
@@ -4894,24 +4912,27 @@ private fun AssessmentRunPanel(
                         OutlinedTextField(
                             value = notes[name].orEmpty(),
                             onValueChange = { notes[name] = it.take(1000) },
-                            placeholder = { Text("Observation (optional)", fontSize = 13.sp) },
+                            placeholder = { Text("Observation (optional)", fontSize = 14.sp) },
                             readOnly = !editable,
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),
-                            textStyle = MaterialTheme.typography.bodySmall,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                            trailingIcon = if (editable) ({
+                                VoiceMicButton(notes[name].orEmpty(), { notes[name] = it.take(1000) }, "Speak observation for $name", singleLine = true)
+                            }) else null,
                             modifier = fieldModifier
                         )
                     }
                     if (isTablet) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(0.3f))
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(0.3f))
                             ratingRow()
                             Spacer(Modifier.width(10.dp))
                             noteField(Modifier.weight(0.45f))
                         }
                     } else {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                             ratingRow()
                             noteField(Modifier.fillMaxWidth())
                         }
@@ -4932,18 +4953,31 @@ private fun AssessmentRunPanel(
                 }
             }
             item {
-                AssessmentTextArea(
-                    coachFeedback, { coachFeedback = it }, "Feedback for player",
-                    "What you did well: ...\nWhat to focus on next: ...\nTry this in training: ...",
-                    editable, Modifier.fillMaxWidth()
-                )
-            }
-            item {
-                AssessmentTextArea(
-                    playerFeedback, { playerFeedback = it }, "Player's thoughts or feedback",
-                    "What felt good during this assessment?\nWhat would you like to improve or ask about?",
-                    editable, Modifier.fillMaxWidth()
-                )
+                val coachFeedbackField: @Composable (Modifier) -> Unit = { fieldModifier ->
+                    AssessmentTextArea(
+                        coachFeedback, { coachFeedback = it }, "Feedback for player",
+                        "What you did well: ...\nWhat to focus on next: ...\nTry this in training: ...",
+                        editable, fieldModifier
+                    )
+                }
+                val playerFeedbackField: @Composable (Modifier) -> Unit = { fieldModifier ->
+                    AssessmentTextArea(
+                        playerFeedback, { playerFeedback = it }, "Player's thoughts or feedback",
+                        "What felt good during this assessment?\nWhat would you like to improve or ask about?",
+                        editable, fieldModifier
+                    )
+                }
+                if (isTablet) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        coachFeedbackField(Modifier.weight(1f))
+                        playerFeedbackField(Modifier.weight(1f))
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        coachFeedbackField(Modifier.fillMaxWidth())
+                        playerFeedbackField(Modifier.fillMaxWidth())
+                    }
+                }
             }
             if (videoCard != null) item { videoCard() }
             if (completed && assessment.aiSummary != null) {
@@ -4952,22 +4986,22 @@ private fun AssessmentRunPanel(
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                Text("  Development insights", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                Text("  Development insights", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                             }
-                            Text(assessment.aiSummary, fontSize = 13.sp)
+                            Text(assessment.aiSummary, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                             assessment.aiRecommendations.forEachIndexed { index, recommendation ->
-                                Text("${index + 1}. $recommendation", fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                                Text("${index + 1}. $recommendation", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                     }
                 }
             }
             item {
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
                 if (!completed && !canComplete) {
                     Text(
                         "Rate every metric and add feedback for the player to complete the assessment.",
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -5020,7 +5054,7 @@ private fun RatingCircle(score: Int, selected: Boolean, enabled: Boolean, onClic
     val primary = MaterialTheme.colorScheme.primary
     Box(
         Modifier
-            .size(34.dp)
+            .size(32.dp)
             .clip(CircleShape)
             .background(if (selected) primary else Color.Transparent)
             .border(1.dp, if (selected) primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), CircleShape)
@@ -5029,7 +5063,7 @@ private fun RatingCircle(score: Int, selected: Boolean, enabled: Boolean, onClic
     ) {
         Text(
             score.toString(),
-            fontSize = 13.sp,
+            fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         )
@@ -5046,15 +5080,18 @@ private fun AssessmentTextArea(
     modifier: Modifier = Modifier
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
         OutlinedTextField(
             value = value,
             onValueChange = { onValueChange(it.take(4000)) },
-            placeholder = { Text(placeholder, fontSize = 13.sp) },
+            placeholder = { Text(placeholder, fontSize = 14.sp) },
             readOnly = !editable,
             minLines = 3,
             shape = RoundedCornerShape(12.dp),
-            textStyle = MaterialTheme.typography.bodyMedium,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+            trailingIcon = if (editable) ({
+                VoiceMicButton(value, { onValueChange(it.take(4000)) }, "Speak $label")
+            }) else null,
             modifier = Modifier.fillMaxWidth()
         )
     }

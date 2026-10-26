@@ -273,6 +273,7 @@ private fun buildFollowUpDraft(session: ClubTrainingSession, evaluation: AiEvalu
     return JSONObject()
         .put("title", evaluation.followUpPlan?.title?.takeIf(String::isNotBlank) ?: "${session.title} – follow-up")
         .put("sessionDate", sessionDate)
+        .put("sessionTime", session.sessionTime.orEmpty())
         .put("durationMinutes", evaluation.followUpPlan?.durationMinutes?.takeIf { it > 0 } ?: session.durationMinutes)
         .put("drillIds", JSONArray(evaluation.followUpPlan?.catalogueDrillIds ?: emptyList<String>()))
         .put("recommendedDrillIndexes", JSONArray(evaluation.tailoredRecommendedDrills.indices.toList()))
@@ -2014,7 +2015,7 @@ private fun PreparationCard(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(enabled = !readOnly) { checklist[key] = !checked }
-                        .padding(vertical = 5.dp),
+                        .padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -2078,10 +2079,10 @@ private fun AttendanceTable(
                         else -> "Not marked" to Color(0xFF8791A8)
                     }
                     Row(
-                        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(player.name, Modifier.weight(1f), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(player.name, Modifier.weight(1f), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = tint.copy(alpha = 0.12f),
@@ -2095,9 +2096,9 @@ private fun AttendanceTable(
                             Text(
                                 label,
                                 color = tint,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 1.dp)
                             )
                         }
                     }
@@ -2539,7 +2540,7 @@ private fun AiAnalysisCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = onRun, enabled = !busy) {
@@ -2551,16 +2552,16 @@ private fun AiAnalysisCard(
                     ReportActionButtons(onDownload = onDownload, onShare = onShare)
                 }
             }
-            if (reportError.isNotBlank()) Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (reportError.isNotBlank()) Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             Text(
                 "Gemini reviews player notes, attendance, drill timings, disruptions and evaluation, then suggests improvements and a follow-up session.",
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             if (evaluation != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Diagnosis", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("Diagnosis", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
@@ -2568,32 +2569,32 @@ private fun AiAnalysisCard(
                         Text(
                             ReadinessLabels[evaluation.progressionReadiness] ?: evaluation.progressionReadiness,
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
-                Text(evaluation.squadSummary, style = MaterialTheme.typography.bodySmall)
+                Text(evaluation.squadSummary, fontSize = 14.sp)
                 if (evaluation.identifiedGaps.isNotEmpty()) {
-                    Text("Gaps", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    evaluation.identifiedGaps.forEach { Text("• $it", fontSize = 12.sp) }
+                    Text("Gaps", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    evaluation.identifiedGaps.forEach { Text("• $it", fontSize = 14.sp) }
                 }
                 if (evaluation.playerFeedback.isNotEmpty()) {
-                    Text("Player focus", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    evaluation.playerFeedback.forEach { (name, focus) -> Text("$name: $focus", fontSize = 12.sp) }
+                    Text("Player focus", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    evaluation.playerFeedback.forEach { (name, focus) -> Text("$name: $focus", fontSize = 14.sp) }
                 }
                 if (evaluation.sessionImprovements.isNotEmpty()) {
-                    Text("Improve the next session", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    evaluation.sessionImprovements.forEach { Text("• $it", fontSize = 12.sp) }
+                    Text("Improve the next session", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    evaluation.sessionImprovements.forEach { Text("• $it", fontSize = 14.sp) }
                     TextButton(onClick = { onAddToAdjustments(evaluation.sessionImprovements) }) {
                         Text("Add to adjustments")
                     }
                 }
                 HorizontalDivider()
-                Text("💬 ${evaluation.aiCommendation}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                Text("💬 ${evaluation.aiCommendation}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
                 evaluation.generatedAt?.let {
-                    Text("Generated $it", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    Text("Generated $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
         }
@@ -2616,54 +2617,71 @@ private fun FollowUpCard(
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Follow-up session", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            Text("Follow-up session", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             if (createdFollowUp != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
                     Text(
-                        "\"${createdFollowUp.title}\" created for ${createdFollowUp.sessionDate} with ${createdFollowUp.drillCount} drill(s).",
-                        fontSize = 12.sp
+                        "\"${createdFollowUp.title}\" created for ${createdFollowUp.sessionDate}${createdFollowUp.sessionTime?.let { " at $it" }.orEmpty()} with ${createdFollowUp.drillCount} drill(s).",
+                        fontSize = 14.sp
                     )
                 }
                 Text(
                     "It is saved as a draft for the club to review and publish in the session planner.",
-                    fontSize = 11.sp,
+                    fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             } else if (draft != null) {
-                evaluation.followUpPlan?.objective?.takeIf(String::isNotBlank)?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall)
+                val detailsColumn: @Composable (Modifier) -> Unit = { columnModifier ->
+                    Column(columnModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        evaluation.followUpPlan?.objective?.takeIf(String::isNotBlank)?.let {
+                            Text(it, fontSize = 14.sp)
+                        }
+                        OutlinedTextField(
+                            draft.optString("title"),
+                            { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
+                            label = { Text("Title") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DateField(
+                                draft.optString("sessionDate"),
+                                { onDraftChange(JSONObject(draft.toString()).put("sessionDate", it)) },
+                                "Date",
+                                Modifier.weight(1f)
+                            )
+                            TimeField(
+                                draft.optString("sessionTime"),
+                                { onDraftChange(JSONObject(draft.toString()).put("sessionTime", it)) },
+                                "Time",
+                                Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            draft.optInt("durationMinutes").toString(),
+                            { value -> onDraftChange(JSONObject(draft.toString()).put("durationMinutes", value.toIntOrNull() ?: draft.optInt("durationMinutes"))) },
+                            label = { Text("Minutes") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Text("Selected drills: $followUpMinutes min", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.padding(horizontal = 3.dp))
+                            Text(if (busy) "Creating…" else "Create follow-up session")
+                        }
+                    }
                 }
-                OutlinedTextField(
-                    draft.optString("title"),
-                    { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
-                    label = { Text("Title") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        draft.optString("sessionDate"),
-                        { onDraftChange(JSONObject(draft.toString()).put("sessionDate", it)) },
-                        label = { Text("Date (YYYY-MM-DD)") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        draft.optInt("durationMinutes").toString(),
-                        { value -> onDraftChange(JSONObject(draft.toString()).put("durationMinutes", value.toIntOrNull() ?: draft.optInt("durationMinutes"))) },
-                        label = { Text("Minutes") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
-                    )
-                }
+                val drillsColumn: @Composable (Modifier) -> Unit = { columnModifier ->
+                Column(columnModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val catalogueIds = evaluation.followUpPlan?.catalogueDrillIds.orEmpty()
                 val selectedCatalogueIds = (0 until draft.getJSONArray("drillIds").length())
                     .map { draft.getJSONArray("drillIds").getString(it) }.toSet()
                 if (catalogueIds.isNotEmpty()) {
-                    Text("Catalogue drills", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("Catalogue drills", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     catalogueIds.forEach { id ->
                         val drill = drillCatalogue[id]
                         if (drill != null) {
@@ -2684,13 +2702,13 @@ private fun FollowUpCard(
                                         )
                                     }
                                 }
-                                Text("${drill.title} · ${drill.discipline} · ${drill.durationMinutes} min", fontSize = 12.sp)
+                                Text("${drill.title} · ${drill.discipline} · ${drill.durationMinutes} min", fontSize = 14.sp)
                             }
                         }
                     }
                 }
                 if (evaluation.tailoredRecommendedDrills.isNotEmpty()) {
-                    Text("New AI-recommended drills (saved to the club catalogue)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("New AI-recommended drills (saved to the club catalogue)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                     val selectedIndexes = (0 until draft.getJSONArray("recommendedDrillIndexes").length())
                         .map { draft.getJSONArray("recommendedDrillIndexes").getInt(it) }.toSet()
                     evaluation.tailoredRecommendedDrills.forEachIndexed { index, row ->
@@ -2712,19 +2730,28 @@ private fun FollowUpCard(
                                 }
                             }
                             Column {
-                                Text("${row.optString("title")} · ${row.optString("discipline")} · ${row.optInt("durationMinutes")} min", fontSize = 12.sp)
+                                Text("${row.optString("title")} · ${row.optString("discipline")} · ${row.optInt("durationMinutes")} min", fontSize = 14.sp)
                                 row.optString("reason").takeIf(String::isNotBlank)?.let {
-                                    Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                 }
                             }
                         }
                     }
                 }
-                Text("Selected drills: $followUpMinutes min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text(if (busy) "Creating…" else "Create follow-up session")
+                }
+                }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    if (maxWidth >= 600.dp) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            detailsColumn(Modifier.weight(1f))
+                            drillsColumn(Modifier.weight(1f))
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            drillsColumn(Modifier.fillMaxWidth())
+                            detailsColumn(Modifier.fillMaxWidth())
+                        }
+                    }
                 }
             }
         }

@@ -88,7 +88,8 @@ data class ClubTrainingSession(
     val executionLog: JSONObject?,
     val aiEvaluation: JSONObject? = null,
     val coordinatorCoachId: String? = null,
-    val assistantCoachId: String? = null
+    val assistantCoachId: String? = null,
+    val sessionTime: String? = null
 ) {
     fun isAssignedTo(userId: String): Boolean =
         userId.isNotBlank() && userId in listOf(coachId, coordinatorCoachId, assistantCoachId)
@@ -375,7 +376,92 @@ data class OpenAiBattingObservation(
     val title: String,
     val observation: String,
     val coachingImplication: String,
-    val confidence: String
+    val confidence: String,
+    val alternativeExplanation: String = "",
+    val coachingCue: String = "",
+    val drill: String = "",
+    val frameIndices: List<Int> = emptyList()
+)
+
+data class OpenAiBattingStrength(val title: String, val observation: String)
+
+data class OpenAiFindingReview(val findingIndex: Int, val status: String, val note: String)
+
+data class OpenAiCoachReview(val note: String, val findings: List<OpenAiFindingReview>)
+
+data class OpenAiBattingReportSummary(
+    val reportId: String,
+    val createdAt: String,
+    val sourceType: String?,
+    val sourceName: String?,
+    val discipline: String,
+    val shotType: String?
+)
+
+/** Raw inputs the server needs to build the movement overlay for a fresh review. */
+data class OpenAiPoseOverlayInput(
+    val croppedContactImageDataUrl: String,
+    val landmarksJson: String,
+    val contactPointJson: String,
+    val batPointsJson: String,
+    val sequenceFrames: List<OpenAiPoseSequenceInput>
+)
+
+data class OpenAiPoseSequenceInput(
+    val frameIndex: Int,
+    val timestampSeconds: Double,
+    val phase: String,
+    val imageDataUrl: String
+)
+
+data class PoseRuleCheck(
+    val group: String,
+    val metric: String,
+    val expectedMin: Double?,
+    val expectedMax: Double?,
+    val status: String,
+    val severity: String?
+)
+
+data class PoseRuleFault(
+    val code: String,
+    val metric: String,
+    val value: Double,
+    val expectedMin: Double?,
+    val expectedMax: Double?,
+    val severity: String,
+    val message: String,
+    val recommendation: String,
+    val drill: String?,
+    val verdict: String?
+)
+
+data class PoseSequenceFrame(
+    val frameIndex: Int,
+    val timestampSeconds: Double,
+    val phase: String,
+    val status: String,
+    val error: String?,
+    val image: ByteArray?
+)
+
+data class PoseOverlayResult(
+    val handedness: String,
+    val shotType: String,
+    val metrics: Map<String, Double?>,
+    val temporalEstimates: Map<String, Double>,
+    val verdict: String,
+    val rulesShotType: String,
+    val score: Double,
+    val scoreScope: String,
+    val checks: List<PoseRuleCheck>,
+    val faults: List<PoseRuleFault>,
+    val strengths: List<String>,
+    val unavailable: List<String>,
+    val overlayImage: ByteArray?,
+    val sequence: List<PoseSequenceFrame>,
+    /** Server metadata without inline images, used when saving the overlay to the report. */
+    internal val metadataJson: String = "{}"
 )
 
 data class OpenAiBattingPhase(
@@ -407,7 +493,18 @@ data class OpenAiBattingAnalysis(
     val strengths: List<String>,
     val priorityCue: String,
     val drill: OpenAiBattingDrill,
-    val limitations: List<String>
+    val limitations: List<String>,
+    val reportId: String = "",
+    val strengthItems: List<OpenAiBattingStrength> = emptyList(),
+    val coachReview: OpenAiCoachReview? = null,
+    val batterHandedness: String = "unknown",
+    val requestedShotType: String = "unknown",
+    val identifiedShotType: String? = null,
+    val restoredFromReport: Boolean = false,
+    val poseOverlayInput: OpenAiPoseOverlayInput? = null,
+    /** Persisted overlay metadata on a saved report; images are fetched as report artifacts. */
+    val savedPoseOverlayJson: String? = null,
+    val poseOverlay: PoseOverlayResult? = null
 )
 
 class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
@@ -1016,18 +1113,183 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         token: String,
         uri: Uri?,
         driveFileId: String?,
-        player: ClubMember?
+        player: ClubMember?,
+        playerId: String? = player?.id,
+        assessmentId: String? = null,
+        shotType: String = "unknown",
+        batterHandedness: String = "unknown",
+        cameraView: String = "unknown",
+        playbackSpeed: String = "unknown",
+        captureFps: Double? = null,
+        priorities: List<String> = emptyList(),
+        contactTimestampSeconds: Double? = null,
+        startTimeSeconds: Double? = null,
+        endTimeSeconds: Double? = null
     ): OpenAiBattingAnalysis = withContext(Dispatchers.IO) {
+        require((uri != null) xor (!driveFileId.isNullOrBlank())) {
+            "Choose one video source."
+        }
+        val fields = buildList {
+            (playerId ?: player?.id)?.let { add("playerId" to it) }
+            assessmentId?.let { add("assessmentId" to it) }
+            add("shotType" to shotType)
+            add("batterHandedness" to batterHandedness)
+            add("cameraView" to cameraView)
+            add("playbackSpeed" to playbackSpeed)
+            captureFps?.let { add("captureFps" to it.toString()) }
+            add("priorities" to JSONArray(priorities).toString())
+            contactTimestampSeconds?.let { add("contactTimestampSeconds" to it.toString()) }
+            startTimeSeconds?.let { add("startTimeSeconds" to it.toString()) }
+            endTimeSeconds?.let { add("endTimeSeconds" to it.toString()) }
+        }
         val body = if (uri != null) {
-            val fields = player?.let { listOf("playerId" to it.id) }.orEmpty()
             postVideoMultipart(context, token, "/api/videos/analyze/openai-batting", uri, fields)
         } else {
-            val json = JSONObject().put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
-            player?.let { json.put("playerId", it.id) }
+            val json = JSONObject()
+                .put("driveFileId", requireNotNull(driveFileId) { "Choose a video first." })
+                .put("shotType", shotType)
+                .put("batterHandedness", batterHandedness)
+                .put("cameraView", cameraView)
+                .put("playbackSpeed", playbackSpeed)
+                .put("priorities", JSONArray(priorities))
+            (playerId ?: player?.id)?.let { json.put("playerId", it) }
+            assessmentId?.let { json.put("assessmentId", it) }
+            captureFps?.let { json.put("captureFps", it) }
+            contactTimestampSeconds?.let { json.put("contactTimestampSeconds", it) }
+            startTimeSeconds?.let { json.put("startTimeSeconds", it) }
+            endTimeSeconds?.let { json.put("endTimeSeconds", it) }
             request("/api/videos/analyze/openai-batting", token, json, method = "POST", readTimeoutMs = 300_000)
         }
-        JSONObject(body).getJSONObject("analysis").toOpenAiBattingAnalysis()
+        JSONObject(body).let { response ->
+            response.getJSONObject("analysis").put("reportId", response.optString("reportId"))
+                .toOpenAiBattingAnalysis()
+        }
     }
+
+    suspend fun getLatestOpenAiBattingAnalysis(
+        token: String,
+        playerId: String,
+        assessmentId: String? = null,
+        reportId: String? = null
+    ): OpenAiBattingAnalysis? = withContext(Dispatchers.IO) {
+        val query = buildString {
+            append("playerId=${URLEncoder.encode(playerId, UTF_8)}")
+            assessmentId?.let { append("&assessmentId=${URLEncoder.encode(it, UTF_8)}") }
+            reportId?.let { append("&reportId=${URLEncoder.encode(it, UTF_8)}") }
+        }
+        val response = JSONObject(request("/api/videos/analyze/openai-batting/latest?$query", token))
+        val report = response.optJSONObject("report") ?: return@withContext null
+        val analysis = report.optJSONObject("analysis") ?: return@withContext null
+        analysis.put("reportId", report.optString("reportId"))
+        analysis.toOpenAiBattingAnalysis().copy(restoredFromReport = true)
+    }
+
+    suspend fun listOpenAiBattingReports(token: String, playerId: String): List<OpenAiBattingReportSummary> =
+        withContext(Dispatchers.IO) {
+            val query = "playerId=${URLEncoder.encode(playerId, UTF_8)}"
+            val rows = JSONObject(request("/api/videos/analyze/openai-batting/history?$query", token))
+                .optJSONArray("reports") ?: JSONArray()
+            (0 until rows.length()).mapNotNull { index ->
+                val row = rows.optJSONObject(index) ?: return@mapNotNull null
+                val reportId = row.optString("reportId").takeIf { REPORT_ID.matches(it) } ?: return@mapNotNull null
+                OpenAiBattingReportSummary(
+                    reportId = reportId,
+                    createdAt = row.optString("createdAt"),
+                    sourceType = row.optNullableString("sourceType"),
+                    sourceName = row.optNullableString("sourceName"),
+                    discipline = row.optString("discipline", "BATTING"),
+                    shotType = row.optNullableString("shotType")
+                )
+            }
+        }
+
+    suspend fun saveOpenAiBattingReview(
+        token: String,
+        reportId: String,
+        note: String,
+        findings: List<OpenAiFindingReview>
+    ) = withContext(Dispatchers.IO) {
+        require(REPORT_ID.matches(reportId)) { "Invalid report identifier" }
+        val body = JSONObject()
+            .put("note", note)
+            .put("findings", JSONArray(findings.map {
+                JSONObject().put("findingIndex", it.findingIndex).put("status", it.status).put("note", it.note)
+            }))
+        request("/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}/review", token, body, method = "PATCH")
+        Unit
+    }
+
+    /** Builds the movement overlay and alignment checks from the review's cropped contact frames. */
+    suspend fun analyzeOpenAiPoseOverlay(
+        token: String,
+        input: OpenAiPoseOverlayInput,
+        handedness: String,
+        shotType: String
+    ): PoseOverlayResult = withContext(Dispatchers.IO) {
+        val parts = buildList {
+            val (mime, bytes) = decodeImageDataUrl(input.croppedContactImageDataUrl)
+            add(MultipartPart("image", "openai-contact-crop.jpg", mime, bytes))
+            input.sequenceFrames.forEachIndexed { index, frame ->
+                val (frameMime, frameBytes) = decodeImageDataUrl(frame.imageDataUrl)
+                add(MultipartPart("sequenceImages", "contact-sequence-$index.jpg", frameMime, frameBytes))
+            }
+        }
+        val fields = listOf(
+            "handedness" to handedness,
+            "shotType" to shotType,
+            "openAiLandmarks" to input.landmarksJson,
+            "openAiContactPoint" to input.contactPointJson,
+            "openAiBatPoints" to input.batPointsJson,
+            "sequenceMetadata" to JSONArray(input.sequenceFrames.map {
+                JSONObject().put("frameIndex", it.frameIndex).put("timestampSeconds", it.timestampSeconds).put("phase", it.phase)
+            }).toString()
+        )
+        JSONObject(postBytesMultipart(token, "/api/videos/kinematics/analyze-image", fields, parts)).toPoseOverlayResult()
+    }
+
+    suspend fun saveOpenAiPoseOverlay(token: String, reportId: String, result: PoseOverlayResult) = withContext(Dispatchers.IO) {
+        require(REPORT_ID.matches(reportId)) { "Invalid report identifier" }
+        val overlay = requireNotNull(result.overlayImage) { "The pose overlay image is missing." }
+        val metadata = JSONObject(result.metadataJson)
+        val parts = buildList {
+            add(MultipartPart("overlay", "pose-overlay.png", "image/png", overlay))
+            result.sequence.forEachIndexed { index, frame ->
+                if (frame.status == "success" && frame.image != null) {
+                    add(MultipartPart("sequence_$index", "pose-sequence-$index.png", "image/png", frame.image))
+                }
+            }
+        }
+        postBytesMultipart(
+            token,
+            "/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}/pose-overlay",
+            listOf("poseOverlay" to metadata.toString()),
+            parts
+        )
+        Unit
+    }
+
+    /** Restores a saved overlay by downloading its PNG artifacts from the report. */
+    suspend fun loadSavedPoseOverlay(token: String, analysis: OpenAiBattingAnalysis): PoseOverlayResult? =
+        withContext(Dispatchers.IO) {
+            val json = analysis.savedPoseOverlayJson?.let(::JSONObject) ?: return@withContext null
+            val reportId = analysis.reportId.takeIf { REPORT_ID.matches(it) } ?: return@withContext null
+            fun artifact(name: String?): ByteArray? {
+                if (name == null || !ARTIFACT_NAME.matches(name)) return null
+                return runCatching {
+                    requestBytes("/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}/artifacts/${URLEncoder.encode(name, UTF_8)}", token)
+                }.getOrNull()
+            }
+            val overlay = artifact(json.optNullableString("overlayArtifactName"))
+            val sequence = json.optJSONArray("sequence") ?: JSONArray()
+            for (index in 0 until sequence.length()) {
+                val frame = sequence.optJSONObject(index) ?: continue
+                artifact(frame.optNullableString("artifactName"))?.let {
+                    frame.put("overlay_image_base64", java.util.Base64.getEncoder().encodeToString(it))
+                }
+            }
+            overlay?.let { json.put("overlay_image_base64", java.util.Base64.getEncoder().encodeToString(it)) }
+            json.toPoseOverlayResult()
+        }
 
     private fun JSONObject.toOpenAiBattingAnalysis(): OpenAiBattingAnalysis {
         val video = optJSONObject("video") ?: JSONObject()
@@ -1041,13 +1303,58 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             val array = optJSONArray(name) ?: JSONArray()
             return (0 until array.length()).mapNotNull { index ->
                 val row = array.optJSONObject(index) ?: return@mapNotNull null
+                val frames = row.optJSONArray("frameIndices") ?: JSONArray()
                 OpenAiBattingObservation(
                     title = row.optString("title"),
                     observation = row.optString("observation"),
                     coachingImplication = row.optString("coachingImplication"),
-                    confidence = row.optString("confidence", "low")
+                    confidence = row.optString("confidence", "low"),
+                    alternativeExplanation = row.optNullableString("alternativeExplanation").orEmpty(),
+                    coachingCue = row.optNullableString("coachingCue").orEmpty(),
+                    drill = row.optNullableString("drill").orEmpty(),
+                    frameIndices = (0 until frames.length()).mapNotNull { frames.opt(it) as? Number }.map(Number::toInt)
                 )
             }
+        }
+        val strengthArray = optJSONArray("strengths") ?: JSONArray()
+        val strengthItems = (0 until strengthArray.length()).mapNotNull { index ->
+            when (val value = strengthArray.opt(index)) {
+                is JSONObject -> OpenAiBattingStrength(value.optString("title"), value.optString("observation"))
+                is String -> value.takeIf(String::isNotBlank)?.let { OpenAiBattingStrength("", it) }
+                else -> null
+            }
+        }
+        val review = optJSONObject("coachReview")?.let { json ->
+            val rows = json.optJSONArray("findings") ?: JSONArray()
+            OpenAiCoachReview(
+                note = json.optString("note"),
+                findings = (0 until rows.length()).mapNotNull { index ->
+                    val row = rows.optJSONObject(index) ?: return@mapNotNull null
+                    OpenAiFindingReview(row.optInt("findingIndex"), row.optString("status"), row.optString("note"))
+                }
+            )
+        }
+        val requestMetadata = optJSONObject("requestMetadata") ?: JSONObject()
+        val identification = optJSONObject("shotIdentification") ?: JSONObject()
+        val identifiedHand = identification.optString("batterHandedness", "unknown")
+        val croppedImage = optNullableString("croppedContactImageDataUrl")?.takeIf { it.startsWith("data:image/") }
+        val poseInput = croppedImage?.let { image ->
+            val frames = optJSONArray("poseSequenceFrames") ?: JSONArray()
+            OpenAiPoseOverlayInput(
+                croppedContactImageDataUrl = image,
+                landmarksJson = (optJSONObject("croppedContactLandmarksNorm") ?: JSONObject()).toString(),
+                contactPointJson = optJSONObject("croppedContactPointNorm")?.toString() ?: "null",
+                batPointsJson = JSONObject()
+                    .put("handle", optJSONObject("croppedBatHandleNorm") ?: JSONObject.NULL)
+                    .put("toe", optJSONObject("croppedBatToeNorm") ?: JSONObject.NULL)
+                    .put("angle", optJSONObject("contactBatAngle")?.opt("angleDegrees")?.takeIf { it is Number } ?: JSONObject.NULL)
+                    .toString(),
+                sequenceFrames = (0 until frames.length()).mapNotNull { index ->
+                    val frame = frames.optJSONObject(index) ?: return@mapNotNull null
+                    val url = frame.optString("imageDataUrl").takeIf { it.startsWith("data:image/") } ?: return@mapNotNull null
+                    OpenAiPoseSequenceInput(frame.optInt("frameIndex"), frame.optDouble("timestampSeconds", 0.0), frame.optString("phase"), url)
+                }
+            )
         }
         val phaseArray = optJSONArray("phases") ?: JSONArray()
         val instructionArray = drillJson.optJSONArray("instructions") ?: JSONArray()
@@ -1079,15 +1386,168 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
             summary = optString("summary"),
             observations = observations("observations"),
             errors = observations("errors"),
-            strengths = strings("strengths"),
+            strengths = strengthItems.map { if (it.title.isBlank()) it.observation else "${it.title}: ${it.observation}" },
             priorityCue = optString("priorityCue"),
             drill = OpenAiBattingDrill(
                 title = drillJson.optString("title"),
                 instructions = (0 until instructionArray.length()).map(instructionArray::optString),
                 rationale = drillJson.optString("rationale")
             ),
-            limitations = strings("limitations")
+            limitations = strings("limitations"),
+            reportId = optString("reportId"),
+            strengthItems = strengthItems,
+            coachReview = review,
+            batterHandedness = if (identifiedHand != "unknown") identifiedHand else requestMetadata.optString("batterHandedness", "unknown"),
+            requestedShotType = requestMetadata.optString("shotType", "unknown"),
+            identifiedShotType = identification.optNullableString("shotType"),
+            poseOverlayInput = poseInput,
+            savedPoseOverlayJson = optJSONObject("poseOverlay")?.takeIf { it.has("overlayArtifactName") }?.toString()
         )
+    }
+
+    private fun JSONObject.toPoseOverlayResult(): PoseOverlayResult {
+        fun nullableDouble(json: JSONObject, name: String): Double? =
+            (json.opt(name) as? Number)?.toDouble()?.takeIf { it.isFinite() }
+        fun expected(json: JSONObject): Pair<Double?, Double?> {
+            val array = json.optJSONArray("expected") ?: return null to null
+            return (array.opt(0) as? Number)?.toDouble() to (array.opt(1) as? Number)?.toDouble()
+        }
+        fun stringList(array: JSONArray?): List<String> =
+            if (array == null) emptyList() else (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+        fun decode(base64: String?): ByteArray? =
+            base64?.takeIf { it.isNotBlank() }?.let { runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull() }
+
+        val metricsJson = optJSONObject("metrics") ?: JSONObject()
+        val metrics = metricsJson.keys().asSequence().associateWith { nullableDouble(metricsJson, it) }
+        val temporalJson = optJSONObject("temporal_angle_estimates") ?: JSONObject()
+        val temporal = temporalJson.keys().asSequence().mapNotNull { key ->
+            temporalJson.optJSONObject(key)?.let { nullableDouble(it, "value") }?.let { key to it }
+        }.toMap()
+        val rules = optJSONObject("coaching_rules") ?: JSONObject()
+        val checkArray = rules.optJSONArray("checks") ?: JSONArray()
+        val faultArray = rules.optJSONArray("faults") ?: JSONArray()
+        val sequenceArray = optJSONArray("sequence") ?: JSONArray()
+        val sequence = (0 until sequenceArray.length()).mapNotNull { index ->
+            val frame = sequenceArray.optJSONObject(index) ?: return@mapNotNull null
+            PoseSequenceFrame(
+                frameIndex = frame.optInt("frame_index"),
+                timestampSeconds = frame.optDouble("timestamp_seconds", 0.0),
+                phase = frame.optString("phase"),
+                status = frame.optString("status"),
+                error = frame.optNullableString("error"),
+                image = decode(frame.optNullableString("overlay_image_base64"))
+            )
+        }
+        val metadata = JSONObject(toString()).apply {
+            remove("overlay_image_base64")
+            remove("overlayArtifactName")
+            optJSONArray("sequence")?.let { frames ->
+                for (index in 0 until frames.length()) {
+                    frames.optJSONObject(index)?.apply { remove("overlay_image_base64"); remove("artifactName") }
+                }
+            }
+        }
+        return PoseOverlayResult(
+            handedness = optString("handedness", "right"),
+            shotType = optString("shot_type"),
+            metrics = metrics,
+            temporalEstimates = temporal,
+            verdict = rules.optString("verdict"),
+            rulesShotType = rules.optString("shot_type"),
+            score = rules.optDouble("score", 0.0),
+            scoreScope = rules.optString("score_scope"),
+            checks = (0 until checkArray.length()).mapNotNull { index ->
+                val check = checkArray.optJSONObject(index) ?: return@mapNotNull null
+                val (min, max) = expected(check)
+                PoseRuleCheck(check.optString("group"), check.optString("metric"), min, max, check.optString("status"), check.optNullableString("severity"))
+            },
+            faults = (0 until faultArray.length()).mapNotNull { index ->
+                val fault = faultArray.optJSONObject(index) ?: return@mapNotNull null
+                val (min, max) = expected(fault)
+                PoseRuleFault(
+                    code = fault.optString("code"),
+                    metric = fault.optString("metric"),
+                    value = fault.optDouble("value", 0.0),
+                    expectedMin = min,
+                    expectedMax = max,
+                    severity = fault.optString("severity", "low"),
+                    message = fault.optString("message"),
+                    recommendation = fault.optString("recommendation"),
+                    drill = fault.optNullableString("drill"),
+                    verdict = fault.optNullableString("verdict")
+                )
+            },
+            strengths = stringList(rules.optJSONArray("strengths")),
+            unavailable = stringList(rules.optJSONArray("unavailable")),
+            overlayImage = decode(optNullableString("overlay_image_base64")),
+            sequence = sequence,
+            metadataJson = metadata.toString()
+        )
+    }
+
+    private fun JSONObject.optNullableString(name: String): String? =
+        if (isNull(name)) null else optString(name).takeIf { it.isNotBlank() && it != "null" }
+
+    private fun decodeImageDataUrl(dataUrl: String): Pair<String, ByteArray> {
+        val match = Regex("^data:(image/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$").find(dataUrl)
+            ?: throw IllegalArgumentException("A contact frame is not a supported image.")
+        return match.groupValues[1] to java.util.Base64.getDecoder().decode(match.groupValues[2])
+    }
+
+    private class MultipartPart(val name: String, val fileName: String, val mimeType: String, val bytes: ByteArray)
+
+    private fun postBytesMultipart(
+        token: String,
+        path: String,
+        fields: List<Pair<String, String>>,
+        parts: List<MultipartPart>
+    ): String {
+        val boundary = "eCricketCoach-${UUID.randomUUID()}"
+        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 15_000
+        connection.readTimeout = 180_000
+        connection.doOutput = true
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        try {
+            DataOutputStream(connection.outputStream).use { output ->
+                fields.forEach { (name, value) -> writeMultipartField(output, boundary, name, value) }
+                parts.forEach { part ->
+                    output.writeBytes("--$boundary\r\n")
+                    output.writeBytes("Content-Disposition: form-data; name=\"${part.name}\"; filename=\"${part.fileName}\"\r\n")
+                    output.writeBytes("Content-Type: ${part.mimeType}\r\n\r\n")
+                    output.write(part.bytes)
+                    output.writeBytes("\r\n")
+                }
+                output.writeBytes("--$boundary--\r\n")
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) throw ApiException(status, apiErrorMessage(status, responseBody, path))
+            return responseBody
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun requestBytes(path: String, token: String): ByteArray {
+        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 30_000
+        connection.setRequestProperty("Authorization", "Bearer $token")
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                val body = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                throw ApiException(status, apiErrorMessage(status, body, path))
+            }
+            return connection.inputStream.use { it.readBytes() }
+        } finally {
+            connection.disconnect()
+        }
     }
 
     suspend fun analyzeKinematicsVideo(
@@ -1592,6 +2052,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         squadId = optString("squadId").takeIf { it.isNotBlank() && it != "null" },
         squadName = optString("squadName", "Squad"),
         sessionDate = optString("sessionDate"),
+        sessionTime = optString("sessionTime").takeIf { Regex("\\d{2}:\\d{2}").matches(it) },
         durationMinutes = optInt("durationMinutes", 90),
         isPublished = optBoolean("isPublished"),
         isExecuted = optBoolean("isExecuted"),
@@ -1838,5 +2299,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         private const val UTF_8 = "UTF-8"
         private const val MAX_VIDEO_BYTES = 500L * 1024 * 1024
         private val PROVIDERS = setOf("google", "microsoft", "apple")
+        private val REPORT_ID = Regex("^[0-9a-fA-F-]{36}$")
+        private val ARTIFACT_NAME = Regex("^(pose_overlay|pose_sequence_[0-8])\\.png$")
     }
 }

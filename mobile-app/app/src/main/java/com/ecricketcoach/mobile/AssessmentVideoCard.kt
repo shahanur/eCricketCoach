@@ -9,20 +9,22 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.SwapHoriz
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Cloud
-import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -34,7 +36,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -69,7 +70,6 @@ internal fun AssessmentVideoCard(
     driveEmail: String,
     onRefreshDrive: () -> Unit,
     onDisconnectDrive: suspend () -> Unit,
-    onAssessmentUpdated: (PlayerAssessment) -> Unit,
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -78,8 +78,10 @@ internal fun AssessmentVideoCard(
     val completed = assessment.status == "COMPLETED"
     var video by remember(assessment.id) { mutableStateOf<AssessmentVideo?>(null) }
     var loading by remember(assessment.id) { mutableStateOf(false) }
-    var uploading by remember(assessment.id) { mutableStateOf(false) }
+    var reviewRunning by remember(assessment.id) { mutableStateOf(false) }
     var error by remember(assessment.id) { mutableStateOf("") }
+    var selectedVideoUri by remember(assessment.id) { mutableStateOf<Uri?>(null) }
+    var selectedVideoName by remember(assessment.id) { mutableStateOf("") }
     var driveVideos by remember { mutableStateOf<List<DriveVideoFile>>(emptyList()) }
     var driveLoading by remember { mutableStateOf(false) }
     var driveMenuOpen by remember { mutableStateOf(false) }
@@ -148,23 +150,12 @@ internal fun AssessmentVideoCard(
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            uploading = true
-            error = ""
-            try {
-                val (updated, result) = api.uploadAssessmentVideo(context, token, assessment.id, uri)
-                video = result
-                onAssessmentUpdated(updated)
-                onNotice("Video saved to Google Drive and analysed.")
-                loadDriveVideos()
-            } catch (failure: CancellationException) {
-                throw failure
-            } catch (failure: Exception) {
-                error = failure.message ?: "Unable to upload and analyse this video."
-            } finally {
-                uploading = false
-            }
-        }
+        selectedVideoUri = uri
+        selectedVideoName = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+            .orEmpty()
+        selectedDriveVideo = null
+        error = ""
     }
 
     if (confirmSwitch) {
@@ -197,14 +188,14 @@ internal fun AssessmentVideoCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 Column(Modifier.weight(1f).padding(start = 8.dp)) {
                     Text("Video analysis", fontWeight = FontWeight.Bold)
                     Text(
                         when {
-                            !driveConnected -> "Connect Google Drive to store assessment videos."
+                            !driveConnected -> "Choose a video from this device or connect Google Drive."
                             driveEmail.isNotBlank() -> "Stored in Google Drive · $driveEmail"
                             else -> "Stored in Google Drive"
                         },
@@ -214,75 +205,110 @@ internal fun AssessmentVideoCard(
                 }
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 if (driveConnected) {
-                    TextButton(onClick = { confirmSwitch = true }, enabled = !uploading && !switching) {
+                    TextButton(onClick = { confirmSwitch = true }, enabled = !reviewRunning && !switching) {
                         Icon(Icons.Outlined.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
                         Text(" Switch", fontSize = 12.sp)
                     }
                 }
             }
 
-            video?.let { result -> AssessmentVideoResult(result) }
-
-            CapeAnalysisSection(api, token, assessment, canSubmit = !completed, onNotice = onNotice)
-
-            if (driveConnected && !completed) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) {
-                        OutlinedButton(
-                            onClick = { driveMenuOpen = true },
-                            enabled = !uploading && driveVideos.isNotEmpty(),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Outlined.Cloud, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text(
-                                selectedDriveVideo?.name ?: when {
-                                    driveLoading -> "  Loading Drive videos?"
-                                    driveVideos.isEmpty() -> "  No videos in Google Drive"
-                                    else -> "  Choose from Google Drive (${driveVideos.size})"
-                                },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(start = 4.dp)
-                            )
-                            Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
-                        DropdownMenu(expanded = driveMenuOpen, onDismissRequest = { driveMenuOpen = false }) {
-                            driveVideos.forEach { file ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Column {
-                                            Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            Text(file.modifiedTime.take(10), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
+            val sourcePicker: @Composable () -> Unit = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (driveConnected) {
+                        Box(Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { driveMenuOpen = true },
+                                enabled = !reviewRunning && driveVideos.isNotEmpty(),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                            ) {
+                                Icon(Icons.Outlined.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Text(
+                                    selectedDriveVideo?.name ?: when {
+                                        driveLoading -> "Loading Drive videos…"
+                                        driveVideos.isEmpty() -> "No Drive videos"
+                                        else -> "Google Drive (${driveVideos.size})"
                                     },
-                                    onClick = { selectedDriveVideo = file; driveMenuOpen = false }
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(start = 6.dp)
                                 )
+                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            DropdownMenu(expanded = driveMenuOpen, onDismissRequest = { driveMenuOpen = false }) {
+                                driveVideos.forEach { file ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Text(file.modifiedTime.take(10), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedDriveVideo = file
+                                            selectedVideoUri = null
+                                            selectedVideoName = ""
+                                            driveMenuOpen = false
+                                        }
+                                    )
+                                }
                             }
                         }
+                        IconButton(
+                            onClick = {
+                                onRefreshDrive()
+                                scope.launch { error = ""; loadDriveVideos() }
+                            },
+                            enabled = !driveLoading && !reviewRunning,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            if (driveLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Google Drive videos", modifier = Modifier.size(18.dp))
+                        }
                     }
-                    IconButton(
-                        onClick = {
-                            onRefreshDrive()
-                            scope.launch { error = ""; loadDriveVideos() }
-                        },
-                        enabled = !driveLoading && !uploading
+                    val localSelected = selectedVideoName.isNotBlank()
+                    OutlinedButton(
+                        onClick = { picker.launch(arrayOf("video/*")) },
+                        enabled = !reviewRunning,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = (if (driveConnected) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f)).height(40.dp)
                     ) {
-                        if (driveLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Google Drive videos")
+                        Icon(Icons.Outlined.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            if (localSelected) selectedVideoName else "From device",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                    if (!driveConnected) {
+                        TextButton(onClick = { launchDriveConnect() }, enabled = !reviewRunning) {
+                            Text("Connect Drive", fontSize = 12.sp)
+                        }
                     }
                 }
             }
-
-            if (uploading) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(
-                    "Analysing the video with AI. Keep this screen open; this can take a few minutes.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+
+            AssessmentBattingReview(
+                api = api,
+                token = token,
+                assessment = assessment,
+                videoUri = selectedVideoUri,
+                driveFileId = selectedDriveVideo?.id,
+                canSubmit = !completed,
+                onRunningChange = { reviewRunning = it },
+                onNotice = onNotice,
+                sourcePicker = sourcePicker.takeIf { !completed }
+            )
 
             if (!completed || video?.driveLink != null) {
                 Row(
@@ -303,57 +329,6 @@ internal fun AssessmentVideoCard(
                         ) {
                             Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Open in Drive")
-                        }
-                    }
-                    if (!completed) {
-                        if (driveConnected) {
-                            selectedDriveVideo?.let { file ->
-                                OutlinedButton(
-                                    onClick = {
-                                        scope.launch {
-                                            uploading = true
-                                            error = ""
-                                            try {
-                                                val (updated, result) = api.analyzeAssessmentDriveVideo(token, assessment.id, file.id)
-                                                video = result
-                                                selectedDriveVideo = null
-                                                onAssessmentUpdated(updated)
-                                                onNotice("Google Drive video analysed.")
-                                            } catch (failure: CancellationException) {
-                                                throw failure
-                                            } catch (failure: Exception) {
-                                                error = failure.message ?: "Unable to analyse this Google Drive video."
-                                            } finally {
-                                                uploading = false
-                                            }
-                                        }
-                                    },
-                                    enabled = !uploading,
-                                    shape = RoundedCornerShape(14.dp)
-                                ) {
-                                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Text("  Analyse Drive video")
-                                }
-                            }
-                            Button(
-                                onClick = { picker.launch(arrayOf("video/*")) },
-                                enabled = !uploading,
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text(if (video == null) "  Upload video" else "  Replace video")
-                            }
-                        } else {
-                            OutlinedButton(onClick = onRefreshDrive, shape = RoundedCornerShape(14.dp)) {
-                                Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text("  Refresh")
-                            }
-                            Button(
-                                onClick = { launchDriveConnect() },
-                                shape = RoundedCornerShape(14.dp)
-                            ) {
-                                Text("Connect Google Drive")
-                            }
                         }
                     }
                 }
@@ -378,30 +353,3 @@ private fun SwitchDriveDialog(email: String, onConfirm: () -> Unit, onDismiss: (
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
-
-@Composable
-private fun AssessmentVideoResult(video: AssessmentVideo) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("${video.overallScore}", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text(" / 100 AI score", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
-        }
-        if (video.detectedIssues.isNotEmpty()) {
-            Text("Detected issues", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            video.detectedIssues.forEach { Text("• $it", fontSize = 13.sp) }
-        }
-        if (video.recommendedDrills.isNotEmpty()) {
-            Text("Recommended drills", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-            video.recommendedDrills.forEach { Text("• $it", fontSize = 13.sp) }
-        }
-        if (video.biomechanics.isNotEmpty()) {
-            Text("Biomechanics", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
-            video.biomechanics.forEach { (key, value) ->
-                Text("${humanizeMetricKey(key)}: $value", fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-private fun humanizeMetricKey(key: String): String =
-    key.replace(Regex("([a-z])([A-Z])"), "$1 $2").replaceFirstChar { it.uppercase() }
