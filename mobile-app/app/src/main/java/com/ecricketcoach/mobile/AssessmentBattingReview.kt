@@ -1,7 +1,13 @@
 package com.ecricketcoach.mobile
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
+import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
+import android.os.SystemClock
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
@@ -19,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
@@ -73,8 +80,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import java.io.File
 import java.util.Locale
 
@@ -99,29 +109,36 @@ internal fun AssessmentBattingReview(
     canSubmit: Boolean,
     onRunningChange: (Boolean) -> Unit,
     onNotice: (String) -> Unit,
-    sourcePicker: (@Composable () -> Unit)? = null
+    sourcePicker: (@Composable () -> Unit)? = null,
+    sourceCaption: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sourceKey = videoUri?.toString() ?: driveFileId.orEmpty()
-    var analysis by remember(assessment.id) { mutableStateOf<OpenAiBattingAnalysis?>(null) }
-    var isLoadingSaved by remember(assessment.id) { mutableStateOf(false) }
-    var savedError by remember(assessment.id) { mutableStateOf("") }
-    var isRunning by remember(assessment.id) { mutableStateOf(false) }
-    var error by remember(assessment.id) { mutableStateOf("") }
-    var shotType by remember(assessment.id) { mutableStateOf("front_foot_drive") }
-    var handedness by remember(assessment.id) { mutableStateOf("right") }
-    var cameraView by remember(assessment.id) { mutableStateOf("front_on") }
-    var playbackSpeed by remember(assessment.id) { mutableStateOf("slow_motion") }
-    var captureFps by remember(assessment.id) { mutableStateOf("") }
-    var priorities by remember(assessment.id) { mutableStateOf(assessmentReviewPriorities.map { it.first }.toSet()) }
-    var manualContact by remember(assessment.id) { mutableStateOf(true) }
-    var showMoreOptions by remember(assessment.id) { mutableStateOf(false) }
+    // A blank assessment id means an ad-hoc review from the Video Analysis page.
+    val linkedAssessmentId = assessment.id.ifBlank { null }
+    val reviewKey = "${assessment.id}:${assessment.playerId}"
+    var analysis by remember(reviewKey) { mutableStateOf<OpenAiBattingAnalysis?>(null) }
+    var isLoadingSaved by remember(reviewKey) { mutableStateOf(false) }
+    var savedError by remember(reviewKey) { mutableStateOf("") }
+    var isRunning by remember(reviewKey) { mutableStateOf(false) }
+    var error by remember(reviewKey) { mutableStateOf("") }
+    var shotType by remember(reviewKey) { mutableStateOf("front_foot_drive") }
+    var handedness by remember(reviewKey) { mutableStateOf("right") }
+    var cameraView by remember(reviewKey) { mutableStateOf("front_on") }
+    var playbackSpeed by remember(reviewKey) { mutableStateOf("slow_motion") }
+    var captureFps by remember(reviewKey) { mutableStateOf("") }
+    var priorities by remember(reviewKey) { mutableStateOf(assessmentReviewPriorities.map { it.first }.toSet()) }
+    var manualContact by remember(reviewKey) { mutableStateOf(true) }
+    var showMoreOptions by remember(reviewKey) { mutableStateOf(false) }
     var previewLoading by remember(sourceKey) { mutableStateOf(false) }
     var previewError by remember(sourceKey) { mutableStateOf("") }
     var previewCache by remember(sourceKey) { mutableStateOf<File?>(null) }
     var videoPlayer by remember(sourceKey) { mutableStateOf<VideoView?>(null) }
     var videoDuration by remember(sourceKey) { mutableStateOf(0f) }
+    var mediaPlayer by remember(sourceKey) { mutableStateOf<MediaPlayer?>(null) }
+    var videoFrameRate by remember(sourceKey) { mutableStateOf<Float?>(null) }
+    var lastSeekAt by remember(sourceKey) { mutableStateOf(0L) }
     var contactSeconds by remember(sourceKey) { mutableStateOf(0f) }
     var startSeconds by remember(sourceKey) { mutableStateOf(0f) }
     var endSeconds by remember(sourceKey) { mutableStateOf(0f) }
@@ -130,7 +147,7 @@ internal fun AssessmentBattingReview(
     val fpsIsValid = captureFps.isBlank() || (fpsValue != null && fpsValue in 1.0..1000.0)
 
     LaunchedEffect(assessment.id, assessment.playerId, assessment.discipline) {
-        if (assessment.discipline != "BATTING") return@LaunchedEffect
+        if (assessment.discipline != "BATTING" || linkedAssessmentId == null) return@LaunchedEffect
         isLoadingSaved = true
         savedError = ""
         try {
@@ -151,6 +168,7 @@ internal fun AssessmentBattingReview(
         endSeconds = 0f
         contactSeconds = 0f
         if (!manualContact || sourceKey.isBlank() || videoUri != null) return@LaunchedEffect
+        if (previewCache?.exists() == true) return@LaunchedEffect
         previewLoading = true
         try {
             previewCache = api.downloadDriveVideoToCache(context, token, requireNotNull(driveFileId))
@@ -164,16 +182,30 @@ internal fun AssessmentBattingReview(
     }
 
     DisposableEffect(previewCache) {
-        onDispose { previewCache?.delete() }
+        // Capture this file so replacing the preview never deletes the newly downloaded one.
+        val cachedFile = previewCache
+        onDispose { cachedFile?.delete() }
     }
 
+    LaunchedEffect(previewUri) {
+        val uri = previewUri ?: return@LaunchedEffect
+        videoFrameRate = withContext(Dispatchers.IO) { detectVideoFrameRate(context, uri) }
+    }
+
+    // Keep the contact slider on the frame the player shows, including when it is paused or scrubbed with its own controls.
     LaunchedEffect(videoPlayer, videoDuration, startSeconds, endSeconds) {
         while (videoDuration > 0f) {
-            delay(150)
+            delay(100)
             val currentPlayer = videoPlayer ?: continue
+            val currentSeconds = currentPlayer.currentPosition / 1000f
+            if (currentSeconds !in startSeconds..endSeconds) continue
             if (currentPlayer.isPlaying) {
-                val currentSeconds = currentPlayer.currentPosition / 1000f
-                if (currentSeconds in startSeconds..endSeconds) contactSeconds = currentSeconds
+                contactSeconds = currentSeconds
+            } else if (SystemClock.uptimeMillis() - lastSeekAt > 400 &&
+                // A 0.01 s nudge may land between frames, so only follow the player when it moved by more than a frame.
+                kotlin.math.abs(currentSeconds - contactSeconds) > maxOf(1f / (videoFrameRate ?: 30f), 0.05f)
+            ) {
+                contactSeconds = currentSeconds
             }
         }
     }
@@ -205,14 +237,29 @@ internal fun AssessmentBattingReview(
         manualContact && endSeconds <= startSeconds -> "The shot end must be after the start."
         else -> ""
     }
-    val frameStep = (1.0 / (fpsValue?.takeIf { fpsIsValid } ?: 30.0)).toFloat()
-
     fun moveContact(seconds: Float) {
         contactSeconds = seconds.coerceIn(startSeconds, endSeconds)
         videoPlayer?.let { player ->
             if (player.isPlaying) player.pause()
-            player.seekTo((contactSeconds * 1000).toInt())
+            lastSeekAt = SystemClock.uptimeMillis()
+            val targetMs = (contactSeconds * 1000).roundToInt()
+            val exactPlayer = mediaPlayer
+            if (exactPlayer != null) {
+                try {
+                    exactPlayer.seekTo(targetMs.toLong(), MediaPlayer.SEEK_CLOSEST)
+                } catch (_: IllegalStateException) {
+                    player.seekTo(targetMs)
+                }
+            } else {
+                player.seekTo(targetMs)
+            }
         }
+    }
+
+    // Nudge by 0.01 s, the resolution shown in the time label; work in whole hundredths to avoid float drift.
+    fun stepContact(direction: Int) {
+        val hundredths = (contactSeconds * 100).roundToInt() + direction
+        moveContact(hundredths / 100f)
     }
 
     fun runReview() {
@@ -229,7 +276,7 @@ internal fun AssessmentBattingReview(
                     driveFileId = driveFileId,
                     player = null,
                     playerId = assessment.playerId,
-                    assessmentId = assessment.id,
+                    assessmentId = linkedAssessmentId,
                     shotType = shotType,
                     batterHandedness = handedness,
                     cameraView = cameraView,
@@ -237,8 +284,9 @@ internal fun AssessmentBattingReview(
                     captureFps = fpsValue,
                     priorities = assessmentReviewPriorities.map { it.first }.filter { it in priorities },
                     contactTimestampSeconds = contactSeconds.takeIf { manualContact }?.toDouble(),
-                    startTimeSeconds = startSeconds.takeIf { manualContact }?.toDouble(),
-                    endTimeSeconds = endSeconds.takeIf { manualContact }?.toDouble()
+                    // Leave either end of the range out when it's at the video edge so the server uses the full video there.
+                    startTimeSeconds = startSeconds.takeIf { manualContact && it > 0.01f }?.toDouble(),
+                    endTimeSeconds = endSeconds.takeIf { manualContact && it < videoDuration - 0.01f }?.toDouble()
                 )
                 onNotice("OpenAI batting review complete.")
             } catch (failure: CancellationException) {
@@ -353,7 +401,19 @@ internal fun AssessmentBattingReview(
                     }
                     val videoSource: @Composable (Modifier) -> Unit = { sourceModifier ->
                         Column(sourceModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Video", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Video", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                if (!sourceCaption.isNullOrBlank()) {
+                                    Text(
+                                        sourceCaption,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                            }
                             sourcePicker?.invoke()
                         }
                     }
@@ -365,7 +425,7 @@ internal fun AssessmentBattingReview(
                             }
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                sourcePicker?.invoke()
+                                if (sourcePicker != null) videoSource(Modifier.fillMaxWidth())
                                 shotSettings(Modifier.fillMaxWidth())
                             }
                         }
@@ -435,7 +495,7 @@ internal fun AssessmentBattingReview(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        SingleChoiceSegmentedButtonRow(Modifier.height(34.dp)) {
+                        SingleChoiceSegmentedButtonRow(Modifier.height(34.dp).widthIn(min = 220.dp)) {
                             SegmentedButton(
                                 selected = manualContact,
                                 onClick = { manualContact = true },
@@ -463,11 +523,13 @@ internal fun AssessmentBattingReview(
                                             playerContext,
                                             previewUri,
                                             sourceKey,
-                                            onDuration = { duration ->
+                                            onPrepared = { player, duration ->
+                                                mediaPlayer = player
                                                 videoDuration = duration
                                                 startSeconds = 0f
                                                 endSeconds = duration
                                                 contactSeconds = duration / 2f
+                                                lastSeekAt = SystemClock.uptimeMillis()
                                             },
                                             onError = { previewError = "This video format could not be previewed." }
                                         ).also { videoPlayer = it }
@@ -508,15 +570,15 @@ internal fun AssessmentBattingReview(
                                         )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(
-                                                onClick = { moveContact(contactSeconds - frameStep) },
+                                                onClick = { stepContact(-1) },
                                                 enabled = !isRunning,
                                                 modifier = Modifier.size(32.dp)
-                                            ) { Icon(Icons.Outlined.ChevronLeft, contentDescription = "Previous frame") }
+                                            ) { Icon(Icons.Outlined.ChevronLeft, contentDescription = "Back 0.01 seconds") }
                                             IconButton(
-                                                onClick = { moveContact(contactSeconds + frameStep) },
+                                                onClick = { stepContact(1) },
                                                 enabled = !isRunning,
                                                 modifier = Modifier.size(32.dp)
-                                            ) { Icon(Icons.Outlined.ChevronRight, contentDescription = "Next frame") }
+                                            ) { Icon(Icons.Outlined.ChevronRight, contentDescription = "Forward 0.01 seconds") }
                                             TextButton(
                                                 onClick = { videoPlayer?.let { moveContact(it.currentPosition / 1000f) } },
                                                 enabled = !isRunning,
@@ -602,7 +664,8 @@ internal fun AssessmentBattingReview(
             playerId = assessment.playerId,
             playerName = assessment.playerName,
             activeReportId = analysis?.reportId,
-            busy = isRunning || isLoadingSaved
+            busy = isRunning || isLoadingSaved,
+            onDeleted = { deletedId -> if (analysis?.reportId == deletedId) analysis = null }
         ) { reportId ->
             scope.launch {
                 isLoadingSaved = true
@@ -671,20 +734,53 @@ private fun createReviewVideoView(
     context: Context,
     uri: Uri,
     sourceKey: String,
-    onDuration: (Float) -> Unit,
+    onPrepared: (MediaPlayer, Float) -> Unit,
     onError: () -> Unit
 ): VideoView = VideoView(context).apply {
     val controller = MediaController(context)
     controller.setAnchorView(this)
     setMediaController(controller)
     setOnPreparedListener { player ->
-        onDuration(player.duration / 1000f)
+        onPrepared(player, player.duration / 1000f)
         // Render a still frame instead of an empty black surface before playback starts.
-        seekTo(player.duration / 2)
+        player.seekTo((player.duration / 2).toLong(), MediaPlayer.SEEK_CLOSEST)
     }
     setOnErrorListener { _, _, _ -> onError(); true }
     tag = sourceKey
     setVideoURI(uri)
+}
+
+/** Frames per second stored in the video file, or null if it cannot be read. */
+private fun detectVideoFrameRate(context: Context, uri: Uri): Float? {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            val frames = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)?.toFloatOrNull()
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toFloatOrNull()
+            if (frames != null && durationMs != null && frames > 0f && durationMs > 0f) {
+                val rate = frames * 1000f / durationMs
+                if (rate in 1f..1000f) return rate
+            }
+        } catch (_: Exception) {
+        } finally {
+            try { retriever.release() } catch (_: Exception) {}
+        }
+    }
+    val extractor = MediaExtractor()
+    return try {
+        extractor.setDataSource(context, uri, null)
+        (0 until extractor.trackCount)
+            .map { extractor.getTrackFormat(it) }
+            .firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true && it.containsKey(MediaFormat.KEY_FRAME_RATE) }
+            ?.getInteger(MediaFormat.KEY_FRAME_RATE)
+            ?.toFloat()
+            ?.takeIf { it in 1f..1000f }
+    } catch (_: Exception) {
+        null
+    } finally {
+        extractor.release()
+    }
 }
 
 private fun formatReviewTime(seconds: Float): String {

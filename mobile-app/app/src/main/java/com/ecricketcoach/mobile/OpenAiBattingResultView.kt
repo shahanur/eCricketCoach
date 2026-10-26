@@ -24,11 +24,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -822,6 +824,7 @@ internal fun PastBattingReviews(
     playerName: String,
     activeReportId: String?,
     busy: Boolean,
+    onDeleted: (String) -> Unit = {},
     onOpen: (String) -> Unit
 ) {
     var reports by remember(playerId) { mutableStateOf<List<OpenAiBattingReportSummary>>(emptyList()) }
@@ -831,8 +834,28 @@ internal fun PastBattingReviews(
     var showAll by remember(playerId) { mutableStateOf(false) }
     var downloadingId by remember(playerId) { mutableStateOf<String?>(null) }
     var pdfError by remember(playerId) { mutableStateOf("") }
+    var pendingDelete by remember(playerId) { mutableStateOf<OpenAiBattingReportSummary?>(null) }
+    var deletingId by remember(playerId) { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val deleteReport: (OpenAiBattingReportSummary) -> Unit = { report ->
+        deletingId = report.reportId
+        pdfError = ""
+        scope.launch {
+            try {
+                api.deleteOpenAiBattingReport(token, report.reportId)
+                reports = reports.filterNot { it.reportId == report.reportId }
+                onDeleted(report.reportId)
+            } catch (failure: CancellationException) {
+                throw failure
+            } catch (failure: Exception) {
+                pdfError = failure.message ?: "The batting review could not be deleted."
+            } finally {
+                deletingId = null
+                pendingDelete = null
+            }
+        }
+    }
     val downloadPdf: (String) -> Unit = { reportId ->
         downloadingId = reportId
         pdfError = ""
@@ -901,6 +924,9 @@ internal fun PastBattingReviews(
                                     downloading = downloadingId == report.reportId,
                                     downloadEnabled = downloadingId == null,
                                     onDownload = { downloadPdf(report.reportId) },
+                                    deleting = deletingId == report.reportId,
+                                    deleteEnabled = deletingId == null && !busy,
+                                    onDelete = { pendingDelete = report },
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     onOpen(report.reportId)
@@ -919,7 +945,28 @@ internal fun PastBattingReviews(
             }
         }
     }
+    pendingDelete?.let { report ->
+        AlertDialog(
+            onDismissRequest = { if (deletingId == null) pendingDelete = null },
+            title = { Text("Delete this video analysis?") },
+            text = {
+                Text("${report.sourceName ?: "Untitled video"} from ${formatReportDate(report.createdAt)} and its report images will be permanently removed.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = { deleteReport(report) },
+                    enabled = deletingId == null,
+                    colors = ButtonDefaults.buttonColors(containerColor = DeleteRed, contentColor = Color.White)
+                ) { Text(if (deletingId != null) "Deleting\u2026" else "Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }, enabled = deletingId == null) { Text("Cancel") }
+            }
+        )
+    }
 }
+
+private val DeleteRed = Color(0xFFED4D5A)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -930,6 +977,9 @@ private fun PastReviewRow(
     downloading: Boolean,
     downloadEnabled: Boolean,
     onDownload: () -> Unit,
+    deleting: Boolean,
+    deleteEnabled: Boolean,
+    onDelete: () -> Unit,
     modifier: Modifier,
     onClick: () -> Unit
 ) {
@@ -1006,6 +1056,24 @@ private fun PastReviewRow(
                             fontWeight = FontWeight.SemiBold,
                             color = Violet.tone().copy(alpha = if (downloadEnabled || downloading) 1f else 0.5f)
                         )
+                    }
+                }
+                Surface(
+                    onClick = onDelete,
+                    enabled = deleteEnabled,
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, DeleteRed.copy(alpha = if (deleteEnabled || deleting) 0.6f else 0.3f))
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val tint = DeleteRed.copy(alpha = if (deleteEnabled || deleting) 1f else 0.5f)
+                        if (deleting) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = DeleteRed)
+                        else Icon(Icons.Outlined.Delete, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+                        Text(if (deleting) "Deleting" else "Delete", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tint)
                     }
                 }
             }

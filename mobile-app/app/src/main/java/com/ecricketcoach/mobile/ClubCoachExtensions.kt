@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,10 +63,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -431,8 +440,191 @@ internal fun PromotePlayerDialog(
     )
 }
 
+/** Ad-hoc batting review for any player, using the same video card as the assessment page. */
 @Composable
 internal fun VideoAnalysisPanel(
+    api: CoachApi,
+    token: String,
+    players: List<ClubMember>,
+    driveConnected: Boolean,
+    driveEmail: String,
+    onRefreshDrive: () -> Unit,
+    onNotice: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var selectedPlayerId by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedPlayer = players.firstOrNull { it.id == selectedPlayerId }
+    val playerPicker: @Composable () -> Unit = {
+        PlayerSearchPicker(
+            players = players,
+            selected = selectedPlayer,
+            modifier = Modifier.widthIn(min = 190.dp, max = 260.dp),
+            onSelect = { selectedPlayerId = it }
+        )
+    }
+    // The shared video card is sized for the dense assessment page; scale its text up to match other full pages.
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(density.density, density.fontScale * 1.18f)) {
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            if (selectedPlayer == null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            playerPicker()
+                            Spacer(Modifier.weight(1f))
+                        }
+                        Text(
+                            if (players.isEmpty()) "No active players in this club yet." else "Select a player to start a batting video review.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                val adHocAssessment = remember(selectedPlayer.id, selectedPlayer.name) {
+                    PlayerAssessment(
+                        id = "",
+                        playerId = selectedPlayer.id,
+                        playerName = selectedPlayer.name,
+                        title = "Ad-hoc video analysis",
+                        discipline = "BATTING",
+                        scheduledDate = "",
+                        status = "IN_PROGRESS",
+                        metrics = emptyList(),
+                        aiSummary = null,
+                        aiRecommendations = emptyList()
+                    )
+                }
+                AssessmentVideoCard(
+                    api = api,
+                    token = token,
+                    assessment = adHocAssessment,
+                    driveConnected = driveConnected,
+                    driveEmail = driveEmail,
+                    onRefreshDrive = onRefreshDrive,
+                    onDisconnectDrive = {
+                        api.disconnectGoogleDrive(token)
+                        onRefreshDrive()
+                    },
+                    onNotice = onNotice,
+                    headerContent = playerPicker,
+                    showTitle = false
+                )
+            }
+        }
+    }
+    }
+}
+
+/** Compact player picker with an inline search box in its menu. */
+@Composable
+private fun PlayerSearchPicker(
+    players: List<ClubMember>,
+    selected: ClubMember?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(players, query) {
+        val q = query.trim()
+        if (q.isEmpty()) players else players.filter { it.name.contains(q, ignoreCase = true) || it.email.contains(q, ignoreCase = true) }
+    }
+    Box(modifier) {
+        Surface(
+            onClick = { query = ""; expanded = true },
+            modifier = Modifier.fillMaxWidth().height(36.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Group, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                Text(
+                    selected?.name ?: "Select player",
+                    color = if (selected == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 6.dp)
+                )
+                Icon(Icons.Outlined.ExpandMore, contentDescription = "Choose player", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
+        }
+        if (expanded) Dialog(onDismissRequest = { expanded = false }) {
+            Surface(
+                modifier = Modifier.widthIn(min = 300.dp, max = 420.dp).heightIn(max = 480.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(Modifier.padding(vertical = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Select player", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { expanded = false }) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
+                    }
+                    Row(
+                        Modifier
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                            .padding(start = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                        Box(Modifier.weight(1f).padding(start = 8.dp)) {
+                            if (query.isEmpty()) Text("Search players", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            BasicTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                singleLine = true,
+                                textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        VoiceMicButton(current = query, onValueChange = { query = it }, prompt = "Say a player name", singleLine = true, replace = true)
+                    }
+                    if (filtered.isEmpty()) {
+                        Text(
+                            if (players.isEmpty()) "No active players." else "No players match \"${query.trim()}\".",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                    LazyColumn(Modifier.fillMaxWidth()) {
+                        items(filtered, key = { it.id }) { player ->
+                            val isSelected = player.id == selected?.id
+                            Surface(
+                                onClick = { onSelect(player.id); expanded = false },
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    player.name,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Previous CAPE-based video analysis panel. Kept for when CAPE is re-enabled; not currently shown. */
+@Suppress("unused")
+@Composable
+private fun CapeVideoAnalysisPanel(
     api: CoachApi,
     token: String,
     players: List<ClubMember>,

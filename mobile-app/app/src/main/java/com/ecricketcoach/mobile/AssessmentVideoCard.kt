@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -71,7 +72,9 @@ internal fun AssessmentVideoCard(
     onRefreshDrive: () -> Unit,
     onDisconnectDrive: suspend () -> Unit,
     onNotice: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    headerContent: (@Composable () -> Unit)? = null,
+    showTitle: Boolean = true
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -189,36 +192,33 @@ internal fun AssessmentVideoCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val storageCaption = when {
+                !driveConnected -> "Choose a video from this device or connect Google Drive."
+                driveEmail.isNotBlank() -> "Stored in Google Drive · $driveEmail"
+                else -> "Stored in Google Drive"
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text("Video analysis", fontWeight = FontWeight.Bold)
-                    Text(
-                        when {
-                            !driveConnected -> "Choose a video from this device or connect Google Drive."
-                            driveEmail.isNotBlank() -> "Stored in Google Drive · $driveEmail"
-                            else -> "Stored in Google Drive"
-                        },
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                if (driveConnected) {
-                    TextButton(onClick = { confirmSwitch = true }, enabled = !reviewRunning && !switching) {
-                        Icon(Icons.Outlined.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(" Switch", fontSize = 12.sp)
+                if (showTitle) {
+                    Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text("Video analysis", fontWeight = FontWeight.Bold)
+                        // While a video can still be chosen, the caption sits in the video source panel instead.
+                        if (completed) Text(storageCaption, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+                headerContent?.invoke()
+                if (!showTitle) Spacer(Modifier.weight(1f))
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             }
 
             val sourcePicker: @Composable () -> Unit = {
-                Row(
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (driveConnected) Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (driveConnected) {
+                    run {
                         Box(Modifier.weight(1f)) {
                             OutlinedButton(
                                 onClick = { driveMenuOpen = true },
@@ -272,13 +272,19 @@ internal fun AssessmentVideoCard(
                             else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Google Drive videos", modifier = Modifier.size(18.dp))
                         }
                     }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     val localSelected = selectedVideoName.isNotBlank()
                     OutlinedButton(
                         onClick = { picker.launch(arrayOf("video/*")) },
                         enabled = !reviewRunning,
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                        modifier = (if (driveConnected) Modifier.widthIn(max = 220.dp) else Modifier.weight(1f)).height(40.dp)
+                        modifier = Modifier.weight(1f).height(40.dp)
                     ) {
                         Icon(Icons.Outlined.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
                         Text(
@@ -289,11 +295,27 @@ internal fun AssessmentVideoCard(
                             modifier = Modifier.padding(start = 6.dp)
                         )
                     }
-                    if (!driveConnected) {
-                        TextButton(onClick = { launchDriveConnect() }, enabled = !reviewRunning) {
-                            Text("Connect Drive", fontSize = 12.sp)
-                        }
+                    OutlinedButton(
+                        onClick = { if (driveConnected) confirmSwitch = true else launchDriveConnect() },
+                        enabled = !reviewRunning && !switching,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Icon(
+                            if (driveConnected) Icons.Outlined.SwapHoriz else Icons.Outlined.Cloud,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            if (driveConnected) "Switch account" else "Connect Drive",
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
                     }
+                }
                 }
             }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -307,7 +329,8 @@ internal fun AssessmentVideoCard(
                 canSubmit = !completed,
                 onRunningChange = { reviewRunning = it },
                 onNotice = onNotice,
-                sourcePicker = sourcePicker.takeIf { !completed }
+                sourcePicker = sourcePicker.takeIf { !completed },
+                sourceCaption = storageCaption
             )
 
             if (!completed || video?.driveLink != null) {

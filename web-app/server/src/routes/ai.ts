@@ -585,6 +585,40 @@ aiRouter.get(
   }
 );
 
+// Deletes a saved batting review and its stored artifacts; shared by the web and mobile history cards.
+aiRouter.delete(
+  '/analyze/openai-batting/:reportId',
+  authenticateToken,
+  requireRole(['CLUB_ADMIN', 'COACH']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const reportId = req.params.reportId;
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return res.status(404).json({ error: 'report_not_found' });
+    try {
+      const report = await prisma.openAiBattingReport.findFirst({
+        where: { id: reportId, tenantId: req.user!.tenantId },
+        select: { id: true, playerId: true }
+      });
+      if (!report) return res.status(404).json({ error: 'report_not_found', message: 'The batting review was not found.' });
+      if (report.playerId) {
+        const player = await resolveBattingReportPlayer(req, res, report.playerId);
+        if (!player) return;
+      }
+      await prisma.openAiBattingReport.deleteMany({ where: { id: report.id, tenantId: req.user!.tenantId } });
+      const root = path.resolve(process.env.OPENAI_REPORTS_DIR || path.join(process.cwd(), 'var', 'openai-reports'));
+      const reportDirectory = path.resolve(root, report.id);
+      if (reportDirectory.startsWith(`${root}${path.sep}`)) {
+        await fs.rm(reportDirectory, { recursive: true, force: true }).catch(error => {
+          console.error('OpenAI batting report artifact cleanup failed:', error);
+        });
+      }
+      return res.status(204).send();
+    } catch (error) {
+      console.error('OpenAI batting report delete failed:', error);
+      return res.status(500).json({ error: 'report_delete_failed', message: 'The batting review could not be deleted.' });
+    }
+  }
+);
+
 aiRouter.get(
   '/analyze/openai-batting/:reportId/review',
   authenticateToken,

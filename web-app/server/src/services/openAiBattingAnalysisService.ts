@@ -1449,12 +1449,17 @@ export async function analyzeBattingVideoWithOpenAI(
   try {
     await fs.writeFile(inputPath, videoBuffer);
     const metadata = await probeVideo(inputPath, limits.maxVideoDurationSeconds);
-    const manualTimestamp = options.contactTimestampSeconds;
+    const requestedContactTimestamp = options.contactTimestampSeconds;
+    // Client players can report a slightly longer duration than ffprobe; clamp small overshoots to the real video length.
+    const durationTolerance = 0.5;
+    const withinDuration = (value: number) =>
+      value > metadata.durationSeconds && value <= metadata.durationSeconds + durationTolerance ? metadata.durationSeconds : value;
     const rangeStart = options.startTimeSeconds ?? 0;
-    const rangeEnd = options.endTimeSeconds ?? metadata.durationSeconds;
+    const rangeEnd = options.endTimeSeconds === undefined ? metadata.durationSeconds : withinDuration(options.endTimeSeconds);
     if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeStart < 0 || rangeEnd > metadata.durationSeconds || rangeEnd <= rangeStart) {
       throw new OpenAiBattingAnalysisError(400, 'invalid_analysis_range', 'Choose a shot range within the video, with the end after the start.');
     }
+    const manualTimestamp = requestedContactTimestamp === undefined ? undefined : withinDuration(requestedContactTimestamp);
     if (manualTimestamp !== undefined && (!Number.isFinite(manualTimestamp) || manualTimestamp < 0 || manualTimestamp > metadata.durationSeconds)) {
       throw new OpenAiBattingAnalysisError(400, 'invalid_contact_timestamp', 'Choose a contact point within the video.');
     }

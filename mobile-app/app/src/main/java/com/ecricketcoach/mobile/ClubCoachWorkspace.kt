@@ -1787,31 +1787,14 @@ internal fun ClubCoachWorkspace(
                             val (connected, email) = api.getGoogleDriveStatus(token)
                             driveConnected = connected
                             driveEmail = email.orEmpty()
-                            driveVideos = if (connected) api.listGoogleDriveVideos(token) else emptyList()
-                            driveError = ""
                         } catch (failure: Exception) {
-                            driveError = failure.message ?: "Unable to refresh Google Drive status."
+                            notice = failure.message ?: "Unable to refresh Google Drive status."
                         }
                     }
                 },
                 driveConnected = driveConnected,
                 driveEmail = driveEmail,
-                driveVideos = driveVideos,
-                driveError = driveError,
-                onDisconnectDrive = {
-                    scope.launch {
-                        try {
-                            api.disconnectGoogleDrive(token)
-                            driveConnected = false
-                            driveEmail = ""
-                            driveVideos = emptyList()
-                            driveError = ""
-                            notice = "Google Drive disconnected."
-                        } catch (failure: Exception) {
-                            driveError = failure.message ?: "Unable to disconnect Google Drive."
-                        }
-                    }
-                },
+                onNotice = { notice = it },
                 modifier = Modifier.weight(1f)
             ) }
             "Settings" -> ClubSettingsPanel(
@@ -2117,7 +2100,7 @@ private fun EkotaWorkspaceHeader(
             else -> tab
         }
         val pageDescription = when (tab) {
-            "Video Analysis" -> "Review technique with detailed CAPE pose, ball and speed measurements."
+            "Video Analysis" -> "Pick any player and review their batting technique from a video."
             "Members" -> "Manage club staff and players."
             "Squads", "Edit squad" -> "Organize players into squads and track their development."
             "Sessions" -> "Plan, deliver and track coaching sessions."

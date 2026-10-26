@@ -850,6 +850,14 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         requestBytes("/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}/report.pdf", token)
     }
 
+    suspend fun deleteOpenAiBattingReport(token: String, reportId: String) = withContext(Dispatchers.IO) {
+        request(
+            "/api/videos/analyze/openai-batting/${URLEncoder.encode(reportId, UTF_8)}",
+            token,
+            method = "DELETE"
+        )
+    }
+
     suspend fun schedulePlayerAssessment(token: String, assessment: JSONObject): PlayerAssessment =
         withContext(Dispatchers.IO) {
             JSONObject(request("/api/club/assessments", token, assessment)).toPlayerAssessment()
