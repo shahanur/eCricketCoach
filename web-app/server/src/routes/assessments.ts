@@ -11,6 +11,7 @@ import { DriveUploadError, downloadVideoFromDrive, uploadVideoToDrive } from './
 import { createCapeJob, stageCapeUpload } from '../queues/capeQueue.js';
 import { isCapeConfigured } from '../services/capeClient.js';
 import { capeJobView, parseCapeRequest } from './capeJobs.js';
+import { buildAssessmentReportPdf } from '../services/assessmentReportPdf.js';
 
 export const assessmentRouter = Router();
 
@@ -92,6 +93,35 @@ assessmentRouter.get('/', async (req: AuthenticatedRequest, res: Response) => {
     res.json(assessments);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Unable to load player assessments.' });
+  }
+});
+
+// Shared PDF report used by both the web and mobile clients; batting assessments include their linked video review.
+assessmentRouter.get('/:id/report.pdf', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const assessment = await prisma.playerAssessment.findFirst({
+      where: { id: req.params.id, clubId: req.user!.tenantId }
+    });
+    if (!assessment || !canViewAssessment(req, assessment)) {
+      res.status(404).json({ error: 'Assessment not found.' });
+      return;
+    }
+    const batting = assessment.discipline === 'BATTING'
+      ? await prisma.openAiBattingReport.findFirst({
+          where: { tenantId: req.user!.tenantId, playerId: assessment.playerId, assessmentId: assessment.id },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, analysis: true, artifacts: true }
+        })
+      : null;
+    const pdf = await buildAssessmentReportPdf(assessment, batting);
+    const fileName = `assessment-${assessment.id.replace(/[^A-Za-z0-9_-]/g, '')}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(pdf);
+  } catch (error) {
+    console.error('Assessment report PDF failed:', error);
+    res.status(500).json({ error: 'Unable to build the assessment report.' });
   }
 });
 

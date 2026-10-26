@@ -840,6 +840,11 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
         (0 until rows.length()).map { index -> rows.getJSONObject(index).toPlayerAssessment() }
     }
 
+    /** Server-built assessment PDF (shared with the web app), including any linked batting video review. */
+    suspend fun downloadAssessmentReportPdf(token: String, assessmentId: String): ByteArray = withContext(Dispatchers.IO) {
+        requestBytes("/api/club/assessments/${URLEncoder.encode(assessmentId, UTF_8)}/report.pdf", token)
+    }
+
     suspend fun schedulePlayerAssessment(token: String, assessment: JSONObject): PlayerAssessment =
         withContext(Dispatchers.IO) {
             JSONObject(request("/api/club/assessments", token, assessment)).toPlayerAssessment()

@@ -546,6 +546,7 @@ internal fun ClubCoachWorkspace(
     var activeAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
     var assessmentRunSaving by remember { mutableStateOf(false) }
     var assessmentInsightsBusy by remember { mutableStateOf(false) }
+    var assessmentReportBusy by remember { mutableStateOf(false) }
     var assessmentRunError by remember { mutableStateOf("") }
     var selectedPromotionPlayer by remember { mutableStateOf<ClubMember?>(null) }
     var executionSaving by remember { mutableStateOf(false) }
@@ -1581,14 +1582,42 @@ internal fun ClubCoachWorkspace(
                         }
                     },
                     onDownloadReport = {
-                        assessmentRunError = runCatching {
-                            openClubExport(context, exportAssessmentReportPdf(context, assessment), "application/pdf", "Open assessment report")
-                        }.exceptionOrNull()?.message.orEmpty()
+                        if (!assessmentReportBusy) scope.launch {
+                            assessmentReportBusy = true
+                            assessmentRunError = ""
+                            notice = "Preparing assessment report…"
+                            try {
+                                val file = downloadAssessmentReportPdf(context, api, token, assessment)
+                                openClubExport(context, file, "application/pdf", "Open assessment report")
+                                notice = ""
+                            } catch (failure: CancellationException) {
+                                throw failure
+                            } catch (failure: Exception) {
+                                notice = ""
+                                assessmentRunError = failure.message ?: "Unable to create the assessment report."
+                            } finally {
+                                assessmentReportBusy = false
+                            }
+                        }
                     },
                     onShareReport = {
-                        assessmentRunError = runCatching {
-                            shareClubExport(context, exportAssessmentReportPdf(context, assessment), "application/pdf", "Share assessment report")
-                        }.exceptionOrNull()?.message.orEmpty()
+                        if (!assessmentReportBusy) scope.launch {
+                            assessmentReportBusy = true
+                            assessmentRunError = ""
+                            notice = "Preparing assessment report…"
+                            try {
+                                val file = downloadAssessmentReportPdf(context, api, token, assessment)
+                                shareClubExport(context, file, "application/pdf", "Share assessment report")
+                                notice = ""
+                            } catch (failure: CancellationException) {
+                                throw failure
+                            } catch (failure: Exception) {
+                                notice = ""
+                                assessmentRunError = failure.message ?: "Unable to create the assessment report."
+                            } finally {
+                                assessmentReportBusy = false
+                            }
+                        }
                     },
                     onBack = { activeAssessment = null; tab = "Assessments" },
                     modifier = Modifier.weight(1f),

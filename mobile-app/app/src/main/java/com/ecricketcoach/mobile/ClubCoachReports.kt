@@ -45,6 +45,8 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDate
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class ClubReportRow(
     val sessionTitle: String,
@@ -249,46 +251,14 @@ fun exportSessionReportPdf(
     return file
 }
 
-/** Builds a single player assessment report PDF matching the web app's layout. */
-fun exportAssessmentReportPdf(context: Context, assessment: PlayerAssessment): File {
-    val scored = assessment.metrics.mapNotNull { it.score }
-    val average = if (scored.isEmpty()) "Not rated" else "%.1f / 5".format(scored.average())
-    val facts = listOf(
-        "Discipline" to assessment.discipline,
-        "Date" to assessment.scheduledDate + (assessment.scheduledTime?.let { " at $it" } ?: ""),
-        "Coach" to assessment.coachName.ifBlank { "-" },
-        "Status" to assessment.status.replace('_', ' '),
-        "Average rating" to average
-    )
-    val sections = mutableListOf(
-        SessionReportSection(
-            "",
-            tableHeaders = listOf("Metric", "Rating (1-5)", "Note"),
-            tableRows = assessment.metrics.map { listOf(it.name, it.score?.toString() ?: "-", it.note) },
-            columnWeights = listOf(0.56f, 0.24f, 0.2f),
-            compactHeading = true
-        ),
-        SessionReportSection("Strengths", listOf(assessment.strengths.ifBlank { "-" }), compactHeading = true),
-        SessionReportSection("Focus areas", listOf(assessment.focusAreas.ifBlank { "-" }), compactHeading = true),
-        SessionReportSection("Coach feedback", listOf(assessment.coachFeedback.ifBlank { "-" }), compactHeading = true),
-        SessionReportSection("Player's own thoughts", listOf(assessment.playerFeedback.ifBlank { "-" }), compactHeading = true)
-    )
-    if (assessment.aiSummary != null) {
-        sections += SessionReportSection(
-            "Development insights",
-            listOf(assessment.aiSummary) + assessment.aiRecommendations.map { "-  $it" },
-            compactHeading = true
-        )
+/** Downloads the server-built assessment report PDF, which the web app also uses (it includes any linked batting video review). */
+suspend fun downloadAssessmentReportPdf(context: Context, api: CoachApi, token: String, assessment: PlayerAssessment): File {
+    val bytes = api.downloadAssessmentReportPdf(token, assessment.id)
+    return withContext(Dispatchers.IO) {
+        val safeName = "assessment-${assessment.playerName}-${assessment.title}"
+            .replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').ifBlank { "assessment-report" }
+        File(exportDirectory(context), "$safeName-${LocalDate.now()}.pdf").apply { writeBytes(bytes) }
     }
-    return exportSessionReportPdf(
-        context,
-        "Player Assessment Report",
-        "${assessment.playerName} - ${assessment.title}",
-        facts,
-        sections,
-        headline = "${assessment.playerName} - ${assessment.title}".uppercase(),
-        fileName = "assessment-${assessment.playerName}-${assessment.title}"
-    )
 }
 
 /** Lays out the session report once; pass [totalPages] on the second pass to print "Page X of Y" footers. */

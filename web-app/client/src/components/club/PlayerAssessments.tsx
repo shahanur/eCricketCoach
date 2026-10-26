@@ -463,6 +463,21 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
     });
   };
 
+  const downloadReportPdf = async (assessment: PlayerAssessment) => {
+    setError('');
+    try {
+      const { blob, fileName } = await api.downloadPlayerAssessmentReport(assessment.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download the assessment report');
+    }
+  };
+
   const mailFeedback = (assessment: PlayerAssessment) => {
     const player = members.find(member => member.id === assessment.playerId);
     const body = [
@@ -727,7 +742,7 @@ export const PlayerAssessments: React.FC<PlayerAssessmentsProps> = ({ currentUse
                   {selectedAssessment.status === 'SCHEDULED' && canEdit && <button onClick={() => startAssessment(selectedAssessment)} disabled={isSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-400 px-3 py-2 text-xs font-bold text-slate-950"><Play className="h-3.5 w-3.5" /> Start</button>}
                   {selectedAssessment.status === 'SCHEDULED' && <button onClick={() => exportCalendarEvent(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><CalendarDays className="h-3.5 w-3.5" /> Calendar</button>}
                   {selectedAssessment.status === 'COMPLETED' && <button onClick={() => scheduleFollowUp(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><CalendarDays className="h-3.5 w-3.5" /> Follow-up</button>}
-                  {selectedAssessment.status === 'COMPLETED' && <button onClick={() => downloadPdf(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><Download className="h-3.5 w-3.5" /> PDF</button>}
+                  {selectedAssessment.status === 'COMPLETED' && <button onClick={() => void downloadReportPdf(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><Download className="h-3.5 w-3.5" /> PDF</button>}
                   {selectedAssessment.status === 'COMPLETED' && <button onClick={() => downloadCsv(selectedAssessment)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200"><Download className="h-3.5 w-3.5" /> CSV</button>}
                 </div>
               </div>
