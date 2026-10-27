@@ -1,6 +1,7 @@
 package com.ecricketcoach.mobile.presentation.home
 
 import com.ecricketcoach.mobile.domain.model.*
+import com.ecricketcoach.mobile.presentation.common.AppPanel
 import com.ecricketcoach.mobile.presentation.common.theme.*
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
@@ -48,8 +49,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -126,11 +125,7 @@ internal fun TrainingTemplateList(templates: List<TrainingTemplate>, modifier: M
 
 @androidx.compose.runtime.Composable
 internal fun ContentCard(title: String, eyebrow: String, details: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(14.dp)
-    ) {
+    AppPanel(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.padding(16.dp)) {
             Text(eyebrow, color = Green, fontSize = AppFontSize.Caption, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))

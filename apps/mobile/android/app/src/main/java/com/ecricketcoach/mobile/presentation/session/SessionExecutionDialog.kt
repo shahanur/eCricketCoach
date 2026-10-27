@@ -89,8 +89,7 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -1530,8 +1529,8 @@ private fun PreparationChecklistCard(
     modifier: Modifier = Modifier,
     onChanged: () -> Unit = {}
 ) {
-    Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             Text(
                 "Preparation checklist  ·  $checklistDone/${PreparationChecklist.size}",
                 fontWeight = FontWeight.Bold,
@@ -1580,8 +1579,8 @@ private fun SquadAttendanceCard(
         val q = query.trim()
         if (q.isEmpty()) players else players.filter { it.name.contains(q, ignoreCase = true) }
     }
-    Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Squad attendance  ·  $presentCount/${players.size} present",
@@ -1852,8 +1851,8 @@ private fun AddSessionPlayerDialog(
 
 @Composable
 private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = Modifier) {
-    Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(14.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Session guidance", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Title, color = MaterialTheme.colorScheme.onSurface)
             if (session.safety.isEmpty()) {
                 Text("No additional safety guidance provided.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1866,8 +1865,8 @@ private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = 
 
 @Composable
 private fun PlannedDrillsCard(drills: List<ExecutionDrill>, modifier: Modifier = Modifier) {
-    Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(14.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Planned drills (${drills.size})", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Title, color = MaterialTheme.colorScheme.onSurface)
             if (drills.isEmpty()) {
                 Text("No drills are planned for this session.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1919,8 +1918,8 @@ private fun PreparationCard(
     onStart: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Preparation checklist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
             Spacer(Modifier.height(4.dp))
             PreparationChecklist.forEach { (key, label) ->
@@ -1977,8 +1976,8 @@ private fun AttendanceTable(
     readOnly: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Attendance", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
             Spacer(Modifier.height(4.dp))
             if (players.isEmpty()) {
@@ -2036,8 +2035,8 @@ private fun DrillCard(
 ) {
     val (statusLabel, statusTint) = if (drill.completed) "Completed" to Color(0xFF159B72) else "Not completed" to Color(0xFF8791A8)
     val overrun = drill.plannedMinutes > 0 && drill.actualMinutes > drill.plannedMinutes
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    AppPanel(modifier = modifier, containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     drill.title,
@@ -2149,8 +2148,8 @@ private fun ReviewPanel(
     action: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    AppPanel(modifier = modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title, modifier = Modifier.weight(1f))
                 action?.invoke()
@@ -2433,8 +2432,8 @@ private fun AiAnalysisCard(
     onShare: () -> Unit,
     reportError: String
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AppPanel(containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(14.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -2514,8 +2513,8 @@ private fun FollowUpCard(
     onDraftChange: (JSONObject) -> Unit,
     onCreate: () -> Unit
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AppPanel(containerColor = MaterialTheme.colorScheme.surface, contentPadding = PaddingValues(14.dp), spacing = 0.dp) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Follow-up session", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
             if (createdFollowUp != null) {
@@ -2960,13 +2959,13 @@ private fun FollowUpCard(
 
             @Composable
             private fun CoachCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-                Card(
+                AppPanel(
                     modifier = modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.78f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    containerColor = Color.White.copy(alpha = 0.78f),
+                    contentPadding = PaddingValues(16.dp),
+                    spacing = 0.dp
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), content = { content() })
+                    Column(Modifier.fillMaxWidth(), content = { content() })
                 }
             }
 

@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -304,16 +306,17 @@ private fun Pill(text: String, accent: ReviewAccent, modifier: Modifier = Modifi
 private fun AccentSection(
     accent: ReviewAccent?,
     modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     val tone = accent?.tone()
-    Surface(
+    AppPanel(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        color = tone?.copy(alpha = 0.06f) ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, tone?.copy(alpha = 0.3f) ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+        containerColor = tone?.copy(alpha = 0.06f) ?: MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, tone?.copy(alpha = 0.3f) ?: MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        contentPadding = PaddingValues(10.dp),
+        spacing = 6.dp
     ) {
-        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+        content()
     }
 }
 

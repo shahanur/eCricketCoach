@@ -29,8 +29,6 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -684,7 +682,7 @@ internal fun ClubReportsPanel(
         }
         if (rows.isEmpty()) item { Text("No session activity matches these filters.") }
         items(rows, key = { "${it.sessionDate}:${it.sessionTitle}:${it.playerName}" }) { row ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(row.sessionTitle, fontWeight = FontWeight.SemiBold)
                     Text("${row.sessionDate} · ${row.squad} · ${row.durationMinutes} min · ${if (row.delivered) "Delivered" else "Scheduled"}")
@@ -724,7 +722,7 @@ internal fun DeliveredSessionsPanel(
         }
         if (delivered.isEmpty()) item { Text("No sessions have been delivered yet.") }
         items(delivered, key = ClubTrainingSession::id) { session ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text(session.title, fontWeight = FontWeight.SemiBold)
                     Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = AppFontSize.Small)
@@ -768,7 +766,7 @@ internal fun ParticipantsPanel(
         }
         if (players.isEmpty()) item { Text("No active players found for this club.") }
         items(players, key = ClubMember::id) { player ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text(player.name, fontWeight = FontWeight.SemiBold)
                     Text(player.email, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
@@ -815,7 +813,7 @@ internal fun CertificatesPanel(
         }
         if (filtered.isEmpty()) item { Text("No certificates match these filters.") }
         items(filtered, key = ClubCertificate::id) { certificate ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(certificate.playerName, fontWeight = FontWeight.SemiBold)
                     Text("${certificate.level} · ${certificate.discipline} · ${certificate.issuedDate}")

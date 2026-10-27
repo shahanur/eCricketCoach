@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -630,7 +631,7 @@ internal fun ClubCoachWorkspace(
         val failedMutations = queuedMutations.filter { it.state == "FAILED" }
         val syncedCount = queuedMutations.count { it.state == "SYNCED" }
         if (queuedMutations.isNotEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Offline edits: $pendingCount pending · ${failedMutations.size} failed · $syncedCount synced", fontWeight = FontWeight.SemiBold)
                     failedMutations.take(3).forEach { mutation ->
@@ -2028,20 +2029,9 @@ private fun <T> OverviewList(
                         Column(Modifier.fillMaxWidth().padding(3.dp)) { content(row) }
                     }
                     if (onRowClick != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { onRowClick(row) },
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(13.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) { sessionCard() }
+                        AppPanel(modifier = Modifier.fillMaxWidth(), onClick = { onRowClick(row) }, contentPadding = PaddingValues(0.dp), spacing = 0.dp) { sessionCard() }
                     } else {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = RoundedCornerShape(13.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) { sessionCard() }
+                        AppPanel(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp), spacing = 0.dp) { sessionCard() }
                     }
                 }
             }
@@ -2123,13 +2113,7 @@ private fun SummaryCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    Card(
-        modifier = modifier,
-        onClick = { onClick?.invoke() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
-    ) {
+    AppPanel(modifier = modifier, onClick = { onClick?.invoke() }, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2259,7 +2243,7 @@ private fun MembersPanel(
             }
         }
         items(visibleMembers, key = ClubMember::id) { member ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -2665,12 +2649,11 @@ private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = M
     val scheme = MaterialTheme.colorScheme
     val accents = listOf(Color(0xFF7448EF), Color(0xFF248AF2), Color(0xFF12A875), Color(0xFFF1842D))
     val accent = accents[Math.floorMod(squad.id.hashCode(), accents.size)]
-    Card(
+    AppPanel(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = scheme.surface),
-        shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.8f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        contentPadding = PaddingValues(0.dp),
+        spacing = 0.dp
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2843,7 +2826,7 @@ private fun SquadDetailsCard(
     onDeleteRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             AppTextField(name, onNameChange, "Squad name", Modifier.fillMaxWidth(), enabled = !isSaving)
             AppTextField(ageGroup, onAgeGroupChange, "Age group", Modifier.fillMaxWidth(), enabled = !isSaving)
@@ -2885,7 +2868,7 @@ private fun SquadPlayersPanel(
         .filter { it.role == "PLAYER" }
         .filter { it.name.contains(search.trim(), ignoreCase = true) }
         .sortedByDescending { it.isInSquad(squad.name) }
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp, fillHeight = true) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Players", fontWeight = FontWeight.SemiBold)
             AppTextField(search, onSearchChange, "Filter players", Modifier.fillMaxWidth())
@@ -3107,12 +3090,11 @@ private fun SessionCard(
     val plannedDrillTitles = plannedDrillIds.map { drillId ->
         allDrills.firstOrNull { it.id == drillId }?.title ?: "Unknown Drill"
     }
-    Card(
+    AppPanel(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        contentPadding = PaddingValues(0.dp),
+        spacing = 0.dp
     ) {
         Column(Modifier.fillMaxWidth().padding(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -3335,12 +3317,11 @@ private fun AssessmentCard(
     val initials = assessment.playerName.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "?" }
     val avatarColors = listOf(Color(0xFFBFD8FF), Color(0xFFDAD0FF), Color(0xFFC6F0DE), Color(0xFFFFDFC4), Color(0xFFFFD5E5))
     val avatarColor = avatarColors[Math.floorMod(assessment.playerName.hashCode(), avatarColors.size)]
-    Card(
+    AppPanel(
         modifier = modifier.clickable(enabled = assessment.status != "SCHEDULED") { onOpen(assessment) },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        contentPadding = PaddingValues(0.dp),
+        spacing = 0.dp
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3426,7 +3407,7 @@ private fun EditAssessmentPanel(
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${assessment.playerName} · ${assessment.discipline}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
                     AppTextField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
@@ -3490,7 +3471,7 @@ private fun ReadOnlyTemplates(templates: List<TrainingTemplate>, modifier: Modif
 
 @Composable
 internal fun InfoCard(title: String, subtitle: String, details: String) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(subtitle, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
@@ -3594,7 +3575,7 @@ private fun AvailableDrillsPanel(
 ) {
     var filter by remember { mutableStateOf("ALL") }
     val filtered = allDrills.filter { filter == "ALL" || it.discipline.equals(filter, ignoreCase = true) }
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp, fillHeight = true) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Available Drills", fontWeight = FontWeight.SemiBold)
             AppFilterDropdown("Discipline", (listOf("ALL") + ClubDisciplines).map { it to it.lowercase().replaceFirstChar(Char::uppercase) }, filter, { filter = it }, Modifier.fillMaxWidth())
@@ -3672,7 +3653,7 @@ private fun SessionDetailsCard(
     modifier: Modifier = Modifier
 ) {
     val minutes = duration.toIntOrNull() ?: 0
-    Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             AppTextField(title, onTitleChange, "Session title", Modifier.fillMaxWidth(), enabled = !isSaving)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3896,7 +3877,7 @@ private fun ScheduleSessionPanel(
                             drillIds.addAll(template.drillIds)
                         }
                     }
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             AppTextField(title, { title = it }, "Session title *", Modifier.fillMaxWidth(), enabled = !isSaving)
                             Text("Assign Training To", fontSize = AppFontSize.Caption, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
@@ -4089,7 +4070,7 @@ private fun ScheduleSessionPanel(
 @Composable
 private fun SharedTemplatePickerCard(templates: List<TrainingTemplate>, onApply: (TrainingTemplate) -> Unit) {
     var selected by remember { mutableStateOf<TrainingTemplate?>(null) }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f))) {
+    AppPanel(tone = AppPanelTone.Accent, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Shared training templates", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             Text("Reusable activities available to every club and coach.", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
@@ -4281,7 +4262,7 @@ private fun AssessmentRunPanel(
             if (videoCard != null) item { videoCard() }
             if (completed && assessment.aiSummary != null) {
                 item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))) {
+                    AppPanel(tone = AppPanelTone.Accent, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))

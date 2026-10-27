@@ -37,8 +37,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -154,7 +152,7 @@ internal fun ClubDrillsPanel(
         item { Text("Showing ${filtered.size} of ${drills.size} drills", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) }
         if (filtered.isEmpty()) item { Text("No drills match these filters.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) }
         items(filtered, key = Drill::id) { drill ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Top) {
                     if (drill.imageUrl != null) {
                         AsyncImage(
@@ -342,7 +340,7 @@ internal fun ProgressionPanel(
         item { Text("Roster", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
         if (players.isEmpty()) item { Text("No players are available.", fontSize = AppFontSize.Small) }
         items(players, key = { "player:${it.id}" }) { player ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Row(
                     Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -363,7 +361,7 @@ internal fun ProgressionPanel(
         item { Text("Certificates", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp)) }
         if (certificates.isEmpty()) item { Text("No certificates have been issued yet.", fontSize = AppFontSize.Small) }
         items(certificates, key = { "certificate:${it.id}" }) { certificate ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(certificate.playerName, fontWeight = FontWeight.SemiBold)
                     Text("${certificate.level} · ${certificate.discipline} · ${certificate.issuedDate}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
@@ -431,11 +429,7 @@ internal fun VideoAnalysisPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             if (selectedPlayer == null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
+                AppPanel(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             playerPicker()
@@ -656,11 +650,7 @@ private fun CapeVideoAnalysisPanel(
         val isWide = maxWidth >= 820.dp
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(18.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                ) {
+                AppPanel(border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (isWide) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -691,12 +681,7 @@ private fun CapeVideoAnalysisPanel(
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                         val sourcePanel: @Composable (Modifier) -> Unit = { panelModifier ->
-                            Card(
-                                modifier = panelModifier,
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background),
-                                shape = RoundedCornerShape(14.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                            ) {
+                            AppPanel(modifier = panelModifier, containerColor = MaterialTheme.colorScheme.background, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (isWide) {
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -765,10 +750,7 @@ private fun CapeVideoAnalysisPanel(
                         }
 
                         sourcePanel(Modifier.fillMaxWidth())
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
+                        AppPanel(tone = AppPanelTone.Muted, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
@@ -797,11 +779,7 @@ private fun CapeVideoAnalysisPanel(
             }
             openAiAnalysis?.let { analysis ->
                 item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    ) {
+                    AppPanel(border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("OpenAI batting report", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
@@ -924,7 +902,7 @@ private fun formatCapeJobTimestamp(value: String): String = runCatching {
 
 @Composable
 private fun CapeJobCard(job: CapeJobSummary, onView: () -> Unit, onDelete: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+    AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp, bottom = 10.dp, end = 4.dp)) {
             Column(Modifier.weight(1f).padding(top = 8.dp)) {
                 Text(capeJobTitle(job), fontWeight = FontWeight.SemiBold)
@@ -1027,7 +1005,7 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
                 HorizontalDivider()
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(analysis.summary, fontSize = AppFontSize.Body, fontWeight = FontWeight.Medium)
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), shape = RoundedCornerShape(14.dp)) {
+                    AppPanel(tone = AppPanelTone.Muted, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Text("Bat-ball contact · ${analysis.contact.status.replace('_', ' ')}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             Text(
@@ -1071,7 +1049,7 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
 @Composable
 private fun OpenAiReportSection(title: String, items: List<String>) {
     if (items.isEmpty()) return
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
+    AppPanel(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
             items.forEach { Text("• $it", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant) }
