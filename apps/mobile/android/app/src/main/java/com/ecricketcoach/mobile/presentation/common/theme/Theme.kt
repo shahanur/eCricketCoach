@@ -46,34 +46,39 @@ private val LightColors = lightColorScheme(
     outline = Color(0xFFD9D2F0)
 )
 
-/** Club workspace palette (Ekota styled pages). */
+/** Club workspace palette: neutral slate surfaces with a single indigo accent. */
 private val WorkspaceLightColors = lightColorScheme(
-    primary = Color(0xFF5134D8),
+    primary = Color(0xFF4F46E5),
     onPrimary = Color.White,
-    secondary = Color(0xFF2589F3),
-    background = Color(0xFFF7F8FD),
+    primaryContainer = Color(0xFFEEF0FF),
+    onPrimaryContainer = Color(0xFF3730A3),
+    secondary = Color(0xFF4F46E5),
+    background = Color(0xFFF6F7F9),
+    onBackground = Color(0xFF0F172A),
     surface = Color.White,
-    surfaceVariant = Color(0xFFF0EEFF),
-    onSurface = Color(0xFF151B35),
-    onSurfaceVariant = Color(0xFF5B6782),
-    outline = Color(0xFFDDE2F1),
-    outlineVariant = Color(0xFFE8EAF3),
-    error = Color(0xFFD94A66)
+    surfaceVariant = Color(0xFFF1F3F6),
+    onSurface = Color(0xFF0F172A),
+    onSurfaceVariant = Color(0xFF64748B),
+    outline = Color(0xFFE2E6EC),
+    outlineVariant = Color(0xFFE9ECF1),
+    error = Color(0xFFDC2626)
 )
 
 private val WorkspaceDarkColors = darkColorScheme(
-    primary = Color(0xFFA594FF),
-    onPrimary = Color(0xFF14102E),
-    secondary = Color(0xFF6BB2FF),
-    background = Color(0xFF0B1020),
-    onBackground = Color(0xFFE6E9F5),
-    surface = Color(0xFF161D31),
-    onSurface = Color(0xFFE6E9F5),
-    surfaceVariant = Color(0xFF232B45),
-    onSurfaceVariant = Color(0xFFA9B3CF),
-    outline = Color(0xFF34405F),
-    outlineVariant = Color(0xFF2A3350),
-    error = Color(0xFFFF7A93)
+    primary = Color(0xFF8B93FF),
+    onPrimary = Color(0xFF14123A),
+    primaryContainer = Color(0xFF23264A),
+    onPrimaryContainer = Color(0xFFC7CBFF),
+    secondary = Color(0xFF8B93FF),
+    background = Color(0xFF0D1117),
+    onBackground = Color(0xFFE6E8EC),
+    surface = Color(0xFF151A22),
+    onSurface = Color(0xFFE6E8EC),
+    surfaceVariant = Color(0xFF1E242E),
+    onSurfaceVariant = Color(0xFF98A2B3),
+    outline = Color(0xFF2A313C),
+    outlineVariant = Color(0xFF232933),
+    error = Color(0xFFF87171)
 )
 
 private val LiveSessionLightColors = WorkspaceLightColors.copy(
@@ -97,11 +102,11 @@ val LiveSessionColors: ColorScheme
 /** Date/arrow chip colours on workspace cards. */
 val WorkspaceChipBackground: Color
     @Composable @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFF26304F) else Color(0xFFE8EEFF)
+    get() = if (LocalIsDarkTheme.current) Color(0xFF23264A) else Color(0xFFEEF0FF)
 
 val WorkspaceChipContent: Color
     @Composable @ReadOnlyComposable
-    get() = if (LocalIsDarkTheme.current) Color(0xFF9DB6FF) else Color(0xFF3159D8)
+    get() = if (LocalIsDarkTheme.current) Color(0xFFC7CBFF) else Color(0xFF4338CA)
 
 /**
  * App-wide font size scale. Use these instead of literal `.sp` values so text sizes stay consistent

@@ -296,31 +296,23 @@ private fun disciplineIcon(discipline: String) = when (discipline.uppercase()) {
     "FIELDING" -> Icons.Outlined.DirectionsRun
     else -> Icons.Outlined.Sports
 }
-// Disciplines are distinguished by icon; colour stays on-brand so cards read as one family.
+// Disciplines are distinguished by icon; chips stay neutral so cards read as one calm family.
 @Composable
 private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
-    val accent = when (discipline.uppercase()) {
-        "BOWLING" -> Color(0xFF2679F4)
-        "BATTING" -> Color(0xFF13A875)
-        "FIELDING" -> Color(0xFFE59A12)
-        "KEEPING" -> Color(0xFF7541E8)
-        else -> scheme.primary
-    }
     Surface(
         shape = AppShapes.Small,
-        color = accent.copy(alpha = 0.1f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.14f)),
+        color = scheme.surfaceVariant,
         modifier = modifier
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
-            Icon(disciplineIcon(discipline), contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Icon(disciplineIcon(discipline), contentDescription = null, tint = scheme.primary, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text(
                 discipline.lowercase().replaceFirstChar { it.uppercase() },
                 fontSize = AppFontSize.Small,
-                color = accent,
-                fontWeight = FontWeight.Bold
+                color = scheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -2649,33 +2641,30 @@ private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onC
 @Composable
 private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val accents = listOf(Color(0xFF7448EF), Color(0xFF248AF2), Color(0xFF12A875), Color(0xFFF1842D))
-    val accent = accents[Math.floorMod(squad.id.hashCode(), accents.size)]
+    val accent = scheme.primary
     AppPanel(
         modifier = modifier,
-        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.8f)),
+        border = BorderStroke(1.dp, scheme.outline),
         contentPadding = PaddingValues(0.dp),
         spacing = 0.dp
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = AppShapes.Medium, color = accent, modifier = Modifier.size(58.dp)) {
+                Surface(shape = AppShapes.Medium, color = scheme.primaryContainer, modifier = Modifier.size(48.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = accent, modifier = Modifier.size(26.dp))
                     }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.Title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         "${squad.ageGroup.ifBlank { "All ages" }} · $memberCount ${if (memberCount == 1) "member" else "members"}",
                         fontSize = AppFontSize.Small,
-                        color = scheme.onSurface.copy(alpha = 0.65f)
+                        color = scheme.onSurfaceVariant
                     )
                 }
-                Box(Modifier.size(38.dp).background(accent.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
-                }
+                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             }
             if (squad.disciplines.isNotEmpty()) {
                 Row(
@@ -2685,10 +2674,10 @@ private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = M
                     squad.disciplines.forEach { discipline -> DisciplineChip(discipline) }
                 }
             }
-            HorizontalDivider(color = scheme.outline.copy(alpha = 0.35f), modifier = Modifier.padding(vertical = 8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                SquadCardAction("Edit", Icons.Outlined.Edit, Color(0xFF2679F4), onEdit)
-                SquadCardAction("Delete", Icons.Outlined.Delete, Color(0xFFED4D5A), onDelete)
+            HorizontalDivider(color = scheme.outlineVariant, modifier = Modifier.padding(vertical = 8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                SquadCardAction("Edit", Icons.Outlined.Edit, scheme.onSurfaceVariant, onEdit)
+                SquadCardAction("Delete", Icons.Outlined.Delete, scheme.error, onDelete)
             }
         }
     }
@@ -2703,12 +2692,12 @@ private fun SquadCardAction(
 ) {
     Surface(
         onClick = onClick,
-        shape = AppShapes.Large,
-        color = accent.copy(alpha = 0.09f)
+        shape = AppShapes.Medium,
+        color = Color.Transparent
     ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
-            Text(label, color = accent, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+            Text(label, color = accent, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
         }
     }
 }
