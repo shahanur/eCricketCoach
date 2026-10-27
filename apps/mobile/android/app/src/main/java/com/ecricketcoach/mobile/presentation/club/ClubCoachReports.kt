@@ -51,6 +51,7 @@ import java.io.FileOutputStream
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 data class ClubReportRow(
     val sessionTitle: String,
@@ -669,14 +670,14 @@ internal fun ClubReportsPanel(
                     error = runCatching {
                         shareClubExport(context, exportClubReportPdf(context, clubName, rows), "application/pdf", "Share PDF report")
                     }.exceptionOrNull()?.message.orEmpty()
-                }) { Text("Share PDF") }
+                }, shape = AppShapes.Button) { Text("Share PDF") }
                 TextButton(enabled = rows.isNotEmpty() && validRange, onClick = {
                     error = runCatching {
                         val file = File(exportDirectory(context), "club-session-report-${LocalDate.now()}.csv")
                         file.writeText(clubReportCsv(rows), Charsets.UTF_8)
                         shareClubExport(context, file, "text/csv", "Share CSV report")
                     }.exceptionOrNull()?.message.orEmpty()
-                }) { Text("Share CSV") }
+                }, shape = AppShapes.Button) { Text("Share CSV") }
             }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
         }
@@ -825,8 +826,8 @@ internal fun CertificatesPanel(
                             error = runCatching {
                                 shareClubExport(context, exportCertificatePdf(context, certificate), "application/pdf", "Share certificate")
                             }.exceptionOrNull()?.message.orEmpty()
-                        }) { Text("Download / share PDF") }
-                        if (canDelete) TextButton(onClick = { deleteTarget = certificate }) { Text("Delete") }
+                        }, shape = AppShapes.Button) { Text("Download / share PDF") }
+                        if (canDelete) TextButton(onClick = { deleteTarget = certificate }, shape = AppShapes.Button) { Text("Delete") }
                     }
                 }
                 deleteTarget?.let { certificate ->
@@ -838,9 +839,9 @@ internal fun CertificatesPanel(
                             Button(onClick = {
                                 deleteTarget = null
                                 onDelete(certificate)
-                            }) { Text("Delete certificate") }
+                            }, shape = AppShapes.Button) { Text("Delete certificate") }
                         },
-                        dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
+                        dismissButton = { TextButton(onClick = { deleteTarget = null }, shape = AppShapes.Button) { Text("Cancel") } }
                     )
                 }
             }

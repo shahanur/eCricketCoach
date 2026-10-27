@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -76,6 +75,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Base64
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 private val StandaloneShotTypes = listOf(
     "front_foot_drive", "back_foot_drive", "forward_defence", "backward_defence", "pull", "cut", "sweep"
@@ -264,7 +264,7 @@ internal fun StandaloneCapeAnalysisPanel(
                 Icon(Icons.Outlined.Insights, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(19.dp))
                 Text("  Detailed pose, ball & speed analysis", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 if (job?.isPending != true && player != null && target != null) {
-                    Button(onClick = { setupOpen = true; manualFrames = CapeManualFrames(); contactCandidates = null; error = "" }, enabled = !submitting) {
+                    Button(onClick = { setupOpen = true; manualFrames = CapeManualFrames(); contactCandidates = null; error = "" }, enabled = !submitting, shape = AppShapes.Button) {
                         Text(if (job == null) "Analyse" else "New analysis")
                     }
                 }
@@ -311,7 +311,7 @@ internal fun StandaloneCapeAnalysisPanel(
                         CalibrationOverlay(frame!!, calibrationPoints) {
                             if (calibrationPoints.size < 4) calibrationPoints.add(it)
                         }
-                        if (calibrationPoints.isNotEmpty()) TextButton(onClick = { calibrationPoints.clear() }) { Text("Reset corners") }
+                        if (calibrationPoints.isNotEmpty()) TextButton(onClick = { calibrationPoints.clear() }, shape = AppShapes.Button) { Text("Reset corners") }
                     }
                     sourceLabel == null -> Text("Choose a video above first.", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 }
@@ -329,7 +329,7 @@ internal fun StandaloneCapeAnalysisPanel(
                         if (contactCandidates == null) {
                             OutlinedButton(
                                 onClick = { loadCandidatePage(0) },
-                                enabled = !loadingCandidates && sourceLabel != null
+                                enabled = !loadingCandidates && sourceLabel != null, shape = AppShapes.Button
                             ) {
                                 if (loadingCandidates) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 else Icon(Icons.Outlined.VideoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -360,11 +360,11 @@ internal fun StandaloneCapeAnalysisPanel(
                                 Row {
                                     TextButton(
                                         onClick = { if (firstFrame != null) loadCandidatePage((firstFrame - ContactFramePageSize).coerceAtLeast(0), data.frameCount) },
-                                        enabled = !loadingCandidates && firstFrame != null && firstFrame > 0
+                                        enabled = !loadingCandidates && firstFrame != null && firstFrame > 0, shape = AppShapes.Button
                                     ) { Text("Earlier") }
                                     TextButton(
                                         onClick = { if (lastFrame != null) loadCandidatePage(lastFrame + 1, data.frameCount) },
-                                        enabled = !loadingCandidates && lastFrame != null && lastFrame < data.frameCount - 1
+                                        enabled = !loadingCandidates && lastFrame != null && lastFrame < data.frameCount - 1, shape = AppShapes.Button
                                     ) { Text("Later") }
                                 }
                             }
@@ -403,7 +403,7 @@ internal fun StandaloneCapeAnalysisPanel(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        TextButton(onClick = { previewingContactFrame = candidate }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
+                                        TextButton(onClick = { previewingContactFrame = candidate }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp), shape = AppShapes.Button) {
                                             Text("Enlarge", fontSize = AppFontSize.Micro)
                                         }
                                     }
@@ -447,11 +447,11 @@ internal fun StandaloneCapeAnalysisPanel(
                                     submitting = false
                                 }
                             }
-                        }
+                        }, shape = AppShapes.Button
                     ) {
                         if (submitting) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Text("Analyse")
                     }
-                    TextButton(onClick = { setupOpen = false }, enabled = !submitting) { Text("Cancel") }
+                    TextButton(onClick = { setupOpen = false }, enabled = !submitting, shape = AppShapes.Button) { Text("Cancel") }
                 }
             }
         }
@@ -492,7 +492,7 @@ private fun ContactFramePreviewDialog(frame: CapeContactFrame, onDismiss: () -> 
                     IconButton(onClick = { zoom = (zoom * 1.4f).coerceAtMost(4f) }, enabled = zoom < 4f) {
                         Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
                     }
-                    TextButton(onClick = onDismiss) {
+                    TextButton(onClick = onDismiss, shape = AppShapes.Button) {
                         Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(17.dp))
                         Text(" Close")
                     }

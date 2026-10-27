@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -35,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalTime
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 /**
  * Shared screen header: optional greeting with theme toggle and sign-out actions,
@@ -88,7 +88,7 @@ fun ThemeToggleButton(isDark: Boolean, onToggleTheme: () -> Unit, modifier: Modi
 fun ClubBadge(clubName: String, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = AppShapes.Large,
         color = scheme.surface,
         border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.18f)),
         modifier = modifier

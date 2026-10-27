@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Delete
@@ -79,6 +78,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 /** Accent palette mirroring the web review (rose/amber/yellow/emerald/violet/cyan/sky). */
 private data class ReviewAccent(val dark: Color, val light: Color)
@@ -248,7 +248,7 @@ internal fun OpenAiBattingReviewResult(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = AppShapes.Medium,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Violet.tone().copy(alpha = 0.35f))
     ) {
@@ -292,8 +292,8 @@ private fun Pill(text: String, accent: ReviewAccent, modifier: Modifier = Modifi
     Text(
         text,
         modifier = modifier
-            .border(1.dp, tone.copy(alpha = 0.4f), RoundedCornerShape(50))
-            .background(tone.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .border(1.dp, tone.copy(alpha = 0.4f), AppShapes.Small)
+            .background(tone.copy(alpha = 0.12f), AppShapes.Small)
             .padding(horizontal = 10.dp, vertical = 3.dp),
         color = tone,
         fontSize = AppFontSize.Caption,
@@ -392,7 +392,7 @@ private fun CoachReviewSection(analysisRepository: AnalysisRepository, analysis:
                 },
                 enabled = !saving,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34D399), contentColor = Color(0xFF020617)),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp), shape = AppShapes.Button
             ) {
                 Text(if (saving) "Saving\u2026" else "Save coach review", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
             }
@@ -460,7 +460,7 @@ private fun FindingCard(
         }
     }
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = AppShapes.Small,
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
@@ -519,7 +519,7 @@ private fun MovementSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(error, fontSize = AppFontSize.Small, color = Rose.tone(), modifier = Modifier.weight(1f))
                 if (result == null && (analysis.poseOverlayInput != null || analysis.savedPoseOverlayJson != null)) {
-                    TextButton(onClick = onRetry) { Text("Retry overlay", fontSize = AppFontSize.Small) }
+                    TextButton(onClick = onRetry, shape = AppShapes.Button) { Text("Retry overlay", fontSize = AppFontSize.Small) }
                 }
             }
         }
@@ -602,7 +602,7 @@ private fun MovementSection(
                             } else {
                                 Surface(
                                     modifier = Modifier.width(if (wide) 200.dp else 160.dp).heightIn(min = 140.dp),
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = AppShapes.Small,
                                     color = MaterialTheme.colorScheme.surface,
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                                 ) {
@@ -664,7 +664,7 @@ private fun PoseMetricTable(title: String, rows: List<PoseMetricRow>, modifier: 
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.Small)
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
@@ -736,7 +736,7 @@ private fun ReviewFigure(caption: String, data: Any, modifier: Modifier = Modifi
     }
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = AppShapes.Small,
         color = Color.Black,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
@@ -917,7 +917,7 @@ internal fun PastBattingReviews(
                         }
                     }
                     if (reports.size > columns * 2) {
-                        TextButton(onClick = { showAll = !showAll }) {
+                        TextButton(onClick = { showAll = !showAll }, shape = AppShapes.Button) {
                             Text(if (showAll) "Show fewer" else "Show all ${reports.size}", fontSize = AppFontSize.Small)
                         }
                     }
@@ -937,11 +937,11 @@ internal fun PastBattingReviews(
                 Button(
                     onClick = { deleteReport(report) },
                     enabled = deletingId == null,
-                    colors = ButtonDefaults.buttonColors(containerColor = DeleteRed, contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = DeleteRed, contentColor = Color.White), shape = AppShapes.Button
                 ) { Text(if (deletingId != null) "Deleting\u2026" else "Delete") }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }, enabled = deletingId == null) { Text("Cancel") }
+                TextButton(onClick = { pendingDelete = null }, enabled = deletingId == null, shape = AppShapes.Button) { Text("Cancel") }
             }
         )
     }
@@ -970,7 +970,7 @@ private fun PastReviewRow(
         onClick = onClick,
         enabled = !busy,
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = AppShapes.Small,
         color = if (active) Violet.tone().copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, if (active) Violet.tone().copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant)
     ) {
@@ -978,8 +978,8 @@ private fun PastReviewRow(
             Box(
                 Modifier
                     .size(30.dp)
-                    .border(1.dp, sourceAccent.tone().copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                    .background(sourceAccent.tone().copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+                    .border(1.dp, sourceAccent.tone().copy(alpha = 0.4f), AppShapes.Small)
+                    .background(sourceAccent.tone().copy(alpha = 0.12f), AppShapes.Small),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -1010,7 +1010,7 @@ private fun PastReviewRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.Small)
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -1020,7 +1020,7 @@ private fun PastReviewRow(
                 Surface(
                     onClick = onDownload,
                     enabled = downloadEnabled,
-                    shape = RoundedCornerShape(6.dp),
+                    shape = AppShapes.Small,
                     color = Color.Transparent,
                     border = BorderStroke(1.dp, Violet.tone().copy(alpha = 0.35f))
                 ) {
@@ -1042,7 +1042,7 @@ private fun PastReviewRow(
                 Surface(
                     onClick = onDelete,
                     enabled = deleteEnabled,
-                    shape = RoundedCornerShape(6.dp),
+                    shape = AppShapes.Small,
                     color = Color.Transparent,
                     border = BorderStroke(1.dp, DeleteRed.copy(alpha = if (deleteEnabled || deleting) 0.6f else 0.3f))
                 ) {

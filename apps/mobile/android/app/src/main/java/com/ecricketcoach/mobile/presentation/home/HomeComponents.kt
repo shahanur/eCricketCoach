@@ -47,7 +47,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -79,7 +78,7 @@ internal fun TabButton(title: String, count: Int, selected: Boolean, onClick: ()
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
         color = background,
-        shape = RoundedCornerShape(12.dp)
+        shape = AppShapes.Medium
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = foreground, fontWeight = FontWeight.SemiBold)

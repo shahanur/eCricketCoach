@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
@@ -88,6 +87,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import java.io.File
 import java.util.Locale
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 private val assessmentReviewPriorities = listOf(
     "footwork" to "Footwork",
@@ -215,7 +215,7 @@ internal fun AssessmentBattingReview(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            shape = RoundedCornerShape(12.dp)
+            shape = AppShapes.Medium
         ) {
             Text(
                 "OpenAI batting video review is available for batting assessments.",
@@ -302,7 +302,7 @@ internal fun AssessmentBattingReview(
         if (canSubmit) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = AppShapes.Medium,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             ) {
@@ -521,7 +521,7 @@ internal fun AssessmentBattingReview(
                         run {
                             val preview: @Composable (Modifier) -> Unit = { previewModifier ->
                                 AndroidView(
-                                    modifier = previewModifier.clip(RoundedCornerShape(10.dp)),
+                                    modifier = previewModifier.clip(AppShapes.Small),
                                     factory = { playerContext ->
                                         createReviewVideoView(
                                             playerContext,
@@ -586,7 +586,7 @@ internal fun AssessmentBattingReview(
                                             TextButton(
                                                 onClick = { videoPlayer?.let { moveContact(it.currentPosition / 1000f) } },
                                                 enabled = !isRunning,
-                                                contentPadding = PaddingValues(horizontal = 8.dp)
+                                                contentPadding = PaddingValues(horizontal = 8.dp), shape = AppShapes.Button
                                             ) { Text("Use paused frame", fontSize = AppFontSize.Caption) }
                                         }
                                         Text(
@@ -633,7 +633,7 @@ internal fun AssessmentBattingReview(
                             onClick = { runReview() },
                             enabled = canReview,
                             modifier = Modifier.height(40.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AppShapes.Medium,
                             contentPadding = PaddingValues(horizontal = 16.dp)
                         ) {
                             if (isRunning) {

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +24,7 @@ import com.ecricketcoach.mobile.presentation.common.HeaderGreetingTitle
 import com.ecricketcoach.mobile.presentation.common.HeaderPageTitle
 import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceColors
 import com.ecricketcoach.mobile.presentation.common.timeOfDayGreeting
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 /** Club workspace header: maps the current tab / active session / assessment onto the shared [AppHeader]. */
 @Composable
@@ -115,7 +115,7 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
                     fontSize = AppFontSize.Small,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .background(scheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
+                        .background(scheme.primary.copy(alpha = 0.12f), AppShapes.Small)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }

@@ -43,7 +43,7 @@ Package root: `com.ecricketcoach.mobile`. Application class: `ECricketCoachApp` 
 - `di/` – Hilt modules binding repository interfaces to implementations and providing `CoachApi`/`AuthStore`.
 - `data/api` – `CoachApi` HTTP client + payload builders; `data/datastore` – `AuthStore` (encrypted session + offline queue); `data/repository` – repository implementations.
 - `domain/model`, `domain/repository` (contracts), `domain/usecase` (e.g. `AssignMemberToSquadUseCase`, `CompleteOAuthCallbackUseCase`, `SyncOfflineMutationsUseCase`).
-- `presentation/` – feature packages `auth`, `home`, `club`, `analysis`, `assessment`, `session`, `squad`, `common` (theme with `AppFontSize`/`AppTypography` font-size tokens, plus shared components such as `AppHeader`, `VoiceInput` and the `AppInputs` form controls: `AppTextField` with voice typing, `AppNumberField`, `AppSearchField`, `AppDropdown`, `AppFilterDropdown`, `AppDateField`, `AppTimeField`, and the `AppPanel`/`AppPanelHeader` content panel with `AppPanelTone` variants) with `AuthViewModel`, `HomeViewModel`, `ClubWorkspaceViewModel`.
+- `presentation/` – feature packages `auth`, `home`, `club`, `analysis`, `assessment`, `session`, `squad`, `common` (theme with `AppFontSize`/`AppTypography` font-size tokens and `AppCorner`/`AppShapes` flat corner-radius tokens, plus shared components such as `AppHeader`, `VoiceInput` and the `AppInputs` form controls: `AppTextField` with voice typing, `AppNumberField`, `AppSearchField`, `AppDropdown`, `AppFilterDropdown`, `AppDateField`, `AppTimeField`, and the `AppPanel`/`AppPanelHeader` content panel with `AppPanelTone` variants) with `AuthViewModel`, `HomeViewModel`, `ClubWorkspaceViewModel`.
 - `utils/` – formatting, date/time and session-plan helpers.
 
 Known compromises:

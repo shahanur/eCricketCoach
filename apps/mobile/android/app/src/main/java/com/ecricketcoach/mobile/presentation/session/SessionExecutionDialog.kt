@@ -58,7 +58,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -136,6 +135,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.ecricketcoach.mobile.presentation.common.theme.LiveSessionColors
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 private val PreparationChecklist = listOf(
     "plan" to "Review objectives, session plan and drill order",
@@ -882,13 +882,13 @@ internal fun SessionExecutionScreen(
                         Button(onClick = {
                             beginSession(true)
                             saveProgress()
-                        }) {
+                        }, shape = AppShapes.Button) {
                             Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Start early")
                         }
                     },
-                    dismissButton = { TextButton(onClick = { showEarlyStartConfirm = false }) { Text("Cancel") } }
+                    dismissButton = { TextButton(onClick = { showEarlyStartConfirm = false }, shape = AppShapes.Button) { Text("Cancel") } }
                 )
             }
         }
@@ -1250,14 +1250,14 @@ internal fun SessionExecutionScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
                     ) {
                         run {
-                            OutlinedButton(onClick = { saveProgress() }, enabled = !isSaving) {
+                            OutlinedButton(onClick = { saveProgress() }, enabled = !isSaving, shape = AppShapes.Button) {
                                 Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.padding(horizontal = 3.dp))
                                 Text(if (isSaving) "Saving…" else "Save progress")
                             }
                             Button(
                                 onClick = { showCompleteConfirm = true },
-                                enabled = canStart && status != "PREPARING" && !isSaving
+                                enabled = canStart && status != "PREPARING" && !isSaving, shape = AppShapes.Button
                             ) {
                                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.padding(horizontal = 3.dp))
@@ -1291,13 +1291,13 @@ internal fun SessionExecutionScreen(
                     onSave(payload(true), JSONObject().also { notes ->
                         playerNotes.forEach { (id, note) -> if (note.isNotBlank()) notes.put(id, note) }
                     }, postNotes, true)
-                }, enabled = !isSaving) {
+                }, enabled = !isSaving, shape = AppShapes.Button) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
                     Text(if (isSaving) "Saving…" else "Confirm completion")
                 }
             },
-            dismissButton = { TextButton(onClick = { showCompleteConfirm = false }) { Text("Keep editing") } }
+            dismissButton = { TextButton(onClick = { showCompleteConfirm = false }, shape = AppShapes.Button) { Text("Keep editing") } }
         )
     }
     if (showEarlyStartConfirm && !readOnly) {
@@ -1306,13 +1306,13 @@ internal fun SessionExecutionScreen(
             title = { Text("Start before scheduled date?") },
             text = { Text("This session is scheduled for ${session.sessionDate}. Starting now will be recorded as started early.") },
             confirmButton = {
-                Button(onClick = { beginSession(true) }) {
+                Button(onClick = { beginSession(true) }, shape = AppShapes.Button) {
                     Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
                     Text("Start early")
                 }
             },
-            dismissButton = { TextButton(onClick = { showEarlyStartConfirm = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showEarlyStartConfirm = false }, shape = AppShapes.Button) { Text("Cancel") } }
         )
     }
 }
@@ -1393,8 +1393,8 @@ private fun LiveSessionPreStartScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = onBack) { Text("Cancel", fontSize = AppFontSize.BodyLarge) }
-                            Button(onClick = onProceed, enabled = canStart) {
+                            TextButton(onClick = onBack, shape = AppShapes.Button) { Text("Cancel", fontSize = AppFontSize.BodyLarge) }
+                            Button(onClick = onProceed, enabled = canStart, shape = AppShapes.Button) {
                                 Text(startLabel, fontSize = AppFontSize.BodyLarge)
                                 Spacer(Modifier.width(6.dp))
                                 Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
@@ -1413,7 +1413,7 @@ private fun LiveSessionPreStartScreen(
                                 Surface(
                                     onClick = onStart,
                                     enabled = canStart,
-                                    shape = RoundedCornerShape(50),
+                                    shape = AppShapes.Small,
                                     color = if (canStart) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                                 ) {
                                     Icon(
@@ -1441,7 +1441,7 @@ private fun LiveSessionPreStartScreen(
                                 }
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = AppShapes.Small,
                                     color = Color(0xFFE7F6F0)
                                 ) {
                                     Text(
@@ -1490,7 +1490,7 @@ private fun LiveSessionPreCheckScreen(
                             Text("Pre-check", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
                             Text("Review preparation and update attendance without leaving the live session.", color = CoachMuted, fontSize = AppFontSize.Body)
                         }
-                        TextButton(onClick = onClose, enabled = !isSaving) {
+                        TextButton(onClick = onClose, enabled = !isSaving, shape = AppShapes.Button) {
                             Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(5.dp))
                             Text("Close")
@@ -1543,7 +1543,7 @@ private fun PreparationChecklistCard(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShapes.Small)
                         .clickable {
                             checklist[key] = !checked
                             onChanged()
@@ -1589,7 +1589,7 @@ private fun SquadAttendanceCard(
                     fontSize = AppFontSize.Title,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                TextButton(onClick = onAddPlayer) {
+                TextButton(onClick = onAddPlayer, shape = AppShapes.Button) {
                     Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Add player")
@@ -1635,9 +1635,9 @@ private fun SquadAttendanceCard(
                                 Text(
                                     label,
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
+                                        .clip(AppShapes.Small)
                                         .background(if (selected) accent else Color.Transparent)
-                                        .border(1.dp, if (selected) accent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                                        .border(1.dp, if (selected) accent else MaterialTheme.colorScheme.outlineVariant, AppShapes.Small)
                                         .clickable {
                                             attendance[player.id] = value
                                             onAttendanceChanged()
@@ -1817,7 +1817,7 @@ private fun AddSessionPlayerDialog(
                             color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
                             fontSize = AppFontSize.Small,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(50))
+                                .clip(AppShapes.Small)
                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
                                 .clickable(enabled = !busy) {
                                     if (!selected || selectedDisciplines.values.count { it } > 1) {
@@ -1842,10 +1842,10 @@ private fun AddSessionPlayerDialog(
                         disciplineOptions.filter { selectedDisciplines[it] == true }
                     ))
                 },
-                enabled = valid && !busy
+                enabled = valid && !busy, shape = AppShapes.Button
             ) { Text(if (busy) "Adding…" else "Add & mark present") }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -1892,7 +1892,7 @@ private fun PreStartMetric(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier
 ) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = Color(0xFFF7F8FD)) {
+    Surface(modifier = modifier, shape = AppShapes.Medium, color = Color(0xFFF7F8FD)) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1927,7 +1927,7 @@ private fun PreparationCard(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShapes.Small)
                         .clickable(enabled = !readOnly) { checklist[key] = !checked }
                         .padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1945,7 +1945,7 @@ private fun PreparationCard(
             if (status == "PREPARING" && !readOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Status: ${status.replace('_', ' ')}", fontWeight = FontWeight.Medium, fontSize = AppFontSize.Body)
-                    Button(onClick = onStart, enabled = canStart) {
+                    Button(onClick = onStart, enabled = canStart, shape = AppShapes.Button) {
                         Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.padding(horizontal = 3.dp))
                         Text("Start session")
@@ -1998,11 +1998,11 @@ private fun AttendanceTable(
                     ) {
                         Text(player.name, Modifier.weight(1f), fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
                         Surface(
-                            shape = RoundedCornerShape(50),
+                            shape = AppShapes.Small,
                             color = tint.copy(alpha = 0.12f),
                             border = BorderStroke(1.dp, tint.copy(alpha = 0.35f)),
                             modifier = Modifier
-                                .clip(RoundedCornerShape(50))
+                                .clip(AppShapes.Small)
                                 .clickable(enabled = !readOnly) {
                                     attendance[player.id] = order[(order.indexOf(value) + 1) % order.size]
                                 }
@@ -2047,10 +2047,10 @@ private fun DrillCard(
                     modifier = Modifier.weight(1f)
                 )
                 Surface(
-                    shape = RoundedCornerShape(50),
+                    shape = AppShapes.Small,
                     color = statusTint.copy(alpha = 0.12f),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(AppShapes.Small)
                         .clickable(enabled = !readOnly) { onChange(drill.copy(completed = !drill.completed)) }
                 ) {
                     Text(
@@ -2115,7 +2115,7 @@ private fun DrillInfoDialog(execution: ExecutionDrill, drill: Drill?, onDismiss:
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        confirmButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Close") } }
     )
 }
 
@@ -2166,7 +2166,7 @@ private fun ReviewEmptyText(text: String) {
 
 @Composable
 private fun ReviewTag(label: String, tint: Color) {
-    Surface(shape = RoundedCornerShape(50), color = tint.copy(alpha = 0.12f)) {
+    Surface(shape = AppShapes.Small, color = tint.copy(alpha = 0.12f)) {
         Text(
             label,
             color = tint,
@@ -2181,7 +2181,7 @@ private fun ReviewTag(label: String, tint: Color) {
 @Composable
 private fun ReviewEditAction(editing: Boolean, saving: Boolean, onToggle: () -> Unit) {
     if (editing) {
-        TextButton(onClick = onToggle, enabled = !saving, contentPadding = PaddingValues(horizontal = 8.dp)) {
+        TextButton(onClick = onToggle, enabled = !saving, contentPadding = PaddingValues(horizontal = 8.dp), shape = AppShapes.Button) {
             Text(if (saving) "Saving…" else "Save", fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold)
         }
     } else {
@@ -2306,7 +2306,7 @@ private fun PlayerNotesCard(
                     fontSize = AppFontSize.Body,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(AppShapes.Small)
                         .clickable {
                             currentOnSave()
                             editing = false
@@ -2441,7 +2441,7 @@ private fun AiAnalysisCard(
                     Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = onRun, enabled = !busy) {
+                    Button(onClick = onRun, enabled = !busy, shape = AppShapes.Button) {
                         Icon(if (evaluation != null) Icons.Outlined.Refresh else Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.padding(horizontal = 3.dp))
                         Text(if (busy) "Analysing…" else "Analyse")
@@ -2461,7 +2461,7 @@ private fun AiAnalysisCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Diagnosis", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
+                        shape = AppShapes.Small,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                     ) {
                         Text(
@@ -2485,7 +2485,7 @@ private fun AiAnalysisCard(
                 if (evaluation.sessionImprovements.isNotEmpty()) {
                     Text("Improve the next session", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
                     evaluation.sessionImprovements.forEach { Text("• $it", fontSize = AppFontSize.Body) }
-                    TextButton(onClick = { onAddToAdjustments(evaluation.sessionImprovements) }) {
+                    TextButton(onClick = { onAddToAdjustments(evaluation.sessionImprovements) }, shape = AppShapes.Button) {
                         Text("Add to adjustments")
                     }
                 }
@@ -2565,7 +2565,7 @@ private fun FollowUpCard(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text("Selected drills: $followUpMinutes min", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button) {
                             Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.padding(horizontal = 3.dp))
                             Text(if (busy) "Creating…" else "Create follow-up session")
@@ -2811,7 +2811,7 @@ private fun FollowUpCard(
                         }
                         "END" -> item {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(onClick = onBack) { Text("‹  Continue session") }
+                                OutlinedButton(onClick = onBack, shape = AppShapes.Button) { Text("‹  Continue session") }
                                 CoachCard {
                                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Text("End this session?", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
@@ -2819,10 +2819,10 @@ private fun FollowUpCard(
                                         Text("Drills completed: ${drills.count { it.completed }} / ${drills.size}", color = CoachMuted)
                                         Text("Observations: ${observations.size}", color = CoachMuted)
                                         Text("Finish “${session.title}” and move to the session review?", color = CoachInk, fontSize = AppFontSize.Small)
-                                        OutlinedButton(onClick = onSaveProgress, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+                                        OutlinedButton(onClick = onSaveProgress, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button) {
                                             Text(if (isSaving) "Saving…" else "Save progress")
                                         }
-                                        Button(onClick = onFinishSession, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
+                                        Button(onClick = onFinishSession, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button) {
                                             Text("Finish session")
                                         }
                                         if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
@@ -2868,24 +2868,24 @@ private fun FollowUpCard(
                                             if (activeDrill != null) {
                                                 OutlinedButton(
                                                     onClick = onOpenDrillControls,
-                                                    modifier = Modifier.fillMaxWidth()
+                                                    modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button
                                                 ) {
                                                     Text(if (paused || sessionPaused) "Resume drill" else "Drill controls")
                                                 }
                                             } else {
                                                 Button(
                                                     onClick = onOpenDrillControls,
-                                                    modifier = Modifier.fillMaxWidth()
+                                                    modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button
                                                 ) { Text("Choose a drill") }
                                             }
                                             OutlinedButton(
                                                 onClick = if (sessionPaused) onResumeSession else onPauseSession,
                                                 modifier = Modifier.fillMaxWidth(),
-                                                enabled = !isSaving
+                                                enabled = !isSaving, shape = AppShapes.Button
                                             ) {
                                                 Text(if (sessionPaused) "Resume session" else "Pause session")
                                             }
-                                            Button(onClick = onEndSession, modifier = Modifier.fillMaxWidth()) { Text("End session") }
+                                            Button(onClick = onEndSession, modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button) { Text("End session") }
                                             if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = AppFontSize.Caption)
                                             if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                                         }
@@ -2901,12 +2901,12 @@ private fun FollowUpCard(
                                             ).forEach { (label, category) ->
                                                 OutlinedButton(
                                                     onClick = { onOpenObservation("SQUAD", category) },
-                                                    modifier = Modifier.fillMaxWidth()
+                                                    modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button
                                                 ) { Text(label) }
                                             }
                                             OutlinedButton(
                                                 onClick = { onOpenObservation("INDIVIDUAL", "TECHNIQUE") },
-                                                modifier = Modifier.fillMaxWidth()
+                                                modifier = Modifier.fillMaxWidth(), shape = AppShapes.Button
                                             ) { Text("Add individual observation") }
                                         }
                                     }
@@ -2917,11 +2917,11 @@ private fun FollowUpCard(
                                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text("Recent observations", modifier = Modifier.weight(1f), color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
-                                            TextButton(onClick = { onOpenObservation("SQUAD", "TECHNIQUE") }) { Text("Add") }
+                                            TextButton(onClick = { onOpenObservation("SQUAD", "TECHNIQUE") }, shape = AppShapes.Button) { Text("Add") }
                                         }
                                         if (observationLoadError.isNotBlank()) {
                                             Text(observationLoadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
-                                            TextButton(onClick = { coroutineScope.launch { onReloadObservations() } }) { Text("Retry") }
+                                            TextButton(onClick = { coroutineScope.launch { onReloadObservations() } }, shape = AppShapes.Button) { Text("Retry") }
                                         } else if (observations.isEmpty()) {
                                             Text("No observations yet. Capture a coaching moment during the session.", color = CoachMuted, fontSize = AppFontSize.Small)
                                         } else {
@@ -2971,7 +2971,7 @@ private fun FollowUpCard(
 
             @Composable
             private fun CoachMetric(label: String, value: String, modifier: Modifier = Modifier) {
-                Surface(modifier, shape = RoundedCornerShape(13.dp), color = Color(0xFFF4F3FD)) {
+                Surface(modifier, shape = AppShapes.Medium, color = Color(0xFFF4F3FD)) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(label, color = CoachMuted, fontSize = AppFontSize.Small)
                         Text(value, color = Color(0xFF202840), fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small, maxLines = 1)
@@ -2983,7 +2983,7 @@ private fun FollowUpCard(
             private fun CoachChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 Surface(
                     onClick = onClick,
-                    shape = RoundedCornerShape(20.dp),
+                    shape = AppShapes.Large,
                     color = if (selected) Color(0xFFECE9FF) else Color(0xFFF6F7FB)
                 ) {
                     Text(
@@ -3146,7 +3146,7 @@ private fun SessionLivePrimaryPane(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Surface(
                         modifier = Modifier.size(7.dp),
-                        shape = RoundedCornerShape(50),
+                        shape = AppShapes.Small,
                         color = if (sessionPaused) Color(0xFFE5A33C) else Color(0xFF23BC82)
                     ) {}
                     Text(
@@ -3175,7 +3175,7 @@ private fun SessionLivePrimaryPane(
             Surface(
                 onClick = if (sessionPaused) onResumeSession else onPauseSession,
                 enabled = !isSaving,
-                shape = RoundedCornerShape(50),
+                shape = AppShapes.Small,
                 color = if (sessionPaused) Color(0xFF19A66A) else Color(0xFF563DE1),
                 shadowElevation = 3.dp
             ) {
@@ -3284,13 +3284,13 @@ private fun ActiveDrillSummaryCard(
         modifier = Modifier.fillMaxWidth().height(LiveCurrentDrillCardHeight),
         onClick = onOpen,
         enabled = enabled,
-        shape = RoundedCornerShape(13.dp),
+        shape = AppShapes.Medium,
         color = Color.White.copy(alpha = 0.86f),
         border = BorderStroke(1.dp, Color(0xFFE2E8F7))
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFF0ECFF)) {
+                Surface(shape = AppShapes.Small, color = Color(0xFFF0ECFF)) {
                     Icon(
                         Icons.Outlined.List,
                         contentDescription = null,
@@ -3323,7 +3323,7 @@ private fun ActiveDrillSummaryCard(
             val progress = if (drill == null || drill.plannedMinutes <= 0) 0f
             else (elapsedSeconds.toFloat() / (drill.plannedMinutes * 60)).coerceIn(0f, 1f)
             Box(
-                Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(Color(0xFFE4E9F5))
+                Modifier.fillMaxWidth().height(4.dp).clip(AppShapes.Small).background(Color(0xFFE4E9F5))
             ) {
                 Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Color(0xFF7E68F1)))
             }
@@ -3456,7 +3456,7 @@ private fun CurrentDrillControlPanel(
     }
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         color = Color.Transparent,
         border = BorderStroke(1.dp, Color(0xFFE2E8F7))
     ) {
@@ -3498,7 +3498,7 @@ private fun CurrentDrillControlPanel(
                 val progress = remainingSeconds.toFloat() / plannedSeconds
                 Box(
                     Modifier.fillMaxWidth().height(4.dp)
-                        .clip(RoundedCornerShape(50))
+                        .clip(AppShapes.Small)
                         .background(Color(0xFFE3E8F5))
                 ) {
                     Box(
@@ -3573,7 +3573,7 @@ private fun CurrentDrillControlPanel(
                     onValueChange = onNotesChange,
                     label = "Drill notes",
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(9.dp),
+                    shape = AppShapes.Small,
                     singleLine = false,
                     minLines = 1,
                     maxLines = 2,
@@ -3599,7 +3599,7 @@ private fun NextDrillsPanel(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         color = Color.Transparent,
         border = BorderStroke(1.dp, Color(0xFFE2E8F7))
     ) {
@@ -3625,7 +3625,7 @@ private fun NextDrillsPanel(
                     )
                     val rowModifier = if (drill.completed) {
                         Modifier
-                            .clip(RoundedCornerShape(9.dp))
+                            .clip(AppShapes.Small)
                             .pointerInput(drill.id, isSaving) {
                                 if (isSaving) return@pointerInput
                                 detectTapGestures(onPress = {
@@ -3655,7 +3655,7 @@ private fun NextDrillsPanel(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(7.dp)
                         ) {
-                            Surface(shape = RoundedCornerShape(50), color = Color(0xFFE8E7FF)) {
+                            Surface(shape = AppShapes.Small, color = Color(0xFFE8E7FF)) {
                                 Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
                                     Text("$number", color = Color(0xFF5342D2), fontSize = AppFontSize.Body, fontWeight = FontWeight.Bold)
                                 }
@@ -3704,7 +3704,7 @@ private fun NextDrillsPanel(
                         Surface(
                             onClick = { onSelectNext(drill) },
                             enabled = !isSaving,
-                            shape = RoundedCornerShape(9.dp),
+                            shape = AppShapes.Small,
                             color = Color.Transparent,
                             border = rowBorder,
                             content = rowContent
@@ -3712,7 +3712,7 @@ private fun NextDrillsPanel(
                     } else {
                         Surface(
                             modifier = rowModifier,
-                            shape = RoundedCornerShape(9.dp),
+                            shape = AppShapes.Small,
                             color = Color.Transparent,
                             border = rowBorder,
                             content = rowContent
@@ -3741,7 +3741,7 @@ private fun DrillTabletAction(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(height),
-        shape = RoundedCornerShape(10.dp),
+        shape = AppShapes.Small,
         color = color
     ) {
         Row(
@@ -3772,7 +3772,7 @@ private fun QuickCaptureTile(
     Surface(
         onClick = onClick,
         modifier = modifier.height(height),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         color = background.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, tint.copy(alpha = 0.08f))
     ) {
@@ -3803,7 +3803,7 @@ private fun SessionOutlineAction(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         border = BorderStroke(1.dp, tint.copy(alpha = 0.7f)),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = tint),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
@@ -3851,7 +3851,7 @@ private fun RecentObservationsPane(
         }
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
+            shape = AppShapes.Large,
             color = Color.White.copy(alpha = 0.86f),
             border = BorderStroke(1.dp, Color(0xFFE2E8F7))
         ) {
@@ -3864,13 +3864,13 @@ private fun RecentObservationsPane(
                     fontSize = AppFontSize.Title,
                     fontWeight = FontWeight.Bold
                 )
-                TextButton(onClick = onViewAll) {
+                TextButton(onClick = onViewAll, shape = AppShapes.Button) {
                     Text("View all ›", color = Color(0xFF6349E8), fontSize = AppFontSize.Body)
                 }
             }
             if (loadError.isNotBlank()) {
                 Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.BodyLarge)
-                TextButton(onClick = onReload) { Text("Retry", fontSize = AppFontSize.BodyLarge) }
+                TextButton(onClick = onReload, shape = AppShapes.Button) { Text("Retry", fontSize = AppFontSize.BodyLarge) }
             } else if (observations.isEmpty()) {
                 Text("No observations yet.", color = CoachMuted, fontSize = AppFontSize.BodyLarge)
             } else {
@@ -3895,7 +3895,7 @@ private fun AllSessionObservationsCard(
             Text("All observations", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             if (loadError.isNotBlank()) {
                 Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
-                TextButton(onClick = onReload) { Text("Retry") }
+                TextButton(onClick = onReload, shape = AppShapes.Button) { Text("Retry") }
             } else if (observations.isEmpty()) {
                 Text("No observations recorded for this session.", color = CoachMuted, fontSize = AppFontSize.Body)
             } else {
@@ -3932,14 +3932,14 @@ private fun ObservationListRow(observation: SessionObservation) {
     }
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(formatObservationClock(observation.createdAt), color = Color(0xFF8791A8), fontSize = AppFontSize.Body, modifier = Modifier.padding(top = 5.dp))
-        Surface(shape = RoundedCornerShape(50), color = avatarColor, modifier = Modifier.size(30.dp)) {
+        Surface(shape = AppShapes.Small, color = avatarColor, modifier = Modifier.size(30.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Text(initials, color = categoryColor, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(20.dp), color = categoryColor.copy(alpha = 0.1f)) {
+                Surface(shape = AppShapes.Large, color = categoryColor.copy(alpha = 0.1f)) {
                     Text(
                         observation.category.lowercase().replaceFirstChar(Char::uppercase),
                         color = categoryColor,
@@ -3949,7 +3949,7 @@ private fun ObservationListRow(observation: SessionObservation) {
                     )
                 }
                 observation.drillTitle?.takeIf(String::isNotBlank)?.let { drill ->
-                    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFF1F3F8)) {
+                    Surface(shape = AppShapes.Large, color = Color(0xFFF1F3F8)) {
                         Text(
                             drill,
                             color = Color(0xFF52607F),
@@ -3994,13 +3994,13 @@ private fun QuickNotePanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.Large,
         color = Color.White.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, Color(0xFFE6E9F4))
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(shape = RoundedCornerShape(12.dp), color = style.background) {
+                Surface(shape = AppShapes.Medium, color = style.background) {
                     Icon(style.icon, contentDescription = null, tint = style.tint, modifier = Modifier.padding(10.dp).size(26.dp))
                 }
                 Column(Modifier.weight(1f)) {
@@ -4024,7 +4024,7 @@ private fun QuickNotePanel(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = false,
                 minLines = 6,
-                shape = RoundedCornerShape(12.dp),
+                shape = AppShapes.Medium,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
                 placeholder = style.prompt,
                 voicePrompt = "Speak your ${style.title.lowercase()} note"
@@ -4060,13 +4060,13 @@ private fun IncidentEntryPanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.Large,
         color = Color.White.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, Color(0xFFE6E9F4))
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFFFF6E6)) {
+                Surface(shape = AppShapes.Medium, color = Color(0xFFFFF6E6)) {
                     Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(26.dp))
                 }
                 Column(Modifier.weight(1f)) {
@@ -4092,7 +4092,7 @@ private fun IncidentEntryPanel(
                         fontSize = AppFontSize.Body,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(AppShapes.Large)
                             .background(if (selected) tint else Color(0xFFF3F5FA))
                             .clickable { category = option }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -4106,7 +4106,7 @@ private fun IncidentEntryPanel(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = false,
                 minLines = 3,
-                shape = RoundedCornerShape(12.dp),
+                shape = AppShapes.Medium,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
                 placeholder = "Describe the incident",
                 voicePrompt = "Describe the incident"
@@ -4128,7 +4128,7 @@ private fun IncidentEntryPanel(
                         note = ""
                     },
                     enabled = note.isNotBlank(),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = AppShapes.Medium,
                     colors = ButtonDefaults.buttonColors(containerColor = tint)
                 ) {
                     Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -4148,7 +4148,7 @@ private fun IncidentEntryPanel(
                             fontSize = AppFontSize.Body,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(AppShapes.Large)
                                 .background(tint.copy(alpha = 0.1f))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         )
@@ -4299,7 +4299,7 @@ private fun ObservationEntryPanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = AppShapes.Large,
         color = Color.White.copy(alpha = 0.92f),
         border = BorderStroke(1.dp, divider)
     ) {
@@ -4323,7 +4323,7 @@ private fun ObservationEntryPanel(
                                     onPlayerChange(player.id)
                                 }
                             },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = AppShapes.Medium,
                             color = if (selected) Color(0xFFEEEBFF) else Color.Transparent
                         ) {
                             Row(
@@ -4333,7 +4333,7 @@ private fun ObservationEntryPanel(
                             ) {
                                 val initials = player.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2)
                                     .mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
-                                Surface(shape = RoundedCornerShape(50), color = Color(0xFFE5EFFF), modifier = Modifier.size(38.dp)) {
+                                Surface(shape = AppShapes.Small, color = Color(0xFFE5EFFF), modifier = Modifier.size(38.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(initials, color = Color(0xFF3F5BA8), fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                                     }
@@ -4369,7 +4369,7 @@ private fun ObservationEntryPanel(
                                 Surface(
                                     onClick = { onCategoryChange(value) },
                                     modifier = Modifier.weight(1f).height(48.dp),
-                                    shape = RoundedCornerShape(12.dp),
+                                    shape = AppShapes.Medium,
                                     color = if (selected) accent else Color.White,
                                     border = BorderStroke(1.dp, if (selected) accent else divider)
                                 ) {
@@ -4394,7 +4394,7 @@ private fun ObservationEntryPanel(
                     Surface(
                         onClick = { toggleListening() },
                         modifier = Modifier.fillMaxWidth().height(150.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = AppShapes.Medium,
                         color = Color(0xFFF4F2FE)
                     ) {
                         Box(Modifier.fillMaxSize()) {
@@ -4432,7 +4432,7 @@ private fun ObservationEntryPanel(
                         singleLine = false,
                         minLines = 3,
                         voice = false,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = AppShapes.Medium,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
                         placeholder = "What did you notice?"
                     )
@@ -4442,7 +4442,7 @@ private fun ObservationEntryPanel(
                         observationSaving -> Text("Saving…", color = CoachMuted, fontSize = AppFontSize.Body)
                         observationError.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(observationError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
-                            TextButton(onClick = onRetry) { Text("Retry", fontSize = AppFontSize.Body) }
+                            TextButton(onClick = onRetry, shape = AppShapes.Button) { Text("Retry", fontSize = AppFontSize.Body) }
                         }
                         observationSavedAt.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
@@ -4487,7 +4487,7 @@ private fun ObservationWaveform(level: Float, color: Color) {
                 Modifier
                     .width(5.dp)
                     .height((10f + 34f * factor * (0.35f + 0.65f * level)).dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(AppShapes.Small)
                     .background(color)
             )
         }

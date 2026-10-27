@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -58,9 +57,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import java.time.LocalDate
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 /** Corner shape shared by every form control. */
-val AppFieldShape: Shape = RoundedCornerShape(14.dp)
+val AppFieldShape: Shape = AppShapes.Medium
 
 /** Height shared by every single-line form control; matches the toolbar pill buttons (e.g. the Sort filter). */
 val AppControlHeight: Dp = 40.dp
@@ -245,7 +245,7 @@ private fun AppFieldFrame(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .offset(x = 10.dp, y = (-6).dp)
-                        .background(container, RoundedCornerShape(4.dp))
+                        .background(container, AppShapes.Small)
                         .padding(horizontal = 4.dp)
                 )
             }
@@ -469,7 +469,7 @@ fun AppFilterDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth().height(AppControlHeight), shape = RoundedCornerShape(16.dp)) {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth().height(AppControlHeight), shape = AppShapes.Large) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Text(
                 "  $label: ${options.firstOrNull { it.first == selectedKey }?.second ?: selectedKey}",

@@ -1,7 +1,9 @@
 package com.ecricketcoach.mobile.presentation.common.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -10,7 +12,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 internal val Indigo = Color(0xFFB6A3FF)
@@ -144,9 +148,39 @@ val AppTypography = Typography().let { base ->
     )
 }
 
+/**
+ * App-wide corner radii. Kept deliberately small for a modern, flat look; change the values here
+ * to restyle every control, chip, panel and dialog at once.
+ */
+object AppCorner {
+    /** Chips, badges, small tiles and indicators. */
+    val Small = 4.dp
+    /** Inputs, dropdowns and buttons. */
+    val Medium = 6.dp
+    /** Panels, cards, sheets and dialogs. */
+    val Large = 8.dp
+}
+
+object AppShapes {
+    val Small: Shape = RoundedCornerShape(AppCorner.Small)
+    val Medium: Shape = RoundedCornerShape(AppCorner.Medium)
+    val Large: Shape = RoundedCornerShape(AppCorner.Large)
+    /** Shape for every Material button (Material 3 buttons default to full pills). */
+    val Button: Shape = Medium
+}
+
+/** Material shape scale mapped onto [AppCorner] so default components (menus, dialogs, cards) follow it. */
+val AppMaterialShapes = Shapes(
+    extraSmall = RoundedCornerShape(AppCorner.Small),
+    small = RoundedCornerShape(AppCorner.Small),
+    medium = RoundedCornerShape(AppCorner.Medium),
+    large = RoundedCornerShape(AppCorner.Large),
+    extraLarge = RoundedCornerShape(AppCorner.Large)
+)
+
 @Composable
 fun ECricketCoachTheme(isDark: Boolean, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalIsDarkTheme provides isDark) {
-        MaterialTheme(colorScheme = if (isDark) DarkColors else LightColors, typography = AppTypography, content = content)
+        MaterialTheme(colorScheme = if (isDark) DarkColors else LightColors, typography = AppTypography, shapes = AppMaterialShapes, content = content)
     }
 }

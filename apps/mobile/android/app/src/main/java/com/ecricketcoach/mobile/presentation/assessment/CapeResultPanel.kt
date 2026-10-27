@@ -41,7 +41,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -92,6 +91,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Base64
 import java.util.Locale
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 private val SHOT_TYPES = listOf("front_foot_drive", "back_foot_drive", "forward_defence", "backward_defence", "pull", "cut", "sweep")
 private val BOWLER_TYPES = listOf("pace", "spin")
@@ -281,7 +281,7 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
     }
 
     Column(
-        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)).padding(12.dp),
+        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.Medium).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -293,7 +293,7 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                 modifier = Modifier.weight(1f).padding(start = 6.dp)
             )
             if (canSubmit && !setupOpen && job?.isPending != true) {
-                TextButton(onClick = { setupOpen = true; error = "" }) { Text(if (job == null) "Analyse" else "New", fontSize = AppFontSize.Small) }
+                TextButton(onClick = { setupOpen = true; error = "" }, shape = AppShapes.Button) { Text(if (job == null) "Analyse" else "New", fontSize = AppFontSize.Small) }
             }
         }
 
@@ -312,7 +312,7 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                     BOWLER_TYPES.forEach { type -> FilterChip(selected = bowlerType == type, onClick = { bowlerType = type }, label = { Text(pretty(type), fontSize = AppFontSize.Small) }) }
                 }
             }
-            OutlinedButton(onClick = { picker.launch(arrayOf("video/*")) }, enabled = !busy, shape = RoundedCornerShape(14.dp)) {
+            OutlinedButton(onClick = { picker.launch(arrayOf("video/*")) }, enabled = !busy, shape = AppShapes.Medium) {
                 Text(if (videoUri == null) "Choose video" else "Choose a different video")
             }
 
@@ -323,7 +323,7 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                     fontSize = AppFontSize.Small
                 )
                 CalibrationOverlay(current, points) { if (points.size < 4) points.add(it) }
-                if (points.isNotEmpty()) TextButton(onClick = { points.clear() }) { Text("Reset corners", fontSize = AppFontSize.Small) }
+                if (points.isNotEmpty()) TextButton(onClick = { points.clear() }, shape = AppShapes.Button) { Text("Reset corners", fontSize = AppFontSize.Small) }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -359,11 +359,11 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                         }
                     },
                     enabled = !busy && videoUri != null && points.size == 4,
-                    shape = RoundedCornerShape(14.dp)
+                    shape = AppShapes.Medium
                 ) {
                     if (busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Text("Analyse")
                 }
-                TextButton(onClick = { setupOpen = false; videoUri = null; frame = null; points.clear() }, enabled = !busy) { Text("Cancel") }
+                TextButton(onClick = { setupOpen = false; videoUri = null; frame = null; points.clear() }, enabled = !busy, shape = AppShapes.Button) { Text("Cancel") }
             }
         }
 
@@ -592,7 +592,7 @@ internal fun CapeResultPanel(
             result.faults.forEach { fault ->
                 val color = severityColor(fault.severity)
                 Column(
-                    Modifier.fillMaxWidth().border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(10.dp),
+                    Modifier.fillMaxWidth().border(1.dp, color.copy(alpha = 0.5f), AppShapes.Medium).background(color.copy(alpha = 0.08f), AppShapes.Medium).padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Text("${fault.message} (${pretty(fault.severity)})", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = color)
@@ -607,7 +607,7 @@ internal fun CapeResultPanel(
             val violet = Color(0xFF8B5CF6)
             val assignedByFault = assignments.associateBy { it.faultCode }
             Column(
-                Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.4f), RoundedCornerShape(12.dp)).background(violet.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(10.dp),
+                Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.4f), AppShapes.Medium).background(violet.copy(alpha = 0.08f), AppShapes.Medium).padding(10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -618,7 +618,7 @@ internal fun CapeResultPanel(
                 Note("Generated by Gemini from CAPE’s measured findings; Gemini does not change measurements or severity.")
                 guidance.items.forEach { item ->
                     Column(
-                        Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.25f), RoundedCornerShape(10.dp)).padding(10.dp),
+                        Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.25f), AppShapes.Small).padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(item.title, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = violet)
@@ -639,7 +639,7 @@ internal fun CapeResultPanel(
                             canAssign && jobId != null -> Button(
                                 onClick = { assign(item.faultCode) },
                                 enabled = assigningCode.isEmpty(),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = AppShapes.Small
                             ) {
                                 if (assigningCode == item.faultCode) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                                 else Icon(Icons.Outlined.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -673,7 +673,7 @@ internal fun CapeResultPanel(
         if (result.images.isNotEmpty()) {
             Text("Images", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
             result.images.forEach { (key, path) ->
-                Column(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)).padding(6.dp)) {
+                Column(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.Medium).padding(6.dp)) {
                     val bitmap = images[key]
                     if (bitmap != null) {
                         Image(bitmap.asImageBitmap(), contentDescription = SNAPSHOT_LABELS[key] ?: pretty(key), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().aspectRatio(bitmap.width.toFloat() / bitmap.height))
@@ -689,7 +689,7 @@ internal fun CapeResultPanel(
             }
             result.zipPath?.let { zip ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { download(zip, share = false) }, shape = RoundedCornerShape(14.dp)) {
+                    OutlinedButton(onClick = { download(zip, share = false) }, shape = AppShapes.Medium) {
                         Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text("  Download all (ZIP)")
                     }
@@ -723,7 +723,7 @@ private fun MetricRow(name: String, value: String, expected: String, status: Str
 private fun Badge(text: String, color: Color?) {
     val tint = color ?: MaterialTheme.colorScheme.onSurfaceVariant
     Row(
-        Modifier.border(1.dp, tint.copy(alpha = 0.6f), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
+        Modifier.border(1.dp, tint.copy(alpha = 0.6f), AppShapes.Small).padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (color == GOOD) Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp).padding(end = 2.dp))

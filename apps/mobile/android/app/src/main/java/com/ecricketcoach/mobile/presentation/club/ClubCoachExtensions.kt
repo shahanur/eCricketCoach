@@ -33,7 +33,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -90,6 +89,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.Base64
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 private val ExtensionDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
 private val PlayerLevels = listOf("FOUNDATION", "DEVELOPING", "INTERMEDIATE", "ADVANCED", "ELITE")
@@ -125,7 +125,7 @@ internal fun ClubDrillsPanel(
                     Text("Pre-defined drills can be cloned into your club catalogue.", fontSize = AppFontSize.Small)
                 }
                 if (canCreate) {
-                    Button(onClick = { showCreate = true }) {
+                    Button(onClick = { showCreate = true }, shape = AppShapes.Button) {
                         Icon(Icons.Outlined.Add, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("Add drill")
@@ -159,7 +159,7 @@ internal fun ClubDrillsPanel(
                             model = drillImageSource(drill.imageUrl),
                             contentDescription = "Setup image for ${drill.title}",
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(92.dp).clip(RoundedCornerShape(10.dp))
+                            modifier = Modifier.size(92.dp).clip(AppShapes.Small)
                         )
                         Spacer(Modifier.width(12.dp))
                     }
@@ -179,7 +179,7 @@ internal fun ClubDrillsPanel(
                                     Icon(Icons.Outlined.Delete, contentDescription = "Delete ${drill.title}", tint = MaterialTheme.colorScheme.error)
                                 }
                             } else if (canCreate) {
-                                Button(onClick = { onClone(drill) }) {
+                                Button(onClick = { onClone(drill) }, shape = AppShapes.Button) {
                                     Icon(Icons.Outlined.ContentCopy, contentDescription = null)
                                     Spacer(Modifier.width(4.dp))
                                     Text("Clone")
@@ -262,7 +262,7 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
                     voicePrompt = "Speak the setup instructions")
                 Text("Setup Image (optional)", fontSize = AppFontSize.Small, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }) { Text("Choose file") }
+                    Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }, shape = AppShapes.Button) { Text("Choose file") }
                     Text(if (imageUrl == null) "No file chosen" else "Image selected", fontSize = AppFontSize.Small)
                 }
                 if (imageUrl != null) {
@@ -271,7 +271,7 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
                             model = drillImageSource(imageUrl!!),
                             contentDescription = "Selected setup image",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).clip(RoundedCornerShape(10.dp))
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 190.dp).clip(AppShapes.Small)
                         )
                         IconButton(onClick = { imageUrl = null }, modifier = Modifier.align(Alignment.TopEnd)) {
                             Icon(Icons.Outlined.Close, contentDescription = "Remove setup image", tint = MaterialTheme.colorScheme.error)
@@ -283,9 +283,9 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
         },
         confirmButton = {
             val minutes = duration.toIntOrNull() ?: 0
-            Button(onClick = { onSave(title.trim(), discipline, skillSet.trim(), contextType, minutes, instructions.trim(), imageUrl) }, enabled = title.isNotBlank() && skillSet.isNotBlank() && minutes in 5..120) { Text("Save changes") }
+            Button(onClick = { onSave(title.trim(), discipline, skillSet.trim(), contextType, minutes, instructions.trim(), imageUrl) }, enabled = title.isNotBlank() && skillSet.isNotBlank() && minutes in 5..120, shape = AppShapes.Button) { Text("Save changes") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -318,10 +318,10 @@ private fun CreateClubDrillDialog(
             val minutes = duration.toIntOrNull() ?: 0
             Button(
                 onClick = { onSave(title.trim(), discipline, skillSet.trim(), context, minutes, instructions.trim()) },
-                enabled = title.isNotBlank() && skillSet.isNotBlank() && minutes in 5..120
+                enabled = title.isNotBlank() && skillSet.isNotBlank() && minutes in 5..120, shape = AppShapes.Button
             ) { Text("Save drill") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -351,7 +351,7 @@ internal fun ProgressionPanel(
                         Text("${player.currentLevel} · ${player.discipline}", fontSize = AppFontSize.Small)
                     }
                     if (player.currentLevel != PlayerLevels.last()) {
-                        TextButton(onClick = { onPromote(player) }) { Text("Promote") }
+                        TextButton(onClick = { onPromote(player) }, shape = AppShapes.Button) { Text("Promote") }
                     } else {
                         Text("Top level", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.Small)
                     }
@@ -394,11 +394,11 @@ internal fun PromotePlayerDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(selectedLevel, notes.trim()) }, enabled = nextLevel != null) {
+            Button(onClick = { onSave(selectedLevel, notes.trim()) }, enabled = nextLevel != null, shape = AppShapes.Button) {
                 Text("Promote player")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -494,8 +494,8 @@ private fun PlayerSearchPicker(
     Box(modifier) {
         Surface(
             onClick = { query = ""; expanded = true },
-            modifier = Modifier.fillMaxWidth().height(36.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
-            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().height(36.dp).border(1.dp, MaterialTheme.colorScheme.outlineVariant, AppShapes.Small),
+            shape = AppShapes.Small,
             color = MaterialTheme.colorScheme.background
         ) {
             Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -515,7 +515,7 @@ private fun PlayerSearchPicker(
         if (expanded) Dialog(onDismissRequest = { expanded = false }) {
             Surface(
                 modifier = Modifier.widthIn(min = 300.dp, max = 420.dp).heightIn(max = 480.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = AppShapes.Large,
                 color = MaterialTheme.colorScheme.surface
             ) {
                 Column(Modifier.padding(vertical = 12.dp)) {
@@ -687,20 +687,20 @@ private fun CapeVideoAnalysisPanel(
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                TextButton(onClick = { source = "DEVICE" }) { Text(if (source == "DEVICE") "✓ Device video" else "Upload device video", fontSize = AppFontSize.Caption) }
-                                                TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }) { Text(if (source == "DRIVE") "✓ Google Drive" else "Sync from Drive", fontSize = AppFontSize.Caption) }
+                                                TextButton(onClick = { source = "DEVICE" }, shape = AppShapes.Button) { Text(if (source == "DEVICE") "✓ Device video" else "Upload device video", fontSize = AppFontSize.Caption) }
+                                                TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }, shape = AppShapes.Button) { Text(if (source == "DRIVE") "✓ Google Drive" else "Sync from Drive", fontSize = AppFontSize.Caption) }
                                             }
                                         }
                                     } else {
                                         Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            TextButton(onClick = { source = "DEVICE" }, modifier = Modifier.weight(1f)) { Text(if (source == "DEVICE") "✓ Device video" else "Device video", fontSize = AppFontSize.Caption) }
-                                            TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }, modifier = Modifier.weight(1f)) { Text(if (source == "DRIVE") "✓ Google Drive" else "Google Drive", fontSize = AppFontSize.Caption) }
+                                            TextButton(onClick = { source = "DEVICE" }, modifier = Modifier.weight(1f), shape = AppShapes.Button) { Text(if (source == "DEVICE") "✓ Device video" else "Device video", fontSize = AppFontSize.Caption) }
+                                            TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }, modifier = Modifier.weight(1f), shape = AppShapes.Button) { Text(if (source == "DRIVE") "✓ Google Drive" else "Google Drive", fontSize = AppFontSize.Caption) }
                                         }
                                     }
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         if (source == "DEVICE") {
-                                            OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }, shape = RoundedCornerShape(12.dp), modifier = if (isWide) Modifier else Modifier.weight(1f)) {
+                                            OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }, shape = AppShapes.Medium, modifier = if (isWide) Modifier else Modifier.weight(1f)) {
                                                 Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                                                 Text(if (isWide) "  Choose device video" else "  Choose video", fontSize = AppFontSize.Small)
                                             }
@@ -720,7 +720,7 @@ private fun CapeVideoAnalysisPanel(
                                                     } catch (failure: Exception) {
                                                         error = failure.message ?: "Unable to open Google Drive authorization."
                                                     }
-                                                }, shape = RoundedCornerShape(12.dp)) { Text("Connect", fontSize = AppFontSize.Caption) }
+                                                }, shape = AppShapes.Medium) { Text("Connect", fontSize = AppFontSize.Caption) }
                                             } else {
                                                 AppDropdown(
                                                     label = null,
@@ -733,14 +733,14 @@ private fun CapeVideoAnalysisPanel(
                                                     enabled = driveVideos.isNotEmpty()
                                                 )
                                             }
-                                            TextButton(onClick = onRefreshDrive) { Text("↻", fontSize = AppFontSize.BodyLarge) }
+                                            TextButton(onClick = onRefreshDrive, shape = AppShapes.Button) { Text("↻", fontSize = AppFontSize.BodyLarge) }
                                         }
                                     }
                                     if (source == "DEVICE" && !isWide) {
                                         Text(selectedVideoName ?: "No video selected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     if (source == "DRIVE" && driveConnected) {
-                                        TextButton(onClick = onDisconnectDrive, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                                        TextButton(onClick = onDisconnectDrive, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp), shape = AppShapes.Button) {
                                             Text("Disconnect Google Drive", fontSize = AppFontSize.Micro)
                                         }
                                     }
@@ -763,7 +763,7 @@ private fun CapeVideoAnalysisPanel(
                                     onClick = { analyzeWithOpenAi() },
                                     enabled = canAnalyzeWithOpenAi && !openAiBusy,
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp)
+                                    shape = AppShapes.Medium
                                 ) {
                                     if (openAiBusy) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                     else Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(17.dp))
@@ -790,7 +790,7 @@ private fun CapeVideoAnalysisPanel(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            TextButton(onClick = { showOpenAiAnalysis = true }) { Text("View report") }
+                            TextButton(onClick = { showOpenAiAnalysis = true }, shape = AppShapes.Button) { Text("View report") }
                         }
                     }
                 }
@@ -821,7 +821,7 @@ private fun CapeVideoAnalysisPanel(
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Detailed analyses · ${selectedPlayer?.name}", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
-                        TextButton(onClick = { selectedPlayer?.let { player -> scope.launch { capeJobs = analysisRepository.getPlayerCapeJobs(player.id) } } }) { Text("Refresh") }
+                        TextButton(onClick = { selectedPlayer?.let { player -> scope.launch { capeJobs = analysisRepository.getPlayerCapeJobs(player.id) } } }, shape = AppShapes.Button) { Text("Refresh") }
                     }
                 }
                 when {
@@ -869,10 +869,10 @@ private fun CapeVideoAnalysisPanel(
                                 deletingCapeJobId = null
                             }
                         }
-                    }
+                    }, shape = AppShapes.Button
                 ) { Text(if (deletingCapeJobId == job.jobId) "Deleting…" else "Delete") }
             },
-            dismissButton = { TextButton(onClick = { pendingCapeDelete = null }, enabled = deletingCapeJobId == null) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { pendingCapeDelete = null }, enabled = deletingCapeJobId == null, shape = AppShapes.Button) { Text("Cancel") } }
         )
     }
     if (showOpenAiAnalysis) {
@@ -1023,7 +1023,7 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
                                     model = analysis.contact.imageDataUrl,
                                     contentDescription = "OpenAI selected contact candidate",
                                     contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(10.dp))
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(AppShapes.Small)
                                 )
                             }
                             Text(analysis.contact.evidence, fontSize = AppFontSize.Small)
@@ -1091,10 +1091,10 @@ internal fun ClubSettingsPanel(
         Text("The logo is added to certificates issued from this point forward.", fontSize = AppFontSize.Small)
         Text(if (logoUrl == null) "No club logo saved." else "A club logo is currently saved.", color = MaterialTheme.colorScheme.primary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }, enabled = !busy) {
+            Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }, enabled = !busy, shape = AppShapes.Button) {
                 Text(if (busy) "Reading…" else "Choose logo")
             }
-            if (logoUrl != null) TextButton(onClick = { onSave(null) }) { Text("Remove logo") }
+            if (logoUrl != null) TextButton(onClick = { onSave(null) }, shape = AppShapes.Button) { Text("Remove logo") }
         }
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
     }

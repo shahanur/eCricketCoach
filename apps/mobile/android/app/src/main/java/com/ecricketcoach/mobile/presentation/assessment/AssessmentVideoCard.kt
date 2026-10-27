@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -66,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
 
 @Composable
 internal fun AssessmentVideoCard(
@@ -223,7 +223,7 @@ internal fun AssessmentVideoCard(
                             OutlinedButton(
                                 onClick = { driveMenuOpen = true },
                                 enabled = !reviewRunning && driveVideos.isNotEmpty(),
-                                shape = RoundedCornerShape(10.dp),
+                                shape = AppShapes.Small,
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                                 modifier = Modifier.fillMaxWidth().height(40.dp)
                             ) {
@@ -282,7 +282,7 @@ internal fun AssessmentVideoCard(
                     OutlinedButton(
                         onClick = { picker.launch(arrayOf("video/*")) },
                         enabled = !reviewRunning,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = AppShapes.Small,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier.weight(1f).height(40.dp)
                     ) {
@@ -298,7 +298,7 @@ internal fun AssessmentVideoCard(
                     OutlinedButton(
                         onClick = { if (driveConnected) confirmSwitch = true else launchDriveConnect() },
                         enabled = !reviewRunning && !switching,
-                        shape = RoundedCornerShape(10.dp),
+                        shape = AppShapes.Small,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier.weight(1f).height(40.dp)
                     ) {
@@ -347,7 +347,7 @@ internal fun AssessmentVideoCard(
                                     error = "No app is available to open Google Drive."
                                 }
                             },
-                            shape = RoundedCornerShape(14.dp)
+                            shape = AppShapes.Medium
                         ) {
                             Icon(Icons.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Open in Drive")
@@ -371,7 +371,7 @@ private fun SwitchDriveDialog(email: String, onConfirm: () -> Unit, onDismiss: (
                     "You'll then choose the Google account to use for assessment videos. Videos already in Drive are not affected."
             )
         },
-        confirmButton = { Button(onClick = onConfirm) { Text("Switch account") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { Button(onClick = onConfirm, shape = AppShapes.Button) { Text("Switch account") } },
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }

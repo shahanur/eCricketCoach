@@ -171,6 +171,8 @@ import com.ecricketcoach.mobile.presentation.common.theme.LiveSessionColors
 import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceColors
 import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceChipBackground
 import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceChipContent
+import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
+import com.ecricketcoach.mobile.presentation.common.theme.AppCorner
 
 private val ClubDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
 private data class OverviewQuickAction(
@@ -306,7 +308,7 @@ private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
         else -> scheme.primary
     }
     Surface(
-        shape = RoundedCornerShape(50),
+        shape = AppShapes.Small,
         color = accent.copy(alpha = 0.1f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.14f)),
         modifier = modifier
@@ -354,7 +356,7 @@ internal fun WorkspaceAction(
     trailingIcon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     if (primary) {
-        Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp)) {
+        Button(onClick = onClick, enabled = enabled, shape = AppShapes.Medium) {
             Icon(icon, contentDescription = null)
             Spacer(Modifier.padding(horizontal = 3.dp))
             Text(label)
@@ -364,7 +366,7 @@ internal fun WorkspaceAction(
             }
         }
     } else {
-        TextButton(onClick = onClick, enabled = enabled) {
+        TextButton(onClick = onClick, enabled = enabled, shape = AppShapes.Button) {
             Icon(icon, contentDescription = null)
             Spacer(Modifier.padding(horizontal = 2.dp))
             Text(label)
@@ -503,7 +505,7 @@ internal fun ClubCoachWorkspace(
                 ) {
                     Column(Modifier.fillMaxSize().padding(vertical = 14.dp)) {
                         Row(Modifier.padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFF5631DC), modifier = Modifier.size(42.dp)) {
+                            Surface(shape = AppShapes.Medium, color = Color(0xFF5631DC), modifier = Modifier.size(42.dp)) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
                                 }
@@ -519,7 +521,7 @@ internal fun ClubCoachWorkspace(
                             workspaceTabs.forEach { item ->
                                 val selected = sectionTab == item
                                 Box(
-                                    Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(24.dp))
+                                    Modifier.fillMaxWidth().height(48.dp).clip(AppShapes.Large)
                                         .background(if (selected) Brush.horizontalGradient(listOf(Color(0xFF7527F5), Color(0xFF3448DF))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
                                         .clickable {
                                             tab = item
@@ -606,7 +608,7 @@ internal fun ClubCoachWorkspace(
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = AppFontSize.Small,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { tab = sectionTab }.padding(horizontal = 4.dp, vertical = 2.dp)
+                            modifier = Modifier.clip(AppShapes.Small).clickable { tab = sectionTab }.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                         Icon(
                             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
@@ -636,7 +638,7 @@ internal fun ClubCoachWorkspace(
                     Text("Offline edits: $pendingCount pending · ${failedMutations.size} failed · $syncedCount synced", fontWeight = FontWeight.SemiBold)
                     failedMutations.take(3).forEach { mutation ->
                         Text("${mutation.kind} · ${mutation.error}", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
-                        TextButton(onClick = { discardMutation = mutation }) { Text("Discard this failed edit…") }
+                        TextButton(onClick = { discardMutation = mutation }, shape = AppShapes.Button) { Text("Discard this failed edit…") }
                     }
                 }
             }
@@ -1636,9 +1638,9 @@ internal fun ClubCoachWorkspace(
                     viewModel.removeQueuedMutation(mutation.id)
                     discardMutation = null
                     reloadQueue()
-                }) { Text("Discard edit") }
+                }, shape = AppShapes.Button) { Text("Discard edit") }
             },
-            dismissButton = { TextButton(onClick = { discardMutation = null }) { Text("Keep edit") } }
+            dismissButton = { TextButton(onClick = { discardMutation = null }, shape = AppShapes.Button) { Text("Keep edit") } }
         )
     }
 }
@@ -1659,7 +1661,7 @@ private fun ClubWorkspaceSidebar(
     ) {
         if (collapsed) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
+                Surface(shape = AppShapes.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.SportsCricket, contentDescription = "Ekota Academy", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
                     }
@@ -1670,7 +1672,7 @@ private fun ClubWorkspaceSidebar(
             }
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
+                Surface(shape = AppShapes.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.SportsCricket, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
                     }
@@ -1690,7 +1692,7 @@ private fun ClubWorkspaceSidebar(
                 val selected = selectedTab == tab
                 val selectedBrush = Brush.horizontalGradient(listOf(Color(0xFF7527F5), Color(0xFF3448DF)))
                 Box(
-                    Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(24.dp))
+                    Modifier.fillMaxWidth().height(44.dp).clip(AppShapes.Large)
                         .background(if (selected) selectedBrush else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
                         .clickable { onSelectTab(tab) }
                         .padding(horizontal = if (collapsed) 0.dp else 14.dp),
@@ -1764,7 +1766,7 @@ private fun WorkspaceTab(label: String, selected: Boolean, onClick: () -> Unit) 
     Surface(
         onClick = onClick,
         color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(18.dp),
+        shape = AppShapes.Large,
         tonalElevation = if (selected) 6.dp else 0.dp,
         shadowElevation = if (selected) 4.dp else 0.dp
     ) {
@@ -1864,7 +1866,7 @@ private fun OverviewPanel(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(18.dp)
+                shape = AppShapes.Large
             ) {
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1892,7 +1894,7 @@ private fun OverviewPanel(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(18.dp)
+                shape = AppShapes.Large
             ) {
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1929,7 +1931,7 @@ private fun OverviewMetricCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = onClick,
             colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.14f)),
-            shape = RoundedCornerShape(18.dp * scale),
+            shape = RoundedCornerShape(AppCorner.Large * scale),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Row(
@@ -1938,7 +1940,7 @@ private fun OverviewMetricCard(
                     .padding(horizontal = 14.dp * scale, vertical = 11.dp * scale),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(color = accent, shape = RoundedCornerShape(12.dp * scale), modifier = Modifier.size(42.dp * scale)) {
+                Surface(color = accent, shape = RoundedCornerShape(AppCorner.Medium * scale), modifier = Modifier.size(42.dp * scale)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(21.dp * scale))
                     }
@@ -1964,13 +1966,13 @@ private fun OverviewQuickActionCard(action: OverviewQuickAction, modifier: Modif
     Surface(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(15.dp),
+        shape = AppShapes.Medium,
         color = Color.Transparent,
         shadowElevation = 2.dp
     ) {
         Row(
             Modifier.fillMaxWidth().height(56.dp)
-                .background(Brush.horizontalGradient(listOf(action.color, action.endColor)), RoundedCornerShape(15.dp))
+                .background(Brush.horizontalGradient(listOf(action.color, action.endColor)), AppShapes.Medium)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -2011,7 +2013,7 @@ private fun <T> OverviewList(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(18.dp),
+        shape = AppShapes.Large,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
         shadowElevation = 3.dp
     ) {
@@ -2049,7 +2051,7 @@ private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp)
     ) {
-        Box(Modifier.size(width = 72.dp, height = 92.dp).clip(RoundedCornerShape(8.dp))) {
+        Box(Modifier.size(width = 72.dp, height = 92.dp).clip(AppShapes.Small)) {
             if (thumbnail != null) {
                 AsyncImage(
                     model = thumbnail,
@@ -2075,7 +2077,7 @@ private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) 
                 Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
                 Text("  Led by ${session.coachName ?: session.coachId ?: "Coach"}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+            Surface(color = WorkspaceChipBackground, shape = AppShapes.Small, modifier = Modifier.padding(top = 2.dp)) {
                 Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
                     Text("  $sessionDate", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
@@ -2097,7 +2099,7 @@ private fun overviewDrillImageSource(url: String): String = when {
 private fun LibraryLink(label: String) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         tonalElevation = 3.dp
     ) {
         Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = AppFontSize.Small, modifier = Modifier.padding(12.dp))
@@ -2293,7 +2295,7 @@ private fun MembersPanel(
                                         }
                                     }
                                 },
-                                enabled = acceptingMemberId == null
+                                enabled = acceptingMemberId == null, shape = AppShapes.Button
                             ) {
                                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
                                 Spacer(Modifier.width(5.dp))
@@ -2315,7 +2317,7 @@ private fun MembersPanel(
                 val dialogMaxHeight = maxHeight * 0.94f
                 Surface(
                     modifier = Modifier.fillMaxWidth(0.96f).widthIn(max = 500.dp).heightIn(max = dialogMaxHeight),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = AppShapes.Large,
                     color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 18.dp
                 ) {
@@ -2414,7 +2416,7 @@ private fun MembersPanel(
                                             },
                                             modifier = Modifier.width(90.dp).height(68.dp),
                                             color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            shape = RoundedCornerShape(10.dp)
+                                            shape = AppShapes.Small
                                         ) {
                                             Row(
                                                 Modifier.fillMaxSize().padding(horizontal = 4.dp),
@@ -2470,7 +2472,7 @@ private fun MembersPanel(
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = { editingMember = null }, enabled = !editSaving) { Text("Cancel") }
+                            TextButton(onClick = { editingMember = null }, enabled = !editSaving, shape = AppShapes.Button) { Text("Cancel") }
                             Spacer(Modifier.width(8.dp))
                             Button(
                                 enabled = !editSaving && editName.isNotBlank() && editEmail.isNotBlank() &&
@@ -2494,7 +2496,7 @@ private fun MembersPanel(
                                             editSaving = false
                                         }
                                     }
-                                }
+                                }, shape = AppShapes.Button
                             ) { Text(if (editSaving) "Saving…" else "Save Changes") }
                         }
                     }
@@ -2531,10 +2533,10 @@ private fun MembersPanel(
                                 deleteSaving = false
                             }
                         }
-                    }
+                    }, shape = AppShapes.Button
                 ) { Text(if (deleteSaving) "Deleting…" else "Delete") }
             },
-            dismissButton = { TextButton(onClick = { deletingMember = null }, enabled = !deleteSaving) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { deletingMember = null }, enabled = !deleteSaving, shape = AppShapes.Button) { Text("Cancel") } }
         )
     }
 }
@@ -2573,7 +2575,7 @@ private fun SquadPanel(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                             AppSearchField(search, { search = it }, "Search squads…", Modifier.width(190.dp))
                             AppFilterDropdown("Sort", sortOptions.map { it to it.substringAfter(": ") }, sortOption, { sortOption = it }, Modifier.widthIn(min = 164.dp, max = 210.dp), icon = Icons.AutoMirrored.Outlined.Sort)
-                            Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
+                            Button(onClick = onCreate, shape = AppShapes.Medium) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Text("  New squad", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                                 Icon(Icons.Outlined.Groups, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
@@ -2581,7 +2583,7 @@ private fun SquadPanel(
                         }
                     } else {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
+                            Button(onClick = onCreate, shape = AppShapes.Medium) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(19.dp))
                                 Text(" New squad", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                             }
@@ -2622,9 +2624,9 @@ private fun SquadPanel(
                 Button(onClick = {
                     deleteTarget = null
                     onDelete(squad)
-                }) { Text("Delete squad") }
+                }, shape = AppShapes.Button) { Text("Delete squad") }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep squad") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }, shape = AppShapes.Button) { Text("Keep squad") } }
         )
     }
 }
@@ -2633,7 +2635,7 @@ private fun SquadPanel(
 private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(22.dp),
+        shape = AppShapes.Large,
         color = if (selected) accent else WorkspaceColors.surface.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, if (selected) accent else accent.copy(alpha = 0.12f))
     ) {
@@ -2657,7 +2659,7 @@ private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = M
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(14.dp), color = accent, modifier = Modifier.size(58.dp)) {
+                Surface(shape = AppShapes.Medium, color = accent, modifier = Modifier.size(58.dp)) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
                     }
@@ -2701,7 +2703,7 @@ private fun SquadCardAction(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
+        shape = AppShapes.Large,
         color = accent.copy(alpha = 0.09f)
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -2797,7 +2799,7 @@ private fun EditSquadPanel(
                     modifier = Modifier.height(380.dp)
                 )
             },
-            confirmButton = { TextButton(onClick = { showPlayerPicker = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showPlayerPicker = false }, shape = AppShapes.Button) { Text("Done") } }
         )
     }
     if (deleteConfirm) {
@@ -2806,9 +2808,9 @@ private fun EditSquadPanel(
             title = { Text("Delete squad?") },
             text = { Text("Permanently delete '${squad.name}'? Members will become unassigned. This cannot be undone.") },
             confirmButton = {
-                Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete squad") }
+                Button(onClick = { deleteConfirm = false; onDelete() }, shape = AppShapes.Button) { Text("Delete squad") }
             },
-            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep squad") } }
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }, shape = AppShapes.Button) { Text("Keep squad") } }
         )
     }
 }
@@ -2960,7 +2962,7 @@ private fun SessionsPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    if (canSchedule) Button(onClick = onSchedule, shape = RoundedCornerShape(14.dp)) {
+                    if (canSchedule) Button(onClick = onSchedule, shape = AppShapes.Medium) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         Text("  Schedule session", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                         Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
@@ -3047,9 +3049,9 @@ private fun SessionsPanel(
                 Button(onClick = {
                     deleteTarget = null
                     onDelete(session)
-                }) { Text("Delete session") }
+                }, shape = AppShapes.Button) { Text("Delete session") }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep session") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }, shape = AppShapes.Button) { Text("Keep session") } }
         )
     }
 }
@@ -3062,7 +3064,7 @@ private fun SessionIconAction(
     danger: Boolean = false
 ) {
     val color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.12f)) {
+    Surface(shape = AppShapes.Small, color = color.copy(alpha = 0.12f)) {
         IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
             Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(16.dp))
         }
@@ -3098,7 +3100,7 @@ private fun SessionCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(width = 86.dp, height = 94.dp).clip(RoundedCornerShape(9.dp))) {
+                Box(Modifier.size(width = 86.dp, height = 94.dp).clip(AppShapes.Small)) {
                     val imageUrl = thumbnailDrill?.imageUrl
                     if (!imageUrl.isNullOrBlank()) {
                         AsyncImage(
@@ -3116,7 +3118,7 @@ private fun SessionCard(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
+                        Surface(shape = AppShapes.Small, color = statusColor.copy(alpha = 0.13f)) {
                             Text(
                                 sessionStatusLabel(session),
                                 color = statusColor,
@@ -3136,7 +3138,7 @@ private fun SessionCard(
                         Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Text(" Led by ${session.coachName ?: session.coachId ?: "Coach"}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    Surface(color = WorkspaceChipBackground, shape = AppShapes.Small, modifier = Modifier.padding(top = 2.dp)) {
                         Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
                             Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
@@ -3169,7 +3171,7 @@ private fun SessionCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     plannedDrillTitles.forEach { name ->
-                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
+                        Surface(shape = AppShapes.Small, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
                             Text(name, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                         }
                     }
@@ -3221,7 +3223,7 @@ private fun AssessmentsPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = onSchedule, enabled = players.isNotEmpty(), shape = RoundedCornerShape(14.dp)) {
+                    Button(onClick = onSchedule, enabled = players.isNotEmpty(), shape = AppShapes.Medium) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         Text("  Schedule assessment", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                         Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
@@ -3284,10 +3286,10 @@ private fun AssessmentsPanel(
                         deleteTarget = null
                         onDelete(assessment)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White), shape = AppShapes.Button
                 ) { Text("Delete assessment") }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Keep assessment") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }, shape = AppShapes.Button) { Text("Keep assessment") } }
         )
     }
 }
@@ -3333,7 +3335,7 @@ private fun AssessmentCard(
                 Column(Modifier.weight(1f).padding(start = 9.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        Surface(shape = RoundedCornerShape(50), color = disciplineColor.copy(alpha = 0.11f)) {
+                        Surface(shape = AppShapes.Small, color = disciplineColor.copy(alpha = 0.11f)) {
                             Text(assessment.discipline, color = disciplineColor, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                         }
                     }
@@ -3352,7 +3354,7 @@ private fun AssessmentCard(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                 Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Body, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
+                Surface(shape = AppShapes.Small, color = statusColor.copy(alpha = 0.13f)) {
                     Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
@@ -3377,7 +3379,7 @@ private fun AssessmentActionButton(
     primary: Boolean = false,
     onClick: () -> Unit
 ) {
-    Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = if (primary) accent else accent.copy(alpha = 0.1f)) {
+    Surface(onClick = onClick, shape = AppShapes.Large, color = if (primary) accent else accent.copy(alpha = 0.1f)) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = if (primary) Color.White else accent, modifier = Modifier.size(17.dp))
             Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
@@ -3439,10 +3441,10 @@ private fun EditAssessmentPanel(
             confirmButton = {
                 Button(
                     onClick = { deleteConfirm = false; onDelete() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White), shape = AppShapes.Button
                 ) { Text("Delete assessment") }
             },
-            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep assessment") } }
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }, shape = AppShapes.Button) { Text("Keep assessment") } }
         )
     }
 }
@@ -3504,7 +3506,7 @@ private fun InviteMemberDialog(
                 AppTextField(email, { email = it }, "Email")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Role: $role", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { role = if (role == "PLAYER") "COACH" else "PLAYER" }) { Text("Change") }
+                    TextButton(onClick = { role = if (role == "PLAYER") "COACH" else "PLAYER" }, shape = AppShapes.Button) { Text("Change") }
                 }
                 if (role == "PLAYER") {
                     AppTextField(ageGroup, { ageGroup = it }, "Age group")
@@ -3513,11 +3515,11 @@ private fun InviteMemberDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(name.trim(), email.trim(), role, ageGroup.trim(), discipline) }, enabled = name.isNotBlank() && email.contains("@")) {
+            Button(onClick = { onSave(name.trim(), email.trim(), role, ageGroup.trim(), discipline) }, enabled = name.isNotBlank() && email.contains("@"), shape = AppShapes.Button) {
                 Text("Send invite")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -3545,16 +3547,16 @@ private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, Li
         confirmButton = {
             Button(
                 onClick = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
-                enabled = name.isNotBlank() && selected.values.any { it }
+                enabled = name.isNotBlank() && selected.values.any { it }, shape = AppShapes.Button
             ) { Text("Create") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
 @Composable
 private fun PlannedDrillChip(name: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), modifier = modifier) {
+    Surface(shape = AppShapes.Small, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
             Text(name, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
             IconButton(onClick = onRemove, modifier = Modifier.size(22.dp).padding(start = 2.dp)) {
@@ -3819,7 +3821,7 @@ private fun EditSessionPanel(
                     onRemove = onRemoveDrill
                 )
             },
-            confirmButton = { TextButton(onClick = { showDrillPicker = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showDrillPicker = false }, shape = AppShapes.Button) { Text("Done") } }
         )
     }
     if (deleteConfirm) {
@@ -3827,8 +3829,8 @@ private fun EditSessionPanel(
             onDismissRequest = { deleteConfirm = false },
             title = { Text("Delete scheduled session?") },
             text = { Text("Permanently delete '${session.title}'? This cannot be undone.") },
-            confirmButton = { Button(onClick = { deleteConfirm = false; onDelete() }) { Text("Delete session") } },
-            dismissButton = { TextButton(onClick = { deleteConfirm = false }) { Text("Keep session") } }
+            confirmButton = { Button(onClick = { deleteConfirm = false; onDelete() }, shape = AppShapes.Button) { Text("Delete session") } },
+            dismissButton = { TextButton(onClick = { deleteConfirm = false }, shape = AppShapes.Button) { Text("Keep session") } }
         )
     }
 }
@@ -3884,13 +3886,13 @@ private fun ScheduleSessionPanel(
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), AppShapes.Medium)
                                     .padding(3.dp)
                             ) {
                                 listOf("SQUAD" to "Existing Squad", "PLAYERS" to "Individual Player(s)").forEach { (value, label) ->
                                     val selected = targetType == value
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = AppShapes.Small,
                                         color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
                                         modifier = Modifier.weight(1f).clickable(enabled = !isSaving) { targetType = value }
                                     ) {
@@ -3930,7 +3932,7 @@ private fun ScheduleSessionPanel(
                                         .fillMaxWidth()
                                         .heightIn(max = 180.dp)
                                         .verticalScroll(rememberScrollState())
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), AppShapes.Small)
                                         .padding(6.dp)
                                 ) {
                                     if (players.isEmpty()) {
@@ -4127,10 +4129,10 @@ private fun ScheduleAssessmentDialog(
         confirmButton = {
             Button(
                 onClick = { selectedPlayer?.let { onSave(it, title.trim(), date, time, discipline) } },
-                enabled = selectedPlayer != null && title.isNotBlank() && isIsoDate(date)
+                enabled = selectedPlayer != null && title.isNotBlank() && isIsoDate(date), shape = AppShapes.Button
             ) { Text("Schedule") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
 }
 
@@ -4177,11 +4179,11 @@ private fun AssessmentRunPanel(
             }
             items(names, key = { "metric-$it" }) { name ->
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = AppShapes.Medium,
                     color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), AppShapes.Medium)
                 ) {
                     val ratingRow: @Composable () -> Unit = {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -4293,15 +4295,15 @@ private fun AssessmentRunPanel(
                 ) {
                     if (isSaving || isGeneratingInsights) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     if (completed) {
-                        OutlinedButton(onClick = onGenerateInsights, enabled = !isGeneratingInsights, shape = RoundedCornerShape(14.dp)) {
+                        OutlinedButton(onClick = onGenerateInsights, enabled = !isGeneratingInsights, shape = AppShapes.Medium) {
                             Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text(if (assessment.aiSummary == null) "  Generate insights" else "  Regenerate insights")
                         }
-                        OutlinedButton(onClick = onShareReport, shape = RoundedCornerShape(14.dp)) {
+                        OutlinedButton(onClick = onShareReport, shape = AppShapes.Medium) {
                             Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Share")
                         }
-                        Button(onClick = onDownloadReport, shape = RoundedCornerShape(14.dp)) {
+                        Button(onClick = onDownloadReport, shape = AppShapes.Medium) {
                             Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Download report")
                         }
@@ -4309,7 +4311,7 @@ private fun AssessmentRunPanel(
                         OutlinedButton(
                             onClick = { onSave(currentMetrics(), strengths.trim(), focusAreas.trim(), coachFeedback.trim(), playerFeedback.trim(), false) },
                             enabled = !isSaving,
-                            shape = RoundedCornerShape(14.dp)
+                            shape = AppShapes.Medium
                         ) {
                             Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Save progress")
@@ -4317,7 +4319,7 @@ private fun AssessmentRunPanel(
                         Button(
                             onClick = { onSave(currentMetrics(), strengths.trim(), focusAreas.trim(), coachFeedback.trim(), playerFeedback.trim(), true) },
                             enabled = !isSaving && canComplete,
-                            shape = RoundedCornerShape(14.dp)
+                            shape = AppShapes.Medium
                         ) {
                             Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text("  Complete assessment")

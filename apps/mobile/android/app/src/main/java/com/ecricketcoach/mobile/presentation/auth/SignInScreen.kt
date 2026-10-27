@@ -48,7 +48,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -120,7 +119,7 @@ internal fun SignInScreen(
             Image(
                 painter = painterResource(R.drawable.ic_launcher),
                 contentDescription = "eCricketCoach",
-                modifier = Modifier.size(84.dp).clip(RoundedCornerShape(24.dp))
+                modifier = Modifier.size(84.dp).clip(AppShapes.Large)
             )
             Spacer(Modifier.height(18.dp))
             Text(
@@ -140,7 +139,7 @@ internal fun SignInScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                shape = AppShapes.Large,
                 colors = CardDefaults.cardColors(containerColor = scheme.surface),
                 border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.6f))
             ) {
@@ -211,7 +210,7 @@ private fun ProviderButton(provider: SignInProvider, enabled: Boolean, onClick: 
         onClick = onClick,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().height(54.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = AppShapes.Medium,
         border = BorderStroke(1.dp, scheme.outline),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = scheme.background, contentColor = scheme.onSurface)
     ) {
@@ -241,7 +240,7 @@ private fun SignInFeature(icon: ImageVector, title: String, detail: String) {
     val scheme = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(scheme.primary.copy(alpha = 0.14f)),
+            Modifier.size(40.dp).clip(AppShapes.Medium).background(scheme.primary.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp))
@@ -258,7 +257,7 @@ private fun SignInFeature(icon: ImageVector, title: String, detail: String) {
 private fun SignInNotice(message: String, isError: Boolean) {
     val tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.1f)).padding(12.dp),
+        Modifier.fillMaxWidth().clip(AppShapes.Medium).background(tint.copy(alpha = 0.1f)).padding(12.dp),
         verticalAlignment = Alignment.Top
     ) {
         Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
