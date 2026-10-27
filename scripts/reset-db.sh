@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Drops and recreates the database schema from Prisma, then seeds drills and
-# training session templates.
+# Drops and recreates the database schema from Prisma, then seeds drills,
+# training session templates, and players.
 # Usage: bash ./scripts/reset-db.sh [--force]
 set -euo pipefail
 
@@ -60,4 +60,10 @@ fi
   -v ON_ERROR_STOP=1 \
   -f - < services/platform-api/src/scripts/trainingtemplateseeder.sql
 
-echo 'Done. Prisma schema applied, drills seeded, and training templates seeded.'
+"${COMPOSE[@]}" exec -T postgres psql \
+  -U "$DB_USER" \
+  -d "$DB_NAME" \
+  -v ON_ERROR_STOP=1 \
+  -f - < services/platform-api/src/scripts/playerseeder.sql
+
+echo 'Done. Prisma schema applied; drills, training templates, and players seeded.'
