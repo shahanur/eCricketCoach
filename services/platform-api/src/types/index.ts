@@ -101,6 +101,7 @@ export interface TrainingSession {
   assignedPlayerIds?: string[];
   title: string;
   sessionDate: string;
+  sessionTime?: string | null;
   durationMinutes: number;
   drills: Array<{ id: string; title: string; duration: number; discipline: string; context: 'INDIVIDUAL' | 'GROUP' }>;
   safety?: string[];

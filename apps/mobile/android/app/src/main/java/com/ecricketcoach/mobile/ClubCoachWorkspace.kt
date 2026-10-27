@@ -1354,12 +1354,12 @@ internal fun ClubCoachWorkspace(
                     isSaving = sessionEditSaving,
                     saveError = sessionEditError,
                     drillBusy = sessionDrillBusy,
-                    onSave = { title, date, duration, squad, coach, safety ->
+                    onSave = { title, date, time, duration, squad, coach, safety ->
                         scope.launch {
                             sessionEditSaving = true
                             sessionEditError = ""
                             try {
-                                val updates = sessionPlanUpdates(session, title, date, duration, squad, safety, coach)
+                                val updates = sessionPlanUpdates(session, title, date, duration, squad, safety, coach, time)
                                 val updated = api.updateClubSession(token, session.id, updates)
                                 sessions = sessions.map { if (it.id == updated.id) updated else it }
                                 editingSession = null
@@ -2589,7 +2589,7 @@ private fun <T> OverviewList(
 private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) {
     val thumbnail = drill?.imageUrl?.let(::overviewDrillImageSource)
     val sessionDate = runCatching { LocalDate.parse(session.sessionDate).format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy", Locale.getDefault())) }
-        .getOrDefault(session.sessionDate)
+        .getOrDefault(session.sessionDate) + session.sessionTime?.let { " · $it" }.orEmpty()
     Row(
         Modifier.fillMaxWidth().padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -3811,7 +3811,7 @@ private fun SessionCard(
                     Surface(color = Color(0xFFE8EEFF), shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
                         Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color(0xFF3159D8), modifier = Modifier.size(18.dp))
-                            Text("  ${session.sessionDate}", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
                 }
@@ -4347,6 +4347,8 @@ private fun SessionDetailsCard(
     onTitleChange: (String) -> Unit,
     date: String,
     onDateChange: (String) -> Unit,
+    time: String,
+    onTimeChange: (String) -> Unit,
     duration: String,
     onDurationChange: (String) -> Unit,
     safety: String,
@@ -4392,8 +4394,9 @@ private fun SessionDetailsCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DateField(date, onDateChange, "Date", Modifier.weight(1f), enabled = !isSaving)
-                WorkspaceField(duration, onDurationChange, "Duration in minutes", Modifier.weight(1f), enabled = !isSaving, voice = false)
+                TimeField(time, onTimeChange, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
             }
+            WorkspaceField(duration, onDurationChange, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving, voice = false)
             WorkspaceField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
             Text("Planned Drills (${session.drillIds.size})", fontWeight = FontWeight.SemiBold)
             if (session.drillIds.isEmpty()) {
@@ -4431,7 +4434,7 @@ private fun EditSessionPanel(
     isSaving: Boolean,
     saveError: String,
     drillBusy: Boolean,
-    onSave: (String, String, Int, ClubSquad?, ClubMember?, List<String>) -> Unit,
+    onSave: (String, String, String, Int, ClubSquad?, ClubMember?, List<String>) -> Unit,
     onDelete: () -> Unit,
     onAddDrill: (Drill) -> Unit,
     onRemoveDrill: (String) -> Unit,
@@ -4440,6 +4443,7 @@ private fun EditSessionPanel(
 ) {
     var title by remember(session.id) { mutableStateOf(session.title) }
     var date by remember(session.id) { mutableStateOf(session.sessionDate) }
+    var time by remember(session.id) { mutableStateOf(session.sessionTime.orEmpty()) }
     var duration by remember(session.id) { mutableStateOf(session.durationMinutes.toString()) }
     var safety by remember(session.id) { mutableStateOf(session.safety.joinToString("\n")) }
     var selectedSquad by remember(session.id) { mutableStateOf(squads.find { it.id == session.squadId }) }
@@ -4461,6 +4465,7 @@ private fun EditSessionPanel(
                         session = session,
                         title = title, onTitleChange = { title = it },
                         date = date, onDateChange = { date = it },
+                        time = time, onTimeChange = { time = it },
                         duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
                         safety = safety, onSafetyChange = { safety = it },
                         squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
@@ -4472,6 +4477,7 @@ private fun EditSessionPanel(
                             onSave(
                                 title.trim(),
                                 date,
+                                time,
                                 duration.toIntOrNull() ?: 0,
                                 selectedSquad,
                                 selectedCoach,
@@ -4497,6 +4503,7 @@ private fun EditSessionPanel(
                         session = session,
                         title = title, onTitleChange = { title = it },
                         date = date, onDateChange = { date = it },
+                        time = time, onTimeChange = { time = it },
                         duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
                         safety = safety, onSafetyChange = { safety = it },
                         squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
@@ -4508,6 +4515,7 @@ private fun EditSessionPanel(
                             onSave(
                                 title.trim(),
                                 date,
+                                time,
                                 duration.toIntOrNull() ?: 0,
                                 selectedSquad,
                                 selectedCoach,
@@ -4571,6 +4579,7 @@ private fun ScheduleSessionPanel(
     var selectedCoordinator by remember { mutableStateOf<ClubMember?>(null) }
     var selectedAssistant by remember { mutableStateOf<ClubMember?>(null) }
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
+    var time by remember { mutableStateOf("") }
     var duration by remember { mutableStateOf("90") }
     var safety by remember { mutableStateOf("") }
     val drillIds = remember { mutableStateListOf<String>() }
@@ -4702,8 +4711,9 @@ private fun ScheduleSessionPanel(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 DateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
-                                WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (minutes)", Modifier.weight(1f), enabled = !isSaving, voice = false)
+                                TimeField(time, { time = it }, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
                             }
+                            WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving, voice = false)
                             WorkspaceField(safety, { safety = it }, "Session safety (one instruction per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
                             Text("Planned Drills (${drillIds.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             if (drillIds.isEmpty()) {
@@ -4741,6 +4751,7 @@ private fun ScheduleSessionPanel(
                                         val payload = JSONObject()
                                             .put("title", title.trim())
                                             .put("sessionDate", date)
+                                            .put("sessionTime", time.ifBlank { null } ?: JSONObject.NULL)
                                             .put("durationMinutes", duration.toIntOrNull() ?: 90)
                                             .put("coachId", selectedCoach?.id)
                                             .put("coachName", selectedCoach?.name)

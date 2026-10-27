@@ -306,13 +306,15 @@ internal fun sessionPlanUpdates(
     duration: Int,
     squad: ClubSquad?,
     safety: List<String>,
-    coach: ClubMember? = null
+    coach: ClubMember? = null,
+    time: String? = null
 ): JSONObject {
     val updates = JSONObject()
         .put("title", title)
         .put("sessionDate", date)
         .put("durationMinutes", duration)
         .put("safety", JSONArray(safety))
+    if (time != null) updates.put("sessionTime", time.ifBlank { null } ?: JSONObject.NULL)
     if (squad?.id != session.squadId) {
         updates.put("squadId", squad?.id ?: JSONObject.NULL)
             .put("squadName", squad?.name ?: "All players")

@@ -608,6 +608,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
   const [sessionFormAssistantId, setSessionFormAssistantId] = useState('');
   const [sessionFormPlayerIds, setSessionFormPlayerIds] = useState<string[]>([]);
   const [sessionFormDate, setSessionFormDate] = useState('2026-10-05');
+  const [sessionFormTime, setSessionFormTime] = useState('');
   const [sessionFormDuration, setSessionFormDuration] = useState(90);
   const [sessionFormSafety, setSessionFormSafety] = useState('');
   const [sessionFormDrillIds, setSessionFormDrillIds] = useState<string[]>([]);
@@ -1296,6 +1297,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
         assignedPlayerIds,
         title: sessionFormTitle.trim(),
         sessionDate: sessionFormDate,
+        sessionTime: sessionFormTime || null,
         durationMinutes: Number(sessionFormDuration) || 90,
         safety: sessionFormSafety.split('\n').map(item => item.trim()).filter(Boolean)
       };
@@ -1325,6 +1327,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       assignedPlayerIds,
       title: sessionFormTitle.trim(),
       sessionDate: sessionFormDate,
+      sessionTime: sessionFormTime || null,
       durationMinutes: Number(sessionFormDuration) || 90,
       safety: sessionFormSafety.split('\n').map(item => item.trim()).filter(Boolean),
       isPublished: false,
@@ -1370,6 +1373,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
       setSessionFormPlayerIds([]);
     }
     setSessionFormDate(s.sessionDate);
+    setSessionFormTime(s.sessionTime || '');
     setSessionFormDuration(s.durationMinutes);
     setSessionFormSafety((s.safety || []).join('\n'));
     setSessionFormDrillIds(s.drillIds || []);
@@ -1387,6 +1391,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
     setSessionFormPlayerIds([]);
     setSessionFormDrillIds([]);
     setSessionFormSafety('');
+    setSessionFormTime('');
   };
 
   // Confirmation prompts for actions
@@ -2111,7 +2116,7 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   {s.coachName && <p className="text-xs text-slate-400">Head Coach: <span className="text-white">{s.coachName}</span></p>}
                   {s.coordinatorCoachName && <p className="text-xs text-slate-400">Coordinator: <span className="text-white">{s.coordinatorCoachName}</span></p>}
                   {s.assistantCoachName && <p className="text-xs text-slate-400">Assistant Coach: <span className="text-white">{s.assistantCoachName}</span></p>}
-                  <p className="text-xs text-slate-400">Date: <span className="text-sky-400 font-semibold">{s.sessionDate}</span> • Duration: {s.durationMinutes} mins</p>
+                  <p className="text-xs text-slate-400">Date: <span className="text-sky-400 font-semibold">{s.sessionDate}{s.sessionTime ? ` ${s.sessionTime}` : ''}</span> • Duration: {s.durationMinutes} mins</p>
                   {s.safety?.length ? (
                     <details className="text-xs text-slate-400">
                       <summary className="cursor-pointer font-semibold text-amber-300">Session safety</summary>
@@ -4426,10 +4431,11 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                   </div>
                   {activeClubCoaches.length === 0 && <p role="alert" className="text-xs text-amber-400">No active coaches are available. Activate a coach invitation before scheduling a session.</p>}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex-1 min-w-[9rem]">
+                    <label htmlFor="session-form-date" className="text-[11px] font-semibold text-slate-400">Date (YYYY-MM-DD)</label>
                     <input
+                      id="session-form-date"
                       type="date"
                       required
                       value={sessionFormDate}
@@ -4437,9 +4443,20 @@ export const ClubPortal: React.FC<ClubPortalProps> = ({
                       className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-400">Duration (Minutes)</label>
+                  <div className="w-32">
+                    <label htmlFor="session-form-time" className="text-[11px] font-semibold text-slate-400">Session Start Time</label>
                     <input
+                      id="session-form-time"
+                      type="time"
+                      value={sessionFormTime}
+                      onChange={e => setSessionFormTime(e.target.value)}
+                      className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-sky-500 [color-scheme:dark]"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <label htmlFor="session-form-duration" className="text-[11px] font-semibold text-slate-400">Duration (Min)</label>
+                    <input
+                      id="session-form-duration"
                       type="number"
                       min="15"
                       max="240"

@@ -303,6 +303,19 @@ clubRouter.delete('/squads/:id', async (req: Request, res: Response) => {
 });
 
 // 3. Coaches: Session-Based Training Plans & Publishing
+const SESSION_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// Accepts undefined (unchanged), null/'' (cleared), or a 24-hour HH:mm string.
+function isValidSessionTimeInput(value: unknown): boolean {
+  return value === undefined || value === null || value === '' ||
+    (typeof value === 'string' && SESSION_TIME_PATTERN.test(value));
+}
+
+function normalizeSessionTime(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'string' && value ? value : null;
+}
+
 clubRouter.get('/sessions', async (req: Request, res: Response) => {
   try {
     const clubId = req.query.clubId as string | undefined;
@@ -319,7 +332,10 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
     if (safety !== undefined && (!Array.isArray(safety) || safety.some(item => typeof item !== 'string'))) {
       return res.status(400).json({ error: 'safety must be an array of instructions' });
     }
-    const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, drills, drillIds, clubId } = req.body;
+    const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, sessionTime, durationMinutes, drills, drillIds, clubId } = req.body;
+    if (!isValidSessionTimeInput(sessionTime)) {
+      return res.status(400).json({ error: 'Session start time must be in HH:mm format.' });
+    }
     if (assignedPlayerIds !== undefined && (!Array.isArray(assignedPlayerIds) || assignedPlayerIds.some(id => typeof id !== 'string'))) {
       return res.status(400).json({ error: 'assignedPlayerIds must be an array of player IDs' });
     }
@@ -347,6 +363,7 @@ clubRouter.post('/sessions', async (req: Request, res: Response) => {
       assignedPlayerIds: assignedPlayerIds || [],
       title,
       sessionDate,
+      sessionTime: normalizeSessionTime(sessionTime) ?? null,
       durationMinutes: durationMinutes || 90,
       safety: safety || [],
       drills: drills || [],
@@ -381,7 +398,7 @@ clubRouter.patch('/sessions/:id', authenticateToken, requireRole(['CLUB_ADMIN', 
     const planFields = [
       'title', 'squadId', 'squadName', 'coachId', 'coachName', 'coordinatorCoachId',
       'coordinatorCoachName', 'assistantCoachId', 'assistantCoachName', 'assignedPlayerIds',
-      'sessionDate', 'durationMinutes', 'safety'
+      'sessionDate', 'sessionTime', 'durationMinutes', 'safety'
     ];
     if (currentSession.isExecuted && planFields.some(field => req.body[field] !== undefined)) {
       return res.status(409).json({ error: 'Delivered session plans cannot be edited.' });
@@ -390,7 +407,10 @@ clubRouter.patch('/sessions/:id', authenticateToken, requireRole(['CLUB_ADMIN', 
     if (safety !== undefined && (!Array.isArray(safety) || safety.some(item => typeof item !== 'string'))) {
       return res.status(400).json({ error: 'safety must be an array of instructions' });
     }
-    const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, durationMinutes, isExecuted, playerNotes } = req.body;
+    const { title, squadId, squadName, coachId, coachName, coordinatorCoachId, coordinatorCoachName, assistantCoachId, assistantCoachName, assignedPlayerIds, sessionDate, sessionTime, durationMinutes, isExecuted, playerNotes } = req.body;
+    if (!isValidSessionTimeInput(sessionTime)) {
+      return res.status(400).json({ error: 'Session start time must be in HH:mm format.' });
+    }
     if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
       return res.status(400).json({ error: 'Session title is required.' });
     }
@@ -437,6 +457,7 @@ clubRouter.patch('/sessions/:id', authenticateToken, requireRole(['CLUB_ADMIN', 
       assistantCoachName,
       assignedPlayerIds,
       sessionDate,
+      sessionTime: normalizeSessionTime(sessionTime),
       durationMinutes,
       safety,
       isExecuted,

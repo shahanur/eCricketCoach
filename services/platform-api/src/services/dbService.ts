@@ -969,6 +969,7 @@ export class DbService {
         assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
+        sessionTime: updated.sessionTime,
         durationMinutes: updated.durationMinutes,
         safety: updated.safety,
         isPublished: updated.isPublished,
@@ -1016,6 +1017,7 @@ export class DbService {
         assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
+        sessionTime: updated.sessionTime,
         durationMinutes: updated.durationMinutes,
         safety: updated.safety,
         isPublished: updated.isPublished,
@@ -1063,6 +1065,7 @@ export class DbService {
         assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
+        sessionTime: updated.sessionTime,
         durationMinutes: updated.durationMinutes,
         safety: updated.safety,
         isPublished: updated.isPublished,
@@ -1093,6 +1096,7 @@ export class DbService {
     assistantCoachName?: string | null;
     assignedPlayerIds?: string[];
     sessionDate?: string;
+    sessionTime?: string | null;
     durationMinutes?: number;
     safety?: string[];
     isExecuted?: boolean;
@@ -1113,6 +1117,7 @@ export class DbService {
       if (updates.assistantCoachName !== undefined) data.assistantCoachName = updates.assistantCoachName;
       if (updates.assignedPlayerIds !== undefined) data.assignedPlayerIds = updates.assignedPlayerIds;
       if (updates.sessionDate !== undefined) data.sessionDate = updates.sessionDate;
+      if (updates.sessionTime !== undefined) data.sessionTime = updates.sessionTime;
       if (updates.durationMinutes !== undefined) data.durationMinutes = updates.durationMinutes;
       if (updates.safety !== undefined) data.safety = updates.safety;
       if (updates.isExecuted !== undefined) data.isExecuted = updates.isExecuted;
@@ -1138,6 +1143,7 @@ export class DbService {
         assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
+        sessionTime: updated.sessionTime,
         durationMinutes: updated.durationMinutes,
         safety: updated.safety,
         isPublished: updated.isPublished,
@@ -1186,6 +1192,7 @@ export class DbService {
         assignedPlayerIds: Array.isArray(updated.assignedPlayerIds) ? updated.assignedPlayerIds : [],
         title: updated.title,
         sessionDate: updated.sessionDate,
+        sessionTime: updated.sessionTime,
         durationMinutes: updated.durationMinutes,
         safety: updated.safety,
         isPublished: updated.isPublished,

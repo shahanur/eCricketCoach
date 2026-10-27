@@ -163,6 +163,7 @@ test('assigned lead, coordinator, and assistant coaches can edit scheduled sessi
       assert.equal(id, 'session-a');
       assert.equal(updates.title, 'Updated training');
       assert.equal(updates.sessionDate, '2026-10-10');
+      assert.equal(updates.sessionTime, '17:30');
       assert.equal(updates.durationMinutes, 75);
       assert.deepEqual(updates.safety, ['Check nets']);
       assert.equal(updates.coachId, undefined);
@@ -173,7 +174,7 @@ test('assigned lead, coordinator, and assistant coaches can edit scheduled sessi
       const response = await fetch(`${baseUrl}/api/club/sessions/session-a`, {
         method: 'PATCH',
         headers: { ...authHeaders(token({ userId, role: 'COACH', coachContext: 'CLUB', tenantId: 'club-a' })), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Updated training', sessionDate: '2026-10-10', durationMinutes: 75, safety: ['Check nets'] })
+        body: JSON.stringify({ title: 'Updated training', sessionDate: '2026-10-10', sessionTime: '17:30', durationMinutes: 75, safety: ['Check nets'] })
       });
       assert.equal(response.status, 200);
       const body = await response.json() as { session: { title: string } };
@@ -208,7 +209,7 @@ test('session edits reject unauthenticated, foreign, unassigned, inactive, deliv
     delivered = true;
     assert.equal((await patch('coach-a')).status, 409);
     delivered = false;
-    for (const invalid of [{ title: '' }, { sessionDate: '2026-02-30' }, { durationMinutes: 0 }, { safety: [false] }]) {
+    for (const invalid of [{ title: '' }, { sessionDate: '2026-02-30' }, { sessionTime: '25:00' }, { sessionTime: '9am' }, { durationMinutes: 0 }, { safety: [false] }]) {
       assert.equal((await patch('coach-a', 'club-a', invalid)).status, 400);
     }
     sessionExists = false;

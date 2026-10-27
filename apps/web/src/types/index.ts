@@ -148,6 +148,7 @@ export interface TrainingSession {
   assignedPlayerIds?: string[];
   title: string;
   sessionDate: string;
+  sessionTime?: string | null;
   durationMinutes: number;
   isPublished: boolean;
   safety?: string[];

@@ -80,6 +80,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
   const [executingSessionId, setExecutingSessionId] = useState<string | null>(null);
   const [sessionTitle, setSessionTitle] = useState('');
   const [sessionDate, setSessionDate] = useState(today);
+  const [sessionTime, setSessionTime] = useState('');
   const [sessionDuration, setSessionDuration] = useState(90);
   const [sessionSafety, setSessionSafety] = useState('');
   const [sessionDrillIds, setSessionDrillIds] = useState<string[]>([]);
@@ -207,6 +208,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
       coachName: currentUser.name,
       assignedPlayerIds,
       sessionDate,
+      sessionTime: sessionTime || null,
       durationMinutes: sessionDuration,
       safety: sessionSafety.split('\n').map(item => item.trim()).filter(Boolean),
       isPublished: false,
@@ -224,6 +226,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
     }
     await loadDashboard();
     setSessionTitle('');
+    setSessionTime('');
     setSessionDrillIds([]);
     setSessionSafety('');
   };
@@ -442,9 +445,19 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
             <select value={sessionSquad} onChange={event => setSessionSquad(event.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
               {squadNames.map(squad => <option key={squad}>{squad}</option>)}
             </select>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={sessionDate} onChange={event => setSessionDate(event.target.value)} required className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
-              <input type="number" min={15} step={5} value={sessionDuration} onChange={event => setSessionDuration(Number(event.target.value))} className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
+            <div className="flex flex-wrap gap-2">
+              <label className="flex-1 min-w-[8rem] text-[11px] text-slate-400">
+                Date
+                <input type="date" value={sessionDate} onChange={event => setSessionDate(event.target.value)} required className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
+              </label>
+              <label className="w-28 text-[11px] text-slate-400">
+                Session Start Time
+                <input type="time" value={sessionTime} onChange={event => setSessionTime(event.target.value)} className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white [color-scheme:dark]" />
+              </label>
+              <label className="w-20 text-[11px] text-slate-400">
+                Duration (min)
+                <input type="number" min={15} step={5} value={sessionDuration} onChange={event => setSessionDuration(Number(event.target.value))} className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-2 text-xs text-white" />
+              </label>
             </div>
             <label htmlFor="coach-session-safety" className="block text-xs text-slate-400">Session safety (one instruction per line)</label>
             <textarea id="coach-session-safety" value={sessionSafety} onChange={event => setSessionSafety(event.target.value)} rows={3} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white" />
@@ -454,7 +467,7 @@ export const CoachOperations: React.FC<CoachOperationsProps> = ({
             <h2 className="text-sm font-bold text-white">Manage schedule</h2>
             {mySessions.map(session => (
               <div key={session.id} className="border border-slate-800 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.sessionDate} · {session.squadName} · {session.durationMinutes} min{session.isExecuted ? ' · Delivered' : session.executionLog?.status === 'IN_PROGRESS' ? ' · In progress' : ''}</p></div>
+                <div><p className="text-sm font-semibold text-white">{session.title}</p><p className="text-xs text-slate-400">{session.sessionDate}{session.sessionTime ? ` ${session.sessionTime}` : ''} · {session.squadName} · {session.durationMinutes} min{session.isExecuted ? ' · Delivered' : session.executionLog?.status === 'IN_PROGRESS' ? ' · In progress' : ''}</p></div>
                 <div className="flex gap-2">
                   {!session.isExecuted && <input type="date" aria-label={`Reschedule ${session.title}`} value={session.sessionDate} onChange={async event => { await onUpdateSession(session.id, { sessionDate: event.target.value }); await loadDashboard(); }} className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white" />}
                   <button onClick={() => openExecution(session)} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs border border-emerald-500/40 text-emerald-300 rounded">
