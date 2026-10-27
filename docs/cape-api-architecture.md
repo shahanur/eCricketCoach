@@ -7,7 +7,7 @@
 - deterministic coaching output (faults, score, recommendations, drills),
 - annotated JPEG artifacts (+ a ZIP) that the caller downloads before a TTL expires.
 
-Source: [cape-api/](../cape-api/). Functional spec: [docs/video-analysis-api.md](video-analysis-api.md).
+Source: [services/cape-api/](../services/cape-api/). Functional spec: [docs/video-analysis-api.md](video-analysis-api.md).
 
 ---
 
@@ -22,7 +22,7 @@ flowchart LR
         MOB["Android app<br/>CapeResultPanel.kt"]
     end
 
-    subgraph NodeTier["web-app/server (Node 20 · Express · Prisma)"]
+    subgraph NodeTier["services/platform-api (Node 20 · Express · Prisma)"]
         API["Express API<br/>/api/club/cape-jobs<br/>/api/club/assessments/:id/video"]
         Q[("Redis<br/>BullMQ queue 'cape-analysis'")]
         W["cape-worker<br/>BullMQ Worker<br/>concurrency = CAPE_CONCURRENCY"]
@@ -30,7 +30,7 @@ flowchart LR
         UP[["Volume<br/>/var/cape-uploads"]]
     end
 
-    subgraph CapeTier["cape-api (Python 3.11 · FastAPI · GPU)"]
+    subgraph CapeTier["services/cape-api (Python 3.11 · FastAPI · GPU)"]
         CAPE["CAPE<br/>uvicorn app.main:app :8000"]
         WS[["Volume<br/>cricket_workspace/&lt;uuid&gt;"]]
         WT[["Volume (ro)<br/>weights/*.pt"]]
@@ -58,7 +58,7 @@ flowchart LR
 
 ### Responsibilities split
 
-| Concern | Node (web-app/server) | CAPE (cape-api) |
+| Concern | Node (services/platform-api) | CAPE (services/cape-api) |
 |---|---|---|
 | Public API, JWT, roles, tenant isolation | Yes | No |
 | Queue, retries, back-off, job status | BullMQ + `cape_jobs` | No |
@@ -87,7 +87,7 @@ flowchart LR
 | AI assist | Google Gemini REST (`v1beta/models/{model}:generateContent`) via `urllib` | Impact-frame selection only |
 | Tests | pytest + FastAPI `TestClient` | Fake detectors, synthetic frames, no GPU |
 | Container | `nvidia/cuda:12.2.2-runtime-ubuntu22.04` (GPU) / `python:3.11-slim` (CPU) | Non-root UID 10001, HEALTHCHECK on `/health` |
-| Training | Ultralytics training, Label Studio export conversion | [cape-api/training/](../cape-api/training/) |
+| Training | Ultralytics training, Label Studio export conversion | [services/cape-api/training/](../services/cape-api/training/) |
 
 ---
 
@@ -158,22 +158,22 @@ flowchart TB
 
 | Module | Key symbols | Responsibility |
 |---|---|---|
-| [app/main.py](../cape-api/app/main.py) | `create_app`, `require_api_key`, `app_settings`, routes | FastAPI app, auth, body-size guard, error mapping, lifespan (model load + TTL sweeper) |
-| [app/config.py](../cape-api/app/config.py) | `Settings`, `get_settings` | Env config (`CAPE_*`) |
-| [app/schemas.py](../cape-api/app/schemas.py) | `AnalysisRequest`, `ManualFrames`, `AnalysisResponse`, `Coaching`, `Delivery`, `DownloadEndpoints`, `CapeError`, zone tables | Contracts, enums, pitch geometry constants |
-| [app/workspace.py](../cape-api/app/workspace.py) | `create_session`, `session_path`, `purge_input`, `purge`, `sweep_expired` | UUID4 session dirs, path-traversal-safe |
-| [app/ingest.py](../cape-api/app/ingest.py) | `validate_upload`, `save_upload`, `probe`, `read_frames` | Upload validation, chunked save, video probe, tolerant decoder |
-| [app/pipeline.py](../cape-api/app/pipeline.py) | `analyze`, `_Pass`, `_analyze_batter`, `_analyze_bowler` | Single decode pass orchestration |
-| [app/gemini_contact.py](../cape-api/app/gemini_contact.py) | `select_contact_frame`, `ContactSelection` | Two-stage Gemini impact-frame selection |
-| [app/candidates.py](../cape-api/app/candidates.py) | `contact_candidates` | Thumbnails for manual frame tagging |
-| [app/calibration.py](../cape-api/app/calibration.py) | `Calibrator` | 4-point planar homography, speed |
-| [app/kinematics.py](../cape-api/app/kinematics.py) | `joint_angle`, `batter_angles`, `pose_metrics`, `head_travel_pct` | Biomechanics |
-| [app/bowling.py](../cape-api/app/bowling.py) | `bounce_index`, `delivery_metrics`, `length_zone`, `line_zone` | Delivery analytics |
-| [app/coaching.py](../cape-api/app/coaching.py) | `load_rules`, `applicable_checks`, `evaluate`, `describe_delivery` | Deterministic faults & score |
-| [app/render.py](../cape-api/app/render.py) | `draw_*`, `draw_pitch_map`, `export_artifacts` | Overlays, crops, atomic JPEG writes |
-| [app/tracking/state_machine.py](../cape-api/app/tracking/state_machine.py) | `Phase`, `Tracker` | Ball contact via velocity inversion |
-| [app/tracking/kalman.py](../cape-api/app/tracking/kalman.py) | `Kalman2D` | Constant-velocity filter for post-contact gaps |
-| [app/models/](../cape-api/app/models/) | `load_detectors`, `Detectors`, `Box`, `PoseResult`, `Landmarks` | ML adapters behind Protocols |
+| [app/main.py](../services/cape-api/app/main.py) | `create_app`, `require_api_key`, `app_settings`, routes | FastAPI app, auth, body-size guard, error mapping, lifespan (model load + TTL sweeper) |
+| [app/config.py](../services/cape-api/app/config.py) | `Settings`, `get_settings` | Env config (`CAPE_*`) |
+| [app/schemas.py](../services/cape-api/app/schemas.py) | `AnalysisRequest`, `ManualFrames`, `AnalysisResponse`, `Coaching`, `Delivery`, `DownloadEndpoints`, `CapeError`, zone tables | Contracts, enums, pitch geometry constants |
+| [app/workspace.py](../services/cape-api/app/workspace.py) | `create_session`, `session_path`, `purge_input`, `purge`, `sweep_expired` | UUID4 session dirs, path-traversal-safe |
+| [app/ingest.py](../services/cape-api/app/ingest.py) | `validate_upload`, `save_upload`, `probe`, `read_frames` | Upload validation, chunked save, video probe, tolerant decoder |
+| [app/pipeline.py](../services/cape-api/app/pipeline.py) | `analyze`, `_Pass`, `_analyze_batter`, `_analyze_bowler` | Single decode pass orchestration |
+| [app/gemini_contact.py](../services/cape-api/app/gemini_contact.py) | `select_contact_frame`, `ContactSelection` | Two-stage Gemini impact-frame selection |
+| [app/candidates.py](../services/cape-api/app/candidates.py) | `contact_candidates` | Thumbnails for manual frame tagging |
+| [app/calibration.py](../services/cape-api/app/calibration.py) | `Calibrator` | 4-point planar homography, speed |
+| [app/kinematics.py](../services/cape-api/app/kinematics.py) | `joint_angle`, `batter_angles`, `pose_metrics`, `head_travel_pct` | Biomechanics |
+| [app/bowling.py](../services/cape-api/app/bowling.py) | `bounce_index`, `delivery_metrics`, `length_zone`, `line_zone` | Delivery analytics |
+| [app/coaching.py](../services/cape-api/app/coaching.py) | `load_rules`, `applicable_checks`, `evaluate`, `describe_delivery` | Deterministic faults & score |
+| [app/render.py](../services/cape-api/app/render.py) | `draw_*`, `draw_pitch_map`, `export_artifacts` | Overlays, crops, atomic JPEG writes |
+| [app/tracking/state_machine.py](../services/cape-api/app/tracking/state_machine.py) | `Phase`, `Tracker` | Ball contact via velocity inversion |
+| [app/tracking/kalman.py](../services/cape-api/app/tracking/kalman.py) | `Kalman2D` | Constant-velocity filter for post-contact gaps |
+| [app/models/](../services/cape-api/app/models/) | `load_detectors`, `Detectors`, `Box`, `PoseResult`, `Landmarks` | ML adapters behind Protocols |
 
 ### 3.2 Model adapters (class view)
 
@@ -697,17 +697,17 @@ Node-side counterparts: `CAPE_API_URL` (`http://cape-api:8000`), `CAPE_API_KEY`,
 ```mermaid
 flowchart TB
     subgraph Host["Docker host (NVIDIA Container Toolkit for GPU)"]
-        subgraph Net["compose network"]
+        subgraph Net["deploy/compose.yml network"]
             CL["client (nginx) :3000"]
             SV["server (Express) :5001"]
             CW["cape-worker<br/>npm run worker"]
-            CA["cape-api :8000<br/>profile: cape<br/>no published port"]
+            CA["services/cape-api :8000<br/>profile: cape<br/>no published port"]
             PG[("postgres :5433→5432")]
             RD[("redis :6379")]
         end
         V1[["cape-uploads volume"]]
         V2[["cape-workspace volume"]]
-        V3[["../cape-api/weights (ro)"]]
+        V3[["services/cape-api/weights (ro)"]]
         GPU{{"NVIDIA GPU"}}
     end
     CL --> SV
@@ -720,12 +720,12 @@ flowchart TB
 
 | File | Use |
 |---|---|
-| [cape-api/Dockerfile](../cape-api/Dockerfile) | Two-stage CUDA 12.2 build, PyTorch 2.5.1 cu121 (driver ≥ 530), headless OpenCV, MediaPipe heavy model pre-fetched, non-root `cape` (UID 10001), HEALTHCHECK |
-| [cape-api/Dockerfile.cpu](../cape-api/Dockerfile.cpu) | `python:3.11-slim`, CPU torch |
-| [cape-api/docker-compose.yml](../cape-api/docker-compose.yml) | Standalone GPU run, publishes 8000 (dev/testing) |
-| [cape-api/docker-compose.cpu.yml](../cape-api/docker-compose.cpu.yml) | CPU override |
-| [web-app/docker-compose.yml](../web-app/docker-compose.yml) | Full stack; `cape-api` + `cape-worker` under profile `cape`, CAPE not published |
-| [web-app/docker-compose.cape-cpu.yml](../web-app/docker-compose.cape-cpu.yml) | CPU override for the full stack |
+| [services/cape-api/Dockerfile](../services/cape-api/Dockerfile) | Two-stage CUDA 12.2 build, PyTorch 2.5.1 cu121 (driver ≥ 530), headless OpenCV, MediaPipe heavy model pre-fetched, non-root `cape` (UID 10001), HEALTHCHECK |
+| [services/cape-api/Dockerfile.cpu](../services/cape-api/Dockerfile.cpu) | `python:3.11-slim`, CPU torch |
+| [services/cape-api/docker-compose.yml](../services/cape-api/docker-compose.yml) | Standalone GPU run, publishes 8000 (dev/testing) |
+| [services/cape-api/docker-compose.cpu.yml](../services/cape-api/docker-compose.cpu.yml) | CPU override |
+| [deploy/compose.yml](../deploy/compose.yml) | Full stack; `cape-api` + `cape-worker` under profile `cape`, CAPE not published |
+| [deploy/compose.cape-cpu.yml](../deploy/compose.cape-cpu.yml) | CPU override for the full stack |
 
 **Scaling:** throughput = `CAPE_CONCURRENCY` (Node worker) × per-request latency. Each Uvicorn worker loads its own models; increase `CAPE_WORKERS` only if GPU memory allows. Requests run in the threadpool; YOLO calls are serialised per model by a lock.
 
@@ -736,7 +736,7 @@ flowchart TB
 ### 10.1 Run locally (Python)
 
 ```powershell
-cd cape-api
+cd services/cape-api
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt          # torch: install a matching build first for GPU
@@ -749,12 +749,12 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 ### 10.2 Run in Docker
 
 ```powershell
-cd cape-api
+cd services/cape-api
 docker compose up --build                                          # GPU
 docker compose -f docker-compose.yml -f docker-compose.cpu.yml up --build   # CPU
 ```
 
-Full stack: `cd web-app; sh deploy.sh` (starts the `cape` profile).
+Full stack: run `bash ./scripts/deploy.sh` from the repository root (starts the `cape` profile).
 
 ### 10.3 Call the API directly
 
@@ -781,7 +781,7 @@ Manual frames: `-F 'manual_frames={"pre_contact":[],"point_of_contact":[120,121,
 ### 10.5 Tests
 
 ```powershell
-cd cape-api
+cd services/cape-api
 .\.venv\Scripts\python.exe -m pytest -q                       # all
 .\.venv\Scripts\python.exe -m pytest tests/test_pipeline.py -q  # one module
 ```
@@ -798,7 +798,7 @@ Tests use fake detectors implementing the Protocols and synthetic NumPy frames; 
 | Train ball detector | `training/train_ball.py` → `weights/ball.pt` |
 | Train bat segmenter | `training/train_bat.py` (validates seg labels) → `weights/bat-seg.pt` |
 
-See [cape-api/training/ANNOTATION.md](../cape-api/training/ANNOTATION.md).
+See [services/cape-api/training/ANNOTATION.md](../services/cape-api/training/ANNOTATION.md).
 
 ---
 

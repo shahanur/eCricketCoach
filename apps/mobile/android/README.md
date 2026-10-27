@@ -8,10 +8,10 @@ API.
 ## Requirements
 
 - Android Studio with Android SDK 35 and JDK 17
-- A running eCricketCoach API (`web-app/server`)
+- A running eCricketCoach API (`services/platform-api`)
 - At least one configured social identity provider on the API
 
-Open `mobile-app` in Android Studio and run the `app` configuration on an
+Open `apps/mobile/android` in Android Studio and run the `app` configuration on an
 emulator or device. Or use the deployment helper from Bash (Git Bash on
 Windows), with Android SDK tools and JDK 17 installed:
 
@@ -166,8 +166,8 @@ return-to-app flow, Android share targets, and runtime behavior across
 connectivity changes still requires a configured emulator or device.
 
 If **Run** reports that the execution route is missing, rebuild and redeploy
-the API (not only the Android app). From `web-app`, run
-`docker compose up -d --build --no-deps server`. Existing API images may have
+the API (not only the Android app). From the repository root, run
+`docker compose --project-directory . -f deploy/compose.yml up -d --build --no-deps server`. Existing API images may have
 the execution PATCH route without the newer GET route required to open Run.
 The session-edit PATCH route also requires authentication; the web caller and
 mobile caller both send the signed-in session token.

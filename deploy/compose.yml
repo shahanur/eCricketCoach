@@ -1,7 +1,8 @@
+name: ecricketcoach
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ecricket_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-cricket_user}
@@ -11,11 +12,10 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./server/src/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./services/platform-api/src/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   redis:
     image: redis:7-alpine
-    container_name: ecricket_redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -24,9 +24,8 @@ services:
 
   aihub:
     build:
-      context: ./aihub
+      context: ./services/ai-hub
       dockerfile: Dockerfile
-    container_name: ecricket_aihub
     restart: unless-stopped
     environment:
       AIHUB_YOLO_MODEL: ${AIHUB_YOLO_MODEL:-yolo11n.pt}
@@ -35,11 +34,10 @@ services:
 
   server:
     build:
-      context: ./server
+      context: ./services/platform-api
       dockerfile: Dockerfile
     # cape-worker runs this same image, so it is built once.
     image: ecricket-server:latest
-    container_name: ecricket_api
     restart: unless-stopped
     environment:
       PORT: 5001
@@ -91,9 +89,8 @@ services:
 
   pose-overlay-api:
     build:
-      context: ./pose-overlay-api
+      context: ./services/pose-overlay-api
       dockerfile: Dockerfile
-    container_name: ecricket_pose_overlay_api
     restart: unless-stopped
     environment:
       POSE_OVERLAY_API_KEY: ${CAPE_API_KEY:-}
@@ -102,14 +99,13 @@ services:
     expose:
       - "8200"
     volumes:
-      - ../cape-api/weights:/weights:ro
-      - ../cape-api/app/rules/coaching_rules.yaml:/rules/coaching_rules.yaml:ro
+      - ./services/cape-api/weights:/weights:ro
+      - ./services/cape-api/app/rules/coaching_rules.yaml:/rules/coaching_rules.yaml:ro
 
   cape-api:
     profiles: [cape]
     build:
-      context: ../cape-api
-    container_name: ecricket_cape_api
+      context: ./services/cape-api
     restart: unless-stopped
     environment:
       CAPE_API_KEY: ${CAPE_API_KEY:-}
@@ -120,7 +116,7 @@ services:
       CAPE_GEMINI_TIMEOUT_SECONDS: ${CAPE_GEMINI_TIMEOUT_SECONDS:-90}
       CAPE_GEMINI_CONTACT_LEAD_FRAMES: ${CAPE_GEMINI_CONTACT_LEAD_FRAMES:-1}
     volumes:
-      - ../cape-api/weights:/app/weights:ro
+      - ./services/cape-api/weights:/app/weights:ro
       - cape-workspace:/app/cricket_workspace
     deploy:
       resources:
@@ -133,10 +129,9 @@ services:
   cape-worker:
     profiles: [cape]
     build:
-      context: ./server
+      context: ./services/platform-api
       dockerfile: Dockerfile
     image: ecricket-server:latest
-    container_name: ecricket_cape_worker
     restart: unless-stopped
     command: npm run worker
     environment:
@@ -162,9 +157,8 @@ services:
 
   client:
     build:
-      context: ./client
+      context: ./apps/web
       dockerfile: Dockerfile
-    container_name: ecricket_client
     restart: unless-stopped
     ports:
       - "3000:80"

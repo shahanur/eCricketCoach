@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# CAPE runtime (spec §8). Build context: cape-api/.
+# CAPE runtime (spec §8). Build context: services/cape-api/.
 # Stage 1 – build the virtualenv with the same Python (deadsnakes 3.11) the runner uses.
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04 AS builder
 

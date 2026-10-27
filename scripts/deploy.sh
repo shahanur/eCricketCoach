@@ -2,11 +2,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
 usage() {
   cat <<'EOF'
-Usage: ./deploy.sh [--cape]
+Usage: bash ./scripts/deploy.sh [--cape]
 
   (no flag)  Build and start the whole stack, including CAPE.
   --cape     Rebuild and restart only the cape-api container; other services are left untouched.
@@ -56,11 +57,11 @@ if [[ "$CAPE_MODE_EFFECTIVE" == "auto" ]]; then
   fi
 fi
 
-COMPOSE_FILES=(-f docker-compose.yml)
+COMPOSE_FILES=(-f "$REPO_ROOT/deploy/compose.yml")
 if [[ "$CAPE_MODE_EFFECTIVE" == "cpu" ]]; then
-  COMPOSE_FILES+=(-f docker-compose.cape-cpu.yml)
+  COMPOSE_FILES+=(-f "$REPO_ROOT/deploy/compose.cape-cpu.yml")
 fi
-COMPOSE=(docker compose "${COMPOSE_FILES[@]}" --profile cape)
+COMPOSE=(docker compose --project-directory "$REPO_ROOT" --env-file "$REPO_ROOT/deploy/.env" "${COMPOSE_FILES[@]}" --profile cape)
 
 echo "Validating Docker Compose configuration..."
 "${COMPOSE[@]}" config --quiet
@@ -79,7 +80,7 @@ echo "CAPE runtime: ${CAPE_MODE_EFFECTIVE} ($(uname -s)/$(uname -m))"
 
 # Nginx resolves the server service when it starts. Recreate/restart the proxy
 # after a server rebuild so it does not retain a stale container IP.
-docker compose restart client
+"${COMPOSE[@]}" restart client
 
 echo
 echo "Service status:"

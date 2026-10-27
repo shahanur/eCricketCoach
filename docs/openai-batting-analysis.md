@@ -33,7 +33,7 @@ All limits are optional server environment variables; invalid values fall back t
 
 ## Versioned model assets
 
-The shared instructions, task prompts, and strict schemas live in `web-app/server/src/services/openai_inputs/`. They are included in the production server image. Schema validation is followed by application-level checks for source-frame references, normalized coordinates, contact-window bounds, shot metadata, and footage quality.
+The shared instructions, task prompts, and strict schemas live in `services/platform-api/src/services/openai_inputs/`. They are included in the production server image. Schema validation is followed by application-level checks for source-frame references, normalized coordinates, contact-window bounds, shot metadata, and footage quality.
 
 ## Persistence and downloads
 
@@ -52,4 +52,4 @@ The patch accepts an overall coach note (up to 3000 characters) and finding disp
 
 ## Local verification
 
-From `web-app/server`, run `npx prisma generate`, `npm run build`, and `npm exec -- tsx --test src/services/openAiBattingAnalysisService.test.ts src/services/openAiBattingReportArtifacts.test.ts src/services/openAiBattingVisuals.test.ts`. From `web-app/client`, run `npm run build`. A live model/video request is not required for these checks and may incur API charges.
+From `services/platform-api`, run `npx prisma generate`, `npm run build`, and `npm exec -- tsx --test src/services/openAiBattingAnalysisService.test.ts src/services/openAiBattingReportArtifacts.test.ts src/services/openAiBattingVisuals.test.ts`. From `apps/web`, run `npm run build`. A live model/video request is not required for these checks and may incur API charges.

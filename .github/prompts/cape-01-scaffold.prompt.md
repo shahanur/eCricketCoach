@@ -7,7 +7,7 @@ Follow `.github/instructions/cape-api.instructions.md` (contracts + token rules)
 
 Spec: §6.1, §7 and §11.1 + §11.6.
 
-Create `cape-api/` with:
+Create `services/cape-api/` with:
 - `requirements.txt` (pinned: fastapi, uvicorn[standard], python-multipart, pydantic-settings, numpy, opencv-python-headless, ultralytics, mediapipe, pyyaml) and `requirements-dev.txt` (pytest, httpx).
 - `app/config.py`: `Settings` with `workspace_dir`, `weights_dir`, `device`, `max_upload_mb=500`, `artifact_ttl_seconds=900`, `api_key` (optional).
 - `app/schemas.py`:

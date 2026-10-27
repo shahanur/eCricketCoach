@@ -1,6 +1,6 @@
 """Fine-tune YOLOv11-Nano for cricket-ball detection (spec §10) and install it as weights/ball.pt.
 
-Usage (from cape-api/):
+Usage (from services/cape-api/):
     python -m training.train_ball --data datasets/ball --epochs 150 --device 0 [--export onnx|engine]
 Requires the `ultralytics` package (already in requirements.txt) and ideally a CUDA GPU.
 """

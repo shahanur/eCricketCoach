@@ -3,11 +3,11 @@ agent: agent
 description: CAPE 12/13 – BullMQ job queue and CAPE client in the Node server
 ---
 
-Follow `.github/instructions/cape-api.instructions.md` (architecture + token rules). Also follow `.github/copilot-instructions.md` for `web-app/server`.
+Follow `.github/instructions/cape-api.instructions.md` (architecture + token rules). Also follow `.github/copilot-instructions.md` for `services/platform-api`.
 
-Read only: `web-app/server/src/index.ts`, `web-app/server/prisma/schema.prisma` (the video-analysis and assessment models), `web-app/docker-compose.yml`, and the signatures in `web-app/server/src/services/googleDrive.ts`. `REDIS_URL` is already set for `server` in compose.
+Read only: `services/platform-api/src/index.ts`, `services/platform-api/prisma/schema.prisma` (the video-analysis and assessment models), `deploy/compose.yml`, and the signatures in `services/platform-api/src/services/googleDrive.ts`. `REDIS_URL` is already set for `server` in compose.
 
-1. `npm i bullmq archiver` in `web-app/server` (ioredis comes with bullmq).
+1. `npm i bullmq archiver` in `services/platform-api` (ioredis comes with bullmq).
 2. Prisma: add `CapeJob` with:
    - `id` (uuid), `tenantId`, `createdById`, optional `playerId`, optional `assessmentId`, optional `driveFileId`.
    - `request Json` (the §11.1 inputs).
@@ -28,4 +28,4 @@ Read only: `web-app/server/src/index.ts`, `web-app/server/prisma/schema.prisma` 
 7. Compose: add a `cape-api` service (build `../cape-api`, GPU reservation, `profiles: [cape]`, no published port) and a `cape-worker` service (same image as `server`, `command: npm run worker`, `profiles: [cape]`). Add the env vars to `server/.env.example`.
 
 Uploads: keep the existing in-memory 500 MB multer limit, but write the buffer to the temp file before enqueueing so the request memory is released. Note the memory cost in a comment.
-Verify with `cd web-app/server; npx prisma validate; npx tsc --noEmit -p .` only.
+Verify with `cd services/platform-api; npx prisma validate; npx tsc --noEmit -p .` only.

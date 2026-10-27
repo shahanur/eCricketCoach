@@ -302,7 +302,7 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 ```
 
-### 8.3 Orchestration Runtime Mapping (`docker-compose.yml`)
+### 8.3 Orchestration Runtime Mapping (`deploy/compose.yml`)
 
 To map host GPU devices into runtime instances, use this Compose schema:
 
@@ -593,4 +593,3 @@ The §6.1 payload gains these blocks:
 | Bowler | `1_release.jpg`, `2_pitching_point.jpg`, `3_pitch_map.jpg` (top-down pitch with zone bands and the pitching point) |
 
 Each image is downloadable on its own (`Content-Disposition: attachment`) or as one ZIP. The Node API renames downloads to `<player>_<date>_<milestone>.jpg` and keeps a copy in the user's Google Drive alongside the source video, so they remain available after CAPE's ephemeral workspace is purged (§7).
-

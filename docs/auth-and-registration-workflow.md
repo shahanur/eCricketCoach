@@ -161,7 +161,7 @@ Processes subscription registration and payment.
 
 ## 6. Provider Configuration Guide
 
-To enable live social login for each provider, set the environment variables in `web-app/.env`:
+To enable live social login for each provider, set the environment variables in `deploy/.env`:
 
 ```env
 APP_ORIGIN=http://localhost:3000

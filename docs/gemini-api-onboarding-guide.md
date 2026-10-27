@@ -35,10 +35,10 @@ This document walks you through getting a **free** Gemini API key and wiring it 
 
 ## 2. Add the Key to the App
 
-The server reads the key from the `GEMINI_API_KEY` environment variable, set in the project's
-root `.env` file (`web-app/.env`), which Docker Compose passes through to the `server` container.
+The server reads the key from the `GEMINI_API_KEY` environment variable, set in `deploy/.env`,
+which Compose passes through to the `server` container.
 
-1. Open `web-app/.env`.
+1. Open `deploy/.env`.
 2. Find the Gemini section (added automatically if missing):
 
    ```env
@@ -54,7 +54,7 @@ root `.env` file (`web-app/.env`), which Docker Compose passes through to the `s
    GEMINI_MODEL=
    ```
 
-4. **Never commit this file** — `web-app/.env` is already covered by `.gitignore`, so your key
+4. **Never commit this file** — `deploy/.env` is already covered by `.gitignore`, so your key
    stays local and out of source control.
 
 ### Dynamic model selection (recommended: leave `GEMINI_MODEL` empty)
@@ -99,16 +99,16 @@ A `200 OK` JSON response with a `candidates` array confirms the key and model ar
 PERMISSION_DENIED` means the key itself is invalid/wrong format; a `404 NOT_FOUND` on the model
 means that specific model name has been retired — try `gemini-flash-latest` instead.
 
-After saving `.env`, rebuild/restart just the `server` service so it picks up the new environment
+After saving `deploy/.env`, rebuild/restart just the `server` service so it picks up the new environment
 variable:
 
 ```bash
-cd web-app
-docker compose up -d --force-recreate server
+docker compose --project-directory . --env-file deploy/.env -f deploy/compose.yml up -d --force-recreate server
 ```
 
 (No `--no-cache` rebuild is required just for an env var change — a normal recreate is enough. Use
-`docker compose build --no-cache server` only if you've also changed server source code.)
+`docker compose --project-directory . --env-file deploy/.env -f deploy/compose.yml build --no-cache server` only if you've
+also changed server source code.)
 
 ---
 
@@ -117,7 +117,7 @@ docker compose up -d --force-recreate server
 1. Check the server logs for a quick sanity check:
 
    ```bash
-   docker logs ecricket_api --tail 50
+   docker compose --project-directory . --env-file deploy/.env -f deploy/compose.yml logs --tail 50 server
    ```
 
    If `GEMINI_API_KEY` is missing or empty, you'll see a warning in the logs the next time a video
@@ -145,14 +145,14 @@ docker compose up -d --force-recreate server
    Gemini video analysis failed, falling back to heuristic analysis: <error details>
    ```
 
-   Check `docker logs ecricket_api` for the specific reason if analysis results look generic.
+   Check the `server` service logs for the specific reason if analysis results look generic.
 
 ---
 
 ## 5. How It Works (Technical Summary)
 
-- **Service:** `web-app/server/src/services/geminiVideoAnalysisService.ts`
-- **Route:** `POST /api/videos/analyze` (`web-app/server/src/routes/ai.ts`)
+- **Service:** `services/platform-api/src/services/geminiVideoAnalysisService.ts`
+- **Route:** `POST /api/videos/analyze` (`services/platform-api/src/routes/ai.ts`)
 - **Flow:**
   1. Client sends either a device-uploaded video file (`multipart/form-data`) or a
      `driveFileId` (for clips already synced from the user's Google Drive).

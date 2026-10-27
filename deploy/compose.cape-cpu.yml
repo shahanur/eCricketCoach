@@ -2,7 +2,7 @@
 services:
   cape-api:
     build:
-      context: ../cape-api
+      context: ./services/cape-api
       dockerfile: Dockerfile.cpu
     image: ecricketcoach/cape-api:cpu
     environment:

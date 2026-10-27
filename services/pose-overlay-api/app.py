@@ -394,7 +394,7 @@ def evaluate_cape_rules(metrics: dict[str, float | None], shot_type: str) -> dic
     score = max(0, min(100, 100 - sum(penalties[fault["severity"]] for fault in faults)))
     verdict = next((fault["verdict"] for fault in faults if fault["verdict"]), None)
     return {
-        "source": "cape-api/app/rules/coaching_rules.yaml",
+        "source": "services/cape-api/app/rules/coaching_rules.yaml",
         "shot_type": shot_type,
         "score": score,
         "score_scope": "partial; only available contact-frame metrics were scored" if partial else "all required checks available",

@@ -31,9 +31,10 @@ lerna-debug.log*
 *.sw?
 .vscode/
 .idea/
-14 Oct 2026 22_41_1.mp4
+*.mp4
 
 # Others
 drive_analysis_complete/*
-web-app/server/var/openai-reports/
-web-app/pose-overlay-api/__pycache__/app.cpython-312.pyc
+.pytest_cache/
+services/platform-api/var/openai-reports/
+services/pose-overlay-api/__pycache__/app.cpython-312.pyc

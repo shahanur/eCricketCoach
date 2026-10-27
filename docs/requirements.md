@@ -125,14 +125,14 @@ Prisma models use domain names without a `Store` suffix and map to snake-case ta
 
 ### 4.4 Local Deployment
 
-`web-app/docker-compose.yml` defines:
+`deploy/compose.yml` defines:
 
 - `postgres`: PostgreSQL 16, exposed on host port 5433.
 - `redis`: Redis 7, exposed on host port 6379; not currently consumed by a queue worker.
 - `server`: Express API, exposed on host port 5001.
 - `client`: Vite-built static client served by Nginx on host port 3000.
 
-The stack is intended to run locally with `docker compose up --build` from `web-app`. Provider credentials, `JWT_SECRET`, and `GEMINI_API_KEY` must be configured to enable the corresponding integrations. The Compose defaults are for local development and are not production secrets or production deployment settings.
+The stack is intended to run locally with `docker compose --project-directory . --env-file deploy/.env -f deploy/compose.yml up --build` from the repository root. Provider credentials, `JWT_SECRET`, and `GEMINI_API_KEY` must be configured in `deploy/.env` to enable the corresponding integrations. The Compose defaults are for local development and are not production secrets or production deployment settings.
 
 ---
 

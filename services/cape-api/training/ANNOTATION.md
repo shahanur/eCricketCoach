@@ -65,7 +65,7 @@ python -m training.train_bat --data datasets/bat --device 0       # installs wei
 
 ### Labelling with Label Studio
 
-Run Label Studio locally, with `cape-api/datasets` mounted read-only at `/label-studio/files` and `LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true`. Create a project with `PolygonLabels` (`cricket_bat`) or, for the ball, `RectangleLabels` (`cricket_ball`, `blurred_ball`), and connect local storage at `/label-studio/files/raw_bat/images`. Press **Submit** on every frame, including frames with no bat, which become background frames. Then convert:
+Run Label Studio locally, with `services/cape-api/datasets` mounted read-only at `/label-studio/files` and `LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true`. Create a project with `PolygonLabels` (`cricket_bat`) or, for the ball, `RectangleLabels` (`cricket_ball`, `blurred_ball`), and connect local storage at `/label-studio/files/raw_bat/images`. Press **Submit** on every frame, including frames with no bat, which become background frames. Then convert:
 
 ```bash
 python -m training.labelstudio_to_yolo --url http://localhost:8080 --project 1 --token <token> \

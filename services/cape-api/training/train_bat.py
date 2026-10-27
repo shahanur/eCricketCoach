@@ -1,6 +1,6 @@
 """Fine-tune YOLOv11-Nano-Seg for cricket-bat segmentation and install it as weights/bat-seg.pt.
 
-Usage (from cape-api/):
+Usage (from services/cape-api/):
     python -m training.split_dataset datasets/raw_bat datasets/bat
     python -m training.train_bat --data datasets/bat --epochs 150 --device 0 [--export onnx|engine]
 Labels are YOLO segmentation polygons (`0 x1 y1 x2 y2 ...`, normalised); a frame with no bat has an empty

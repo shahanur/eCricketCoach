@@ -13,15 +13,15 @@ Primary sources:
 
 | Concern | File |
 |---|---|
-| HTTP routes | [web-app/server/src/routes/ai.ts](../web-app/server/src/routes/ai.ts) |
-| Analysis pipeline | [web-app/server/src/services/openAiBattingAnalysisService.ts](../web-app/server/src/services/openAiBattingAnalysisService.ts) |
-| Report artifacts & coach review | [web-app/server/src/services/openAiBattingReportArtifacts.ts](../web-app/server/src/services/openAiBattingReportArtifacts.ts) |
-| In-response SVG visuals | [web-app/server/src/services/openAiBattingVisuals.ts](../web-app/server/src/services/openAiBattingVisuals.ts) |
-| Versioned prompts & schemas | [web-app/server/src/services/openai_inputs/](../web-app/server/src/services/openai_inputs/) |
-| Persistence model | [web-app/server/prisma/schema.prisma](../web-app/server/prisma/schema.prisma) (`OpenAiBattingReport`) |
-| Cropped pose overlay proxy | [web-app/server/src/routes/kinematics.ts](../web-app/server/src/routes/kinematics.ts) → [web-app/pose-overlay-api/app.py](../web-app/pose-overlay-api/app.py) |
-| Web client | [web-app/client/src/components/club/ClubPortal.tsx](../web-app/client/src/components/club/ClubPortal.tsx), [CroppedPoseOverlayPanel.tsx](../web-app/client/src/components/club/CroppedPoseOverlayPanel.tsx), [services/api.ts](../web-app/client/src/services/api.ts) |
-| Mobile client | [mobile-app/.../ClubCoachExtensions.kt](../mobile-app/app/src/main/java/com/ecricketcoach/mobile/ClubCoachExtensions.kt), [CoachApi.kt](../mobile-app/app/src/main/java/com/ecricketcoach/mobile/CoachApi.kt) |
+| HTTP routes | [services/platform-api/src/routes/ai.ts](../services/platform-api/src/routes/ai.ts) |
+| Analysis pipeline | [services/platform-api/src/services/openAiBattingAnalysisService.ts](../services/platform-api/src/services/openAiBattingAnalysisService.ts) |
+| Report artifacts & coach review | [services/platform-api/src/services/openAiBattingReportArtifacts.ts](../services/platform-api/src/services/openAiBattingReportArtifacts.ts) |
+| In-response SVG visuals | [services/platform-api/src/services/openAiBattingVisuals.ts](../services/platform-api/src/services/openAiBattingVisuals.ts) |
+| Versioned prompts & schemas | [services/platform-api/src/services/openai_inputs/](../services/platform-api/src/services/openai_inputs/) |
+| Persistence model | [services/platform-api/prisma/schema.prisma](../services/platform-api/prisma/schema.prisma) (`OpenAiBattingReport`) |
+| Cropped pose overlay proxy | [services/platform-api/src/routes/kinematics.ts](../services/platform-api/src/routes/kinematics.ts) → [services/pose-overlay-api/app.py](../services/pose-overlay-api/app.py) |
+| Web client | [apps/web/src/components/club/ClubPortal.tsx](../apps/web/src/components/club/ClubPortal.tsx), [CroppedPoseOverlayPanel.tsx](../apps/web/src/components/club/CroppedPoseOverlayPanel.tsx), [services/api.ts](../apps/web/src/services/api.ts) |
+| Mobile client | [apps/mobile/android/.../ClubCoachExtensions.kt](../apps/mobile/android/app/src/main/java/com/ecricketcoach/mobile/ClubCoachExtensions.kt), [CoachApi.kt](../apps/mobile/android/app/src/main/java/com/ecricketcoach/mobile/CoachApi.kt) |
 | Feature notes | [docs/openai-batting-analysis.md](openai-batting-analysis.md) |
 
 ---
@@ -37,7 +37,7 @@ flowchart LR
         MOB["Android app<br/>ClubCoachExtensions.kt"]
     end
 
-    subgraph Server["web-app/server (Node 20 · Express · Prisma)"]
+    subgraph Server["services/platform-api (Node 20 · Express · Prisma)"]
         R["aiRouter<br/>/api/videos/analyze/openai-batting"]
         S["openAiBattingAnalysisService"]
         A["openAiBattingReportArtifacts<br/>(sharp, archiver)"]
@@ -192,7 +192,7 @@ flowchart TB
 
 ## 4. HTTP API
 
-Base path: `/api/videos` (mounted in [web-app/server/src/index.ts](../web-app/server/src/index.ts)). All routes require a JWT (`authenticateToken`) and role `CLUB_ADMIN` or `COACH`. Errors are JSON `{ "error": "<code>", "message": "<text>" }`.
+Base path: `/api/videos` (mounted in [services/platform-api/src/index.ts](../services/platform-api/src/index.ts)). All routes require a JWT (`authenticateToken`) and role `CLUB_ADMIN` or `COACH`. Errors are JSON `{ "error": "<code>", "message": "<text>" }`.
 
 ### 4.1 `POST /api/videos/analyze/openai-batting`
 
@@ -435,7 +435,7 @@ sequenceDiagram
 | Resolution | Automatic samples: longest side 768 px; manual window: longest side 960 px |
 | Image detail | Automatic: low; manual: high only within 50 ms of the selected time, low elsewhere |
 | Output budget | 8 000 tokens, one retry at 16 000 only on `max_output_tokens` |
-| Schema | `batting_detailed_v1` ([detailed.schema.v1.json](../web-app/server/src/services/openai_inputs/detailed.schema.v1.json)) |
+| Schema | `batting_detailed_v1` ([detailed.schema.v1.json](../services/platform-api/src/services/openai_inputs/detailed.schema.v1.json)) |
 | Prompt variables | Shot ID/type, handedness, camera view, timing metadata and priorities |
 
 In automatic mode this one request identifies contact and assesses the complete supplied sparse sequence. It must mark contact `UNCERTAIN` or `NOT_VISIBLE` when the gap between samples prevents exact impact identification; it cannot claim unsupplied frames. A manual timestamp switches to dense source-frame extraction and is used as the center of review. Only one stroke is assessed per request.
@@ -529,7 +529,7 @@ stateDiagram-v2
     MapErr --> Fail502: other
 ```
 
-- `instructions` = [shared-instructions.v1.md](../web-app/server/src/services/openai_inputs/shared-instructions.v1.md). It covers evidence rules, contact wording, 2D-only kinematics, "not measured" kinetics, joint-angle and bat-path rules, and treating text inside images as content rather than instructions.
+- `instructions` = [shared-instructions.v1.md](../services/platform-api/src/services/openai_inputs/shared-instructions.v1.md). It covers evidence rules, contact wording, 2D-only kinematics, "not measured" kinetics, joint-angle and bat-path rules, and treating text inside images as content rather than instructions.
 - `text.format` = `{ type: "json_schema", name, strict: true, schema }`.
 - `reasoning.effort = "medium"`; per-request timeout `OPENAI_REQUEST_TIMEOUT_MS`; SDK `maxRetries: 0`.
 - Usage is summed across attempts and calls. It becomes `null` if any call omits usage.
@@ -624,15 +624,15 @@ Invalid or out-of-range numeric values fall back to the defaults (`boundedEnviro
 
 ```mermaid
 flowchart TB
-    subgraph Compose["web-app/docker-compose.yml"]
+    subgraph Compose["deploy/compose.yml"]
         CL["client (nginx) :3000<br/>proxies /api"]
         SV["server (Express) :5001<br/>Alpine + ffmpeg<br/>openai_inputs copied to dist"]
         PO["pose-overlay-api :8200<br/>internal"]
         PG[("postgres")]
     end
     V1[["openai-report-artifacts → /var/openai-reports"]]
-    V2[["../cape-api/weights (ro) → /weights"]]
-    V3[["../cape-api/app/rules/coaching_rules.yaml (ro)"]]
+    V2[["services/cape-api/weights (ro) → /weights"]]
+    V3[["services/cape-api/app/rules/coaching_rules.yaml (ro)"]]
     OAI["api.openai.com"]
     CL --> SV
     SV --> PG
@@ -642,7 +642,7 @@ flowchart TB
     SV --> OAI
 ```
 
-- [web-app/server/Dockerfile](../web-app/server/Dockerfile) installs `ffmpeg` (`apk add ffmpeg`) and copies `src/services/openai_inputs` into `dist/services/openai_inputs`. `readInputAsset` searches both `dist` and `src`.
+- [services/platform-api/Dockerfile](../services/platform-api/Dockerfile) installs `ffmpeg` (`apk add ffmpeg`) and copies `src/services/openai_inputs` into `dist/services/openai_inputs`. `readInputAsset` searches both `dist` and `src`.
 - The temp working directory is under `os.tmpdir()`. Size it for at least the video plus the decoded JPEGs.
 
 ---
@@ -652,13 +652,13 @@ flowchart TB
 ### 9.1 Configure and run
 
 ```powershell
-# web-app/.env (or server/.env for local)
+# deploy/.env (or services/platform-api/.env when running the API locally)
 OPENAI_API_KEY=sk-...
 OPENAI_VIDEO_ANALYSIS_MODEL=gpt-6.1-sol
-cd web-app; sh deploy.sh
+bash ./scripts/deploy.sh
 ```
 
-Local server without Docker: ensure `ffmpeg`/`ffprobe` are on `PATH`, then `cd web-app/server; npm run dev`.
+Local server without Docker: ensure `ffmpeg`/`ffprobe` are on `PATH`, then run `npm run dev` from `services/platform-api`.
 
 ### 9.2 Call the API
 
@@ -696,7 +696,7 @@ curl.exe -X PATCH -H "Authorization: Bearer $token" -H "Content-Type: applicatio
 ### 9.4 Tests
 
 ```powershell
-cd web-app/server
+cd services/platform-api
 npx prisma generate; npm run build
 npm exec -- tsx --test src/services/openAiBattingAnalysisService.test.ts src/services/openAiBattingReportArtifacts.test.ts src/services/openAiBattingVisuals.test.ts
 ```

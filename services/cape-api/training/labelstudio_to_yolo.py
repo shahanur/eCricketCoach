@@ -1,6 +1,6 @@
 """Convert a Label Studio JSON export into YOLO label files (boxes for the ball, polygons for the bat).
 
-Usage (from cape-api/):
+Usage (from services/cape-api/):
     python -m training.labelstudio_to_yolo export.json datasets/raw_bat/labels --classes training/bat.yaml
     python -m training.labelstudio_to_yolo --url http://localhost:8080 --project 1 --token <token> \
         datasets/raw_bat/labels --classes training/bat.yaml

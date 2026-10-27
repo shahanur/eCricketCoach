@@ -8,18 +8,19 @@ This guide provides end-to-end instructions for configuring federated OpenID Con
 
 - **Frontend Origin**: `http://localhost:3000`
 - **Backend API Gateway**: `http://localhost:5001` (proxied by Nginx at `http://localhost:3000/api/`)
-- **Environment Configuration**: `web-app/.env` (cloned from `web-app/server/.env.example`)
+- **Environment Configuration**: `deploy/.env` (created from `services/platform-api/.env.example`)
 - **JWT Verification**: Managed securely via `jose` fetching upstream JSON Web Key Sets (JWKS).
 
 ---
 
 ## Step 1: Initialize Local Environment File
 
-In PowerShell from the repository root:
+In PowerShell from the repository root, create `deploy/.env` only if it does not already exist. This is the Compose environment file.
 
 ```powershell
-Set-Location web-app
-Copy-Item .\server\.env.example .\.env
+if (-not (Test-Path .\deploy\.env)) {
+    Copy-Item .\services\platform-api\.env.example .\deploy\.env
+}
 ```
 
 Generate a secure random string for `JWT_SECRET`:
@@ -28,7 +29,7 @@ Generate a secure random string for `JWT_SECRET`:
 -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 48 | ForEach-Object {[char]$_})
 ```
 
-Open `web-app/.env` and paste this string into `JWT_SECRET`.
+Open `deploy/.env` and paste this string into `JWT_SECRET`, preserving any existing local settings.
 
 ---
 
@@ -65,7 +66,7 @@ Select an existing Google Cloud project or create a new one (e.g., `ecricketcoac
 6. Click **Create** and copy your **Client ID** and **Client Secret**.
 
 ### 5. Update Environment File
-Add the credentials to `web-app/.env`:
+Add the credentials to `deploy/.env`:
 ```env
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-your-google-client-secret
@@ -102,7 +103,7 @@ On the app's **Overview** screen, copy the **Application (client) ID** (a GUID).
 2. Under **Web**, confirm that `http://localhost:3000/api/auth/microsoft/callback` is listed.
 
 ### 6. Update Environment File
-Add the credentials to `web-app/.env`:
+Add the credentials to `deploy/.env`:
 ```env
 MICROSOFT_CLIENT_ID=your-microsoft-application-client-id
 MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret-value
@@ -136,7 +137,7 @@ MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret-value
 4. Generate a signed ES256 client secret JWT using the `.p8` key (valid for up to 6 months).
 
 ### 4. Update Environment File
-Add the credentials to `web-app/.env`:
+Add the credentials to `deploy/.env`:
 ```env
 APPLE_CLIENT_ID=com.ecricketcoach.client
 APPLE_CLIENT_SECRET=your-generated-jwt-from-p8-key
@@ -146,7 +147,7 @@ APPLE_CLIENT_SECRET=your-generated-jwt-from-p8-key
 
 ## Step 5: Complete Environment Variable Checklist
 
-Verify that `web-app/.env` contains the required settings:
+Verify that `deploy/.env` contains the required settings:
 
 ```env
 APP_ORIGIN=http://localhost:3000
@@ -170,10 +171,10 @@ APPLE_CLIENT_SECRET=
 
 ## Step 6: Deploy & Restart Containers
 
-Rebuild and start the updated stack from `web-app`:
+Rebuild and start the updated stack from the repository root:
 
 ```powershell
-docker compose up --build -d
+docker compose --project-directory . --env-file deploy/.env -f deploy/compose.yml up --build -d
 ```
 
 ---
