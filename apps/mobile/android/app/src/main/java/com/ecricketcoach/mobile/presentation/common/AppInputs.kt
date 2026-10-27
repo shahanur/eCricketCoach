@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,6 +49,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -172,8 +172,8 @@ fun AppTextField(
 }
 
 /**
- * Outlined 40dp frame shared by every form control. The label always sits on the top border
- * so the control keeps the same compact height whether it is empty or filled.
+ * Outlined 40dp frame shared by every form control. The label sits above the box as a small caption,
+ * so the box itself keeps the same compact height whether it is empty or filled.
  */
 @Composable
 private fun AppFieldFrame(
@@ -208,8 +208,20 @@ private fun AppFieldFrame(
         focused -> colors.focusedLabelColor
         else -> colors.unfocusedLabelColor
     }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Box(Modifier.fillMaxWidth().padding(top = if (label != null) 7.dp else 0.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (label != null) {
+            Text(
+                label,
+                fontSize = AppFontSize.Small,
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = labelColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 2.dp)
+            )
+        }
+        Box(Modifier.fillMaxWidth()) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -234,20 +246,6 @@ private fun AppFieldFrame(
                         Box(Modifier.padding(top = if (singleLine) 0.dp else 3.dp)) { trailing() }
                     }
                 }
-            }
-            if (label != null) {
-                Text(
-                    label,
-                    fontSize = AppFontSize.Caption,
-                    lineHeight = 12.sp,
-                    color = labelColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .offset(x = 10.dp, y = (-6).dp)
-                        .background(container, AppShapes.Small)
-                        .padding(horizontal = 4.dp)
-                )
             }
         }
         if (supportingText != null) {
@@ -355,12 +353,13 @@ private fun AppPickerField(
 fun AppDateField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    label: String?,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    placeholder: String? = null
 ) {
     val context = LocalContext.current
-    AppPickerField(value, label, Icons.Outlined.CalendarMonth, modifier, enabled) {
+    AppPickerField(value, label, Icons.Outlined.CalendarMonth, modifier, enabled, placeholder) {
         val initial = runCatching { LocalDate.parse(value) }.getOrDefault(LocalDate.now())
         android.app.DatePickerDialog(
             context,

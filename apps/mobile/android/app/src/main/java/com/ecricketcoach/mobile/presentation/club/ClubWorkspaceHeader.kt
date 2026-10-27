@@ -143,7 +143,9 @@ private fun pageTitle(tab: String) = when (tab) {
     "Sessions" -> "Training Sessions"
     "Edit session" -> "Edit Session"
     "Schedule session" -> "Schedule Training Session"
-    "Assessments", "Edit assessment", "Assessment" -> "Player Assessments"
+    "Assessments", "Assessment" -> "Player Assessments"
+    "Edit assessment" -> "Edit Assessment"
+    "Schedule assessment" -> "Schedule Assessment"
     "Edit squad" -> "Edit Squad"
     "New squad" -> "New Squad"
     "Delivered sessions" -> "Delivered Sessions"
@@ -152,7 +154,7 @@ private fun pageTitle(tab: String) = when (tab) {
 
 private fun pageIconLabel(tab: String) = when (tab) {
     "Sessions", "Edit session", "Schedule session", "Delivered sessions" -> "Sessions"
-    "Assessments", "Edit assessment", "Assessment" -> "Assessments"
+    "Assessments", "Edit assessment", "Schedule assessment", "Assessment" -> "Assessments"
     "Edit squad", "New squad" -> "Squads"
     "Participants" -> "Members"
     else -> tab
@@ -169,6 +171,7 @@ private fun pageDescription(tab: String) = when (tab) {
     "Schedule session" -> "Plan a training session for your squad."
     "Assessments" -> "Track player progress and development."
     "Edit assessment" -> "Update assessment details and evaluation criteria."
+    "Schedule assessment" -> "Plan an assessment for one of your players."
     "Assessment" -> "Review and complete this player assessment."
     "Reports" -> "Review club activity, participation and player progress."
     "Certificates" -> "Manage player achievements and certificates."

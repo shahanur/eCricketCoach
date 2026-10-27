@@ -417,7 +417,6 @@ internal fun ClubCoachWorkspace(
     var sessionEditSaving by remember { mutableStateOf(false) }
     var sessionEditError by remember { mutableStateOf("") }
     var sessionDrillBusy by remember { mutableStateOf(false) }
-    var showScheduleAssessment by remember { mutableStateOf(false) }
     var editingAssessment by remember { mutableStateOf<PlayerAssessment?>(null) }
     var assessmentEditSaving by remember { mutableStateOf(false) }
     var assessmentEditError by remember { mutableStateOf("") }
@@ -470,10 +469,6 @@ internal fun ClubCoachWorkspace(
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
-        val isEkotaStyledPage = tab in setOf(
-            "Overview", "Squads", "Sessions", "Edit session", "Schedule session",
-            "Assessments", "Edit assessment", "Assessment", "Video Analysis"
-        )
         val workspaceTabs = remember(isClubAdmin) {
             buildList {
                 add("Overview")
@@ -554,10 +549,7 @@ internal fun ClubCoachWorkspace(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .then(
-                        if (isEkotaStyledPage) Modifier.ekotaOverviewBackdrop()
-                        else Modifier.background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))))
-                    )
+                    .ekotaOverviewBackdrop()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 ClubWorkspaceHeader(
@@ -584,6 +576,8 @@ internal fun ClubCoachWorkspace(
                         "Edit squad", "New squad" -> ({ editingSquad = null; tab = "Squads" })
                         "Edit session" -> ({ editingSession = null; tab = "Sessions" })
                         "Schedule session" -> ({ tab = "Sessions" })
+                        "Edit assessment" -> ({ editingAssessment = null; tab = "Assessments" })
+                        "Schedule assessment" -> ({ tab = "Assessments" })
                         else -> null
                     },
                     onSessionBack = {
@@ -1157,7 +1151,10 @@ internal fun ClubCoachWorkspace(
             "Assessments" -> MaterialTheme(colorScheme = WorkspaceColors) { AssessmentsPanel(
                 assessments,
                 members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
-                onSchedule = { showScheduleAssessment = true },
+                onSchedule = {
+                    assessmentEditError = ""
+                    tab = "Schedule assessment"
+                },
                 onStart = { assessment ->
                     scope.launch {
                         error = ""
@@ -1242,10 +1239,38 @@ internal fun ClubCoachWorkspace(
                             }
                         }
                     },
-                    onBack = { editingAssessment = null; tab = "Assessments" },
                     modifier = Modifier.weight(1f)
                 ) }
             }
+            "Schedule assessment" -> MaterialTheme(colorScheme = WorkspaceColors) { ScheduleAssessmentPanel(
+                players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
+                isSaving = assessmentEditSaving,
+                saveError = assessmentEditError,
+                onCancel = { tab = "Assessments" },
+                onSave = { player, title, date, time, discipline ->
+                    scope.launch {
+                        assessmentEditSaving = true
+                        assessmentEditError = ""
+                        try {
+                            val body = JSONObject()
+                                .put("title", title)
+                                .put("playerId", player.id)
+                                .put("discipline", discipline)
+                                .put("scheduledDate", date)
+                            if (time.isNotBlank()) body.put("scheduledTime", time)
+                            club.schedulePlayerAssessment(body)
+                            tab = "Assessments"
+                            refresh()
+                            notice = "Assessment scheduled for ${player.name}."
+                        } catch (failure: Exception) {
+                            assessmentEditError = failure.message ?: "Unable to schedule this assessment."
+                        } finally {
+                            assessmentEditSaving = false
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) }
             "Assessment" -> activeAssessment?.let { assessment ->
                 MaterialTheme(colorScheme = WorkspaceColors) { AssessmentRunPanel(
                     assessment = assessment,
@@ -1587,33 +1612,6 @@ internal fun ClubCoachWorkspace(
             }
         )
     }
-    if (showScheduleAssessment) {
-        ScheduleAssessmentDialog(
-            players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
-            onDismiss = { showScheduleAssessment = false },
-            onSave = { player, title, date, time, discipline ->
-                scope.launch {
-                    error = ""
-                    try {
-                        val body = JSONObject()
-                            .put("title", title)
-                            .put("playerId", player.id)
-                            .put("discipline", discipline)
-                            .put("scheduledDate", date)
-                        if (time.isNotBlank()) body.put("scheduledTime", time)
-                        club.schedulePlayerAssessment(
-                            body
-                        )
-                        showScheduleAssessment = false
-                        refresh()
-                        notice = "Assessment scheduled for ${player.name}."
-                    } catch (failure: Exception) {
-                        error = failure.message ?: "Unable to schedule this assessment."
-                    }
-                }
-            }
-        )
-    }
     selectedPromotionPlayer?.let { player ->
         PromotePlayerDialog(
             player = player,
@@ -1745,7 +1743,7 @@ private fun workspaceSectionFor(tab: String): String = when (tab) {
     "Delivered sessions", "Participants" -> "Overview"
     "Edit squad", "New squad" -> "Squads"
     "Edit session", "Schedule session" -> "Sessions"
-    "Edit assessment", "Assessment" -> "Assessments"
+    "Edit assessment", "Schedule assessment", "Assessment" -> "Assessments"
     else -> tab
 }
 
@@ -2965,15 +2963,15 @@ private fun SessionsPanel(
                 if (isTablet) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         AppSearchField(search, { search = it }, "Search sessions…", Modifier.weight(1.4f))
-                        AppDateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                        AppDateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                        AppDateField(fromDate, { fromDate = it }, null, Modifier.weight(1f), placeholder = "From date")
+                        AppDateField(throughDate, { throughDate = it }, null, Modifier.weight(1f), placeholder = "To date")
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         AppSearchField(search, { search = it }, "Search sessions…", Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            AppDateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                            AppDateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                            AppDateField(fromDate, { fromDate = it }, null, Modifier.weight(1f), placeholder = "From date")
+                            AppDateField(throughDate, { throughDate = it }, null, Modifier.weight(1f), placeholder = "To date")
                         }
                     }
                 }
@@ -3388,7 +3386,6 @@ private fun EditAssessmentPanel(
     saveError: String,
     onSave: (String, String, String) -> Unit,
     onDelete: () -> Unit,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var title by remember(assessment.id) { mutableStateOf(assessment.title) }
@@ -3396,12 +3393,6 @@ private fun EditAssessmentPanel(
     var scheduledTime by remember(assessment.id) { mutableStateOf(assessment.scheduledTime.orEmpty()) }
     var deleteConfirm by remember { mutableStateOf(false) }
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit assessment", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
-            }
-        }
         item {
             AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -4051,41 +4042,52 @@ private fun SharedTemplatePickerCard(templates: List<TrainingTemplate>, onApply:
 }
 
 @Composable
-private fun ScheduleAssessmentDialog(
+private fun ScheduleAssessmentPanel(
     players: List<ClubMember>,
-    onDismiss: () -> Unit,
-    onSave: (ClubMember, String, String, String, String) -> Unit
+    isSaving: Boolean,
+    saveError: String,
+    onCancel: () -> Unit,
+    onSave: (ClubMember, String, String, String, String) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var selectedPlayer by remember { mutableStateOf(players.firstOrNull()) }
     var title by remember { mutableStateOf("Skills assessment") }
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var time by remember { mutableStateOf("") }
     var discipline by remember { mutableStateOf(selectedPlayer?.discipline?.uppercase()?.takeIf(ClubDisciplines::contains) ?: "BATTING") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Schedule assessment") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                AppDropdown(
-                    "Player", players, selectedPlayer, { selectedPlayer = it }, Modifier.fillMaxWidth(),
-                    optionLabel = { it.name }, placeholder = "Select player"
-                )
-                AppTextField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AppDateField(date, { date = it }, "Date", Modifier.weight(1f))
-                    AppTimeField(time, { time = it }, "Time (optional)", Modifier.weight(1f))
+    LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            AppPanel(contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (players.isEmpty()) {
+                        Text("No active players are available to assess.", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.error)
+                    }
+                    AppDropdown(
+                        "Player", players, selectedPlayer, { selectedPlayer = it }, Modifier.fillMaxWidth(),
+                        optionLabel = { it.name }, placeholder = "Select player", enabled = !isSaving
+                    )
+                    AppTextField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppDateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
+                        AppTimeField(time, { time = it }, "Time (optional)", Modifier.weight(1f), enabled = !isSaving)
+                    }
+                    AppDropdown("Discipline", ClubDisciplines, discipline, { discipline = it }, Modifier.fillMaxWidth(), enabled = !isSaving)
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
+                        WorkspaceAction("Cancel", Icons.Outlined.Close, onCancel, enabled = !isSaving)
+                        WorkspaceAction(
+                            "Schedule",
+                            Icons.Outlined.CheckCircle,
+                            { selectedPlayer?.let { onSave(it, title.trim(), date, time, discipline) } },
+                            enabled = !isSaving && selectedPlayer != null && title.isNotBlank() && isIsoDate(date),
+                            primary = true
+                        )
+                    }
                 }
-                AppDropdown("Discipline", ClubDisciplines, discipline, { discipline = it }, Modifier.fillMaxWidth())
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = { selectedPlayer?.let { onSave(it, title.trim(), date, time, discipline) } },
-                enabled = selectedPlayer != null && title.isNotBlank() && isIsoDate(date), shape = AppShapes.Button
-            ) { Text("Schedule") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
-    )
+        }
+    }
 }
 
 @Composable
