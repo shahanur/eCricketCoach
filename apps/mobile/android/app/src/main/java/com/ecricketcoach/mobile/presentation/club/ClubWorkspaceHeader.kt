@@ -140,7 +140,9 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
 }
 
 private fun pageTitle(tab: String) = when (tab) {
-    "Sessions", "Edit session", "Schedule session" -> "Training Sessions"
+    "Sessions" -> "Training Sessions"
+    "Edit session" -> "Edit Session"
+    "Schedule session" -> "Schedule Training Session"
     "Assessments", "Edit assessment", "Assessment" -> "Player Assessments"
     "Edit squad" -> "Edit Squad"
     "New squad" -> "New Squad"

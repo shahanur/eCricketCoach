@@ -580,7 +580,12 @@ internal fun ClubCoachWorkspace(
                         "INCIDENT" -> "Incident"
                         else -> null
                     },
-                    onPageBack = if (tab == "Edit squad" || tab == "New squad") ({ editingSquad = null; tab = "Squads" }) else null,
+                    onPageBack = when (tab) {
+                        "Edit squad", "New squad" -> ({ editingSquad = null; tab = "Squads" })
+                        "Edit session" -> ({ editingSession = null; tab = "Sessions" })
+                        "Schedule session" -> ({ tab = "Sessions" })
+                        else -> null
+                    },
                     onSessionBack = {
                         if (executionCoachPage in setOf("DRILL", "OBSERVATION", "OBSERVATIONS", "PRECHECK", "WENT_WELL", "DISRUPTION", "ADJUSTMENT", "INCIDENT")) {
                             executionCoachPage = "LIVE"
@@ -1119,7 +1124,6 @@ internal fun ClubCoachWorkspace(
                             }
                         }
                     },
-                    onBack = { editingSession = null; tab = "Sessions" },
                     modifier = Modifier.weight(1f)
                 ) }
             }
@@ -3673,7 +3677,6 @@ private fun EditSessionPanel(
     onDelete: () -> Unit,
     onAddDrill: (Drill) -> Unit,
     onRemoveDrill: (String) -> Unit,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var title by remember(session.id) { mutableStateOf(session.title) }
@@ -3689,11 +3692,6 @@ private fun EditSessionPanel(
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
         Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit session", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(10.dp))
             if (isTablet) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SessionDetailsCard(
@@ -3822,11 +3820,6 @@ private fun ScheduleSessionPanel(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val isTablet = maxWidth >= 600.dp
         Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Schedule training session", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(10.dp))
             val form: @Composable (Modifier) -> Unit = { formModifier ->
                 Column(formModifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (templates.isNotEmpty()) {
