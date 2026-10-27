@@ -163,6 +163,11 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.io.IOException
 import java.util.Locale
+import com.ecricketcoach.mobile.presentation.common.theme.LocalIsDarkTheme
+import com.ecricketcoach.mobile.presentation.common.theme.LiveSessionColors
+import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceColors
+import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceChipBackground
+import com.ecricketcoach.mobile.presentation.common.theme.WorkspaceChipContent
 
 private val ClubDisciplines = listOf("BATTING", "BOWLING", "KEEPING", "FIELDING")
 private data class OverviewQuickAction(
@@ -172,26 +177,18 @@ private data class OverviewQuickAction(
     val endColor: Color,
     val destination: String
 )
-private val EkotaOverviewColors = lightColorScheme(
-    primary = Color(0xFF5134D8),
-    onPrimary = Color.White,
-    secondary = Color(0xFF2589F3),
-    background = Color(0xFFF7F8FD),
-    surface = Color.White,
-    surfaceVariant = Color(0xFFF0EEFF),
-    onSurface = Color(0xFF151B35),
-    onSurfaceVariant = Color(0xFF5B6782),
-    outline = Color(0xFFDDE2F1),
-    outlineVariant = Color(0xFFE8EAF3),
-    error = Color(0xFFD94A66)
-)
 
-private fun Modifier.ekotaOverviewBackdrop(): Modifier = drawBehind {
+@Composable
+private fun Modifier.ekotaOverviewBackdrop(): Modifier {
+    val dark = LocalIsDarkTheme.current
+    val base = if (dark) listOf(Color(0xFF0B1020), Color(0xFF0E1428), Color(0xFF141236)) else listOf(Color(0xFFF9FAFF), Color(0xFFF5F6FD), Color(0xFFF2F0FF))
+    val highlight = if (dark) Color(0x10FFFFFF) else Color(0x20FFFFFF)
+    return drawBehind {
     val w = size.width
     val h = size.height
     drawRect(
         Brush.linearGradient(
-            colors = listOf(Color(0xFFF9FAFF), Color(0xFFF5F6FD), Color(0xFFF2F0FF)),
+            colors = base,
             start = Offset.Zero,
             end = Offset(w, h)
         )
@@ -229,7 +226,8 @@ private fun Modifier.ekotaOverviewBackdrop(): Modifier = drawBehind {
         lineTo(0f, h)
         close()
     }
-    drawPath(lowerHighlight, Color(0x20FFFFFF))
+    drawPath(lowerHighlight, highlight)
+    }
 }
 
 // Material has no wicket-keeping gloves, so draw an outlined mirrored pair in the same 24dp style.
@@ -801,7 +799,7 @@ internal fun ClubCoachWorkspace(
         val activeExecution = executingSession
         if (activeExecution != null) {
             val executionContentModifier = Modifier.weight(1f)
-            MaterialTheme(colorScheme = LiveSessionLightColors) {
+            MaterialTheme(colorScheme = LiveSessionColors) {
                 SessionExecutionScreen(
                     session = activeExecution,
                     players = members.filter {
@@ -949,7 +947,7 @@ internal fun ClubCoachWorkspace(
                 )
             }
         } else when (tab) {
-            "Overview" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+            "Overview" -> MaterialTheme(colorScheme = WorkspaceColors) {
                 OverviewPanel(
                     userId = user.id,
                     isClubAdmin = isClubAdmin,
@@ -999,7 +997,7 @@ internal fun ClubCoachWorkspace(
                 },
                 modifier = Modifier.weight(1f)
             )
-            "Squads" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+            "Squads" -> MaterialTheme(colorScheme = WorkspaceColors) {
                 SquadPanel(
                     squads,
                     members = members,
@@ -1077,7 +1075,7 @@ internal fun ClubCoachWorkspace(
                     modifier = Modifier.weight(1f)
                 )
             }
-            "Sessions" -> MaterialTheme(colorScheme = EkotaOverviewColors) {
+            "Sessions" -> MaterialTheme(colorScheme = WorkspaceColors) {
                 SessionsPanel(
                 sessions = sessions,
                 userId = user.id,
@@ -1148,7 +1146,7 @@ internal fun ClubCoachWorkspace(
             }
             "Edit session" -> editingSession?.let { originalSession ->
                 val session = sessions.find { it.id == originalSession.id } ?: originalSession
-                MaterialTheme(colorScheme = EkotaOverviewColors) { EditSessionPanel(
+                MaterialTheme(colorScheme = WorkspaceColors) { EditSessionPanel(
                     session = session,
                     squads = squads,
                     coaches = members.filter { it.role == "COACH" && it.invitationStatus == "ACTIVE" },
@@ -1225,7 +1223,7 @@ internal fun ClubCoachWorkspace(
                     modifier = Modifier.weight(1f)
                 ) }
             }
-            "Schedule session" -> MaterialTheme(colorScheme = EkotaOverviewColors) { ScheduleSessionPanel(
+            "Schedule session" -> MaterialTheme(colorScheme = WorkspaceColors) { ScheduleSessionPanel(
                 squads = squads,
                 players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 coaches = members.filter { it.role == "COACH" && it.invitationStatus == "ACTIVE" },
@@ -1252,7 +1250,7 @@ internal fun ClubCoachWorkspace(
                     }
                 }
             ) }
-            "Assessments" -> MaterialTheme(colorScheme = EkotaOverviewColors) { AssessmentsPanel(
+            "Assessments" -> MaterialTheme(colorScheme = WorkspaceColors) { AssessmentsPanel(
                 assessments,
                 members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 onSchedule = { showScheduleAssessment = true },
@@ -1297,7 +1295,7 @@ internal fun ClubCoachWorkspace(
                 modifier = Modifier.weight(1f)
             ) }
             "Edit assessment" -> editingAssessment?.let { assessment ->
-                MaterialTheme(colorScheme = EkotaOverviewColors) { EditAssessmentPanel(
+                MaterialTheme(colorScheme = WorkspaceColors) { EditAssessmentPanel(
                     assessment = assessment,
                     isSaving = assessmentEditSaving,
                     saveError = assessmentEditError,
@@ -1345,7 +1343,7 @@ internal fun ClubCoachWorkspace(
                 ) }
             }
             "Assessment" -> activeAssessment?.let { assessment ->
-                MaterialTheme(colorScheme = EkotaOverviewColors) { AssessmentRunPanel(
+                MaterialTheme(colorScheme = WorkspaceColors) { AssessmentRunPanel(
                     assessment = assessment,
                     isSaving = assessmentRunSaving,
                     isGeneratingInsights = assessmentInsightsBusy,
@@ -1575,7 +1573,7 @@ internal fun ClubCoachWorkspace(
                 onPromote = { selectedPromotionPlayer = it },
                 modifier = Modifier.weight(1f)
             )
-            "Video Analysis" -> MaterialTheme(colorScheme = EkotaOverviewColors) { VideoAnalysisPanel(
+            "Video Analysis" -> MaterialTheme(colorScheme = WorkspaceColors) { VideoAnalysisPanel(
                 analysisRepository = analysisRepository,
                 players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
                 onRefreshDrive = {
@@ -1877,7 +1875,7 @@ private fun EkotaWorkspaceHeader(
     activeSessionPageTitle: String? = null,
     onSessionBack: (() -> Unit)? = null
 ) {
-    MaterialTheme(colorScheme = EkotaOverviewColors) {
+    MaterialTheme(colorScheme = WorkspaceColors) {
         val isOverview = tab == "Overview"
         val pageTitle = when (tab) {
             "Sessions", "Edit session", "Schedule session" -> "Training Sessions"
@@ -1921,15 +1919,15 @@ private fun EkotaWorkspaceHeader(
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 if (isOverview && activeSession == null) {
-                    Text(greeting, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                    Text(greeting, color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
                 IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
-                    Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = EkotaOverviewColors.primary)
+                    Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = WorkspaceColors.primary)
                 }
                 IconButton(onClick = onSignOut, modifier = Modifier.size(38.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = EkotaOverviewColors.onSurface)
+                    Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = WorkspaceColors.onSurface)
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1938,8 +1936,8 @@ private fun EkotaWorkspaceHeader(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = EkotaOverviewColors.surface,
-                                border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                                color = WorkspaceColors.surface,
+                                border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
                                 modifier = Modifier.size(44.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -1947,7 +1945,7 @@ private fun EkotaWorkspaceHeader(
                                         Icon(
                                             Icons.AutoMirrored.Outlined.ArrowBack,
                                             contentDescription = "Back",
-                                            tint = EkotaOverviewColors.primary,
+                                            tint = WorkspaceColors.primary,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -1956,7 +1954,7 @@ private fun EkotaWorkspaceHeader(
                             Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(
                                     activeSessionPageTitle ?: activeSession.title,
-                                    color = EkotaOverviewColors.onSurface,
+                                    color = WorkspaceColors.onSurface,
                                     fontSize = 23.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     maxLines = 1,
@@ -1968,7 +1966,7 @@ private fun EkotaWorkspaceHeader(
                                     } else {
                                         "${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}"
                                     },
-                                    color = EkotaOverviewColors.onSurfaceVariant,
+                                    color = WorkspaceColors.onSurfaceVariant,
                                     fontSize = 12.sp,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -1979,20 +1977,20 @@ private fun EkotaWorkspaceHeader(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(
                                 shape = CircleShape,
-                                color = EkotaOverviewColors.surface,
-                                border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                                color = WorkspaceColors.surface,
+                                border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
                                 modifier = Modifier.size(44.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     IconButton(onClick = onAssessmentBack) {
-                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to assessments", tint = EkotaOverviewColors.primary, modifier = Modifier.size(24.dp))
+                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to assessments", tint = WorkspaceColors.primary, modifier = Modifier.size(24.dp))
                                     }
                                 }
                             }
                             Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     "${activeAssessment.playerName} · ${activeAssessment.discipline}".uppercase(),
-                                    color = EkotaOverviewColors.primary,
+                                    color = WorkspaceColors.primary,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
@@ -2001,7 +1999,7 @@ private fun EkotaWorkspaceHeader(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Text(
                                         activeAssessment.title,
-                                        color = EkotaOverviewColors.onSurface,
+                                        color = WorkspaceColors.onSurface,
                                         fontSize = 23.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         maxLines = 1,
@@ -2010,11 +2008,11 @@ private fun EkotaWorkspaceHeader(
                                     )
                                     Text(
                                         activeAssessment.status.replace('_', ' '),
-                                        color = EkotaOverviewColors.primary,
+                                        color = WorkspaceColors.primary,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier
-                                            .background(EkotaOverviewColors.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
+                                            .background(WorkspaceColors.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
                                             .padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
                                 }
@@ -2022,7 +2020,7 @@ private fun EkotaWorkspaceHeader(
                                     activeAssessment.scheduledDate +
                                         (activeAssessment.scheduledTime?.let { " at $it" } ?: "") +
                                         (activeAssessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
-                                    color = EkotaOverviewColors.onSurfaceVariant,
+                                    color = WorkspaceColors.onSurfaceVariant,
                                     fontSize = 14.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -2031,35 +2029,35 @@ private fun EkotaWorkspaceHeader(
                         }
                     } else if (isOverview) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(user.name, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(user.name, color = WorkspaceColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(" 👋", fontSize = 24.sp)
                         }
-                        Text("Let’s plan, coach and grow together.", color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Let’s plan, coach and grow together.", color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(workspaceTabIcon(pageIconLabel), contentDescription = null, tint = EkotaOverviewColors.primary, modifier = Modifier.size(29.dp))
-                                Text(pageTitle, color = EkotaOverviewColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Icon(workspaceTabIcon(pageIconLabel), contentDescription = null, tint = WorkspaceColors.primary, modifier = Modifier.size(29.dp))
+                                Text(pageTitle, color = WorkspaceColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            Text(pageDescription, color = EkotaOverviewColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(pageDescription, color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = EkotaOverviewColors.surface,
-                    border = BorderStroke(1.dp, EkotaOverviewColors.primary.copy(alpha = 0.18f)),
+                    color = WorkspaceColors.surface,
+                    border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
                     modifier = Modifier.padding(start = 8.dp)
                 ) {
                     Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = EkotaOverviewColors.primary, modifier = Modifier.size(18.dp))
-                        Text(user.clubName ?: "Ekota Academy", color = EkotaOverviewColors.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = EkotaOverviewColors.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = WorkspaceColors.primary, modifier = Modifier.size(18.dp))
+                        Text(user.clubName ?: "Ekota Academy", color = WorkspaceColors.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+                        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = WorkspaceColors.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
                     }
                 }
             }
         }
-        HorizontalDivider(color = EkotaOverviewColors.outline.copy(alpha = 0.8f))
+        HorizontalDivider(color = WorkspaceColors.outline.copy(alpha = 0.8f))
     }
 }
 
@@ -2192,13 +2190,13 @@ private fun OverviewPanel(
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFFEDEBFF),
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(18.dp)
             ) {
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Bolt, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
-                        Text("  Quick actions", color = Color(0xFF171D37), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("  Quick actions", color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     if (isTablet) {
                         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -2220,13 +2218,13 @@ private fun OverviewPanel(
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFFEDEBFF),
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(18.dp)
             ) {
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.LibraryBooks, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
-                        Text("  Coaching practice library", color = Color(0xFF171D37), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("  Coaching practice library", color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         LibraryLink("ECB coaching resources")
@@ -2273,7 +2271,7 @@ private fun OverviewMetricCard(
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 12.dp * scale)) {
-                    Text(title, color = Color(0xFF17203B), fontWeight = FontWeight.ExtraBold, fontSize = 16.sp * scale)
+                    Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp * scale)
                     Text(detail, color = Color(0xFF56617D), fontSize = 13.sp * scale, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text(value, color = accent, fontSize = 29.sp * scale, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp * scale))
@@ -2415,15 +2413,15 @@ private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) 
                 Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
                 Text("  Led by ${session.coachName ?: session.coachId ?: "Coach"}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Surface(color = Color(0xFFE8EEFF), shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+            Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
                 Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color(0xFF3159D8), modifier = Modifier.size(18.dp))
-                    Text("  $sessionDate", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
+                    Text("  $sessionDate", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
-        Box(Modifier.size(28.dp).background(Color(0xFFE8EEFF), CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Open session", tint = Color(0xFF3159D8), modifier = Modifier.size(24.dp))
+        Box(Modifier.size(28.dp).background(WorkspaceChipBackground, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Open session", tint = WorkspaceChipContent, modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -3098,12 +3096,12 @@ private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onC
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(22.dp),
-        color = if (selected) accent else Color.White.copy(alpha = 0.72f),
+        color = if (selected) accent else WorkspaceColors.surface.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, if (selected) accent else accent.copy(alpha = 0.12f))
     ) {
         Row(Modifier.padding(horizontal = 13.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(Modifier.size(9.dp).background(if (selected) Color.White else accent, CircleShape))
-            Text(label, color = if (selected) Color.White else EkotaOverviewColors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label, color = if (selected) Color.White else WorkspaceColors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -3602,10 +3600,10 @@ private fun SessionCard(
                         Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Text(" Led by ${session.coachName ?: session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Surface(color = Color(0xFFE8EEFF), shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
                         Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = Color(0xFF3159D8), modifier = Modifier.size(18.dp))
-                            Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = Color(0xFF3159D8), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
+                            Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
                 }
@@ -3806,7 +3804,7 @@ private fun AssessmentCard(
         "BOWLING" -> Color(0xFF7541E8)
         "FIELDING" -> Color(0xFFE59A12)
         "KEEPING" -> Color(0xFF13A875)
-        else -> EkotaOverviewColors.primary
+        else -> WorkspaceColors.primary
     }
     val statusColor = when (assessment.status) {
         "COMPLETED" -> Color(0xFF12A875)

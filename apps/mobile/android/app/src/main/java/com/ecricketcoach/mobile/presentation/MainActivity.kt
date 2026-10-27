@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -18,7 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.credentials.ClearCredentialStateRequest
@@ -100,7 +101,8 @@ private fun CoachApp(
     homeViewModel: HomeViewModel = hiltViewModel()
 ) {
     val user by authViewModel.currentUser.collectAsStateWithLifecycle()
-    var isDark by remember { mutableStateOf(true) }
+    val systemDark = isSystemInDarkTheme()
+    var isDark by rememberSaveable { mutableStateOf(systemDark) }
     val signOut = { authViewModel.signOut(clearCredentialState) }
 
     LaunchedEffect(user?.id, user?.tenantId, user?.role) {

@@ -141,6 +141,7 @@ import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.ecricketcoach.mobile.presentation.common.theme.LiveSessionColors
 
 private val PreparationChecklist = listOf(
     "plan" to "Review objectives, session plan and drill order",
@@ -152,19 +153,6 @@ private val PreparationChecklist = listOf(
     "weather" to "Check weather and agree an indoor/backup plan"
 )
 
-internal val LiveSessionLightColors = lightColorScheme(
-    primary = Color(0xFF5134D8),
-    onPrimary = Color.White,
-    secondary = Color(0xFF2589F3),
-    background = Color(0xFFF3F5FD),
-    surface = Color.White.copy(alpha = 0.8f),
-    surfaceVariant = Color(0xFFF0EEFF),
-    onSurface = Color(0xFF151B35),
-    onSurfaceVariant = Color(0xFF5B6782),
-    outline = Color(0xFFDDE2F1),
-    outlineVariant = Color(0xFFE8EAF3),
-    error = Color(0xFFD94A66)
-)
 
 private data class ExecutionDrill(
     val id: String,
@@ -844,7 +832,7 @@ internal fun SessionExecutionScreen(
     }
 
     if (!readOnly && status == "PREPARING") {
-        MaterialTheme(colorScheme = LiveSessionLightColors) {
+        MaterialTheme(colorScheme = LiveSessionColors) {
             LiveSessionPreStartScreen(
                 session = session,
                 players = assignedPlayers,
@@ -891,7 +879,7 @@ internal fun SessionExecutionScreen(
             )
         }
         if (showEarlyStartConfirm) {
-            MaterialTheme(colorScheme = LiveSessionLightColors) {
+            MaterialTheme(colorScheme = LiveSessionColors) {
                 AlertDialog(
                     onDismissRequest = { showEarlyStartConfirm = false },
                     title = { Text("Start before scheduled date?") },
@@ -914,7 +902,7 @@ internal fun SessionExecutionScreen(
     }
 
     if (!readOnly && status in setOf("IN_PROGRESS", "PAUSED")) {
-        MaterialTheme(colorScheme = LiveSessionLightColors) {
+        MaterialTheme(colorScheme = LiveSessionColors) {
             if (coachPage == "PRECHECK") {
                 LiveSessionPreCheckScreen(
                     session = session,
