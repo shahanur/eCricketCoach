@@ -38,7 +38,8 @@ internal fun ClubWorkspaceHeader(
     activeAssessment: PlayerAssessment? = null,
     onAssessmentBack: () -> Unit = {},
     activeSessionPageTitle: String? = null,
-    onSessionBack: (() -> Unit)? = null
+    onSessionBack: (() -> Unit)? = null,
+    onPageBack: (() -> Unit)? = null
 ) {
     MaterialTheme(colorScheme = WorkspaceColors) {
         val isOverview = tab == "Overview"
@@ -53,6 +54,12 @@ internal fun ClubWorkspaceHeader(
                 activeSession != null -> ActiveSessionTitle(activeSession, activeSessionPageTitle) { onSessionBack?.invoke() }
                 activeAssessment != null -> ActiveAssessmentTitle(activeAssessment, onAssessmentBack)
                 isOverview -> HeaderGreetingTitle(user.name, "Let’s plan, coach and grow together.")
+                onPageBack != null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    HeaderBackButton(onPageBack)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        HeaderPageTitle(workspaceTabIcon(pageIconLabel(tab)), pageTitle(tab), pageDescription(tab))
+                    }
+                }
                 else -> HeaderPageTitle(workspaceTabIcon(pageIconLabel(tab)), pageTitle(tab), pageDescription(tab))
             }
         }
@@ -135,7 +142,8 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
 private fun pageTitle(tab: String) = when (tab) {
     "Sessions", "Edit session", "Schedule session" -> "Training Sessions"
     "Assessments", "Edit assessment", "Assessment" -> "Player Assessments"
-    "Edit squad" -> "Squads"
+    "Edit squad" -> "Edit Squad"
+    "New squad" -> "New Squad"
     "Delivered sessions" -> "Delivered Sessions"
     else -> tab
 }
@@ -143,7 +151,7 @@ private fun pageTitle(tab: String) = when (tab) {
 private fun pageIconLabel(tab: String) = when (tab) {
     "Sessions", "Edit session", "Schedule session", "Delivered sessions" -> "Sessions"
     "Assessments", "Edit assessment", "Assessment" -> "Assessments"
-    "Edit squad" -> "Squads"
+    "Edit squad", "New squad" -> "Squads"
     "Participants" -> "Members"
     else -> tab
 }
@@ -151,7 +159,9 @@ private fun pageIconLabel(tab: String) = when (tab) {
 private fun pageDescription(tab: String) = when (tab) {
     "Video Analysis" -> "Pick any player and review their batting technique from a video."
     "Members" -> "Manage club staff and players."
-    "Squads", "Edit squad" -> "Organize players into squads and track their development."
+    "Edit squad" -> "Update squad details, disciplines and players."
+    "New squad" -> "Create a squad, choose its disciplines and add players."
+    "Squads" -> "Organize players into squads and track their development."
     "Sessions" -> "Plan, deliver and track coaching sessions."
     "Edit session" -> "Update session details, drills and squad assignments."
     "Schedule session" -> "Plan a training session for your squad."

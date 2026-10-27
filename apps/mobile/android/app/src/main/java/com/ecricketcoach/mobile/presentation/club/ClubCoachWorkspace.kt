@@ -305,12 +305,12 @@ private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
         color = scheme.surfaceVariant,
         modifier = modifier
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-            Icon(disciplineIcon(discipline), contentDescription = null, tint = scheme.primary, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)) {
+            Icon(disciplineIcon(discipline), contentDescription = null, tint = scheme.primary, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
             Text(
                 discipline.lowercase().replaceFirstChar { it.uppercase() },
-                fontSize = AppFontSize.Small,
+                fontSize = AppFontSize.Caption,
                 color = scheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
             )
@@ -406,7 +406,8 @@ internal fun ClubCoachWorkspace(
     var error by viewModel::error
     var notice by viewModel::notice
     var showInvite by remember { mutableStateOf(false) }
-    var showCreateSquad by remember { mutableStateOf(false) }
+    var newSquadSaving by remember { mutableStateOf(false) }
+    var newSquadError by remember { mutableStateOf("") }
     var editingSquad by remember { mutableStateOf<ClubSquad?>(null) }
     var squadEditSaving by remember { mutableStateOf(false) }
     var squadEditError by remember { mutableStateOf("") }
@@ -579,6 +580,7 @@ internal fun ClubCoachWorkspace(
                         "INCIDENT" -> "Incident"
                         else -> null
                     },
+                    onPageBack = if (tab == "Edit squad" || tab == "New squad") ({ editingSquad = null; tab = "Squads" }) else null,
                     onSessionBack = {
                         if (executionCoachPage in setOf("DRILL", "OBSERVATION", "OBSERVATIONS", "PRECHECK", "WENT_WELL", "DISRUPTION", "ADJUSTMENT", "INCIDENT")) {
                             executionCoachPage = "LIVE"
@@ -867,7 +869,7 @@ internal fun ClubCoachWorkspace(
                 SquadPanel(
                     squads,
                     members = members,
-                    onCreate = { showCreateSquad = true },
+                    onCreate = { newSquadError = ""; tab = "New squad" },
                     onEdit = { squad ->
                         squadEditError = ""
                         editingSquad = squad
@@ -895,7 +897,7 @@ internal fun ClubCoachWorkspace(
                     squad = squad,
                     isSaving = squadEditSaving,
                     saveError = squadEditError,
-                    onSave = { name, ageGroup, disciplines ->
+                    onSave = { name, ageGroup, disciplines, _ ->
                         scope.launch {
                             squadEditSaving = true
                             squadEditError = ""
@@ -935,12 +937,44 @@ internal fun ClubCoachWorkspace(
                             }
                         }
                     },
-                    onBack = { editingSquad = null; tab = "Squads" },
                     members = members,
                     onToggleMember = { member, inSquad -> assignMemberToSquad(member, squad.name, inSquad) },
                     modifier = Modifier.weight(1f)
                 )
             }
+            "New squad" -> EditSquadPanel(
+                squad = null,
+                isSaving = newSquadSaving,
+                saveError = newSquadError,
+                onSave = { name, ageGroup, disciplines, playerIds ->
+                    scope.launch {
+                        newSquadSaving = true
+                        newSquadError = ""
+                        try {
+                            club.createSquad(
+                                JSONObject()
+                                    .put("name", name)
+                                    .put("ageGroup", ageGroup)
+                                    .put("discipline", JSONArray(disciplines))
+                                    .put("memberIds", JSONArray(playerIds))
+                                    .put("clubId", clubId)
+                            )
+                            members.filter { it.id in playerIds }.forEach { assignMemberToSquad(it, name, true) }
+                            tab = "Squads"
+                            refresh()
+                            notice = "Squad created."
+                        } catch (failure: Exception) {
+                            newSquadError = failure.message ?: "Unable to create squad."
+                        } finally {
+                            newSquadSaving = false
+                        }
+                    }
+                },
+                onDelete = null,
+                members = members,
+                onToggleMember = { _, _ -> },
+                modifier = Modifier.weight(1f)
+            )
             "Sessions" -> MaterialTheme(colorScheme = WorkspaceColors) {
                 SessionsPanel(
                 sessions = sessions,
@@ -1549,31 +1583,6 @@ internal fun ClubCoachWorkspace(
             }
         )
     }
-    if (showCreateSquad) {
-        CreateSquadDialog(
-            onDismiss = { showCreateSquad = false },
-            onSave = { name, ageGroup, disciplines ->
-                scope.launch {
-                    error = ""
-                    try {
-                        club.createSquad(
-                            JSONObject()
-                                .put("name", name)
-                                .put("ageGroup", ageGroup)
-                                .put("discipline", JSONArray(disciplines))
-                                .put("memberIds", JSONArray())
-                                .put("clubId", clubId)
-                        )
-                        showCreateSquad = false
-                        refresh()
-                        notice = "Squad created."
-                    } catch (failure: Exception) {
-                        error = failure.message ?: "Unable to create squad."
-                    }
-                }
-            }
-        )
-    }
     if (showScheduleAssessment) {
         ScheduleAssessmentDialog(
             players = members.filter { it.role == "PLAYER" && it.invitationStatus == "ACTIVE" },
@@ -1730,7 +1739,7 @@ private fun ClubWorkspaceSidebar(
 
 private fun workspaceSectionFor(tab: String): String = when (tab) {
     "Delivered sessions", "Participants" -> "Overview"
-    "Edit squad" -> "Squads"
+    "Edit squad", "New squad" -> "Squads"
     "Edit session", "Schedule session" -> "Sessions"
     "Edit assessment", "Assessment" -> "Assessments"
     else -> tab
@@ -2641,97 +2650,86 @@ private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onC
 @Composable
 private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = Modifier, onEdit: () -> Unit, onDelete: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val accent = scheme.primary
     AppPanel(
         modifier = modifier,
-        border = BorderStroke(1.dp, scheme.outline),
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.8f)),
         contentPadding = PaddingValues(0.dp),
         spacing = 0.dp
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = AppShapes.Medium, color = scheme.primaryContainer, modifier = Modifier.size(48.dp)) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(shape = AppShapes.Small, color = scheme.primaryContainer, modifier = Modifier.size(40.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = accent, modifier = Modifier.size(26.dp))
+                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(22.dp))
                     }
                 }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        "${squad.ageGroup.ifBlank { "All ages" }} · $memberCount ${if (memberCount == 1) "member" else "members"}",
-                        fontSize = AppFontSize.Small,
-                        color = scheme.onSurfaceVariant
-                    )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(squad.name, color = scheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(15.dp))
+                        Text(squad.ageGroup.ifBlank { "All ages" }, fontSize = AppFontSize.Small, color = scheme.onSurfaceVariant, maxLines = 1)
+                        Icon(Icons.Outlined.Group, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 5.dp).size(15.dp))
+                        Text("$memberCount ${if (memberCount == 1) "member" else "members"}", fontSize = AppFontSize.Small, color = scheme.onSurfaceVariant, maxLines = 1)
+                    }
                 }
-                Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             }
             if (squad.disciplines.isNotEmpty()) {
                 Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 14.dp, bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     squad.disciplines.forEach { discipline -> DisciplineChip(discipline) }
                 }
             }
-            HorizontalDivider(color = scheme.outlineVariant, modifier = Modifier.padding(vertical = 8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
-                SquadCardAction("Edit", Icons.Outlined.Edit, scheme.onSurfaceVariant, onEdit)
-                SquadCardAction("Delete", Icons.Outlined.Delete, scheme.error, onDelete)
+            HorizontalDivider(color = scheme.outlineVariant, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("${squad.disciplines.size} Disciplines", fontSize = AppFontSize.Caption, color = scheme.onSurface.copy(alpha = 0.6f))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                    SessionIconAction(Icons.Outlined.Edit, "Edit ${squad.name}", onEdit)
+                    SessionIconAction(Icons.Outlined.Delete, "Delete ${squad.name}", onDelete, danger = true)
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun SquadCardAction(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accent: Color,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = AppShapes.Medium,
-        color = Color.Transparent
-    ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-            Text(label, color = accent, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
 private fun EditSquadPanel(
-    squad: ClubSquad,
+    squad: ClubSquad?,
     members: List<ClubMember>,
     isSaving: Boolean,
     saveError: String,
-    onSave: (String, String, List<String>) -> Unit,
-    onDelete: () -> Unit,
+    onSave: (name: String, ageGroup: String, disciplines: List<String>, newPlayerIds: List<String>) -> Unit,
+    onDelete: (() -> Unit)?,
     onToggleMember: (ClubMember, Boolean) -> Unit,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var name by remember(squad.id) { mutableStateOf(squad.name) }
-    var ageGroup by remember(squad.id) { mutableStateOf(squad.ageGroup) }
-    val selected = remember(squad.id) {
-        mutableStateMapOf<String, Boolean>().apply { ClubDisciplines.forEach { put(it, it in squad.disciplines) } }
+    val key = squad?.id ?: "new"
+    var name by remember(key) { mutableStateOf(squad?.name.orEmpty()) }
+    var ageGroup by remember(key) { mutableStateOf(squad?.ageGroup ?: "U15") }
+    val selected = remember(key) {
+        mutableStateMapOf<String, Boolean>().apply {
+            ClubDisciplines.forEach { put(it, if (squad != null) it in squad.disciplines else it == "BATTING") }
+        }
+    }
+    // New squads keep picked players locally until the squad exists.
+    val draftPlayers = remember(key) { mutableStateMapOf<String, Boolean>() }
+    val isMember: (ClubMember) -> Boolean = { member ->
+        if (squad != null) member.isInSquad(squad.name) else draftPlayers[member.id] == true
+    }
+    val toggleMember: (ClubMember, Boolean) -> Unit =
+        if (squad != null) onToggleMember else { member, add -> draftPlayers[member.id] = add }
+    val save = {
+        onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList(), draftPlayers.filterValues { it }.keys.toList())
     }
     var deleteConfirm by remember { mutableStateOf(false) }
     var playerSearch by remember { mutableStateOf("") }
     var showPlayerPicker by remember { mutableStateOf(false) }
-    val playerCount = members.count { it.role == "PLAYER" && it.isInSquad(squad.name) }
+    val playerCount = members.count { it.role == "PLAYER" && isMember(it) }
 
     BoxWithConstraints(modifier) {
         val isTablet = maxWidth >= 600.dp
         Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit squad", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(10.dp))
             if (isTablet) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SquadDetailsCard(
@@ -2742,16 +2740,17 @@ private fun EditSquadPanel(
                         selected = selected,
                         isSaving = isSaving,
                         saveError = saveError,
-                        onSave = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
-                        onDeleteRequest = { deleteConfirm = true },
+                        onSave = save,
+                        onDeleteRequest = onDelete?.let { { deleteConfirm = true } },
+                        saveLabel = if (squad == null) "Create squad" else "Save",
                         modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                     )
                     SquadPlayersPanel(
-                        squad = squad,
+                        isMember = isMember,
                         members = members,
                         search = playerSearch,
                         onSearchChange = { playerSearch = it },
-                        onToggle = onToggleMember,
+                        onToggle = toggleMember,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
@@ -2765,8 +2764,9 @@ private fun EditSquadPanel(
                         selected = selected,
                         isSaving = isSaving,
                         saveError = saveError,
-                        onSave = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
-                        onDeleteRequest = { deleteConfirm = true },
+                        onSave = save,
+                        onDeleteRequest = onDelete?.let { { deleteConfirm = true } },
+                        saveLabel = if (squad == null) "Create squad" else "Save",
                         modifier = Modifier.fillMaxWidth()
                     )
                     WorkspaceAction("Manage players ($playerCount)", Icons.Outlined.Group, { showPlayerPicker = true })
@@ -2780,18 +2780,18 @@ private fun EditSquadPanel(
             title = { Text("Manage players") },
             text = {
                 SquadPlayersPanel(
-                    squad = squad,
+                    isMember = isMember,
                     members = members,
                     search = playerSearch,
                     onSearchChange = { playerSearch = it },
-                    onToggle = onToggleMember,
+                    onToggle = toggleMember,
                     modifier = Modifier.height(380.dp)
                 )
             },
             confirmButton = { TextButton(onClick = { showPlayerPicker = false }, shape = AppShapes.Button) { Text("Done") } }
         )
     }
-    if (deleteConfirm) {
+    if (deleteConfirm && squad != null && onDelete != null) {
         AlertDialog(
             onDismissRequest = { deleteConfirm = false },
             title = { Text("Delete squad?") },
@@ -2814,7 +2814,8 @@ private fun SquadDetailsCard(
     isSaving: Boolean,
     saveError: String,
     onSave: () -> Unit,
-    onDeleteRequest: () -> Unit,
+    onDeleteRequest: (() -> Unit)?,
+    saveLabel: String = "Save",
     modifier: Modifier = Modifier
 ) {
     AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp) {
@@ -2833,9 +2834,9 @@ private fun SquadDetailsCard(
             if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
-                WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
+                if (onDeleteRequest != null) WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
                 WorkspaceAction(
-                    "Save",
+                    saveLabel,
                     Icons.Outlined.CheckCircle,
                     onSave,
                     enabled = !isSaving && name.isNotBlank() && selected.values.any { it },
@@ -2848,7 +2849,7 @@ private fun SquadDetailsCard(
 
 @Composable
 private fun SquadPlayersPanel(
-    squad: ClubSquad,
+    isMember: (ClubMember) -> Boolean,
     members: List<ClubMember>,
     search: String,
     onSearchChange: (String) -> Unit,
@@ -2858,7 +2859,7 @@ private fun SquadPlayersPanel(
     val players = members
         .filter { it.role == "PLAYER" }
         .filter { it.name.contains(search.trim(), ignoreCase = true) }
-        .sortedByDescending { it.isInSquad(squad.name) }
+        .sortedByDescending { isMember(it) }
     AppPanel(modifier = modifier, contentPadding = PaddingValues(0.dp), spacing = 0.dp, fillHeight = true) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Players", fontWeight = FontWeight.SemiBold)
@@ -2868,7 +2869,7 @@ private fun SquadPlayersPanel(
             } else {
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     players.forEach { member ->
-                        val inSquad = member.isInSquad(squad.name)
+                        val inSquad = isMember(member)
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3507,37 +3508,6 @@ private fun InviteMemberDialog(
             Button(onClick = { onSave(name.trim(), email.trim(), role, ageGroup.trim(), discipline) }, enabled = name.isNotBlank() && email.contains("@"), shape = AppShapes.Button) {
                 Text("Send invite")
             }
-        },
-        dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, List<String>) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var ageGroup by remember { mutableStateOf("U15") }
-    val selected = remember { mutableStateMapOf<String, Boolean>().apply { ClubDisciplines.forEach { put(it, it == "BATTING") } } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Create squad") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                AppTextField(name, { name = it }, "Squad name")
-                AppTextField(ageGroup, { ageGroup = it }, "Age group")
-                Text("Disciplines")
-                ClubDisciplines.forEach { discipline ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = selected[discipline] == true, onCheckedChange = { selected[discipline] = it })
-                        Text(discipline)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(name.trim(), ageGroup.trim(), selected.filterValues { it }.keys.toList()) },
-                enabled = name.isNotBlank() && selected.values.any { it }, shape = AppShapes.Button
-            ) { Text("Create") }
         },
         dismissButton = { TextButton(onClick = onDismiss, shape = AppShapes.Button) { Text("Cancel") } }
     )
