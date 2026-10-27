@@ -85,7 +85,7 @@ internal fun TabButton(title: String, count: Int, selected: Boolean, onClick: ()
         Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = foreground, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))
-            Text(count.toString(), color = foreground.copy(alpha = 0.75f), fontSize = 12.sp)
+            Text(count.toString(), color = foreground.copy(alpha = 0.75f), fontSize = AppFontSize.Small)
         }
     }
 }
@@ -132,12 +132,12 @@ internal fun ContentCard(title: String, eyebrow: String, details: String) {
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(eyebrow, color = Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(eyebrow, color = Green, fontSize = AppFontSize.Caption, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.SemiBold)
             if (details.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text(details, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 13.sp)
+                Text(details, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.Small)
             }
         }
     }
@@ -152,6 +152,6 @@ internal fun EmptyState(title: String, detail: String, modifier: Modifier = Modi
     ) {
         Text(title, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
-        Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 13.sp)
+        Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = AppFontSize.Small)
     }
 }

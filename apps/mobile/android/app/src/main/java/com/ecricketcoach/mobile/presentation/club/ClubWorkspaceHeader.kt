@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.club
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -67,7 +68,7 @@ private fun ActiveSessionTitle(session: ClubTrainingSession, pageTitle: String?,
             Text(
                 pageTitle ?: session.title,
                 color = scheme.onSurface,
-                fontSize = 23.sp,
+                fontSize = AppFontSize.Headline,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -76,7 +77,7 @@ private fun ActiveSessionTitle(session: ClubTrainingSession, pageTitle: String?,
             Text(
                 if (pageTitle != null) "${session.title}  ·  $details" else details,
                 color = scheme.onSurfaceVariant,
-                fontSize = 12.sp,
+                fontSize = AppFontSize.Small,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -93,7 +94,7 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
             Text(
                 "${assessment.playerName} · ${assessment.discipline}".uppercase(),
                 color = scheme.primary,
-                fontSize = 14.sp,
+                fontSize = AppFontSize.Body,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -102,7 +103,7 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
                 Text(
                     assessment.title,
                     color = scheme.onSurface,
-                    fontSize = 23.sp,
+                    fontSize = AppFontSize.Headline,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -111,7 +112,7 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
                 Text(
                     assessment.status.replace('_', ' '),
                     color = scheme.primary,
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .background(scheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
@@ -123,7 +124,7 @@ private fun ActiveAssessmentTitle(assessment: PlayerAssessment, onBack: () -> Un
                     (assessment.scheduledTime?.let { " at $it" } ?: "") +
                     (assessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
                 color = scheme.onSurfaceVariant,
-                fontSize = 14.sp,
+                fontSize = AppFontSize.Body,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

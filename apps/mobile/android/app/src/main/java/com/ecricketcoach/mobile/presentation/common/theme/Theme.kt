@@ -1,7 +1,8 @@
-﻿package com.ecricketcoach.mobile.presentation.common.theme
+package com.ecricketcoach.mobile.presentation.common.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -9,6 +10,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 
 internal val Indigo = Color(0xFFB6A3FF)
 internal val Green = Color(0xFF58C288)
@@ -96,9 +99,54 @@ val WorkspaceChipContent: Color
     @Composable @ReadOnlyComposable
     get() = if (LocalIsDarkTheme.current) Color(0xFF9DB6FF) else Color(0xFF3159D8)
 
+/**
+ * App-wide font size scale. Use these instead of literal `.sp` values so text sizes stay consistent
+ * and can be tuned in one place.
+ */
+object AppFontSize {
+    /** Tiny meta text: badges, timestamps. */
+    val Micro = 10.sp
+    /** Captions, field labels, secondary meta. */
+    val Caption = 11.sp
+    /** Small/secondary body text, chips. */
+    val Small = 12.sp
+    /** Normal body text. */
+    val Body = 14.sp
+    /** Emphasised body text, list item titles. */
+    val BodyLarge = 16.sp
+    /** Card and section titles. */
+    val Title = 18.sp
+    /** Dialog and panel titles. */
+    val TitleLarge = 20.sp
+    /** Page sub-headers and detail headers. */
+    val Headline = 24.sp
+    /** Large stat numbers. */
+    val HeadlineLarge = 28.sp
+    /** Screen headers. */
+    val Display = 32.sp
+}
+
+/** Material typography mapped onto [AppFontSize] so default `Text` styles follow the same scale. */
+val AppTypography = Typography().let { base ->
+    base.copy(
+        headlineLarge = base.headlineLarge.copy(fontSize = AppFontSize.Display, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold),
+        headlineMedium = base.headlineMedium.copy(fontSize = AppFontSize.HeadlineLarge, lineHeight = 36.sp),
+        headlineSmall = base.headlineSmall.copy(fontSize = AppFontSize.Headline, lineHeight = 32.sp),
+        titleLarge = base.titleLarge.copy(fontSize = AppFontSize.TitleLarge, lineHeight = 28.sp),
+        titleMedium = base.titleMedium.copy(fontSize = AppFontSize.Title, lineHeight = 24.sp),
+        titleSmall = base.titleSmall.copy(fontSize = AppFontSize.BodyLarge, lineHeight = 22.sp),
+        bodyLarge = base.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, lineHeight = 24.sp),
+        bodyMedium = base.bodyMedium.copy(fontSize = AppFontSize.Body, lineHeight = 20.sp),
+        bodySmall = base.bodySmall.copy(fontSize = AppFontSize.Small, lineHeight = 16.sp),
+        labelLarge = base.labelLarge.copy(fontSize = AppFontSize.Body, lineHeight = 20.sp),
+        labelMedium = base.labelMedium.copy(fontSize = AppFontSize.Small, lineHeight = 16.sp),
+        labelSmall = base.labelSmall.copy(fontSize = AppFontSize.Caption, lineHeight = 16.sp)
+    )
+}
+
 @Composable
 fun ECricketCoachTheme(isDark: Boolean, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalIsDarkTheme provides isDark) {
-        MaterialTheme(colorScheme = if (isDark) DarkColors else LightColors, content = content)
+        MaterialTheme(colorScheme = if (isDark) DarkColors else LightColors, typography = AppTypography, content = content)
     }
 }

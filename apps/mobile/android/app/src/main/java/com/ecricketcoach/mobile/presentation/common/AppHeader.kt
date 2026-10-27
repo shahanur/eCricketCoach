@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.common
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,7 +55,7 @@ fun AppHeader(
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 if (greeting != null) {
-                    Text(greeting, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
+                    Text(greeting, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.BodyLarge, modifier = Modifier.weight(1f))
                 } else {
                     Spacer(Modifier.weight(1f))
                 }
@@ -94,7 +95,7 @@ fun ClubBadge(clubName: String, modifier: Modifier = Modifier) {
     ) {
         Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Groups, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(18.dp))
-            Text(clubName, color = scheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+            Text(clubName, color = scheme.onSurface, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
             Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = scheme.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
         }
     }
@@ -105,10 +106,10 @@ fun ClubBadge(clubName: String, modifier: Modifier = Modifier) {
 fun HeaderGreetingTitle(name: String, tagline: String) {
     val scheme = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = scheme.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(" 👋", fontSize = 24.sp)
+        Text(name, color = scheme.onSurface, fontSize = AppFontSize.Display, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(" 👋", fontSize = AppFontSize.Headline)
     }
-    Text(tagline, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(tagline, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }
 
 /** Icon + page title with a one-line description. */
@@ -118,9 +119,9 @@ fun HeaderPageTitle(icon: ImageVector, title: String, description: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(icon, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(29.dp))
-            Text(title, color = scheme.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = scheme.onSurface, fontSize = AppFontSize.Display, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(description, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(description, color = scheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

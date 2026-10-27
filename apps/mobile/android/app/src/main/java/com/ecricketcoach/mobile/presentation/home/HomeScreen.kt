@@ -116,11 +116,11 @@ internal fun HomeScreen(
         }
         if (offline) {
             Spacer(Modifier.height(10.dp))
-            Text("Offline · showing your last synchronized data", color = Green, fontSize = 12.sp)
+            Text("Offline · showing your last synchronized data", color = Green, fontSize = AppFontSize.Small)
         }
         if (error.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
         }
         Spacer(Modifier.height(12.dp))
         if (refreshing && drills.isEmpty() && templates.isEmpty()) {

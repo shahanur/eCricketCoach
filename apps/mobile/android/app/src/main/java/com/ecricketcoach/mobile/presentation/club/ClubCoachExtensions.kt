@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.club
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -39,11 +40,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
@@ -78,10 +76,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -129,8 +123,8 @@ internal fun ClubDrillsPanel(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Available Drill Catalogue", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Pre-defined drills can be cloned into your club catalogue.", fontSize = 12.sp)
+                    Text("Available Drill Catalogue", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
+                    Text("Pre-defined drills can be cloned into your club catalogue.", fontSize = AppFontSize.Small)
                 }
                 if (canCreate) {
                     Button(onClick = { showCreate = true }) {
@@ -142,23 +136,22 @@ internal fun ClubDrillsPanel(
             }
         }
         item {
-            OutlinedTextField(
+            AppSearchField(
                 value = search,
                 onValueChange = { search = it },
-                label = { Text("Search title, focus, setup") },
-                singleLine = true,
-                trailingIcon = { VoiceMicButton(search, { search = it }, "Say a drill to search", singleLine = true, replace = true) },
-                modifier = Modifier.fillMaxWidth()
+                placeholder = "Search title, focus, setup",
+                modifier = Modifier.fillMaxWidth(),
+                voicePrompt = "Say a drill to search"
             )
         }
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DrillFilter("Discipline", discipline, listOf("ALL") + ExtensionDisciplines) { discipline = it }
-                DrillFilter("Context", context, listOf("ALL", "INDIVIDUAL", "GROUP")) { context = it }
-                DrillFilter("Source", source, listOf("ALL", "SYSTEM_PREDEFINED", "CLUB_CUSTOM")) { source = it }
+                AppFilterDropdown("Discipline", (listOf("ALL") + ExtensionDisciplines).map { it to it }, discipline, { discipline = it }, Modifier.width(200.dp))
+                AppFilterDropdown("Context", listOf("ALL", "INDIVIDUAL", "GROUP").map { it to it }, context, { context = it }, Modifier.width(200.dp))
+                AppFilterDropdown("Source", listOf("ALL", "SYSTEM_PREDEFINED", "CLUB_CUSTOM").map { it to it }, source, { source = it }, Modifier.width(230.dp))
             }
         }
-        item { Text("Showing ${filtered.size} of ${drills.size} drills", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) }
+        item { Text("Showing ${filtered.size} of ${drills.size} drills", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) }
         if (filtered.isEmpty()) item { Text("No drills match these filters.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)) }
         items(filtered, key = Drill::id) { drill ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -175,10 +168,10 @@ internal fun ClubDrillsPanel(
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(drill.title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text(if (drill.source == "CLUB_CUSTOM") "Club custom" else "Pre-defined", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                            Text(if (drill.source == "CLUB_CUSTOM") "Club custom" else "Pre-defined", fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.primary)
                         }
-                        Text("${drill.discipline} · ${drill.skillSet} · ${drill.durationMinutes} min · ${drill.contextType}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                        if (drill.instructions.isNotBlank()) Text(drill.instructions, fontSize = 12.sp, maxLines = 3, modifier = Modifier.padding(top = 5.dp))
+                        Text("${drill.discipline} · ${drill.skillSet} · ${drill.durationMinutes} min · ${drill.contextType}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
+                        if (drill.instructions.isNotBlank()) Text(drill.instructions, fontSize = AppFontSize.Small, maxLines = 3, modifier = Modifier.padding(top = 5.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 5.dp)) {
                             if (drill.source == "CLUB_CUSTOM") {
                                 IconButton(onClick = { editing = drill }) {
@@ -221,19 +214,6 @@ internal fun ClubDrillsPanel(
     }
 }
 
-@Composable
-private fun DrillFilter(label: String, value: String, values: List<String>, onSelected: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        OutlinedButton(onClick = { expanded = true }) { Text("$label: $value") }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            values.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { onSelected(option); expanded = false })
-            }
-        }
-    }
-}
-
 private fun drillImageSource(url: String): String = when {
     url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:") -> url
     else -> BuildConfig.API_BASE_URL.trimEnd('/') + "/" + url.trimStart('/')
@@ -267,27 +247,25 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
         title = {
             Column {
                 Text("Edit Drill", fontWeight = FontWeight.Bold)
-                Text("Update this drill's details, setup instructions, and reference image.", fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                Text("Update this drill's details, setup instructions, and reference image.", fontSize = AppFontSize.Small, fontWeight = FontWeight.Normal)
             }
         },
         text = {
             Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 HorizontalDivider()
-                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true,
-                    trailingIcon = { VoiceMicButton(title, { title = it }, "Say the drill title", singleLine = true, replace = true) })
+                AppTextField(title, { title = it }, "Drill title", voicePrompt = "Say the drill title")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    DrillSelectField("Discipline", discipline, ExtensionDisciplines, { discipline = it }, Modifier.weight(1f))
-                    DrillSelectField("Context", contextType, listOf("INDIVIDUAL", "GROUP"), { contextType = it }, Modifier.weight(1f))
+                    AppDropdown("Discipline", ExtensionDisciplines, discipline, { discipline = it }, Modifier.weight(1f))
+                    AppDropdown("Context", listOf("INDIVIDUAL", "GROUP"), contextType, { contextType = it }, Modifier.weight(1f))
                 }
-                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill Set Focus") }, singleLine = true,
-                    trailingIcon = { VoiceMicButton(skillSet, { skillSet = it }, "Say the skill set focus", singleLine = true, replace = true) })
-                OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, label = { Text("Duration in minutes") }, singleLine = true)
-                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup Instructions") }, minLines = 3,
-                    trailingIcon = { VoiceMicButton(instructions, { instructions = it }, "Speak the setup instructions") })
-                Text("Setup Image (optional)", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                AppTextField(skillSet, { skillSet = it }, "Skill Set Focus", voicePrompt = "Say the skill set focus")
+                AppNumberField(duration, { duration = it }, "Duration in minutes")
+                AppTextField(instructions, { instructions = it }, "Setup Instructions", singleLine = false, minLines = 3,
+                    voicePrompt = "Speak the setup instructions")
+                Text("Setup Image (optional)", fontSize = AppFontSize.Small, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }) { Text("Choose file") }
-                    Text(if (imageUrl == null) "No file chosen" else "Image selected", fontSize = 12.sp)
+                    Text(if (imageUrl == null) "No file chosen" else "Image selected", fontSize = AppFontSize.Small)
                 }
                 if (imageUrl != null) {
                     Box {
@@ -302,7 +280,7 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
                         }
                     }
                 }
-                if (imageError.isNotBlank()) Text(imageError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (imageError.isNotBlank()) Text(imageError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             }
         },
         confirmButton = {
@@ -311,24 +289,6 @@ private fun EditClubDrillDialog(drill: Drill, onDismiss: () -> Unit, onSave: (St
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
-}
-
-@Composable
-private fun DrillSelectField(label: String, value: String, options: List<String>, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-            Column(horizontalAlignment = Alignment.Start) {
-                Text(label, fontSize = 10.sp)
-                Text(value, maxLines = 1)
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { onSelect(option); expanded = false })
-            }
-        }
-    }
 }
 
 @Composable
@@ -347,15 +307,13 @@ private fun CreateClubDrillDialog(
         title = { Text("Add custom drill") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("Drill title") }, singleLine = true,
-                    trailingIcon = { VoiceMicButton(title, { title = it }, "Say the drill title", singleLine = true, replace = true) })
-                OutlinedTextField(skillSet, { skillSet = it }, label = { Text("Skill focus") }, singleLine = true,
-                    trailingIcon = { VoiceMicButton(skillSet, { skillSet = it }, "Say the skill focus", singleLine = true, replace = true) })
-                PickerRow("Discipline: $discipline", ExtensionDisciplines) { discipline = it }
-                PickerRow("Context: $context", listOf("INDIVIDUAL", "GROUP")) { context = it }
-                OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, label = { Text("Duration in minutes") }, singleLine = true)
-                OutlinedTextField(instructions, { instructions = it }, label = { Text("Setup instructions") }, minLines = 2,
-                    trailingIcon = { VoiceMicButton(instructions, { instructions = it }, "Speak the setup instructions") })
+                AppTextField(title, { title = it }, "Drill title", voicePrompt = "Say the drill title")
+                AppTextField(skillSet, { skillSet = it }, "Skill focus", voicePrompt = "Say the skill focus")
+                AppDropdown("Discipline", ExtensionDisciplines, discipline, { discipline = it }, Modifier.fillMaxWidth())
+                AppDropdown("Context", listOf("INDIVIDUAL", "GROUP"), context, { context = it }, Modifier.fillMaxWidth())
+                AppNumberField(duration, { duration = it }, "Duration in minutes")
+                AppTextField(instructions, { instructions = it }, "Setup instructions", singleLine = false, minLines = 2,
+                    voicePrompt = "Speak the setup instructions")
             }
         },
         confirmButton = {
@@ -378,11 +336,11 @@ internal fun ProgressionPanel(
 ) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Text("Player progression", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text("Promotions issue a certificate and update the player's current level.", fontSize = 12.sp)
+            Text("Player progression", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
+            Text("Promotions issue a certificate and update the player's current level.", fontSize = AppFontSize.Small)
         }
         item { Text("Roster", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp)) }
-        if (players.isEmpty()) item { Text("No players are available.", fontSize = 12.sp) }
+        if (players.isEmpty()) item { Text("No players are available.", fontSize = AppFontSize.Small) }
         items(players, key = { "player:${it.id}" }) { player ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(
@@ -392,25 +350,25 @@ internal fun ProgressionPanel(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(player.name, fontWeight = FontWeight.SemiBold)
-                        Text("${player.currentLevel} · ${player.discipline}", fontSize = 12.sp)
+                        Text("${player.currentLevel} · ${player.discipline}", fontSize = AppFontSize.Small)
                     }
                     if (player.currentLevel != PlayerLevels.last()) {
                         TextButton(onClick = { onPromote(player) }) { Text("Promote") }
                     } else {
-                        Text("Top level", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                        Text("Top level", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.Small)
                     }
                 }
             }
         }
         item { Text("Certificates", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp)) }
-        if (certificates.isEmpty()) item { Text("No certificates have been issued yet.", fontSize = 12.sp) }
+        if (certificates.isEmpty()) item { Text("No certificates have been issued yet.", fontSize = AppFontSize.Small) }
         items(certificates, key = { "certificate:${it.id}" }) { certificate ->
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(certificate.playerName, fontWeight = FontWeight.SemiBold)
-                    Text("${certificate.level} · ${certificate.discipline} · ${certificate.issuedDate}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                    Text("Certificate ${certificate.number} · Coach ${certificate.coachName}", fontSize = 11.sp)
-                    if (certificate.coachNotes.isNotBlank()) Text(certificate.coachNotes, fontSize = 12.sp)
+                    Text("${certificate.level} · ${certificate.discipline} · ${certificate.issuedDate}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
+                    Text("Certificate ${certificate.number} · Coach ${certificate.coachName}", fontSize = AppFontSize.Caption)
+                    if (certificate.coachNotes.isNotBlank()) Text(certificate.coachNotes, fontSize = AppFontSize.Small)
                 }
             }
         }
@@ -432,10 +390,9 @@ internal fun PromotePlayerDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Current level: ${player.currentLevel}")
-                PickerRow("New level: $selectedLevel", PlayerLevels) { selectedLevel = it }
-                OutlinedTextField(notes, { notes = it }, label = { Text("Coach notes") }, minLines = 2,
-                    trailingIcon = { VoiceMicButton(notes, { notes = it }, "Speak coach notes") })
-                Text("A certificate will be issued when the promotion is saved.", fontSize = 12.sp)
+                AppDropdown("New level", PlayerLevels, selectedLevel, { selectedLevel = it }, Modifier.fillMaxWidth())
+                AppTextField(notes, { notes = it }, "Coach notes", singleLine = false, minLines = 2, voicePrompt = "Speak coach notes")
+                Text("A certificate will be issued when the promotion is saved.", fontSize = AppFontSize.Small)
             }
         },
         confirmButton = {
@@ -486,7 +443,7 @@ internal fun VideoAnalysisPanel(
                         }
                         Text(
                             if (players.isEmpty()) "No active players in this club yet." else "Select a player to start a batting video review.",
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -552,7 +509,7 @@ private fun PlayerSearchPicker(
                 Text(
                     selected?.name ?: "Select player",
                     color = if (selected == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -569,36 +526,20 @@ private fun PlayerSearchPicker(
             ) {
                 Column(Modifier.padding(vertical = 12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Select player", fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                        Text("Select player", fontWeight = FontWeight.Bold, fontSize = AppFontSize.BodyLarge, modifier = Modifier.weight(1f))
                         IconButton(onClick = { expanded = false }) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
                     }
-                    Row(
-                        Modifier
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                            .fillMaxWidth()
-                            .height(42.dp)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                            .padding(start = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Outlined.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        Box(Modifier.weight(1f).padding(start = 8.dp)) {
-                            if (query.isEmpty()) Text("Search players", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            BasicTextField(
-                                value = query,
-                                onValueChange = { query = it },
-                                singleLine = true,
-                                textStyle = TextStyle(fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface),
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        VoiceMicButton(current = query, onValueChange = { query = it }, prompt = "Say a player name", singleLine = true, replace = true)
-                    }
+                    AppSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = "Search players",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).fillMaxWidth(),
+                        voicePrompt = "Say a player name"
+                    )
                     if (filtered.isEmpty()) {
                         Text(
                             if (players.isEmpty()) "No active players." else "No players match \"${query.trim()}\".",
-                            fontSize = 13.sp,
+                            fontSize = AppFontSize.Small,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
@@ -675,7 +616,6 @@ private fun CapeVideoAnalysisPanel(
     }
     var source by remember { mutableStateOf("DEVICE") }
     var selectedDriveVideo by remember { mutableStateOf<DriveVideoFile?>(null) }
-    var driveMenuOpen by remember { mutableStateOf(false) }
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { selectedUri = it }
     val playerOptions = listOf("" to "Select player") + players.map { it.id to it.name }
     val selectedVideoName = if (source == "DRIVE") selectedDriveVideo?.name else selectedUri?.lastPathSegment
@@ -724,28 +664,28 @@ private fun CapeVideoAnalysisPanel(
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (isWide) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                VideoAnalysisDropdown(
+                                AppDropdown(
                                     label = "Discipline",
-                                    value = discipline,
                                     options = ExtensionDisciplines.map { it to it },
-                                    icon = Icons.Outlined.AutoAwesome,
+                                    selectedKey = discipline,
+                                    onSelected = { discipline = it },
                                     modifier = Modifier.weight(0.8f),
-                                    onSelect = { discipline = it }
+                                    leadingIcon = Icons.Outlined.AutoAwesome
                                 )
-                                VideoAnalysisDropdown(
+                                AppDropdown(
                                     label = "Player",
-                                    value = selectedPlayer?.id.orEmpty(),
                                     options = playerOptions,
-                                    displayValue = selectedPlayer?.name ?: "Select player",
-                                    icon = Icons.Outlined.Group,
+                                    selectedKey = selectedPlayer?.id.orEmpty(),
+                                    onSelected = { id -> selectedPlayer = players.firstOrNull { it.id == id } },
                                     modifier = Modifier.weight(0.8f),
-                                    onSelect = { id -> selectedPlayer = players.firstOrNull { it.id == id } }
+                                    placeholder = "Select player",
+                                    leadingIcon = Icons.Outlined.Group
                                 )
                             }
                         } else {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                VideoAnalysisDropdown("Discipline", discipline, ExtensionDisciplines.map { it to it }, Icons.Outlined.AutoAwesome, Modifier.weight(1f)) { discipline = it }
-                                VideoAnalysisDropdown("Player", selectedPlayer?.id.orEmpty(), playerOptions, Icons.Outlined.Group, Modifier.weight(1f), selectedPlayer?.name ?: "Select player") { id -> selectedPlayer = players.firstOrNull { it.id == id } }
+                                AppDropdown("Discipline", ExtensionDisciplines.map { it to it }, discipline, { discipline = it }, Modifier.weight(1f), leadingIcon = Icons.Outlined.AutoAwesome)
+                                AppDropdown("Player", playerOptions, selectedPlayer?.id.orEmpty(), { id -> selectedPlayer = players.firstOrNull { it.id == id } }, Modifier.weight(1f), placeholder = "Select player", leadingIcon = Icons.Outlined.Group)
                             }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -760,32 +700,32 @@ private fun CapeVideoAnalysisPanel(
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (isWide) {
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                                            Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
                                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                TextButton(onClick = { source = "DEVICE" }) { Text(if (source == "DEVICE") "✓ Device video" else "Upload device video", fontSize = 11.sp) }
-                                                TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }) { Text(if (source == "DRIVE") "✓ Google Drive" else "Sync from Drive", fontSize = 11.sp) }
+                                                TextButton(onClick = { source = "DEVICE" }) { Text(if (source == "DEVICE") "✓ Device video" else "Upload device video", fontSize = AppFontSize.Caption) }
+                                                TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }) { Text(if (source == "DRIVE") "✓ Google Drive" else "Sync from Drive", fontSize = AppFontSize.Caption) }
                                             }
                                         }
                                     } else {
-                                        Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+                                        Text("VIDEO FOOTAGE SOURCE", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            TextButton(onClick = { source = "DEVICE" }, modifier = Modifier.weight(1f)) { Text(if (source == "DEVICE") "✓ Device video" else "Device video", fontSize = 11.sp) }
-                                            TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }, modifier = Modifier.weight(1f)) { Text(if (source == "DRIVE") "✓ Google Drive" else "Google Drive", fontSize = 11.sp) }
+                                            TextButton(onClick = { source = "DEVICE" }, modifier = Modifier.weight(1f)) { Text(if (source == "DEVICE") "✓ Device video" else "Device video", fontSize = AppFontSize.Caption) }
+                                            TextButton(onClick = { source = "DRIVE"; onRefreshDrive() }, modifier = Modifier.weight(1f)) { Text(if (source == "DRIVE") "✓ Google Drive" else "Google Drive", fontSize = AppFontSize.Caption) }
                                         }
                                     }
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         if (source == "DEVICE") {
                                             OutlinedButton(onClick = { videoPicker.launch(arrayOf("video/*")) }, shape = RoundedCornerShape(12.dp), modifier = if (isWide) Modifier else Modifier.weight(1f)) {
                                                 Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Text(if (isWide) "  Choose device video" else "  Choose video", fontSize = 12.sp)
+                                                Text(if (isWide) "  Choose device video" else "  Choose video", fontSize = AppFontSize.Small)
                                             }
-                                            if (isWide) Text(selectedVideoName ?: "No video selected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                            if (isWide) Text(selectedVideoName ?: "No video selected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Caption, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                         } else {
                                             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(Icons.Outlined.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                                                 Column(Modifier.weight(1f).padding(start = 7.dp)) {
-                                                    Text("Google Drive Cloud Vault", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                                                    Text(if (driveConnected) driveEmail.ifBlank { "Connected" } else "Connect Google Drive to choose a video", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    Text("Google Drive Cloud Vault", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, maxLines = 1)
+                                                    Text(if (driveConnected) driveEmail.ifBlank { "Connected" } else "Connect Google Drive to choose a video", fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                 }
                                             }
                                             if (!driveConnected) {
@@ -795,30 +735,31 @@ private fun CapeVideoAnalysisPanel(
                                                     } catch (failure: Exception) {
                                                         error = failure.message ?: "Unable to open Google Drive authorization."
                                                     }
-                                                }, shape = RoundedCornerShape(12.dp)) { Text("Connect", fontSize = 11.sp) }
+                                                }, shape = RoundedCornerShape(12.dp)) { Text("Connect", fontSize = AppFontSize.Caption) }
                                             } else {
-                                                Box {
-                                                    OutlinedButton(onClick = { driveMenuOpen = true }, enabled = driveVideos.isNotEmpty(), shape = RoundedCornerShape(12.dp)) {
-                                                        Text(selectedDriveVideo?.name ?: "Select video", maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp)
-                                                        Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                    }
-                                                    DropdownMenu(expanded = driveMenuOpen, onDismissRequest = { driveMenuOpen = false }) {
-                                                        driveVideos.forEach { video -> DropdownMenuItem(text = { Text(video.name) }, onClick = { selectedDriveVideo = video; driveMenuOpen = false }) }
-                                                    }
-                                                }
+                                                AppDropdown(
+                                                    label = null,
+                                                    options = driveVideos,
+                                                    selected = selectedDriveVideo,
+                                                    onSelected = { selectedDriveVideo = it },
+                                                    modifier = Modifier.width(180.dp),
+                                                    optionLabel = { it.name },
+                                                    placeholder = "Select video",
+                                                    enabled = driveVideos.isNotEmpty()
+                                                )
                                             }
-                                            TextButton(onClick = onRefreshDrive) { Text("↻", fontSize = 16.sp) }
+                                            TextButton(onClick = onRefreshDrive) { Text("↻", fontSize = AppFontSize.BodyLarge) }
                                         }
                                     }
                                     if (source == "DEVICE" && !isWide) {
-                                        Text(selectedVideoName ?: "No video selected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(selectedVideoName ?: "No video selected", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     if (source == "DRIVE" && driveConnected) {
                                         TextButton(onClick = onDisconnectDrive, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                                            Text("Disconnect Google Drive", fontSize = 10.sp)
+                                            Text("Disconnect Google Drive", fontSize = AppFontSize.Micro)
                                         }
                                     }
-                                    if (source == "DRIVE" && driveError.isNotBlank()) Text(driveError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                    if (source == "DRIVE" && driveError.isNotBlank()) Text(driveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Caption)
                                 }
                             }
                         }
@@ -832,8 +773,8 @@ private fun CapeVideoAnalysisPanel(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                                     Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Text("Find a likely contact frame and review visible technique with evidence and uncertainty.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
+                                        Text("Find a likely contact frame and review visible technique with evidence and uncertainty.", fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                                 Button(
@@ -844,13 +785,13 @@ private fun CapeVideoAnalysisPanel(
                                 ) {
                                     if (openAiBusy) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                     else Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(17.dp))
-                                    Text(if (openAiBusy) "  Analysing batting video…" else "  Analyse batting video", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (openAiBusy) "  Analysing batting video…" else "  Analyse batting video", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
                                 }
-                                if (discipline != "BATTING") Text("OpenAI video analysis currently supports batting.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
-                                if (openAiError.isNotBlank()) Text(openAiError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                if (discipline != "BATTING") Text("OpenAI video analysis currently supports batting.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Micro)
+                                if (openAiError.isNotBlank()) Text(openAiError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                             }
                         }
-                        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                     }
                 }
             }
@@ -863,11 +804,11 @@ private fun CapeVideoAnalysisPanel(
                     ) {
                         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("OpenAI batting report", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("OpenAI batting report", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                                 Text(
                                     "${analysis.contact.status.replace('_', ' ')} contact" +
                                         (analysis.contact.timestampSeconds?.let { " · ${String.format(Locale.getDefault(), "%.2f", it)}s" } ?: " · time uncertain"),
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -901,14 +842,14 @@ private fun CapeVideoAnalysisPanel(
             if (selectedPlayer != null) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Detailed analyses · ${selectedPlayer?.name}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Detailed analyses · ${selectedPlayer?.name}", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                         TextButton(onClick = { selectedPlayer?.let { player -> scope.launch { capeJobs = analysisRepository.getPlayerCapeJobs(player.id) } } }) { Text("Refresh") }
                     }
                 }
                 when {
                     capeLoading -> item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                    capeError.isNotBlank() -> item { Text(capeError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
-                    capeJobs.isEmpty() -> item { Text("No detailed pose analyses for this player yet.", fontSize = 12.sp) }
+                    capeError.isNotBlank() -> item { Text(capeError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small) }
+                    capeJobs.isEmpty() -> item { Text("No detailed pose analyses for this player yet.", fontSize = AppFontSize.Small) }
                 }
                 items(capeJobs.sortedByDescending { capeJobTimestampMillis(it.createdAt) }, key = { "cape-${it.jobId}" }) { job ->
                     CapeJobCard(
@@ -930,7 +871,7 @@ private fun CapeVideoAnalysisPanel(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Permanently delete ${capeJobTitle(job)} from the analysis history?")
-                    if (capeDeleteError.isNotBlank()) Text(capeDeleteError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    if (capeDeleteError.isNotBlank()) Text(capeDeleteError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 }
             },
             confirmButton = {
@@ -998,7 +939,7 @@ private fun CapeJobCard(job: CapeJobSummary, onView: () -> Unit, onDelete: () ->
                         },
                         formatCapeJobTimestamp(job.createdAt).ifBlank { null }
                     ).joinToString(" · "),
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
@@ -1010,7 +951,7 @@ private fun CapeJobCard(job: CapeJobSummary, onView: () -> Unit, onDelete: () ->
                         "FAILED" -> job.errorMessage ?: "The analysis failed."
                         else -> "The analysis is still in progress."
                     },
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     maxLines = 2,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -1046,10 +987,10 @@ private fun CapeJobDetailDialog(analysisRepository: AnalysisRepository, summary:
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(capeJobTitle(summary), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text(capeJobTitle(summary), fontWeight = FontWeight.Bold, fontSize = AppFontSize.BodyLarge)
                         Text(
                             listOfNotNull(playerName, formatCapeJobTimestamp(summary.createdAt).ifBlank { null }).joinToString(" · "),
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -1060,51 +1001,12 @@ private fun CapeJobDetailDialog(analysisRepository: AnalysisRepository, summary:
                     val current = job
                     val result = current?.result
                     when {
-                        error.isNotBlank() -> Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        error.isNotBlank() -> Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                         current == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                        result == null -> Text(current.errorMessage ?: "This analysis has no result yet.", fontSize = 12.sp)
+                        result == null -> Text(current.errorMessage ?: "This analysis has no result yet.", fontSize = AppFontSize.Small)
                         else -> CapeResultPanel(analysisRepository, result, current.jobId, playerName, canAssign = true)
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VideoAnalysisDropdown(
-    label: String,
-    value: String,
-    options: List<Pair<String, String>>,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    displayValue: String = value,
-    onSelect: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        Surface(
-            onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(11.dp)),
-            shape = RoundedCornerShape(11.dp),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                    Text(displayValue, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 5.dp))
-                    Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                }
-            }
-
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (optionValue, optionLabel) ->
-                DropdownMenuItem(
-                    text = { Text(optionLabel) },
-                    onClick = { onSelect(optionValue); expanded = false }
-                )
             }
         }
     }
@@ -1117,14 +1019,14 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text("${analysis.model} · ${String.format(Locale.getDefault(), "%.1f", analysis.durationSeconds)}s video", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("OpenAI Batting Analysis", fontWeight = FontWeight.Bold, fontSize = AppFontSize.BodyLarge)
+                        Text("${analysis.model} · ${String.format(Locale.getDefault(), "%.1f", analysis.durationSeconds)}s video", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, contentDescription = "Close analysis") }
                 }
                 HorizontalDivider()
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(analysis.summary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(analysis.summary, fontSize = AppFontSize.Body, fontWeight = FontWeight.Medium)
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), shape = RoundedCornerShape(14.dp)) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Text("Bat-ball contact · ${analysis.contact.status.replace('_', ' ')}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -1135,7 +1037,7 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
                                     if (isNotEmpty()) append(" · ")
                                     append("${(analysis.contact.confidence * 100).toInt()}% confidence")
                                 },
-                                fontSize = 11.sp,
+                                fontSize = AppFontSize.Caption,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             if (analysis.contact.imageDataUrl != null) {
@@ -1146,7 +1048,7 @@ private fun OpenAiBattingAnalysisDialog(analysis: OpenAiBattingAnalysis, onDismi
                                     modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).clip(RoundedCornerShape(10.dp))
                                 )
                             }
-                            Text(analysis.contact.evidence, fontSize = 12.sp)
+                            Text(analysis.contact.evidence, fontSize = AppFontSize.Small)
                         }
                     }
                     OpenAiReportSection("Visible technique", analysis.observations.map { "${it.title}: ${it.observation} ${it.coachingImplication} (${it.confidence} confidence)" })
@@ -1171,8 +1073,8 @@ private fun OpenAiReportSection(title: String, items: List<String>) {
     if (items.isEmpty()) return
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            items.forEach { Text("• $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(title, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
+            items.forEach { Text("• $it", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }
@@ -1207,8 +1109,8 @@ internal fun ClubSettingsPanel(
         }
     }
     Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Club branding", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("The logo is added to certificates issued from this point forward.", fontSize = 12.sp)
+        Text("Club branding", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
+        Text("The logo is added to certificates issued from this point forward.", fontSize = AppFontSize.Small)
         Text(if (logoUrl == null) "No club logo saved." else "A club logo is currently saved.", color = MaterialTheme.colorScheme.primary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { imagePicker.launch(arrayOf("image/png", "image/jpeg")) }, enabled = !busy) {
@@ -1216,40 +1118,7 @@ internal fun ClubSettingsPanel(
             }
             if (logoUrl != null) TextButton(onClick = { onSave(null) }) { Text("Remove logo") }
         }
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun PlayerPicker(
-    players: List<ClubMember>,
-    selected: ClubMember?,
-    onSelect: (ClubMember?) -> Unit
-) {
-    var open by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(selected?.name ?: "Group analysis", modifier = Modifier.weight(1f))
-        TextButton(onClick = { open = true }) { Text("Player") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text("Group analysis") }, onClick = { onSelect(null); open = false })
-            players.forEach { player ->
-                DropdownMenuItem(text = { Text(player.name) }, onClick = { onSelect(player); open = false })
-            }
-        }
-    }
-}
-
-@Composable
-private fun PickerRow(label: String, options: List<String>, onSelect: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), fontSize = 13.sp)
-        TextButton(onClick = { open = true }) { Text("Change") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { onSelect(option); open = false })
-            }
-        }
+        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
     }
 }
 

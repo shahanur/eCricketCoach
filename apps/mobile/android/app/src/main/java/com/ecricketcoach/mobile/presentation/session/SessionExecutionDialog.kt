@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.session
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -32,11 +33,8 @@ import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.HealthAndSafety
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,7 +82,6 @@ import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -97,8 +94,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -1238,7 +1233,7 @@ internal fun SessionExecutionScreen(
                             }
                         }
                         if (reportError.isNotBlank()) {
-                            item { Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+                            item { Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small) }
                         }
                     }
                     if (saveError.isNotBlank()) {
@@ -1360,7 +1355,7 @@ private fun LiveSessionPreStartScreen(
                             Text(
                                 saveError,
                                 color = MaterialTheme.colorScheme.error,
-                                fontSize = 15.sp
+                                fontSize = AppFontSize.Body
                             )
                         }
                     }
@@ -1369,7 +1364,7 @@ private fun LiveSessionPreStartScreen(
                             Text(
                                 "Checklist and attendance changes are saved automatically.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 14.sp
+                                fontSize = AppFontSize.Body
                             )
                         }
                     }
@@ -1399,9 +1394,9 @@ private fun LiveSessionPreStartScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(onClick = onBack) { Text("Cancel", fontSize = 17.sp) }
+                            TextButton(onClick = onBack) { Text("Cancel", fontSize = AppFontSize.BodyLarge) }
                             Button(onClick = onProceed, enabled = canStart) {
-                                Text(startLabel, fontSize = 17.sp)
+                                Text(startLabel, fontSize = AppFontSize.BodyLarge)
                                 Spacer(Modifier.width(6.dp))
                                 Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                             }
@@ -1429,7 +1424,7 @@ private fun LiveSessionPreStartScreen(
                                         modifier = Modifier.padding(18.dp).size(44.dp)
                                     )
                                 }
-                                Text("Ready to start?", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                                Text("Ready to start?", fontSize = AppFontSize.HeadlineLarge, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                                 if (isTablet) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         PreStartMetric("Players present", "$presentCount/${players.size}", Icons.Outlined.Groups, Modifier.weight(1f))
@@ -1454,7 +1449,7 @@ private fun LiveSessionPreStartScreen(
                                         "Session timer will start automatically when you begin.",
                                         modifier = Modifier.padding(14.dp),
                                         color = Color(0xFF267857),
-                                        fontSize = 16.sp
+                                        fontSize = AppFontSize.BodyLarge
                                     )
                                 }
                         }
@@ -1493,8 +1488,8 @@ private fun LiveSessionPreCheckScreen(
                 item {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Pre-check", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                            Text("Review preparation and update attendance without leaving the live session.", color = CoachMuted, fontSize = 14.sp)
+                            Text("Pre-check", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
+                            Text("Review preparation and update attendance without leaving the live session.", color = CoachMuted, fontSize = AppFontSize.Body)
                         }
                         TextButton(onClick = onClose, enabled = !isSaving) {
                             Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -1502,7 +1497,7 @@ private fun LiveSessionPreCheckScreen(
                             Text("Close")
                         }
                     }
-                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
                 }
                 if (isTablet) {
                     item {
@@ -1540,7 +1535,7 @@ private fun PreparationChecklistCard(
             Text(
                 "Preparation checklist  ·  $checklistDone/${PreparationChecklist.size}",
                 fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
+                fontSize = AppFontSize.Title,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(6.dp))
@@ -1564,7 +1559,7 @@ private fun PreparationChecklistCard(
                         tint = if (checked) Color(0xFF19A66A) else MaterialTheme.colorScheme.outline,
                         modifier = Modifier.size(22.dp)
                     )
-                    Text(label, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(label, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1592,7 +1587,7 @@ private fun SquadAttendanceCard(
                     "Squad attendance  ·  $presentCount/${players.size} present",
                     modifier = Modifier.weight(1f),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 19.sp,
+                    fontSize = AppFontSize.Title,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 TextButton(onClick = onAddPlayer) {
@@ -1602,63 +1597,21 @@ private fun SquadAttendanceCard(
                 }
             }
             if (players.isEmpty()) {
-                Text("No players are assigned to this session.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No players are assigned to this session.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                    if (result.resultCode == Activity.RESULT_OK) {
-                        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-                            ?.takeIf(String::isNotBlank)?.let { query = it }
-                    }
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
-                        .padding(start = 12.dp, end = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Outlined.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                        if (query.isEmpty()) {
-                            Text("Search players", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                        }
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Clear search", modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    IconButton(
-                        onClick = {
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a player name")
-                            }
-                            try { speechLauncher.launch(intent) } catch (_: ActivityNotFoundException) { }
-                        },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Outlined.Mic, contentDescription = "Search by voice", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    }
-                }
+                AppSearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = "Search players",
+                    modifier = Modifier.fillMaxWidth(),
+                    voicePrompt = "Say a player name"
+                )
                 val listModifier = if (players.size > 10) {
                     Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState())
                 } else Modifier.fillMaxWidth()
                 Column(listModifier) {
                     if (visiblePlayers.isEmpty()) {
-                        Text("No players match \"${query.trim()}\".", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+                        Text("No players match \"${query.trim()}\".", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
                     }
                     visiblePlayers.forEachIndexed { index, player ->
                         Row(
@@ -1669,7 +1622,7 @@ private fun SquadAttendanceCard(
                             Text(
                                 player.name,
                                 modifier = Modifier.weight(1f),
-                                fontSize = 15.sp,
+                                fontSize = AppFontSize.Body,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1691,7 +1644,7 @@ private fun SquadAttendanceCard(
                                             onAttendanceChanged()
                                         }
                                         .padding(horizontal = 11.dp, vertical = 4.dp),
-                                    fontSize = 15.sp,
+                                    fontSize = AppFontSize.Body,
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                     color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1717,8 +1670,6 @@ private fun AddSessionPlayerDialog(
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var ageGroup by remember { mutableStateOf("") }
-    var ageMenuOpen by remember { mutableStateOf(false) }
-    var speechLanguageMenuOpen by remember { mutableStateOf(false) }
     var speechLanguageTag by remember { mutableStateOf("") }
     var speechTarget by remember { mutableStateOf<String?>(null) }
     var speechError by remember { mutableStateOf("") }
@@ -1737,7 +1688,6 @@ private fun AddSessionPlayerDialog(
         "हिन्दी (भारत)" to "hi-IN",
         "اردو (پاکستان)" to "ur-PK"
     )
-    val speechLanguageLabel = speechLanguages.first { it.second == speechLanguageTag }.first
     val valid = name.isNotBlank() && email.contains('@') && email.substringAfter('@').contains('.')
 
     fun spokenEmail(value: String): String = value.trim().lowercase()
@@ -1805,39 +1755,22 @@ private fun AddSessionPlayerDialog(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "The player will be marked present and added to the club roster as provisional until a club admin approves them.",
-                    fontSize = 14.sp,
+                    fontSize = AppFontSize.Body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Voice input language", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Box {
-                        OutlinedButton(
-                            onClick = { speechLanguageMenuOpen = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !busy && speechTarget == null
-                        ) {
-                            Icon(Icons.Outlined.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(7.dp))
-                            Text(speechLanguageLabel, modifier = Modifier.weight(1f))
-                            Icon(Icons.Outlined.ExpandMore, contentDescription = "Change voice input language")
-                        }
-                        DropdownMenu(
-                            expanded = speechLanguageMenuOpen,
-                            onDismissRequest = { speechLanguageMenuOpen = false }
-                        ) {
-                            speechLanguages.forEach { (label, tag) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        speechLanguageTag = tag
-                                        speechLanguageMenuOpen = false
-                                        speechError = ""
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
+                AppDropdown(
+                    label = "Voice input language",
+                    options = speechLanguages,
+                    selected = speechLanguages.firstOrNull { it.second == speechLanguageTag },
+                    onSelected = {
+                        speechLanguageTag = it.second
+                        speechError = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    optionLabel = { it.first },
+                    leadingIcon = Icons.Outlined.Mic,
+                    enabled = !busy && speechTarget == null
+                )
                 OutlinedTextField(
                     name,
                     { name = it },
@@ -1862,40 +1795,28 @@ private fun AddSessionPlayerDialog(
                         }
                     }
                 )
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Age group (optional)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Box {
-                            OutlinedButton(
-                                onClick = { ageMenuOpen = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !busy
-                            ) {
-                                Text(ageGroup.ifBlank { "Not specified" }, modifier = Modifier.weight(1f))
-                                Icon(Icons.Outlined.ExpandMore, contentDescription = "Open age groups")
-                            }
-                            DropdownMenu(expanded = ageMenuOpen, onDismissRequest = { ageMenuOpen = false }) {
-                                ageGroups.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = { Text(option.ifBlank { "Not specified" }) },
-                                        onClick = { ageGroup = option; ageMenuOpen = false }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppDropdown(
+                        label = "Age group (optional)",
+                        options = ageGroups,
+                        selected = ageGroup,
+                        onSelected = { ageGroup = it },
+                        modifier = Modifier.weight(1f),
+                        optionLabel = { it.ifBlank { "Not specified" } },
+                        enabled = !busy
+                    )
                     IconButton(onClick = { startSpeech("AGE", "Say the player's age group") }, enabled = !busy) {
                         Icon(Icons.Outlined.Mic, contentDescription = "Speak age group")
                     }
                 }
-                Text("Disciplines (select one or more)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Disciplines (select one or more)", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     disciplineOptions.forEach { option ->
                         val selected = selectedDisciplines[option] == true
                         Text(
                             option.lowercase().replaceFirstChar(Char::uppercase),
                             color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
@@ -1908,8 +1829,8 @@ private fun AddSessionPlayerDialog(
                         )
                     }
                 }
-                if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             }
         },
         confirmButton = {
@@ -1933,11 +1854,11 @@ private fun AddSessionPlayerDialog(
 private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Session guidance", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text("Session guidance", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Title, color = MaterialTheme.colorScheme.onSurface)
             if (session.safety.isEmpty()) {
-                Text("No additional safety guidance provided.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No additional safety guidance provided.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                session.safety.forEach { Text("• $it", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                session.safety.forEach { Text("• $it", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }
@@ -1947,16 +1868,16 @@ private fun SessionFocusCard(session: ClubTrainingSession, modifier: Modifier = 
 private fun PlannedDrillsCard(drills: List<ExecutionDrill>, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Planned drills (${drills.size})", fontWeight = FontWeight.Bold, fontSize = 19.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text("Planned drills (${drills.size})", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Title, color = MaterialTheme.colorScheme.onSurface)
             if (drills.isEmpty()) {
-                Text("No drills are planned for this session.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No drills are planned for this session.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 drills.forEachIndexed { index, drill ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                        Text("${index + 1}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Title)
                         Column(Modifier.weight(1f)) {
-                            Text(drill.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                            Text("${drill.plannedMinutes} min", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(drill.title, fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("${drill.plannedMinutes} min", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -1980,8 +1901,8 @@ private fun PreStartMetric(
         ) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             Column(Modifier.weight(1f)) {
-                Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(value, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(label, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }
@@ -2000,7 +1921,7 @@ private fun PreparationCard(
 ) {
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Preparation checklist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Text("Preparation checklist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
             Spacer(Modifier.height(4.dp))
             PreparationChecklist.forEach { (key, label) ->
                 val checked = checklist[key] == true
@@ -2019,12 +1940,12 @@ private fun PreparationCard(
                         tint = if (checked) Color(0xFF19A66A) else MaterialTheme.colorScheme.outline,
                         modifier = Modifier.size(20.dp)
                     )
-                    Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(label, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
                 }
             }
             if (status == "PREPARING" && !readOnly) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Status: ${status.replace('_', ' ')}", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                    Text("Status: ${status.replace('_', ' ')}", fontWeight = FontWeight.Medium, fontSize = AppFontSize.Body)
                     Button(onClick = onStart, enabled = canStart) {
                         Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.padding(horizontal = 3.dp))
@@ -2035,13 +1956,13 @@ private fun PreparationCard(
                     Text(
                         "Complete the preparation checklist to start before $sessionDate, or wait until then.",
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 14.sp
+                        fontSize = AppFontSize.Body
                     )
                 } else if (!onScheduleDate) {
                     Text(
                         "Checklist complete — starting now will be recorded as earlier than the scheduled date ($sessionDate).",
                         color = MaterialTheme.colorScheme.tertiary,
-                        fontSize = 14.sp
+                        fontSize = AppFontSize.Body
                     )
                 }
             }
@@ -2058,10 +1979,10 @@ private fun AttendanceTable(
 ) {
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("Attendance", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Text("Attendance", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
             Spacer(Modifier.height(4.dp))
             if (players.isEmpty()) {
-                Text("No players assigned to this session yet.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("No players assigned to this session yet.", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             } else {
                 val order = listOf("PRESENT", "LATE", "ABSENT")
                 players.forEachIndexed { index, player ->
@@ -2076,7 +1997,7 @@ private fun AttendanceTable(
                         Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(player.name, Modifier.weight(1f), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(player.name, Modifier.weight(1f), fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = tint.copy(alpha = 0.12f),
@@ -2090,7 +2011,7 @@ private fun AttendanceTable(
                             Text(
                                 label,
                                 color = tint,
-                                fontSize = 13.sp,
+                                fontSize = AppFontSize.Small,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 1.dp)
                             )
@@ -2121,7 +2042,7 @@ private fun DrillCard(
                 Text(
                     drill.title,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
+                    fontSize = AppFontSize.BodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -2136,7 +2057,7 @@ private fun DrillCard(
                     Text(
                         statusLabel,
                         color = statusTint,
-                        fontSize = 13.sp,
+                        fontSize = AppFontSize.Small,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                     )
@@ -2149,7 +2070,7 @@ private fun DrillCard(
                 Icon(Icons.Outlined.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
                 Text(
                     "${drill.actualMinutes} of ${drill.plannedMinutes} min",
-                    fontSize = 14.sp,
+                    fontSize = AppFontSize.Body,
                     fontWeight = FontWeight.Medium,
                     color = if (overrun) Color(0xFFE28A18) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                 )
@@ -2157,7 +2078,7 @@ private fun DrillCard(
             if (drill.notes.isNotBlank()) {
                 Text(
                     drill.notes,
-                    fontSize = 14.sp,
+                    fontSize = AppFontSize.Body,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
@@ -2231,7 +2152,7 @@ private fun ReviewPanel(
     Card(modifier = modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                Text(title, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title, modifier = Modifier.weight(1f))
                 action?.invoke()
             }
             content()
@@ -2241,7 +2162,7 @@ private fun ReviewPanel(
 
 @Composable
 private fun ReviewEmptyText(text: String) {
-    Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+    Text(text, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
 }
 
 @Composable
@@ -2250,7 +2171,7 @@ private fun ReviewTag(label: String, tint: Color) {
         Text(
             label,
             color = tint,
-            fontSize = 12.sp,
+            fontSize = AppFontSize.Small,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -2262,7 +2183,7 @@ private fun ReviewTag(label: String, tint: Color) {
 private fun ReviewEditAction(editing: Boolean, saving: Boolean, onToggle: () -> Unit) {
     if (editing) {
         TextButton(onClick = onToggle, enabled = !saving, contentPadding = PaddingValues(horizontal = 8.dp)) {
-            Text(if (saving) "Saving…" else "Save", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (saving) "Saving…" else "Save", fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold)
         }
     } else {
         IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
@@ -2293,9 +2214,9 @@ private fun IncidentsCard(
             ) {
                 ReviewTag(incident.category.ifBlank { "Other" }, Color(0xFFE84A54))
                 Column(Modifier.weight(1f)) {
-                    Text(incident.note, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(incident.note, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
                     formatObservationClock(incident.time).takeIf(String::isNotBlank)?.let {
-                        Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                        Text(it, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
                     }
                 }
                 if (!readOnly) {
@@ -2308,10 +2229,20 @@ private fun IncidentsCard(
         }
         if (!readOnly) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(category, onCategoryChange, label = { Text("Category") }, modifier = Modifier.weight(0.7f), singleLine = true,
-                    trailingIcon = { VoiceMicButton(category, onCategoryChange, "Say the incident category", singleLine = true, replace = true) })
-                OutlinedTextField(note, onNoteChange, label = { Text("Incident note") }, modifier = Modifier.weight(1.3f), singleLine = true,
-                    trailingIcon = { VoiceMicButton(note, onNoteChange, "Speak the incident note", singleLine = true) })
+                AppTextField(
+                    value = category,
+                    onValueChange = onCategoryChange,
+                    label = "Category",
+                    modifier = Modifier.weight(0.7f),
+                    voicePrompt = "Say the incident category"
+                )
+                AppTextField(
+                    value = note,
+                    onValueChange = onNoteChange,
+                    label = "Incident note",
+                    modifier = Modifier.weight(1.3f),
+                    voicePrompt = "Speak the incident note"
+                )
                 IconButton(onClick = onAdd) {
                     Icon(Icons.Outlined.Add, contentDescription = "Add incident", tint = MaterialTheme.colorScheme.primary)
                 }
@@ -2338,11 +2269,11 @@ private fun PlayerObservationsCard(
             ).joinToString(" · ")
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
+                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
                     ReviewTag(observation.category.lowercase().replaceFirstChar(Char::uppercase), MaterialTheme.colorScheme.primary)
                 }
-                Text(observation.text, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
-                if (meta.isNotBlank()) Text(meta, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                Text(observation.text, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                if (meta.isNotBlank()) Text(meta, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
             }
             if (index < individual.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         }
@@ -2365,20 +2296,6 @@ private fun PlayerNotesCard(
         delay(800)
         currentOnSave()
     }
-    var speechTarget by remember { mutableStateOf<String?>(null) }
-    var speechError by remember { mutableStateOf("") }
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val target = speechTarget
-        if (result.resultCode == Activity.RESULT_OK && target != null) {
-            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-            if (!spoken.isNullOrBlank()) {
-                playerNotes[target] = listOf(playerNotes[target].orEmpty().trim(), spoken).filter(String::isNotBlank).joinToString("\n")
-                editVersion++
-                speechError = ""
-            } else speechError = "No speech was recognized. Try again."
-        }
-        speechTarget = null
-    }
     ReviewPanel(
         "Player notes",
         modifier,
@@ -2387,7 +2304,7 @@ private fun PlayerNotesCard(
                 Text(
                     if (saving) "Saving…" else "Done",
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 15.sp,
+                    fontSize = AppFontSize.Body,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -2405,39 +2322,23 @@ private fun PlayerNotesCard(
         if (editing) {
             Text(
                 if (saving) "Saving…" else "Changes save automatically",
-                fontSize = 13.sp,
+                fontSize = AppFontSize.Small,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
             )
             players.forEach { player ->
-                OutlinedTextField(
+                AppTextField(
                     value = playerNotes[player.id].orEmpty(),
                     onValueChange = {
                         playerNotes[player.id] = it
                         editVersion++
                     },
-                    label = { Text(player.name) },
+                    label = player.name,
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            speechTarget = player.id
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a note for ${player.name}")
-                            }
-                            try {
-                                speechLauncher.launch(intent)
-                            } catch (_: ActivityNotFoundException) {
-                                speechTarget = null
-                                speechError = "Speech recognition is not available on this device."
-                            }
-                        }) {
-                            Icon(Icons.Outlined.Mic, contentDescription = "Speak note for ${player.name}", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
+                    singleLine = false,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.Body),
+                    voicePrompt = "Speak a note for ${player.name}"
                 )
             }
-            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
         } else {
             val withNotes = players.mapNotNull { player ->
                 playerNotes[player.id]?.trim()?.takeIf(String::isNotBlank)?.let { player.name to it }
@@ -2445,8 +2346,8 @@ private fun PlayerNotesCard(
             if (withNotes.isEmpty()) ReviewEmptyText("No player notes yet. Tap edit to add.")
             withNotes.forEachIndexed { index, (name, note) ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Text(note, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
+                    Text(note, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
                 }
                 if (index < withNotes.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             }
@@ -2487,13 +2388,14 @@ private fun EvaluationCard(
     ) {
         if (editing) {
             rows.forEach { (label, _, field) ->
-                OutlinedTextField(
+                AppTextField(
                     value = field.first,
                     onValueChange = field.second,
-                    label = { Text(label) },
+                    label = label,
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
-                    trailingIcon = { VoiceMicButton(field.first, field.second, "Speak ${label.lowercase()}") }
+                    singleLine = false,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.Body),
+                    voicePrompt = "Speak ${label.lowercase()}"
                 )
             }
         } else {
@@ -2502,7 +2404,7 @@ private fun EvaluationCard(
             filled.forEachIndexed { index, (label, tint, field) ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     ReviewTag(label, tint)
-                    Text(field.first.trim(), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
+                    Text(field.first.trim(), fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f))
                 }
                 if (index < filled.lastIndex) HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             }
@@ -2537,7 +2439,7 @@ private fun AiAnalysisCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
-                    Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                    Text("AI session analysis", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = onRun, enabled = !busy) {
@@ -2549,16 +2451,16 @@ private fun AiAnalysisCard(
                     ReportActionButtons(onDownload = onDownload, onShare = onShare)
                 }
             }
-            if (reportError.isNotBlank()) Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            if (reportError.isNotBlank()) Text(reportError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
             Text(
                 "Gemini reviews player notes, attendance, drill timings, disruptions and evaluation, then suggests improvements and a follow-up session.",
-                fontSize = 14.sp,
+                fontSize = AppFontSize.Body,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
             if (evaluation != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Diagnosis", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("Diagnosis", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
@@ -2566,32 +2468,32 @@ private fun AiAnalysisCard(
                         Text(
                             ReadinessLabels[evaluation.progressionReadiness] ?: evaluation.progressionReadiness,
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 14.sp,
+                            fontSize = AppFontSize.Body,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
-                Text(evaluation.squadSummary, fontSize = 14.sp)
+                Text(evaluation.squadSummary, fontSize = AppFontSize.Body)
                 if (evaluation.identifiedGaps.isNotEmpty()) {
-                    Text("Gaps", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    evaluation.identifiedGaps.forEach { Text("• $it", fontSize = 14.sp) }
+                    Text("Gaps", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
+                    evaluation.identifiedGaps.forEach { Text("• $it", fontSize = AppFontSize.Body) }
                 }
                 if (evaluation.playerFeedback.isNotEmpty()) {
-                    Text("Player focus", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    evaluation.playerFeedback.forEach { (name, focus) -> Text("$name: $focus", fontSize = 14.sp) }
+                    Text("Player focus", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
+                    evaluation.playerFeedback.forEach { (name, focus) -> Text("$name: $focus", fontSize = AppFontSize.Body) }
                 }
                 if (evaluation.sessionImprovements.isNotEmpty()) {
-                    Text("Improve the next session", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    evaluation.sessionImprovements.forEach { Text("• $it", fontSize = 14.sp) }
+                    Text("Improve the next session", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
+                    evaluation.sessionImprovements.forEach { Text("• $it", fontSize = AppFontSize.Body) }
                     TextButton(onClick = { onAddToAdjustments(evaluation.sessionImprovements) }) {
                         Text("Add to adjustments")
                     }
                 }
                 HorizontalDivider()
-                Text("💬 ${evaluation.aiCommendation}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
+                Text("💬 ${evaluation.aiCommendation}", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
                 evaluation.generatedAt?.let {
-                    Text("Generated $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                    Text("Generated $it", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 }
             }
         }
@@ -2614,66 +2516,56 @@ private fun FollowUpCard(
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Follow-up session", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+            Text("Follow-up session", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Title)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
             if (createdFollowUp != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.padding(horizontal = 3.dp))
                     Text(
                         "\"${createdFollowUp.title}\" created for ${createdFollowUp.sessionDate}${createdFollowUp.sessionTime?.let { " at $it" }.orEmpty()} with ${createdFollowUp.drillCount} drill(s).",
-                        fontSize = 14.sp
+                        fontSize = AppFontSize.Body
                     )
                 }
                 Text(
                     "It is saved as a draft for the club to review and publish in the session planner.",
-                    fontSize = 14.sp,
+                    fontSize = AppFontSize.Body,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             } else if (draft != null) {
                 val detailsColumn: @Composable (Modifier) -> Unit = { columnModifier ->
                     Column(columnModifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         evaluation.followUpPlan?.objective?.takeIf(String::isNotBlank)?.let {
-                            Text(it, fontSize = 14.sp)
+                            Text(it, fontSize = AppFontSize.Body)
                         }
-                        OutlinedTextField(
-                            draft.optString("title"),
-                            { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
-                            label = { Text("Title") },
+                        AppTextField(
+                            value = draft.optString("title"),
+                            onValueChange = { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
+                            label = "Title",
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            trailingIcon = {
-                                VoiceMicButton(
-                                    draft.optString("title"),
-                                    { onDraftChange(JSONObject(draft.toString()).put("title", it)) },
-                                    "Say the session title",
-                                    singleLine = true,
-                                    replace = true
-                                )
-                            }
+                            voicePrompt = "Say the session title"
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DateField(
+                            AppDateField(
                                 draft.optString("sessionDate"),
                                 { onDraftChange(JSONObject(draft.toString()).put("sessionDate", it)) },
                                 "Date",
                                 Modifier.weight(1f)
                             )
-                            TimeField(
+                            AppTimeField(
                                 draft.optString("sessionTime"),
                                 { onDraftChange(JSONObject(draft.toString()).put("sessionTime", it)) },
                                 "Time",
                                 Modifier.weight(1f)
                             )
                         }
-                        OutlinedTextField(
-                            draft.optInt("durationMinutes").toString(),
-                            { value -> onDraftChange(JSONObject(draft.toString()).put("durationMinutes", value.toIntOrNull() ?: draft.optInt("durationMinutes"))) },
-                            label = { Text("Minutes") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                        AppNumberField(
+                            value = draft.optInt("durationMinutes").toString(),
+                            onValueChange = { value -> onDraftChange(JSONObject(draft.toString()).put("durationMinutes", value.toIntOrNull() ?: draft.optInt("durationMinutes"))) },
+                            label = "Minutes",
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        Text("Selected drills: $followUpMinutes min", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                        Text("Selected drills: $followUpMinutes min", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                         Button(onClick = onCreate, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.padding(horizontal = 3.dp))
@@ -2687,7 +2579,7 @@ private fun FollowUpCard(
                 val selectedCatalogueIds = (0 until draft.getJSONArray("drillIds").length())
                     .map { draft.getJSONArray("drillIds").getString(it) }.toSet()
                 if (catalogueIds.isNotEmpty()) {
-                    Text("Catalogue drills", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("Catalogue drills", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
                     catalogueIds.forEach { id ->
                         val drill = drillCatalogue[id]
                         if (drill != null) {
@@ -2708,13 +2600,13 @@ private fun FollowUpCard(
                                         )
                                     }
                                 }
-                                Text("${drill.title} · ${drill.discipline} · ${drill.durationMinutes} min", fontSize = 14.sp)
+                                Text("${drill.title} · ${drill.discipline} · ${drill.durationMinutes} min", fontSize = AppFontSize.Body)
                             }
                         }
                     }
                 }
                 if (evaluation.tailoredRecommendedDrills.isNotEmpty()) {
-                    Text("New AI-recommended drills (saved to the club catalogue)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("New AI-recommended drills (saved to the club catalogue)", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body)
                     val selectedIndexes = (0 until draft.getJSONArray("recommendedDrillIndexes").length())
                         .map { draft.getJSONArray("recommendedDrillIndexes").getInt(it) }.toSet()
                     evaluation.tailoredRecommendedDrills.forEachIndexed { index, row ->
@@ -2736,9 +2628,9 @@ private fun FollowUpCard(
                                 }
                             }
                             Column {
-                                Text("${row.optString("title")} · ${row.optString("discipline")} · ${row.optInt("durationMinutes")} min", fontSize = 14.sp)
+                                Text("${row.optString("title")} · ${row.optString("discipline")} · ${row.optInt("durationMinutes")} min", fontSize = AppFontSize.Body)
                                 row.optString("reason").takeIf(String::isNotBlank)?.let {
-                                    Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    Text(it, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                 }
                             }
                         }
@@ -2923,18 +2815,18 @@ private fun FollowUpCard(
                                 OutlinedButton(onClick = onBack) { Text("‹  Continue session") }
                                 CoachCard {
                                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("End this session?", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                                        Text("End this session?", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
                                         Text("Session time: ${formatCoachTime(sessionSeconds)}", color = CoachMuted)
                                         Text("Drills completed: ${drills.count { it.completed }} / ${drills.size}", color = CoachMuted)
                                         Text("Observations: ${observations.size}", color = CoachMuted)
-                                        Text("Finish “${session.title}” and move to the session review?", color = CoachInk, fontSize = 13.sp)
+                                        Text("Finish “${session.title}” and move to the session review?", color = CoachInk, fontSize = AppFontSize.Small)
                                         OutlinedButton(onClick = onSaveProgress, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
                                             Text(if (isSaving) "Saving…" else "Save progress")
                                         }
                                         Button(onClick = onFinishSession, enabled = !isSaving, modifier = Modifier.fillMaxWidth()) {
                                             Text("Finish session")
                                         }
-                                        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                                     }
                                 }
                             }
@@ -2951,13 +2843,13 @@ private fun FollowUpCard(
                                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Column(Modifier.weight(1f)) {
-                                                    Text("LIVE SESSION", color = Color(0xFF7B6AE5), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                                    Text(if (sessionPaused) "Session paused" else "Session in progress", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                                                    Text("LIVE SESSION", color = Color(0xFF7B6AE5), fontSize = AppFontSize.Caption, fontWeight = FontWeight.Bold)
+                                                    Text(if (sessionPaused) "Session paused" else "Session in progress", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
                                                 }
                                                 Text(
                                                     if (sessionPaused) "PAUSED" else "● LIVE",
                                                     color = if (sessionPaused) Color(0xFFAF7420) else Color(0xFF21895B),
-                                                    fontSize = 11.sp,
+                                                    fontSize = AppFontSize.Caption,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
@@ -2966,13 +2858,13 @@ private fun FollowUpCard(
                                                 CoachMetric("Planned", "${session.durationMinutes} min", Modifier.weight(1f))
                                             }
                                             HorizontalDivider(color = Color(0xFFE5E8F2))
-                                            Text("CURRENT DRILL", color = Color(0xFF7B6AE5), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            Text(activeDrill?.title ?: "No active drill", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                            Text("CURRENT DRILL", color = Color(0xFF7B6AE5), fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
+                                            Text(activeDrill?.title ?: "No active drill", color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
                                             Text(
                                                 activeDrill?.let { "${it.plannedMinutes} min planned · ${formatCoachTime(activeDrillSeconds)} elapsed" }
                                                     ?: "Select a planned drill to begin.",
                                                 color = CoachMuted,
-                                                fontSize = 12.sp
+                                                fontSize = AppFontSize.Small
                                             )
                                             if (activeDrill != null) {
                                                 OutlinedButton(
@@ -2995,13 +2887,13 @@ private fun FollowUpCard(
                                                 Text(if (sessionPaused) "Resume session" else "Pause session")
                                             }
                                             Button(onClick = onEndSession, modifier = Modifier.fillMaxWidth()) { Text("End session") }
-                                            if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = 11.sp)
-                                            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                            if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = AppFontSize.Caption)
+                                            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                                         }
                                     }
                                     CoachCard {
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Text("Quick observation", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                            Text("Quick observation", color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
                                             listOf(
                                                 "Progress" to "PROGRESS",
                                                 "Technique" to "TECHNIQUE",
@@ -3025,29 +2917,29 @@ private fun FollowUpCard(
                                 CoachCard {
                                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Recent observations", modifier = Modifier.weight(1f), color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                            Text("Recent observations", modifier = Modifier.weight(1f), color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
                                             TextButton(onClick = { onOpenObservation("SQUAD", "TECHNIQUE") }) { Text("Add") }
                                         }
                                         if (observationLoadError.isNotBlank()) {
-                                            Text(observationLoadError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                            Text(observationLoadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                                             TextButton(onClick = { coroutineScope.launch { onReloadObservations() } }) { Text("Retry") }
                                         } else if (observations.isEmpty()) {
-                                            Text("No observations yet. Capture a coaching moment during the session.", color = CoachMuted, fontSize = 12.sp)
+                                            Text("No observations yet. Capture a coaching moment during the session.", color = CoachMuted, fontSize = AppFontSize.Small)
                                         } else {
                                             observations.take(4).forEach { observation ->
                                                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                                     Text(
                                                         "${observation.category.lowercase().replaceFirstChar(Char::uppercase)} · ${formatObservationClock(observation.createdAt)}",
                                                         color = Color(0xFF5943D6),
-                                                        fontSize = 11.sp,
+                                                        fontSize = AppFontSize.Caption,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    Text(observation.text, color = Color(0xFF303A54), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                                    Text(observation.text, color = Color(0xFF303A54), fontSize = AppFontSize.Small, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                                     Text(
                                                         listOfNotNull(observation.playerName, observation.drillTitle).joinToString(" · ")
                                                             .ifBlank { observation.scope.lowercase().replaceFirstChar(Char::uppercase) },
                                                         color = CoachMuted,
-                                                        fontSize = 12.sp
+                                                        fontSize = AppFontSize.Small
                                                     )
                                                 }
                                                 if (observation != observations.take(4).last()) HorizontalDivider(color = Color(0xFFE5E8F2))
@@ -3082,8 +2974,8 @@ private fun FollowUpCard(
             private fun CoachMetric(label: String, value: String, modifier: Modifier = Modifier) {
                 Surface(modifier, shape = RoundedCornerShape(13.dp), color = Color(0xFFF4F3FD)) {
                     Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(label, color = CoachMuted, fontSize = 12.sp)
-                        Text(value, color = Color(0xFF202840), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
+                        Text(label, color = CoachMuted, fontSize = AppFontSize.Small)
+                        Text(value, color = Color(0xFF202840), fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small, maxLines = 1)
                     }
                 }
             }
@@ -3098,7 +2990,7 @@ private fun FollowUpCard(
                     Text(
                         label,
                         color = if (selected) Color(0xFF5943D6) else Color(0xFF59647A),
-                        fontSize = 11.sp,
+                        fontSize = AppFontSize.Caption,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)
                     )
@@ -3261,7 +3153,7 @@ private fun SessionLivePrimaryPane(
                     Text(
                         if (sessionPaused) "Session paused" else "Session in progress",
                         color = if (sessionPaused) Color(0xFF9D6A18) else Color(0xFF18875F),
-                        fontSize = 15.sp,
+                        fontSize = AppFontSize.Body,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -3269,7 +3161,7 @@ private fun SessionLivePrimaryPane(
                     Text(
                         formatElapsedClock(sessionSeconds),
                         color = Color(0xFF111A45),
-                        fontSize = 31.sp,
+                        fontSize = AppFontSize.Display,
                         lineHeight = 35.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -3277,7 +3169,7 @@ private fun SessionLivePrimaryPane(
                         "/ ${session.durationMinutes} min",
                         modifier = Modifier.padding(bottom = 3.dp),
                         color = Color(0xFF64708F),
-                        fontSize = 15.sp
+                        fontSize = AppFontSize.Body
                     )
                 }
             }
@@ -3302,7 +3194,7 @@ private fun SessionLivePrimaryPane(
                     Text(
                         if (sessionPaused) "Resume" else "Pause",
                         color = Color.White,
-                        fontSize = 19.sp,
+                        fontSize = AppFontSize.Title,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -3373,8 +3265,8 @@ private fun SessionLivePrimaryPane(
                 onClick = onOpenDrillControls
             )
         }
-        if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = 15.sp)
-        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+        if (isSaving) Text("Saving session…", color = CoachMuted, fontSize = AppFontSize.Body)
+        if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
     }
 }
 
@@ -3411,12 +3303,12 @@ private fun ActiveDrillSummaryCard(
                     Text(
                         if (drill == null) "Current drill" else "Current drill $position / $count",
                         color = Color(0xFF64708F),
-                        fontSize = 14.sp
+                        fontSize = AppFontSize.Body
                     )
                     Text(
                         drill?.title ?: "No active drill",
                         color = Color(0xFF17204A),
-                        fontSize = 18.sp,
+                        fontSize = AppFontSize.Title,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -3425,7 +3317,7 @@ private fun ActiveDrillSummaryCard(
                 Text(
                     drill?.let { "${formatCoachTime(elapsedSeconds)} / ${formatCoachTime(it.plannedMinutes * 60)}" } ?: "Choose",
                     color = Color(0xFF64708F),
-                    fontSize = 14.sp
+                    fontSize = AppFontSize.Body
                 )
                 Icon(Icons.Outlined.PlayArrow, contentDescription = "Drill controls", tint = Color(0xFF3F4D7C), modifier = Modifier.size(22.dp))
             }
@@ -3544,28 +3436,8 @@ private fun CurrentDrillControlPanel(
     onAddObservation: () -> Unit
 ) {
     val context = LocalContext.current
-    var speechError by remember { mutableStateOf("") }
     var addedMinutes by remember(activeDrill?.id) { mutableIntStateOf(0) }
     var drillClockMillis by remember(activeDrill?.id) { mutableLongStateOf(System.currentTimeMillis()) }
-    val speechLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spokenText = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-                ?.trim()
-            if (!spokenText.isNullOrBlank()) {
-                val combinedNotes = listOf(drillNotes.trim(), spokenText)
-                    .filter(String::isNotBlank)
-                    .joinToString(" ")
-                onNotesChange(combinedNotes)
-                speechError = ""
-            } else {
-                speechError = "No speech was recognized. Try again."
-            }
-        }
-    }
     LaunchedEffect(activeDrill?.id, activeDrillStartedAt, paused) {
         if (activeDrill == null || activeDrillStartedAt == null || paused) return@LaunchedEffect
         while (true) {
@@ -3598,7 +3470,7 @@ private fun CurrentDrillControlPanel(
                     activeDrill?.title ?: "All planned drills complete",
                     modifier = Modifier.weight(1f),
                     color = Color(0xFF17204A),
-                    fontSize = 19.sp,
+                    fontSize = AppFontSize.Title,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -3614,10 +3486,10 @@ private fun CurrentDrillControlPanel(
                         Text(
                             formatCoachTime(remainingSeconds),
                             color = Color(0xFF263B75),
-                            fontSize = 21.sp,
+                            fontSize = AppFontSize.TitleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        Text("remaining", color = Color(0xFF66728F), fontSize = 15.sp)
+                        Text("remaining", color = Color(0xFF66728F), fontSize = AppFontSize.Body)
                     }
                 }
             }
@@ -3672,13 +3544,13 @@ private fun CurrentDrillControlPanel(
                         "Add minutes",
                         modifier = Modifier.weight(1f),
                         color = Color(0xFF27365F),
-                        fontSize = 17.sp,
+                        fontSize = AppFontSize.BodyLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         if (addedMinutes == 0) "1–20 min" else "+$addedMinutes min",
                         color = Color(0xFF644BEA),
-                        fontSize = 17.sp,
+                        fontSize = AppFontSize.BodyLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -3697,45 +3569,22 @@ private fun CurrentDrillControlPanel(
                     enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth().height(30.dp)
                 )
-                OutlinedTextField(
+                AppTextField(
                     value = drillNotes,
-                    onValueChange = {
-                        speechError = ""
-                        onNotesChange(it)
-                    },
+                    onValueChange = onNotesChange,
+                    label = "Drill notes",
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(9.dp),
+                    singleLine = false,
                     minLines = 1,
                     maxLines = 2,
-                    label = { Text("Drill notes", fontSize = 17.sp) },
-                    placeholder = { Text("Add notes about this drill", fontSize = 16.sp) },
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            speechError = ""
-                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                putExtra(
-                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                                )
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your drill notes")
-                            }
-                            try {
-                                speechLauncher.launch(intent)
-                            } catch (_: ActivityNotFoundException) {
-                                speechError = "Speech recognition is not available on this device."
-                            }
-                        }) {
-                            Icon(Icons.Outlined.Mic, contentDescription = "Speak drill notes")
-                        }
-                    },
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 17.sp)
+                    placeholder = "Add notes about this drill",
+                    voicePrompt = "Speak your drill notes",
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = AppFontSize.BodyLarge)
                 )
-                if (speechError.isNotBlank()) {
-                    Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
-                }
             }
-            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = 15.sp)
-            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
+            if (isSaving) Text("Saving…", color = CoachMuted, fontSize = AppFontSize.Body)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.BodyLarge)
         }
     }
 }
@@ -3759,9 +3608,9 @@ private fun NextDrillsPanel(
             Modifier.fillMaxWidth().padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Session drills (${drills.size})", color = Color(0xFF53617F), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text("Session drills (${drills.size})", color = Color(0xFF53617F), fontSize = AppFontSize.Title, fontWeight = FontWeight.Bold)
             if (drills.isEmpty()) {
-                Text("No drills planned for this session", color = Color(0xFF74809A), fontSize = 17.sp)
+                Text("No drills planned for this session", color = Color(0xFF74809A), fontSize = AppFontSize.BodyLarge)
             } else {
                 drills.forEach { (number, drill) ->
                     val isCurrent = drill.id == activeDrillId
@@ -3809,14 +3658,14 @@ private fun NextDrillsPanel(
                         ) {
                             Surface(shape = RoundedCornerShape(50), color = Color(0xFFE8E7FF)) {
                                 Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
-                                    Text("$number", color = Color(0xFF5342D2), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text("$number", color = Color(0xFF5342D2), fontSize = AppFontSize.Body, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                 Text(
                                     drill.title,
                                     color = Color(0xFF26324F),
-                                    fontSize = 17.sp,
+                                    fontSize = AppFontSize.BodyLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -3830,7 +3679,7 @@ private fun NextDrillsPanel(
                                 Text(
                                     drillStatus,
                                     color = if (drill.completed) Color(0xFF25835D) else Color(0xFF74809A),
-                                    fontSize = 15.sp
+                                    fontSize = AppFontSize.Body
                                 )
                             }
                             when {
@@ -3840,7 +3689,7 @@ private fun NextDrillsPanel(
                                     tint = Color(0xFF25835D),
                                     modifier = Modifier.size(20.dp)
                                 )
-                                isCurrent -> Text("Now", color = Color(0xFF644BEA), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                isCurrent -> Text("Now", color = Color(0xFF644BEA), fontSize = AppFontSize.Body, fontWeight = FontWeight.Bold)
                                 else -> Icon(
                                     Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                                     contentDescription = "Start ${drill.title}",
@@ -3905,7 +3754,7 @@ private fun DrillTabletAction(
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(7.dp))
             }
-            Text(label, color = tint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = tint, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -3935,8 +3784,8 @@ private fun QuickCaptureTile(
         ) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
             Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(title, color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text(subtitle, color = Color(0xFF72809E), fontSize = 14.sp, maxLines = 1)
+                Text(title, color = tint, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle, color = Color(0xFF72809E), fontSize = AppFontSize.Body, maxLines = 1)
             }
         }
     }
@@ -3962,7 +3811,7 @@ private fun SessionOutlineAction(
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(6.dp))
-        Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -4013,18 +3862,18 @@ private fun RecentObservationsPane(
                     "Recent observations",
                     modifier = Modifier.weight(1f),
                     color = Color(0xFF18204A),
-                    fontSize = 19.sp,
+                    fontSize = AppFontSize.Title,
                     fontWeight = FontWeight.Bold
                 )
                 TextButton(onClick = onViewAll) {
-                    Text("View all ›", color = Color(0xFF6349E8), fontSize = 15.sp)
+                    Text("View all ›", color = Color(0xFF6349E8), fontSize = AppFontSize.Body)
                 }
             }
             if (loadError.isNotBlank()) {
-                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 16.sp)
-                TextButton(onClick = onReload) { Text("Retry", fontSize = 16.sp) }
+                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.BodyLarge)
+                TextButton(onClick = onReload) { Text("Retry", fontSize = AppFontSize.BodyLarge) }
             } else if (observations.isEmpty()) {
-                Text("No observations yet.", color = CoachMuted, fontSize = 16.sp)
+                Text("No observations yet.", color = CoachMuted, fontSize = AppFontSize.BodyLarge)
             } else {
                 observations.take(3).forEachIndexed { index, observation ->
                     ObservationListRow(observation)
@@ -4044,12 +3893,12 @@ private fun AllSessionObservationsCard(
 ) {
     Column(Modifier.padding(horizontal = 4.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("All observations", color = CoachInk, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text("All observations", color = CoachInk, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             if (loadError.isNotBlank()) {
-                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = 15.sp)
+                Text(loadError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
                 TextButton(onClick = onReload) { Text("Retry") }
             } else if (observations.isEmpty()) {
-                Text("No observations recorded for this session.", color = CoachMuted, fontSize = 15.sp)
+                Text("No observations recorded for this session.", color = CoachMuted, fontSize = AppFontSize.Body)
             } else {
                 observations.forEachIndexed { index, observation ->
                     ObservationListRow(observation)
@@ -4083,10 +3932,10 @@ private fun ObservationListRow(observation: SessionObservation) {
         else -> Color(0xFF5C47CF)
     }
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(formatObservationClock(observation.createdAt), color = Color(0xFF8791A8), fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
+        Text(formatObservationClock(observation.createdAt), color = Color(0xFF8791A8), fontSize = AppFontSize.Body, modifier = Modifier.padding(top = 5.dp))
         Surface(shape = RoundedCornerShape(50), color = avatarColor, modifier = Modifier.size(30.dp)) {
             Box(contentAlignment = Alignment.Center) {
-                Text(initials, color = categoryColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(initials, color = categoryColor, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -4095,7 +3944,7 @@ private fun ObservationListRow(observation: SessionObservation) {
                     Text(
                         observation.category.lowercase().replaceFirstChar(Char::uppercase),
                         color = categoryColor,
-                        fontSize = 14.sp,
+                        fontSize = AppFontSize.Body,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     )
@@ -4105,7 +3954,7 @@ private fun ObservationListRow(observation: SessionObservation) {
                         Text(
                             drill,
                             color = Color(0xFF52607F),
-                            fontSize = 14.sp,
+                            fontSize = AppFontSize.Body,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -4117,7 +3966,7 @@ private fun ObservationListRow(observation: SessionObservation) {
             Text(
                 observation.text,
                 color = Color(0xFF52607F),
-                fontSize = 15.sp,
+                fontSize = AppFontSize.Body,
                 lineHeight = 19.sp,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
@@ -4143,17 +3992,6 @@ private fun QuickNotePanel(
         "ADJUSTMENT" -> NoteStyle("Adjustment", "What would you change next time?", Icons.Outlined.Lightbulb, Color(0xFFE28A18), Color(0xFFFFF6E6))
         else -> NoteStyle("Went well", "What worked well in this session?", Icons.Outlined.Star, Color(0xFF159B72), Color(0xFFE9F8F1))
     }
-    val currentText by rememberUpdatedState(text)
-    var speechError by remember { mutableStateOf("") }
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-            if (!spoken.isNullOrBlank()) {
-                onTextChange(listOf(currentText.trim(), spoken).filter(String::isNotBlank).joinToString("\n"))
-                speechError = ""
-            } else speechError = "No speech was recognized. Try again."
-        }
-    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -4167,11 +4005,11 @@ private fun QuickNotePanel(
                     Icon(style.icon, contentDescription = null, tint = style.tint, modifier = Modifier.padding(10.dp).size(26.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(style.title, color = style.tint, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text(style.title, color = style.tint, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
                     Text(
                         drillTitle?.let { "${style.prompt}  ·  $it" } ?: style.prompt,
                         color = CoachMuted,
-                        fontSize = 15.sp,
+                        fontSize = AppFontSize.Body,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -4180,39 +4018,26 @@ private fun QuickNotePanel(
                     Icon(Icons.Outlined.Close, contentDescription = "Close ${style.title} note", tint = CoachInk, modifier = Modifier.size(24.dp))
                 }
             }
-            OutlinedTextField(
+            AppTextField(
                 value = text,
                 onValueChange = onTextChange,
+                label = null,
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = false,
                 minLines = 6,
                 shape = RoundedCornerShape(12.dp),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, color = CoachInk),
-                placeholder = { Text(style.prompt, fontSize = 17.sp) },
-                trailingIcon = {
-                    IconButton(onClick = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your ${style.title.lowercase()} note")
-                        }
-                        try {
-                            speechLauncher.launch(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            speechError = "Speech recognition is not available on this device."
-                        }
-                    }) {
-                        Icon(Icons.Outlined.Mic, contentDescription = "Speak ${style.title} note", tint = style.tint)
-                    }
-                }
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
+                placeholder = style.prompt,
+                voicePrompt = "Speak your ${style.title.lowercase()} note"
             )
-            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             when {
-                saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                saving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
+                saving -> Text("Saving…", color = CoachMuted, fontSize = AppFontSize.Body)
                 text.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
-                    Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = 14.sp)
+                    Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = AppFontSize.Body)
                 }
-                else -> Text("Notes save automatically as you type.", color = CoachMuted, fontSize = 14.sp)
+                else -> Text("Notes save automatically as you type.", color = CoachMuted, fontSize = AppFontSize.Body)
             }
         }
     }
@@ -4233,17 +4058,6 @@ private fun IncidentEntryPanel(
     val tint = Color(0xFFE28A18)
     var category by remember { mutableStateOf("Injury") }
     var note by remember { mutableStateOf("") }
-    val currentNote by rememberUpdatedState(note)
-    var speechError by remember { mutableStateOf("") }
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-            if (!spoken.isNullOrBlank()) {
-                note = listOf(currentNote.trim(), spoken).filter(String::isNotBlank).joinToString(" ")
-                speechError = ""
-            } else speechError = "No speech was recognized. Try again."
-        }
-    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -4257,11 +4071,11 @@ private fun IncidentEntryPanel(
                     Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(26.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text("Incident", color = tint, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                    Text("Incident", color = tint, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
                     Text(
                         drillTitle?.let { "What happened?  ·  $it" } ?: "What happened?",
                         color = CoachMuted,
-                        fontSize = 15.sp,
+                        fontSize = AppFontSize.Body,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -4276,7 +4090,7 @@ private fun IncidentEntryPanel(
                     Text(
                         option,
                         color = if (selected) Color.White else CoachInk,
-                        fontSize = 15.sp,
+                        fontSize = AppFontSize.Body,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
@@ -4286,39 +4100,26 @@ private fun IncidentEntryPanel(
                     )
                 }
             }
-            OutlinedTextField(
+            AppTextField(
                 value = note,
                 onValueChange = { note = it },
+                label = null,
                 modifier = Modifier.fillMaxWidth(),
+                singleLine = false,
                 minLines = 3,
                 shape = RoundedCornerShape(12.dp),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, color = CoachInk),
-                placeholder = { Text("Describe the incident", fontSize = 17.sp) },
-                trailingIcon = {
-                    IconButton(onClick = {
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe the incident")
-                        }
-                        try {
-                            speechLauncher.launch(intent)
-                        } catch (_: ActivityNotFoundException) {
-                            speechError = "Speech recognition is not available on this device."
-                        }
-                    }) {
-                        Icon(Icons.Outlined.Mic, contentDescription = "Speak incident", tint = tint)
-                    }
-                }
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
+                placeholder = "Describe the incident",
+                voicePrompt = "Describe the incident"
             )
-            if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     when {
-                        saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                        saving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                        saveError.isNotBlank() -> Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
+                        saving -> Text("Saving…", color = CoachMuted, fontSize = AppFontSize.Body)
                         incidents.isNotEmpty() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
-                            Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = 14.sp)
+                            Text("Saved automatically", color = Color(0xFF4F5B78), fontSize = AppFontSize.Body)
                         }
                     }
                 }
@@ -4333,26 +4134,26 @@ private fun IncidentEntryPanel(
                 ) {
                     Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Log incident", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Log incident", fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.SemiBold)
                 }
             }
             if (incidents.isNotEmpty()) {
                 HorizontalDivider(color = Color(0xFFE8ECF6))
-                Text("Logged this session", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Logged this session", color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
                 incidents.asReversed().forEach { incident ->
                     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(formatObservationClock(incident.time), color = Color(0xFF8791A8), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(formatObservationClock(incident.time), color = Color(0xFF8791A8), fontSize = AppFontSize.Body, modifier = Modifier.padding(top = 4.dp))
                         Text(
                             incident.category,
                             color = tint,
-                            fontSize = 14.sp,
+                            fontSize = AppFontSize.Body,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(tint.copy(alpha = 0.1f))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         )
-                        Text(incident.note, color = Color(0xFF52607F), fontSize = 15.sp, modifier = Modifier.weight(1f).padding(top = 3.dp))
+                        Text(incident.note, color = Color(0xFF52607F), fontSize = AppFontSize.Body, modifier = Modifier.weight(1f).padding(top = 3.dp))
                         Icon(
                             Icons.Outlined.Delete,
                             contentDescription = "Remove incident",
@@ -4507,9 +4308,9 @@ private fun ObservationEntryPanel(
             val isTablet = maxWidth >= 600.dp
             val playersList: @Composable (Modifier) -> Unit = { modifier ->
                 Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Players", color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+                    Text("Players", color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
                     if (players.isEmpty()) {
-                        Text("No players are assigned to this session.", color = CoachMuted, fontSize = 14.sp)
+                        Text("No players are assigned to this session.", color = CoachMuted, fontSize = AppFontSize.Body)
                     }
                     players.forEach { player ->
                         val selected = observationScope == "INDIVIDUAL" && observationPlayerId == player.id
@@ -4535,13 +4336,13 @@ private fun ObservationEntryPanel(
                                     .mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
                                 Surface(shape = RoundedCornerShape(50), color = Color(0xFFE5EFFF), modifier = Modifier.size(38.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text(initials, color = Color(0xFF3F5BA8), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        Text(initials, color = Color(0xFF3F5BA8), fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                                     }
                                 }
                                 Text(
                                     player.name,
                                     color = if (selected) accent else CoachInk,
-                                    fontSize = 15.sp,
+                                    fontSize = AppFontSize.Body,
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -4554,7 +4355,7 @@ private fun ObservationEntryPanel(
             val entryColumn: @Composable (Modifier) -> Unit = { modifier ->
                 Column(modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Observation type", modifier = Modifier.weight(1f), color = CoachInk, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text("Observation type", modifier = Modifier.weight(1f), color = CoachInk, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.Bold)
                         IconButton(onClick = {
                             if (listening) stopListening()
                             onClose()
@@ -4582,7 +4383,7 @@ private fun ObservationEntryPanel(
                                         Text(
                                             label,
                                             color = if (selected) Color.White else Color(0xFF3B4560),
-                                            fontSize = 15.sp,
+                                            fontSize = AppFontSize.Body,
                                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                                             maxLines = 1
                                         )
@@ -4602,7 +4403,7 @@ private fun ObservationEntryPanel(
                                 "%d:%02d".format(remainingSeconds / 60, remainingSeconds % 60),
                                 modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
                                 color = CoachMuted,
-                                fontSize = 14.sp
+                                fontSize = AppFontSize.Body
                             )
                             Column(
                                 Modifier.align(Alignment.Center),
@@ -4617,39 +4418,42 @@ private fun ObservationEntryPanel(
                                 Text(
                                     if (listening) "Listening…" else "Tap to speak",
                                     color = accent,
-                                    fontSize = 17.sp,
+                                    fontSize = AppFontSize.BodyLarge,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
                     }
-                    if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-                    OutlinedTextField(
+                    if (speechError.isNotBlank()) Text(speechError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
+                    AppTextField(
                         value = observationText,
                         onValueChange = onTextChange,
+                        label = null,
                         modifier = Modifier.fillMaxWidth(),
+                        singleLine = false,
                         minLines = 3,
+                        voice = false,
                         shape = RoundedCornerShape(12.dp),
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = CoachInk),
-                        placeholder = { Text("What did you notice?", fontSize = 16.sp) }
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = AppFontSize.BodyLarge, color = CoachInk),
+                        placeholder = "What did you notice?"
                     )
                     when {
                         observationScope == "INDIVIDUAL" && observationPlayerId == null ->
-                            Text("Choose a player to save this observation.", color = CoachMuted, fontSize = 14.sp)
-                        observationSaving -> Text("Saving…", color = CoachMuted, fontSize = 14.sp)
+                            Text("Choose a player to save this observation.", color = CoachMuted, fontSize = AppFontSize.Body)
+                        observationSaving -> Text("Saving…", color = CoachMuted, fontSize = AppFontSize.Body)
                         observationError.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(observationError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
-                            TextButton(onClick = onRetry) { Text("Retry", fontSize = 14.sp) }
+                            Text(observationError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
+                            TextButton(onClick = onRetry) { Text("Retry", fontSize = AppFontSize.Body) }
                         }
                         observationSavedAt.isNotBlank() -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF19A66A), modifier = Modifier.size(20.dp))
                             Text(
                                 listOfNotNull("Saved", formatObservationClock(observationSavedAt).ifBlank { null }, activeDrillTitle).joinToString("  ·  "),
                                 color = Color(0xFF4F5B78),
-                                fontSize = 14.sp
+                                fontSize = AppFontSize.Body
                             )
                         }
-                        observationText.isNotBlank() -> Text("Saving automatically…", color = CoachMuted, fontSize = 14.sp)
+                        observationText.isNotBlank() -> Text("Saving automatically…", color = CoachMuted, fontSize = AppFontSize.Body)
                     }
                 }
             }

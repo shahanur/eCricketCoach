@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.assessment
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -270,51 +271,51 @@ internal fun StandaloneCapeAnalysisPanel(
                     }
                 }
             }
-            Text("Calibrate the pitch, then queue a detailed CAPE analysis with measured findings and downloadable snapshots.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (player == null) Text("Select an athlete above to run a detailed analysis.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            else if (target == null) Text("Detailed CAPE analysis currently supports batting and bowling.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-            else if (sourceLabel == null) Text("Choose a device or Google Drive video above to enable detailed analysis.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text("Calibrate the pitch, then queue a detailed CAPE analysis with measured findings and downloadable snapshots.", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (player == null) Text("Select an athlete above to run a detailed analysis.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Small)
+            else if (target == null) Text("Detailed CAPE analysis currently supports batting and bowling.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Small)
+            else if (sourceLabel == null) Text("Choose a device or Google Drive video above to enable detailed analysis.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Small)
 
             if (jobLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             if (job?.isPending == true) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(if (job?.status == "RUNNING") "Analysing video…" else "Queued for analysis…", fontSize = 12.sp)
+                Text(if (job?.status == "RUNNING") "Analysing video…" else "Queued for analysis…", fontSize = AppFontSize.Small)
             }
-            if (job?.status == "FAILED") Text(job?.errorMessage ?: "The detailed analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (job?.status == "FAILED") Text(job?.errorMessage ?: "The detailed analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             if (setupOpen && player != null && target != null) {
                 HorizontalDivider()
-                Text("Video: ${sourceLabel ?: "No video selected"}", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(if (target == "batter") "Batter hand" else "Bowler hand", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Video: ${sourceLabel ?: "No video selected"}", fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (target == "batter") "Batter hand" else "Bowler hand", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("right", "left").forEach { hand ->
-                        FilterChip(selected = handedness == hand, onClick = { handedness = hand }, label = { Text("${hand.replaceFirstChar(Char::uppercase)}-handed", fontSize = 12.sp) })
+                        FilterChip(selected = handedness == hand, onClick = { handedness = hand }, label = { Text("${hand.replaceFirstChar(Char::uppercase)}-handed", fontSize = AppFontSize.Small) })
                     }
                 }
-                Text(if (target == "batter") "Shot" else "Bowling type", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (target == "batter") "Shot" else "Bowling type", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (target == "batter") {
-                        StandaloneShotTypes.forEach { value -> FilterChip(selected = shotType == value, onClick = { shotType = value }, label = { Text(value.replace('_', ' ').replaceFirstChar(Char::uppercase), fontSize = 11.sp) }) }
+                        StandaloneShotTypes.forEach { value -> FilterChip(selected = shotType == value, onClick = { shotType = value }, label = { Text(value.replace('_', ' ').replaceFirstChar(Char::uppercase), fontSize = AppFontSize.Caption) }) }
                     } else {
-                        StandaloneBowlerTypes.forEach { value -> FilterChip(selected = bowlerType == value, onClick = { bowlerType = value }, label = { Text(value.replaceFirstChar(Char::uppercase), fontSize = 12.sp) }) }
+                        StandaloneBowlerTypes.forEach { value -> FilterChip(selected = bowlerType == value, onClick = { bowlerType = value }, label = { Text(value.replaceFirstChar(Char::uppercase), fontSize = AppFontSize.Small) }) }
                     }
                 }
                 when {
                     loadingFrame -> Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("  Loading the first frame…", fontSize = 12.sp)
+                        Text("  Loading the first frame…", fontSize = AppFontSize.Small)
                     }
                     frame != null -> {
                         Text(
                             if (calibrationPoints.size < 4) "Tap pitch corner ${calibrationPoints.size + 1}: ${CORNER_LABELS[calibrationPoints.size]} (left/right as seen from the bowler’s end)."
                             else "All four pitch corners marked.",
-                            fontSize = 12.sp
+                            fontSize = AppFontSize.Small
                         )
                         CalibrationOverlay(frame!!, calibrationPoints) {
                             if (calibrationPoints.size < 4) calibrationPoints.add(it)
                         }
                         if (calibrationPoints.isNotEmpty()) TextButton(onClick = { calibrationPoints.clear() }) { Text("Reset corners") }
                     }
-                    sourceLabel == null -> Text("Choose a video above first.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    sourceLabel == null -> Text("Choose a video above first.", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 }
                 if (target == "batter") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -324,7 +325,7 @@ internal fun StandaloneCapeAnalysisPanel(
                             contactCandidates = null
                             candidatesError = ""
                         })
-                        Text("Select contact frames manually (for poor-quality video)", fontSize = 12.sp)
+                        Text("Select contact frames manually (for poor-quality video)", fontSize = AppFontSize.Small)
                     }
                     if (manualMode) {
                         if (contactCandidates == null) {
@@ -344,18 +345,18 @@ internal fun StandaloneCapeAnalysisPanel(
                                     FilterChip(
                                         selected = activeFrameRole == role,
                                         onClick = { activeFrameRole = role },
-                                        label = { Text("${role.replace('_', ' ').replaceFirstChar(Char::uppercase)} · $count", fontSize = 10.sp) }
+                                        label = { Text("${role.replace('_', ' ').replaceFirstChar(Char::uppercase)} · $count", fontSize = AppFontSize.Micro) }
                                     )
                                 }
                             }
-                            Text("Choose at least one contact frame. Pre/post-contact frames are optional and must be in time order.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Choose at least one contact frame. Pre/post-contact frames are optional and must be in time order.", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val firstFrame = data.frames.firstOrNull()?.index
                             val lastFrame = data.frames.lastOrNull()?.index
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     if (firstFrame != null && lastFrame != null) "Frames #$firstFrame–#$lastFrame of ${data.frameCount} · browse all frames"
                                     else "No frames available",
-                                    fontSize = 10.sp,
+                                    fontSize = AppFontSize.Micro,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Row {
@@ -394,28 +395,28 @@ internal fun StandaloneCapeAnalysisPanel(
                                             )
                                         } else {
                                             Box(Modifier.fillMaxWidth().height(86.dp), contentAlignment = Alignment.Center) {
-                                                Text("Preview unavailable", fontSize = 10.sp)
+                                                Text("Preview unavailable", fontSize = AppFontSize.Micro)
                                             }
                                         }
                                         Text(
                                             "#${candidate.index} · ${String.format(java.util.Locale.getDefault(), "%.2f", candidate.timeSeconds)}s" +
                                                 (selectedRole?.let { " · ${it.substringBefore('_').uppercase()}" } ?: ""),
-                                            fontSize = 10.sp,
+                                            fontSize = AppFontSize.Micro,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         TextButton(onClick = { previewingContactFrame = candidate }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
-                                            Text("Enlarge", fontSize = 10.sp)
+                                            Text("Enlarge", fontSize = AppFontSize.Micro)
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    if (candidatesError.isNotBlank()) Text(candidatesError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    if (candidatesError.isNotBlank()) Text(candidatesError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 }
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                if (calibrationPoints.size < 4) Text("Mark all four pitch corners to enable analysis.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
+                if (calibrationPoints.size < 4) Text("Mark all four pitch corners to enable analysis.", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         enabled = !submitting && frame != null && calibrationPoints.size == 4 &&
@@ -484,12 +485,12 @@ private fun ContactFramePreviewDialog(frame: CapeContactFrame, onDismiss: () -> 
                         "Frame #${frame.index} · ${String.format(java.util.Locale.getDefault(), "%.2f", frame.timeSeconds)}s",
                         modifier = Modifier.weight(1f),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = AppFontSize.BodyLarge
                     )
                     IconButton(onClick = { zoom = (zoom / 1.4f).coerceAtLeast(1f) }, enabled = zoom > 1f) {
                         Icon(Icons.Outlined.ZoomOut, contentDescription = "Zoom out")
                     }
-                    Text("${(zoom * 100).toInt()}%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${(zoom * 100).toInt()}%", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     IconButton(onClick = { zoom = (zoom * 1.4f).coerceAtMost(4f) }, enabled = zoom < 4f) {
                         Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
                     }

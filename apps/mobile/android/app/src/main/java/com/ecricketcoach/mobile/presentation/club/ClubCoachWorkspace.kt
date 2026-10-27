@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.club
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -74,6 +75,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.automirrored.outlined.Sort
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -313,7 +315,7 @@ private fun DisciplineChip(discipline: String, modifier: Modifier = Modifier) {
             Spacer(Modifier.width(6.dp))
             Text(
                 discipline.lowercase().replaceFirstChar { it.uppercase() },
-                fontSize = 13.sp,
+                fontSize = AppFontSize.Small,
                 color = accent,
                 fontWeight = FontWeight.Bold
             )
@@ -369,137 +371,6 @@ internal fun WorkspaceAction(
                 Spacer(Modifier.padding(horizontal = 2.dp))
                 Icon(it, contentDescription = null, modifier = Modifier.size(18.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun WorkspaceField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    singleLine: Boolean = true,
-    enabled: Boolean = true,
-    voice: Boolean = true
-) {
-    val isEmail = label.contains("email", ignoreCase = true)
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = modifier,
-        singleLine = singleLine,
-        enabled = enabled,
-        trailingIcon = if (voice) {
-            {
-                VoiceMicButton(
-                    current = value,
-                    onValueChange = onValueChange,
-                    prompt = "Speak ${label.trimEnd('*', ' ', '…').lowercase()}",
-                    enabled = enabled,
-                    singleLine = singleLine,
-                    replace = singleLine,
-                    transform = if (isEmail) ::spokenEmailAddress else { text -> text }
-                )
-            }
-        } else null,
-        shape = RoundedCornerShape(14.dp),
-        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-        )
-    )
-}
-
-/** Read-only field that opens the native Android date picker, matching the "YYYY-MM-DD" format used across the workspace. */
-@Composable
-internal fun DateField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    val context = LocalContext.current
-    fun openPicker() {
-        val initial = runCatching { LocalDate.parse(value) }.getOrDefault(LocalDate.now())
-        android.app.DatePickerDialog(
-            context,
-            { _, year, month, day -> onValueChange(LocalDate.of(year, month + 1, day).toString()) },
-            initial.year, initial.monthValue - 1, initial.dayOfMonth
-        ).show()
-    }
-    Box(modifier) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(label) },
-            trailingIcon = { Icon(Icons.Outlined.CalendarMonth, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-            )
-        )
-        if (enabled) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { openPicker() }
-            )
-        }
-    }
-}
-
-/** Read-only field that opens the native Android time picker, storing the value as "HH:mm". */
-@Composable
-internal fun TimeField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    val context = LocalContext.current
-    fun openPicker() {
-        val parts = value.split(":").mapNotNull(String::toIntOrNull)
-        val initialHour = parts.getOrNull(0) ?: 9
-        val initialMinute = parts.getOrNull(1) ?: 0
-        android.app.TimePickerDialog(
-            context,
-            { _, hour, minute -> onValueChange("%02d:%02d".format(hour, minute)) },
-            initialHour, initialMinute, true
-        ).show()
-    }
-    Box(modifier) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(label) },
-            trailingIcon = { Icon(Icons.Outlined.AccessTime, contentDescription = null) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
-            )
-        )
-        if (enabled) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { openPicker() }
-            )
         }
     }
 }
@@ -638,8 +509,8 @@ internal fun ClubCoachWorkspace(
                             }
                             Spacer(Modifier.width(11.dp))
                             Column {
-                                Text("Ekota", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color.White)
-                                Text("Academy", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFFD2D8EB))
+                                Text("Ekota", fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.Title, color = Color.White)
+                                Text("Academy", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = Color(0xFFD2D8EB))
                             }
                         }
                         HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = Color.White.copy(alpha = 0.14f))
@@ -658,7 +529,7 @@ internal fun ClubCoachWorkspace(
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(workspaceTabIcon(item), contentDescription = null, tint = if (selected) Color.White else Color(0xFFD2D8EB), modifier = Modifier.size(21.dp))
-                                        Text(item, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
+                                        Text(item, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = AppFontSize.Body, modifier = Modifier.padding(start = 12.dp))
                                     }
                                 }
                                 Spacer(Modifier.height(5.dp))
@@ -668,11 +539,11 @@ internal fun ClubCoachWorkspace(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             val initials = user.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "U" }
                             Surface(shape = CircleShape, color = Color(0xFF8A65F5), modifier = Modifier.size(38.dp)) {
-                                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small) }
                             }
                             Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                                Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = 12.sp)
+                                Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = AppFontSize.Small)
                             }
                         }
                     }
@@ -732,7 +603,7 @@ internal fun ClubCoachWorkspace(
                         Text(
                             sectionTab,
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { tab = sectionTab }.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
@@ -742,12 +613,12 @@ internal fun ClubCoachWorkspace(
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             modifier = Modifier.size(16.dp)
                         )
-                        Text(tab, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), modifier = Modifier.padding(horizontal = 4.dp))
+                        Text(tab, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), modifier = Modifier.padding(horizontal = 4.dp))
                     }
                 }
                 Spacer(Modifier.height(if (isTablet) 0.dp else 6.dp))
                 if (error.isNotBlank()) {
-            Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+            Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small, modifier = Modifier.padding(vertical = 6.dp))
         }
         LaunchedEffect(notice) {
             if (notice.isNotBlank()) {
@@ -763,7 +634,7 @@ internal fun ClubCoachWorkspace(
                 Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("Offline edits: $pendingCount pending · ${failedMutations.size} failed · $syncedCount synced", fontWeight = FontWeight.SemiBold)
                     failedMutations.take(3).forEach { mutation ->
-                        Text("${mutation.kind} · ${mutation.error}", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Text("${mutation.kind} · ${mutation.error}", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                         TextButton(onClick = { discardMutation = mutation }) { Text("Discard this failed edit…") }
                     }
                 }
@@ -1639,7 +1510,7 @@ internal fun ClubCoachWorkspace(
                         selected = sectionTab == item,
                         onClick = { tab = item },
                         icon = { Icon(workspaceTabIcon(item), contentDescription = null) },
-                        label = { Text(item, fontSize = 11.sp, maxLines = 1) },
+                        label = { Text(item, fontSize = AppFontSize.Caption, maxLines = 1) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = MaterialTheme.colorScheme.primary,
                             selectedTextColor = MaterialTheme.colorScheme.onPrimary,
@@ -1804,8 +1675,8 @@ private fun ClubWorkspaceSidebar(
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text("Ekota", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-                    Text("Academy", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
+                    Text("Ekota", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.Body)
+                    Text("Academy", color = Color.White.copy(alpha = 0.75f), fontSize = AppFontSize.Small)
                 }
                 IconButton(onClick = onToggleCollapsed) {
                     Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Collapse navigation", tint = Color.White, modifier = Modifier.graphicsLayer(scaleX = -1f))
@@ -1836,7 +1707,7 @@ private fun ClubWorkspaceSidebar(
                             modifier = Modifier.size(21.dp)
                         )
                         if (!collapsed) {
-                            Text(tab, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
+                            Text(tab, color = if (selected) Color.White else Color(0xFFD2D8EB), fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, fontSize = AppFontSize.Small, maxLines = 1, modifier = Modifier.padding(start = 12.dp))
                         }
                     }
                 }
@@ -1850,12 +1721,12 @@ private fun ClubWorkspaceSidebar(
         ) {
             val initials = user.name.split(Regex("\\s+")).filter(String::isNotBlank).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("").ifBlank { "U" }
             Surface(shape = CircleShape, color = Color(0xFF8A65F5), modifier = Modifier.size(38.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                Box(contentAlignment = Alignment.Center) { Text(initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small) }
             }
             if (!collapsed) {
                 Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                    Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = 11.sp)
+                    Text(user.name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (user.role == "CLUB_ADMIN") "Club Admin" else "Coach", color = Color(0xFFBEC7DE), fontSize = AppFontSize.Caption)
                 }
             }
         }
@@ -1911,7 +1782,7 @@ private fun WorkspaceTab(label: String, selected: Boolean, onClick: () -> Unit) 
                 label,
                 color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp
+                fontSize = AppFontSize.Small
             )
         }
     }
@@ -1997,7 +1868,7 @@ private fun OverviewPanel(
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Bolt, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
-                        Text("  Quick actions", color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("  Quick actions", color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold)
                     }
                     if (isTablet) {
                         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -2025,7 +1896,7 @@ private fun OverviewPanel(
                 Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.LibraryBooks, contentDescription = null, tint = Color(0xFF762EF0), modifier = Modifier.size(25.dp))
-                        Text("  Coaching practice library", color = MaterialTheme.colorScheme.onSurface, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("  Coaching practice library", color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         LibraryLink("ECB coaching resources")
@@ -2072,10 +1943,10 @@ private fun OverviewMetricCard(
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 12.dp * scale)) {
-                    Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp * scale)
-                    Text(detail, color = Color(0xFF56617D), fontSize = 13.sp * scale, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.BodyLarge * scale)
+                    Text(detail, color = Color(0xFF56617D), fontSize = AppFontSize.Small * scale, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(value, color = accent, fontSize = 29.sp * scale, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp * scale))
+                Text(value, color = accent, fontSize = AppFontSize.HeadlineLarge * scale, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(start = 6.dp * scale))
                 Box(
                     Modifier.padding(start = 8.dp * scale).size(22.dp * scale).background(accent.copy(alpha = 0.1f), CircleShape),
                     contentAlignment = Alignment.Center
@@ -2113,12 +1984,12 @@ private fun OverviewQuickActionCard(action: OverviewQuickAction, modifier: Modif
                 badge?.let {
                     Surface(modifier = Modifier.align(Alignment.TopEnd).size(12.dp), color = Color.White, shape = CircleShape) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(it, color = action.color, fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(it, color = action.color, fontSize = AppFontSize.Micro, lineHeight = 9.sp, fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 }
             }
-            Text(action.label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(action.label, color = Color.White, fontSize = AppFontSize.Body, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Box(Modifier.size(23.dp).background(Color.White.copy(alpha = 0.22f), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
             }
@@ -2146,11 +2017,11 @@ private fun <T> OverviewList(
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 headerIcon?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) }
-                Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f).padding(start = if (headerIcon != null) 7.dp else 0.dp))
-                if (onViewAll != null) Text("View all →", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onViewAll))
+                Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f).padding(start = if (headerIcon != null) 7.dp else 0.dp))
+                if (onViewAll != null) Text("View all →", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onViewAll))
             }
             if (rows.isEmpty()) {
-                Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
+                Text("Nothing scheduled.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), fontSize = AppFontSize.Small, modifier = Modifier.padding(vertical = 12.dp))
             } else {
                 rows.forEach { row ->
                     val sessionCard = @Composable {
@@ -2203,21 +2074,21 @@ private fun OverviewSessionContent(session: ClubTrainingSession, drill: Drill?) 
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.BodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(Icons.Outlined.Group, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), modifier = Modifier.size(19.dp))
-                Text(session.squadName, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(session.squadName, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), modifier = Modifier.padding(start = 4.dp).size(16.dp))
-                Text("${session.durationMinutes} min", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1)
+                Text("${session.durationMinutes} min", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f), fontSize = AppFontSize.Small, maxLines = 1)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f), modifier = Modifier.size(18.dp))
-                Text("  Led by ${session.coachName ?: session.coachId ?: "Coach"}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("  Led by ${session.coachName ?: session.coachId ?: "Coach"}", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f), fontSize = AppFontSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
                 Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
-                    Text("  $sessionDate", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("  $sessionDate", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                 }
             }
         }
@@ -2239,7 +2110,7 @@ private fun LibraryLink(label: String) {
         shape = RoundedCornerShape(14.dp),
         tonalElevation = 3.dp
     ) {
-        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f), fontSize = AppFontSize.Small, modifier = Modifier.padding(12.dp))
     }
 }
 
@@ -2270,7 +2141,7 @@ private fun SummaryCard(
                     Spacer(Modifier.width(6.dp))
                     Text(title, fontWeight = FontWeight.SemiBold)
                 }
-                Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp))
+                Text(detail, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontSize = AppFontSize.Small, modifier = Modifier.padding(start = 24.dp))
             }
             Spacer(Modifier.width(10.dp))
             Surface(
@@ -2282,7 +2153,7 @@ private fun SummaryCard(
                     Text(
                         value,
                         color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = if (value.length > 2) 15.sp else 19.sp,
+                        fontSize = if (value.length > 2) AppFontSize.Body else AppFontSize.Title,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -2334,7 +2205,7 @@ private fun MembersPanel(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Manage club staff and players", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                    Text("Manage club staff and players", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                 }
                 if (canInvite) WorkspaceAction("Invite", Icons.Outlined.Send, onInvite, primary = true)
             }
@@ -2347,7 +2218,7 @@ private fun MembersPanel(
                     text = {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Club Staffs", fontSize = 13.sp)
+                            Text("Club Staffs", fontSize = AppFontSize.Small)
                         }
                     },
                     selectedContentColor = MaterialTheme.colorScheme.primary,
@@ -2359,7 +2230,7 @@ private fun MembersPanel(
                     text = {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.DirectionsRun, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Players", fontSize = 13.sp)
+                            Text("Players", fontSize = AppFontSize.Small)
                         }
                     },
                     selectedContentColor = MaterialTheme.colorScheme.primary,
@@ -2368,26 +2239,16 @@ private fun MembersPanel(
             }
         }
         item {
-            OutlinedTextField(
+            AppSearchField(
                 value = search,
                 onValueChange = { if (showingPlayers) playerSearch = it else staffSearch = it },
+                placeholder = if (showingPlayers) "Search players" else "Search club staff",
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(if (showingPlayers) "Search players" else "Search club staff") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                trailingIcon = {
-                    VoiceMicButton(
-                        current = search,
-                        onValueChange = { if (showingPlayers) playerSearch = it else staffSearch = it },
-                        prompt = if (showingPlayers) "Say a player name" else "Say a staff name",
-                        singleLine = true,
-                        replace = true
-                    )
-                }
+                voicePrompt = if (showingPlayers) "Say a player name" else "Say a staff name"
             )
         }
         if (memberActionError.isNotBlank()) {
-            item { Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp) }
+            item { Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small) }
         }
         if (visibleMembers.isEmpty()) {
             item {
@@ -2403,7 +2264,7 @@ private fun MembersPanel(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(member.name, fontWeight = FontWeight.SemiBold)
-                            Text("${member.role} · ${member.email}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
+                            Text("${member.role} · ${member.email}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
                         }
                         if (canInvite) {
                             IconButton(onClick = {
@@ -2420,8 +2281,8 @@ private fun MembersPanel(
                             }
                         }
                     }
-                    Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = 12.sp)
-                    Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = 12.sp)
+                    Text("${member.ageGroup.ifBlank { "No age group" }} · ${member.discipline} · ${member.currentLevel}", fontSize = AppFontSize.Small)
+                    Text("Squads: ${member.squads.joinToString(", ").ifBlank { "Unassigned" }}", fontSize = AppFontSize.Small)
                     Row(
                         Modifier.fillMaxWidth().padding(top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -2430,7 +2291,7 @@ private fun MembersPanel(
                         Text(
                             if (member.invitationStatus == "ACTIVE") "Active" else "Provisional · awaiting approval",
                             color = if (member.invitationStatus == "ACTIVE") Color(0xFF159B72) else Color(0xFFE28A18),
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             fontWeight = FontWeight.SemiBold
                         )
                         if (canInvite && member.invitationStatus == "PENDING_ACCEPTANCE") {
@@ -2487,7 +2348,7 @@ private fun MembersPanel(
                                     Text(
                                         "Edit ${if (member.role == "PLAYER") "Player" else "Coach"} Details",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
+                                        fontSize = AppFontSize.Title
                                     )
                                 }
                                 IconButton(onClick = { editingMember = null }, enabled = !editSaving) {
@@ -2496,60 +2357,46 @@ private fun MembersPanel(
                             }
                             Text(
                                 "Update roster details for ${member.name}.",
-                                fontSize = 12.sp,
+                                fontSize = AppFontSize.Small,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
-                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("Full Name *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                OutlinedTextField(
-                                    editName, { editName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp),
-                                    trailingIcon = { VoiceMicButton(editName, { editName = it }, "Say the full name", singleLine = true, replace = true) }
-                                )
-                            }
-                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("Email Address *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                OutlinedTextField(
-                                    editEmail, { editEmail = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(8.dp),
-                                    trailingIcon = {
-                                        VoiceMicButton(editEmail, { editEmail = it }, "Say the email address", singleLine = true, replace = true, transform = ::spokenEmailAddress)
-                                    }
-                                )
-                            }
+                            AppTextField(editName, { editName = it }, "Full Name *", Modifier.fillMaxWidth())
+                            AppTextField(editEmail, { editEmail = it }, "Email Address *", Modifier.fillMaxWidth())
                             if (editRole == "PLAYER") {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    MemberEditSelect(
+                                    AppDropdown(
                                         label = "Role",
-                                        value = editRole,
+                                        selectedKey = editRole,
                                         options = listOf("PLAYER" to "Player", "COACH" to "Coach"),
                                         modifier = Modifier.weight(1f),
-                                        onSelect = { role ->
+                                        onSelected = { role ->
                                             editRole = role
                                             val levels = if (role == "PLAYER") setOf("FOUNDATION", "DEVELOPING", "INTERMEDIATE", "ADVANCED", "ELITE")
                                                 else setOf("SUPPORT_COACH", "FOUNDATION_COACH", "CORE_COACH", "ADVANCED_COACH", "SPECIALIST_COACH")
                                             if (editLevel !in levels) editLevel = if (role == "PLAYER") "FOUNDATION" else "SUPPORT_COACH"
                                         }
                                     )
-                                    MemberEditSelect(
+                                    AppDropdown(
                                         label = "Age Group",
-                                        value = editAgeGroup,
+                                        selectedKey = editAgeGroup,
                                         options = listOf(
                                             "U9" to "Under-9", "U11" to "Under-11", "U13" to "Under-13",
                                             "U15" to "Under-15", "U19" to "Under-19", "Senior" to "Senior"
                                         ),
                                         modifier = Modifier.weight(1f),
-                                        onSelect = { editAgeGroup = it }
+                                        onSelected = { editAgeGroup = it }
                                     )
                                 }
                             } else {
                                 Row(Modifier.fillMaxWidth()) {
-                                    MemberEditSelect(
+                                    AppDropdown(
                                         label = "Role",
-                                        value = editRole,
+                                        selectedKey = editRole,
                                         options = listOf("PLAYER" to "Player", "COACH" to "Coach"),
                                         modifier = Modifier.weight(1f),
-                                        onSelect = { role ->
+                                        onSelected = { role ->
                                             editRole = role
                                             val levels = if (role == "PLAYER") setOf("FOUNDATION", "DEVELOPING", "INTERMEDIATE", "ADVANCED", "ELITE")
                                                 else setOf("SUPPORT_COACH", "FOUNDATION_COACH", "CORE_COACH", "ADVANCED_COACH", "SPECIALIST_COACH")
@@ -2561,9 +2408,9 @@ private fun MembersPanel(
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Disciplines *", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Disciplines *", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
                                     Spacer(Modifier.width(5.dp))
-                                    Text("(Select one or multiple)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    Text("(Select one or multiple)", fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                 }
                                 Row(
                                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -2603,10 +2450,10 @@ private fun MembersPanel(
                                                     )
                                                 )
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text(content.first, fontSize = 13.sp)
+                                                    Text(content.first, fontSize = AppFontSize.Small)
                                                     Text(
                                                         content.second,
-                                                        fontSize = 10.sp,
+                                                        fontSize = AppFontSize.Micro,
                                                         fontWeight = FontWeight.SemiBold,
                                                         color = if (checked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                                                     )
@@ -2616,9 +2463,9 @@ private fun MembersPanel(
                                     }
                                 }
                             }
-                            MemberEditSelect(
+                            AppDropdown(
                                 label = "Current Level",
-                                value = editLevel,
+                                selectedKey = editLevel,
                                 options = if (editRole == "PLAYER") listOf(
                                     "FOUNDATION" to "Foundation", "DEVELOPING" to "Developing", "INTERMEDIATE" to "Intermediate",
                                     "ADVANCED" to "Advanced", "ELITE" to "Elite"
@@ -2626,10 +2473,11 @@ private fun MembersPanel(
                                     "SUPPORT_COACH" to "Support Coach", "FOUNDATION_COACH" to "Foundation Coach",
                                     "CORE_COACH" to "Core Coach", "ADVANCED_COACH" to "Advanced Coach", "SPECIALIST_COACH" to "Specialist Coach"
                                 ),
-                                onSelect = { editLevel = it }
+                                modifier = Modifier.fillMaxWidth(),
+                                onSelected = { editLevel = it }
                             )
                             if (memberActionError.isNotBlank()) {
-                                Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                             }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -2679,7 +2527,7 @@ private fun MembersPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Remove ${member.name} from this club? This removes the club membership and cannot be undone.")
                     if (memberActionError.isNotBlank()) {
-                        Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Text(memberActionError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                     }
                 }
             },
@@ -2708,51 +2556,6 @@ private fun MembersPanel(
 }
 
 @Composable
-private fun MemberEditSelect(
-    label: String,
-    value: String,
-    options: List<Pair<String, String>>,
-    modifier: Modifier = Modifier,
-    onSelect: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Box {
-            Surface(
-                onClick = { expanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f))
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(selectedLabel, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Icon(Icons.Outlined.ExpandMore, contentDescription = "Choose $label")
-                }
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { (optionValue, optionLabel) ->
-                    DropdownMenuItem(
-                        text = { Text(optionLabel) },
-                        onClick = {
-                            expanded = false
-                            onSelect(optionValue)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun SquadPanel(
     squads: List<ClubSquad>,
     members: List<ClubMember>,
@@ -2764,7 +2567,6 @@ private fun SquadPanel(
     var deleteTarget by remember { mutableStateOf<ClubSquad?>(null) }
     var search by remember { mutableStateOf("") }
     var sortOption by remember { mutableStateOf("Age (U15 → U18)") }
-    var sortMenuOpen by remember { mutableStateOf(false) }
     val sortOptions = listOf("Age (U15 → U18)", "Age (U18 → U15)", "Name (A → Z)", "Name (Z → A)")
     val searchText = search.trim()
     val filteredSquads = squads.filter { squad ->
@@ -2785,11 +2587,11 @@ private fun SquadPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (isWide) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SquadSearchField(search, { search = it }, Modifier.width(190.dp))
-                            SquadSortMenu(sortOption, sortOptions, sortMenuOpen, { sortMenuOpen = it }, { sortOption = it })
+                            AppSearchField(search, { search = it }, "Search squads…", Modifier.width(190.dp))
+                            AppFilterDropdown("Sort", sortOptions.map { it to it.substringAfter(": ") }, sortOption, { sortOption = it }, Modifier.widthIn(min = 164.dp, max = 210.dp), icon = Icons.AutoMirrored.Outlined.Sort)
                             Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Text("  New squad", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("  New squad", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                                 Icon(Icons.Outlined.Groups, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
                             }
                         }
@@ -2797,12 +2599,12 @@ private fun SquadPanel(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                             Button(onClick = onCreate, shape = RoundedCornerShape(14.dp)) {
                                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(19.dp))
-                                Text(" New squad", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(" New squad", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SquadSearchField(search, { search = it }, Modifier.weight(1f))
-                            SquadSortMenu(sortOption, sortOptions, sortMenuOpen, { sortMenuOpen = it }, { sortOption = it })
+                            AppSearchField(search, { search = it }, "Search squads…", Modifier.weight(1f))
+                            AppFilterDropdown("Sort", sortOptions.map { it to it.substringAfter(": ") }, sortOption, { sortOption = it }, Modifier.widthIn(min = 164.dp, max = 210.dp), icon = Icons.AutoMirrored.Outlined.Sort)
                         }
                     }
                 }
@@ -2844,55 +2646,6 @@ private fun SquadPanel(
 }
 
 @Composable
-private fun SquadSearchField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier,
-        singleLine = true,
-        placeholder = { Text("Search squads…", fontSize = 13.sp) },
-        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(19.dp)) },
-        trailingIcon = { VoiceMicButton(value, onValueChange, "Say a squad name", singleLine = true, replace = true) },
-        shape = RoundedCornerShape(16.dp),
-        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            focusedContainerColor = MaterialTheme.colorScheme.surface
-        )
-    )
-}
-
-@Composable
-private fun SquadSortMenu(
-    selected: String,
-    options: List<String>,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onSelect: (String) -> Unit
-) {
-    Box {
-        OutlinedButton(
-            onClick = { onExpandedChange(true) },
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.widthIn(min = 164.dp, max = 210.dp)
-        ) {
-            Text("Sort: ${selected.substringAfter(": ")}", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(Icons.Outlined.ExpandMore, contentDescription = "Sort squads", modifier = Modifier.size(19.dp))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option, fontSize = 13.sp) },
-                    onClick = {
-                        onSelect(option)
-                        onExpandedChange(false)
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
@@ -2902,7 +2655,7 @@ private fun EkotaFilterChip(label: String, selected: Boolean, accent: Color, onC
     ) {
         Row(Modifier.padding(horizontal = 13.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Box(Modifier.size(9.dp).background(if (selected) Color.White else accent, CircleShape))
-            Text(label, color = if (selected) Color.White else WorkspaceColors.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label, color = if (selected) Color.White else WorkspaceColors.onSurfaceVariant, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -2928,10 +2681,10 @@ private fun SquadCard(squad: ClubSquad, memberCount: Int, modifier: Modifier = M
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(squad.name, color = scheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.Title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         "${squad.ageGroup.ifBlank { "All ages" }} · $memberCount ${if (memberCount == 1) "member" else "members"}",
-                        fontSize = 13.sp,
+                        fontSize = AppFontSize.Small,
                         color = scheme.onSurface.copy(alpha = 0.65f)
                     )
                 }
@@ -2970,7 +2723,7 @@ private fun SquadCardAction(
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
-            Text(label, color = accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = accent, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -3002,7 +2755,7 @@ private fun EditSquadPanel(
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit squad", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Edit squad", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
             if (isTablet) {
@@ -3092,8 +2845,8 @@ private fun SquadDetailsCard(
 ) {
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            WorkspaceField(name, onNameChange, "Squad name", Modifier.fillMaxWidth(), enabled = !isSaving)
-            WorkspaceField(ageGroup, onAgeGroupChange, "Age group", Modifier.fillMaxWidth(), enabled = !isSaving)
+            AppTextField(name, onNameChange, "Squad name", Modifier.fillMaxWidth(), enabled = !isSaving)
+            AppTextField(ageGroup, onAgeGroupChange, "Age group", Modifier.fillMaxWidth(), enabled = !isSaving)
             Text("Disciplines", fontWeight = FontWeight.SemiBold)
             ClubDisciplines.forEach { discipline ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3103,7 +2856,7 @@ private fun SquadDetailsCard(
                     Text(discipline)
                 }
             }
-            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
                 WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
@@ -3135,7 +2888,7 @@ private fun SquadPlayersPanel(
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Players", fontWeight = FontWeight.SemiBold)
-            WorkspaceField(search, onSearchChange, "Filter players", Modifier.fillMaxWidth())
+            AppTextField(search, onSearchChange, "Filter players", Modifier.fillMaxWidth())
             if (players.isEmpty()) {
                 EmptyMessage("No players match this filter.")
             } else {
@@ -3148,10 +2901,10 @@ private fun SquadPlayersPanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(member.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(member.name, fontSize = AppFontSize.Small, fontWeight = FontWeight.Medium)
                                 Text(
                                     if (inSquad) "In this squad" else member.squads.joinToString(", ").ifBlank { "Unassigned" },
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     color = if (inSquad) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
@@ -3226,22 +2979,22 @@ private fun SessionsPanel(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     if (canSchedule) Button(onClick = onSchedule, shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text("  Schedule session", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("  Schedule session", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                         Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
                     }
                 }
                 if (isTablet) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        WorkspaceField(search, { search = it }, "Search sessions…", Modifier.weight(1.4f))
-                        DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                        DateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                        AppSearchField(search, { search = it }, "Search sessions…", Modifier.weight(1.4f))
+                        AppDateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                        AppDateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        WorkspaceField(search, { search = it }, "Search sessions…", Modifier.fillMaxWidth())
+                        AppSearchField(search, { search = it }, "Search sessions…", Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            DateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
-                            DateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
+                            AppDateField(fromDate, { fromDate = it }, "From date", Modifier.weight(1f))
+                            AppDateField(throughDate, { throughDate = it }, "To date", Modifier.weight(1f))
                         }
                     }
                 }
@@ -3380,12 +3133,12 @@ private fun SessionCard(
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(session.title, color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
                             Text(
                                 sessionStatusLabel(session),
                                 color = statusColor,
-                                fontSize = 11.sp,
+                                fontSize = AppFontSize.Caption,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -3393,18 +3146,18 @@ private fun SessionCard(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Icon(Icons.Outlined.Groups, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(17.dp))
-                        Text(session.squadName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(session.squadName, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 5.dp).size(17.dp))
-                        Text("${session.durationMinutes} min", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${session.durationMinutes} min", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                        Text(" Led by ${session.coachName ?: session.coachId ?: "Coach"}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(" Led by ${session.coachName ?: session.coachId ?: "Coach"}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Surface(color = WorkspaceChipBackground, shape = RoundedCornerShape(7.dp), modifier = Modifier.padding(top = 2.dp)) {
                         Row(Modifier.padding(horizontal = 7.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = WorkspaceChipContent, modifier = Modifier.size(18.dp))
-                            Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("  ${session.sessionDate}${session.sessionTime?.let { " $it" }.orEmpty()}", color = WorkspaceChipContent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                         }
                     }
                 }
@@ -3420,11 +3173,11 @@ private fun SessionCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(2.dp))
-                    Text("Session safety", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text("Session safety", fontSize = AppFontSize.Small, fontWeight = FontWeight.Medium)
                 }
                 if (safetyExpanded) {
                     Column(Modifier.padding(start = 18.dp, top = 2.dp, bottom = 4.dp)) {
-                        session.safety.forEach { item -> Text("• $item", fontSize = 12.sp) }
+                        session.safety.forEach { item -> Text("• $item", fontSize = AppFontSize.Small) }
                     }
                 }
             }
@@ -3435,7 +3188,7 @@ private fun SessionCard(
                 ) {
                     plannedDrillTitles.forEach { name ->
                         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
-                            Text(name, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                            Text(name, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                         }
                     }
                 }
@@ -3443,7 +3196,7 @@ private fun SessionCard(
             val canManage = canDeleteAny || (canCoachSessions && session.isAssignedTo(userId))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${plannedDrillIds.size} Planned Drills", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("${plannedDrillIds.size} Planned Drills", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
@@ -3456,39 +3209,6 @@ private fun SessionCard(
                     if (canCoachSessions && session.isAssignedTo(userId) && session.isPublished && !session.isExecuted) SessionIconAction(Icons.Outlined.PlayArrow, "Run", { onExecute(session) })
                     if (canCoachSessions && session.isAssignedTo(userId) && session.isExecuted) SessionIconAction(Icons.Outlined.Visibility, "Review", { onReview(session) })
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EkotaDropdownFilter(
-    label: String,
-    selected: String,
-    options: List<Pair<String, String>>,
-    modifier: Modifier = Modifier,
-    onSelect: (String) -> Unit
-) {
-    var expanded by remember(label) { mutableStateOf(false) }
-    Box(modifier) {
-        OutlinedButton(
-            onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("  $label: ${options.firstOrNull { it.first == selected }?.second ?: selected}", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
-            Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.size(18.dp))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (value, text) ->
-                DropdownMenuItem(
-                    text = { Text(text) },
-                    onClick = {
-                        onSelect(value)
-                        expanded = false
-                    }
-                )
             }
         }
     }
@@ -3521,21 +3241,21 @@ private fun AssessmentsPanel(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = onSchedule, enabled = players.isNotEmpty(), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Text("  Schedule assessment", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("  Schedule assessment", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Small)
                         Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.padding(start = 4.dp).size(18.dp))
                     }
                 }
                 if (isTablet) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        WorkspaceField(search, { search = it }, "Search by player or title…", Modifier.weight(1.4f))
-                        EkotaDropdownFilter("Status", status, listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), Modifier.weight(1f)) { status = it }
-                        EkotaDropdownFilter("Discipline", discipline, (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), Modifier.weight(1f)) { discipline = it }
+                        AppSearchField(search, { search = it }, "Search by player or title…", Modifier.weight(1.4f))
+                        AppFilterDropdown("Status", listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), status, { status = it }, Modifier.weight(1f))
+                        AppFilterDropdown("Discipline", (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), discipline, { discipline = it }, Modifier.weight(1f))
                     }
                 } else {
-                    WorkspaceField(search, { search = it }, "Search by player or title…", Modifier.fillMaxWidth())
+                    AppSearchField(search, { search = it }, "Search by player or title…", Modifier.fillMaxWidth())
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        EkotaDropdownFilter("Status", status, listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), Modifier.weight(1f)) { status = it }
-                        EkotaDropdownFilter("Discipline", discipline, (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), Modifier.weight(1f)) { discipline = it }
+                        AppFilterDropdown("Status", listOf("ALL" to "All", "SCHEDULED" to "Scheduled", "IN_PROGRESS" to "In progress", "COMPLETED" to "Completed"), status, { status = it }, Modifier.weight(1f))
+                        AppFilterDropdown("Discipline", (listOf("ALL" to "All") + ClubDisciplines.map { it to it.lowercase().replaceFirstChar(Char::uppercase) }), discipline, { discipline = it }, Modifier.weight(1f))
                     }
                 }
             }
@@ -3626,17 +3346,17 @@ private fun AssessmentCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = CircleShape, color = avatarColor, modifier = Modifier.size(38.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(initials, color = Color(0xFF29385D), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(initials, color = Color(0xFF29385D), fontSize = AppFontSize.Body, fontWeight = FontWeight.Bold)
                     }
                 }
                 Column(Modifier.weight(1f).padding(start = 9.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(assessment.playerName, color = MaterialTheme.colorScheme.onSurface, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         Surface(shape = RoundedCornerShape(50), color = disciplineColor.copy(alpha = 0.11f)) {
-                            Text(assessment.discipline, color = disciplineColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            Text(assessment.discipline, color = disciplineColor, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                         }
                     }
-                    Text(assessment.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(assessment.title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Body, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Box {
                     IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
@@ -3650,9 +3370,9 @@ private fun AssessmentCard(
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("  ${assessment.scheduledDate}${assessment.scheduledTime?.let { " at $it" } ?: ""}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = AppFontSize.Body, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.13f)) {
-                    Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                    Text(assessment.status.replace('_', ' ').lowercase().replaceFirstChar(Char::uppercase), color = statusColor, fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.End)) {
@@ -3679,7 +3399,7 @@ private fun AssessmentActionButton(
     Surface(onClick = onClick, shape = RoundedCornerShape(16.dp), color = if (primary) accent else accent.copy(alpha = 0.1f)) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, contentDescription = null, tint = if (primary) Color.White else accent, modifier = Modifier.size(17.dp))
-            Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(label, color = if (primary) Color.White else accent, fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
         }
     }
 }
@@ -3702,19 +3422,19 @@ private fun EditAssessmentPanel(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit assessment", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Edit assessment", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             }
         }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${assessment.playerName} · ${assessment.discipline}", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                    WorkspaceField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
+                    Text("${assessment.playerName} · ${assessment.discipline}", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
+                    AppTextField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth(), enabled = !isSaving)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DateField(scheduledDate, { scheduledDate = it }, "Scheduled date", Modifier.weight(1f), enabled = !isSaving)
-                        TimeField(scheduledTime, { scheduledTime = it }, "Time (optional)", Modifier.weight(1f), enabled = !isSaving)
+                        AppDateField(scheduledDate, { scheduledDate = it }, "Scheduled date", Modifier.weight(1f), enabled = !isSaving)
+                        AppTimeField(scheduledTime, { scheduledTime = it }, "Time (optional)", Modifier.weight(1f), enabled = !isSaving)
                     }
-                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                     HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
                         WorkspaceAction("Delete", Icons.Outlined.Delete, { deleteConfirm = true }, enabled = !isSaving)
@@ -3749,7 +3469,7 @@ private fun EditAssessmentPanel(
 @Composable
 private fun ReadOnlyDrills(drills: List<Drill>, modifier: Modifier = Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("Drill catalogue", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Drill catalogue", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold) }
         if (drills.isEmpty()) item { EmptyMessage("No drills are available. Sync while online to load the catalogue.") }
         items(drills, key = Drill::id) { drill ->
             InfoCard(drill.title, "${drill.discipline} · ${drill.durationMinutes} min", listOf(drill.skillSet, drill.instructions).filter(String::isNotBlank).joinToString("\n"))
@@ -3760,7 +3480,7 @@ private fun ReadOnlyDrills(drills: List<Drill>, modifier: Modifier = Modifier) {
 @Composable
 private fun ReadOnlyTemplates(templates: List<TrainingTemplate>, modifier: Modifier = Modifier) {
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("Training templates", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        item { Text("Training templates", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold) }
         if (templates.isEmpty()) item { EmptyMessage("No shared training templates are available.") }
         items(templates, key = TrainingTemplate::id) { template ->
             InfoCard(template.title, "${template.durationMinutes} min · ${template.disciplines.joinToString()}", template.focus)
@@ -3773,8 +3493,8 @@ internal fun InfoCard(title: String, subtitle: String, details: String) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Text(title, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-            if (details.isNotBlank()) Text(details, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            Text(subtitle, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary)
+            if (details.isNotBlank()) Text(details, fontSize = AppFontSize.Small, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
@@ -3799,15 +3519,15 @@ private fun InviteMemberDialog(
         title = { Text("Invite club member") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                WorkspaceField(name, { name = it }, "Name")
-                WorkspaceField(email, { email = it }, "Email")
+                AppTextField(name, { name = it }, "Name")
+                AppTextField(email, { email = it }, "Email")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Role: $role", modifier = Modifier.weight(1f))
                     TextButton(onClick = { role = if (role == "PLAYER") "COACH" else "PLAYER" }) { Text("Change") }
                 }
                 if (role == "PLAYER") {
-                    WorkspaceField(ageGroup, { ageGroup = it }, "Age group")
-                    DisciplinePicker(discipline) { discipline = it }
+                    AppTextField(ageGroup, { ageGroup = it }, "Age group")
+                    AppDropdown("Discipline", ClubDisciplines, discipline, { discipline = it }, Modifier.fillMaxWidth())
                 }
             }
         },
@@ -3830,8 +3550,8 @@ private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, Li
         title = { Text("Create squad") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                WorkspaceField(name, { name = it }, "Squad name")
-                WorkspaceField(ageGroup, { ageGroup = it }, "Age group")
+                AppTextField(name, { name = it }, "Squad name")
+                AppTextField(ageGroup, { ageGroup = it }, "Age group")
                 Text("Disciplines")
                 ClubDisciplines.forEach { discipline ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3855,7 +3575,7 @@ private fun CreateSquadDialog(onDismiss: () -> Unit, onSave: (String, String, Li
 private fun PlannedDrillChip(name: String, onRemove: () -> Unit, modifier: Modifier = Modifier) {
     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
-            Text(name, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+            Text(name, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
             IconButton(onClick = onRemove, modifier = Modifier.size(22.dp).padding(start = 2.dp)) {
                 Icon(Icons.Outlined.Close, contentDescription = "Remove drill", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
             }
@@ -3873,20 +3593,11 @@ private fun AvailableDrillsPanel(
     onRemove: ((String) -> Unit)? = null
 ) {
     var filter by remember { mutableStateOf("ALL") }
-    var filterMenuOpen by remember { mutableStateOf(false) }
     val filtered = allDrills.filter { filter == "ALL" || it.discipline.equals(filter, ignoreCase = true) }
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Available Drills", fontWeight = FontWeight.SemiBold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Discipline: ")
-                TextButton(onClick = { filterMenuOpen = true }) { Text(filter) }
-                DropdownMenu(expanded = filterMenuOpen, onDismissRequest = { filterMenuOpen = false }) {
-                    (listOf("ALL") + ClubDisciplines).forEach { value ->
-                        DropdownMenuItem(text = { Text(value) }, onClick = { filter = value; filterMenuOpen = false })
-                    }
-                }
-            }
+            AppFilterDropdown("Discipline", (listOf("ALL") + ClubDisciplines).map { it to it.lowercase().replaceFirstChar(Char::uppercase) }, filter, { filter = it }, Modifier.fillMaxWidth())
             if (filtered.isEmpty()) {
                 EmptyMessage("No drills available for this filter.")
             } else {
@@ -3898,10 +3609,10 @@ private fun AvailableDrillsPanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f).padding(end = 6.dp)) {
-                                Text(drill.title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(drill.title, fontSize = AppFontSize.Small, fontWeight = FontWeight.Medium)
                                 Text(
                                     "${drill.discipline} · ${drill.durationMinutes} min",
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
@@ -3960,40 +3671,29 @@ private fun SessionDetailsCard(
     onRemoveDrill: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var squadMenuOpen by remember { mutableStateOf(false) }
-    var coachMenuOpen by remember { mutableStateOf(false) }
     val minutes = duration.toIntOrNull() ?: 0
     Card(modifier = modifier, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            WorkspaceField(title, onTitleChange, "Session title", Modifier.fillMaxWidth(), enabled = !isSaving)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Squad: ${selectedSquad?.name ?: "All players"}", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { squadMenuOpen = true }, enabled = !isSaving) { Text("Change") }
-                DropdownMenu(expanded = squadMenuOpen, onDismissRequest = { squadMenuOpen = false }) {
-                    DropdownMenuItem(text = { Text("All players") }, onClick = { onSquadChange(null); squadMenuOpen = false })
-                    squads.forEach { squad ->
-                        DropdownMenuItem(text = { Text(squad.name) }, onClick = { onSquadChange(squad); squadMenuOpen = false })
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Head Coach: ${selectedCoach?.name ?: "Unassigned"}", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { coachMenuOpen = true }, enabled = !isSaving && coaches.isNotEmpty()) { Text("Change") }
-                DropdownMenu(expanded = coachMenuOpen, onDismissRequest = { coachMenuOpen = false }) {
-                    coaches.forEach { coach ->
-                        DropdownMenuItem(text = { Text(coach.name) }, onClick = { onCoachChange(coach); coachMenuOpen = false })
-                    }
-                }
+            AppTextField(title, onTitleChange, "Session title", Modifier.fillMaxWidth(), enabled = !isSaving)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AppDropdown(
+                    "Squad", listOf<ClubSquad?>(null) + squads, selectedSquad, onSquadChange, Modifier.weight(1f),
+                    optionLabel = { it?.name ?: "All players" }, placeholder = "All players", enabled = !isSaving
+                )
+                AppDropdown(
+                    "Head Coach", coaches, selectedCoach, { onCoachChange(it) }, Modifier.weight(1f),
+                    optionLabel = { it.name }, placeholder = "Unassigned", enabled = !isSaving && coaches.isNotEmpty()
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                DateField(date, onDateChange, "Date", Modifier.weight(1f), enabled = !isSaving)
-                TimeField(time, onTimeChange, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
+                AppDateField(date, onDateChange, "Date", Modifier.weight(1f), enabled = !isSaving)
+                AppTimeField(time, onTimeChange, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
             }
-            WorkspaceField(duration, onDurationChange, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving, voice = false)
-            WorkspaceField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
+            AppNumberField(duration, onDurationChange, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving)
+            AppTextField(safety, onSafetyChange, "Safety instructions (one per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
             Text("Planned Drills (${session.drillIds.size})", fontWeight = FontWeight.SemiBold)
             if (session.drillIds.isEmpty()) {
-                Text("No drills added yet.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text("No drills added yet.", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
             } else {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     session.drillIds.forEach { drillId ->
@@ -4002,7 +3702,7 @@ private fun SessionDetailsCard(
                     }
                 }
             }
-            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
                 WorkspaceAction("Delete", Icons.Outlined.Delete, onDeleteRequest, enabled = !isSaving)
@@ -4049,7 +3749,7 @@ private fun EditSessionPanel(
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Edit session", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Edit session", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
             if (isTablet) {
@@ -4059,7 +3759,7 @@ private fun EditSessionPanel(
                         title = title, onTitleChange = { title = it },
                         date = date, onDateChange = { date = it },
                         time = time, onTimeChange = { time = it },
-                        duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
+                        duration = duration, onDurationChange = { duration = it },
                         safety = safety, onSafetyChange = { safety = it },
                         squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
                         coaches = coaches, selectedCoach = selectedCoach, onCoachChange = { selectedCoach = it },
@@ -4097,7 +3797,7 @@ private fun EditSessionPanel(
                         title = title, onTitleChange = { title = it },
                         date = date, onDateChange = { date = it },
                         time = time, onTimeChange = { time = it },
-                        duration = duration, onDurationChange = { duration = it.filter(Char::isDigit) },
+                        duration = duration, onDurationChange = { duration = it },
                         safety = safety, onSafetyChange = { safety = it },
                         squads = squads, selectedSquad = selectedSquad, onSquadChange = { selectedSquad = it },
                         coaches = coaches, selectedCoach = selectedCoach, onCoachChange = { selectedCoach = it },
@@ -4182,7 +3882,7 @@ private fun ScheduleSessionPanel(
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                Text("Schedule training session", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Schedule training session", color = MaterialTheme.colorScheme.primary, fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
             val form: @Composable (Modifier) -> Unit = { formModifier ->
@@ -4198,8 +3898,8 @@ private fun ScheduleSessionPanel(
                     }
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            WorkspaceField(title, { title = it }, "Session title *", Modifier.fillMaxWidth(), enabled = !isSaving)
-                            Text("Assign Training To", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
+                            AppTextField(title, { title = it }, "Session title *", Modifier.fillMaxWidth(), enabled = !isSaving)
+                            Text("Assign Training To", fontSize = AppFontSize.Caption, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -4215,7 +3915,7 @@ private fun ScheduleSessionPanel(
                                     ) {
                                         Text(
                                             label,
-                                            fontSize = 12.sp,
+                                            fontSize = AppFontSize.Small,
                                             fontWeight = FontWeight.SemiBold,
                                             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                                             modifier = Modifier.padding(vertical = 8.dp),
@@ -4228,20 +3928,19 @@ private fun ScheduleSessionPanel(
                                 if (squads.isEmpty()) {
                                     Text(
                                         "No squads formed yet. Switch to \"Individual Player(s)\" or form a squad first.",
-                                        fontSize = 11.sp,
+                                        fontSize = AppFontSize.Caption,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
                                 } else {
-                                    LabeledDropdown("Target Squad", selectedSquad?.name ?: "Select a squad", enabled = !isSaving) { close ->
-                                        squads.forEach { squad ->
-                                            DropdownMenuItem(text = { Text(squad.name) }, onClick = { selectedSquad = squad; close() })
-                                        }
-                                    }
+                                    AppDropdown(
+                                        "Target Squad", squads, selectedSquad, { selectedSquad = it }, Modifier.fillMaxWidth(),
+                                        optionLabel = { it.name }, placeholder = "Select a squad", enabled = !isSaving
+                                    )
                                 }
                             } else {
                                 Text(
                                     "Select Player(s)${if (selectedPlayerIds.isNotEmpty()) " (${selectedPlayerIds.size} selected)" else ""}",
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                 )
@@ -4254,7 +3953,7 @@ private fun ScheduleSessionPanel(
                                         .padding(6.dp)
                                 ) {
                                     if (players.isEmpty()) {
-                                        Text("No players in roster yet.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.padding(6.dp))
+                                        Text("No players in roster yet.", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.padding(6.dp))
                                     }
                                     players.forEach { player ->
                                         val checked = player.id in selectedPlayerIds
@@ -4270,47 +3969,42 @@ private fun ScheduleSessionPanel(
                                             Checkbox(checked = checked, onCheckedChange = { add ->
                                                 if (add) selectedPlayerIds.add(player.id) else selectedPlayerIds.remove(player.id)
                                             }, enabled = !isSaving)
-                                            Text(player.name, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                            Text(player.name, fontSize = AppFontSize.Small, modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
                             }
                             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            LabeledDropdown("Head Coach *", selectedCoach?.name ?: "Select an active coach", enabled = !isSaving && coaches.isNotEmpty()) { close ->
-                                coaches.forEach { coach ->
-                                    DropdownMenuItem(text = { Text(coach.name) }, onClick = { selectedCoach = coach; close() })
-                                }
-                            }
+                            AppDropdown(
+                                "Head Coach *", coaches, selectedCoach, { selectedCoach = it }, Modifier.fillMaxWidth(),
+                                optionLabel = { it.name }, placeholder = "Select an active coach", enabled = !isSaving && coaches.isNotEmpty()
+                            )
                             if (coaches.isEmpty()) {
-                                Text("No active coaches are available. Activate a coach invitation before scheduling a session.", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                                Text("No active coaches are available. Activate a coach invitation before scheduling a session.", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.error)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(Modifier.weight(1f)) {
-                                    LabeledDropdown("Coordinator", selectedCoordinator?.name ?: "None", enabled = !isSaving) { close ->
-                                        DropdownMenuItem(text = { Text("None") }, onClick = { selectedCoordinator = null; close() })
-                                        coaches.filter { it.id != selectedCoach?.id && it.id != selectedAssistant?.id }.forEach { coach ->
-                                            DropdownMenuItem(text = { Text(coach.name) }, onClick = { selectedCoordinator = coach; close() })
-                                        }
-                                    }
-                                }
-                                Box(Modifier.weight(1f)) {
-                                    LabeledDropdown("Assistant Coach", selectedAssistant?.name ?: "None", enabled = !isSaving) { close ->
-                                        DropdownMenuItem(text = { Text("None") }, onClick = { selectedAssistant = null; close() })
-                                        coaches.filter { it.id != selectedCoach?.id && it.id != selectedCoordinator?.id }.forEach { coach ->
-                                            DropdownMenuItem(text = { Text(coach.name) }, onClick = { selectedAssistant = coach; close() })
-                                        }
-                                    }
-                                }
+                                AppDropdown(
+                                    "Coordinator",
+                                    listOf<ClubMember?>(null) + coaches.filter { it.id != selectedCoach?.id && it.id != selectedAssistant?.id },
+                                    selectedCoordinator, { selectedCoordinator = it }, Modifier.weight(1f),
+                                    optionLabel = { it?.name ?: "None" }, placeholder = "None", enabled = !isSaving
+                                )
+                                AppDropdown(
+                                    "Assistant Coach",
+                                    listOf<ClubMember?>(null) + coaches.filter { it.id != selectedCoach?.id && it.id != selectedCoordinator?.id },
+                                    selectedAssistant, { selectedAssistant = it }, Modifier.weight(1f),
+                                    optionLabel = { it?.name ?: "None" }, placeholder = "None", enabled = !isSaving
+                                )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                DateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
-                                TimeField(time, { time = it }, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
+                                AppDateField(date, { date = it }, "Date", Modifier.weight(1f), enabled = !isSaving)
+                                AppTimeField(time, { time = it }, "Session Start Time", Modifier.weight(1f), enabled = !isSaving)
                             }
-                            WorkspaceField(duration, { duration = it.filter(Char::isDigit) }, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving, voice = false)
-                            WorkspaceField(safety, { safety = it }, "Session safety (one instruction per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
-                            Text("Planned Drills (${drillIds.size})", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            AppNumberField(duration, { duration = it }, "Duration (min)", Modifier.width(130.dp), enabled = !isSaving)
+                            AppTextField(safety, { safety = it }, "Session safety (one instruction per line)", Modifier.fillMaxWidth(), singleLine = false, enabled = !isSaving)
+                            Text("Planned Drills (${drillIds.size})", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
                             if (drillIds.isEmpty()) {
-                                Text("No drills added yet — pick from the panel.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Text("No drills added yet — pick from the panel.", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             } else {
                                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     drillIds.toList().forEachIndexed { index, drillId ->
@@ -4330,7 +4024,7 @@ private fun ScheduleSessionPanel(
                                     onRemove = { drillIds.remove(it) }
                                 )
                             }
-                            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                             HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
                                 WorkspaceAction("Cancel", Icons.Outlined.Close, onBack, enabled = !isSaving)
@@ -4393,54 +4087,26 @@ private fun ScheduleSessionPanel(
 }
 
 @Composable
-private fun LabeledDropdown(
-    label: String,
-    valueText: String,
-    enabled: Boolean = true,
-    items: @Composable (close: () -> Unit) -> Unit
-) {
-    var open by remember { mutableStateOf(false) }
-    Column {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(enabled = enabled) { open = true }
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(valueText, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Icon(Icons.Outlined.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            items { open = false }
-        }
-    }
-}
-
-@Composable
 private fun SharedTemplatePickerCard(templates: List<TrainingTemplate>, onApply: (TrainingTemplate) -> Unit) {
     var selected by remember { mutableStateOf<TrainingTemplate?>(null) }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f))) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Shared training templates", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-            Text("Reusable activities available to every club and coach.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-            LabeledDropdown(label = "", valueText = selected?.title ?: "Choose a training activity") { close ->
-                templates.forEach { template ->
-                    DropdownMenuItem(text = { Text(template.title) }, onClick = { selected = template; close() })
-                }
-            }
+            Text("Shared training templates", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            Text("Reusable activities available to every club and coach.", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            AppDropdown(
+                null, templates, selected, { selected = it }, Modifier.fillMaxWidth(),
+                optionLabel = { it.title }, placeholder = "Choose a training activity"
+            )
             selected?.let { template ->
                 Text(
                     "${template.disciplines.joinToString(", ")} · ${template.durationMinutes} min · ${template.drillIds.size} drills",
-                    fontSize = 11.sp,
+                    fontSize = AppFontSize.Caption,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
-                if (template.focus.isNotBlank()) Text(template.focus, fontSize = 11.sp)
+                if (template.focus.isNotBlank()) Text(template.focus, fontSize = AppFontSize.Caption)
                 Text(
                     "Applying replaces this draft's title, duration, safety instructions, and planned drills.",
-                    fontSize = 10.sp,
+                    fontSize = AppFontSize.Micro,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
                 WorkspaceAction("Use template", Icons.Outlined.CheckCircle, { onApply(template) })
@@ -4460,27 +4126,21 @@ private fun ScheduleAssessmentDialog(
     var date by remember { mutableStateOf(LocalDate.now().toString()) }
     var time by remember { mutableStateOf("") }
     var discipline by remember { mutableStateOf(selectedPlayer?.discipline?.uppercase()?.takeIf(ClubDisciplines::contains) ?: "BATTING") }
-    var menuOpen by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Schedule assessment") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(selectedPlayer?.name ?: "Select player", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { menuOpen = true }) { Text("Player") }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        players.forEach { player ->
-                            DropdownMenuItem(text = { Text(player.name) }, onClick = { selectedPlayer = player; menuOpen = false })
-                        }
-                    }
-                }
-                WorkspaceField(title, { title = it }, "Assessment title")
+                AppDropdown(
+                    "Player", players, selectedPlayer, { selectedPlayer = it }, Modifier.fillMaxWidth(),
+                    optionLabel = { it.name }, placeholder = "Select player"
+                )
+                AppTextField(title, { title = it }, "Assessment title", Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DateField(date, { date = it }, "Date", Modifier.weight(1f))
-                    TimeField(time, { time = it }, "Time (optional)", Modifier.weight(1f))
+                    AppDateField(date, { date = it }, "Date", Modifier.weight(1f))
+                    AppTimeField(time, { time = it }, "Time (optional)", Modifier.weight(1f))
                 }
-                DisciplinePicker(discipline) { discipline = it }
+                AppDropdown("Discipline", ClubDisciplines, discipline, { discipline = it }, Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -4491,20 +4151,6 @@ private fun ScheduleAssessmentDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
-}
-
-@Composable
-private fun DisciplinePicker(value: String, onChange: (String) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Discipline: $value", modifier = Modifier.weight(1f))
-        TextButton(onClick = { open = true }) { Text("Change") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            ClubDisciplines.forEach { discipline ->
-                DropdownMenuItem(text = { Text(discipline) }, onClick = { onChange(discipline); open = false })
-            }
-        }
-    }
 }
 
 @Composable
@@ -4544,8 +4190,8 @@ private fun AssessmentRunPanel(
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                    Text("Performance ratings", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Text("  (1 = needs work, 5 = strong)", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Performance ratings", fontWeight = FontWeight.Bold, fontSize = AppFontSize.BodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Text("  (1 = needs work, 5 = strong)", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             items(names, key = { "metric-$it" }) { name ->
@@ -4564,30 +4210,28 @@ private fun AssessmentRunPanel(
                         }
                     }
                     val noteField: @Composable (Modifier) -> Unit = { fieldModifier ->
-                        OutlinedTextField(
+                        AppTextField(
                             value = notes[name].orEmpty(),
-                            onValueChange = { notes[name] = it.take(1000) },
-                            placeholder = { Text("Observation (optional)", fontSize = 14.sp) },
+                            onValueChange = { notes[name] = it },
+                            label = null,
+                            placeholder = "Observation (optional)",
                             readOnly = !editable,
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                            trailingIcon = if (editable) ({
-                                VoiceMicButton(notes[name].orEmpty(), { notes[name] = it.take(1000) }, "Speak observation for $name", singleLine = true)
-                            }) else null,
+                            maxLength = 1000,
+                            voicePrompt = "Speak observation for $name",
+                            textStyle = MaterialTheme.typography.bodyMedium,
                             modifier = fieldModifier
                         )
                     }
                     if (isTablet) {
                         Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(0.3f))
+                            Text(name, fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(0.3f))
                             ratingRow()
                             Spacer(Modifier.width(10.dp))
                             noteField(Modifier.weight(0.45f))
                         }
                     } else {
                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                            Text(name, fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                             ratingRow()
                             noteField(Modifier.fillMaxWidth())
                         }
@@ -4641,22 +4285,22 @@ private fun AssessmentRunPanel(
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                Text("  Development insights", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                Text("  Development insights", fontWeight = FontWeight.Bold, fontSize = AppFontSize.BodyLarge, color = MaterialTheme.colorScheme.primary)
                             }
-                            Text(assessment.aiSummary, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(assessment.aiSummary, fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface)
                             assessment.aiRecommendations.forEachIndexed { index, recommendation ->
-                                Text("${index + 1}. $recommendation", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 2.dp))
+                                Text("${index + 1}. $recommendation", fontSize = AppFontSize.Body, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 2.dp))
                             }
                         }
                     }
                 }
             }
             item {
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Body)
                 if (!completed && !canComplete) {
                     Text(
                         "Rate every metric and add feedback for the player to complete the assessment.",
-                        fontSize = 13.sp,
+                        fontSize = AppFontSize.Small,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -4718,7 +4362,7 @@ private fun RatingCircle(score: Int, selected: Boolean, enabled: Boolean, onClic
     ) {
         Text(
             score.toString(),
-            fontSize = 15.sp,
+            fontSize = AppFontSize.Body,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
         )
@@ -4735,18 +4379,18 @@ private fun AssessmentTextArea(
     modifier: Modifier = Modifier
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-        OutlinedTextField(
+        Text(label, fontSize = AppFontSize.Body, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        AppTextField(
             value = value,
-            onValueChange = { onValueChange(it.take(4000)) },
-            placeholder = { Text(placeholder, fontSize = 14.sp) },
+            onValueChange = onValueChange,
+            label = null,
+            placeholder = placeholder,
             readOnly = !editable,
+            singleLine = false,
             minLines = 3,
-            shape = RoundedCornerShape(12.dp),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
-            trailingIcon = if (editable) ({
-                VoiceMicButton(value, { onValueChange(it.take(4000)) }, "Speak $label")
-            }) else null,
+            maxLength = 4000,
+            voicePrompt = "Speak $label",
+            textStyle = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.fillMaxWidth()
         )
     }

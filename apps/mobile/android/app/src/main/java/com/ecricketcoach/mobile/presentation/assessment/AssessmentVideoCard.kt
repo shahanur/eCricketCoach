@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.assessment
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -208,7 +209,7 @@ internal fun AssessmentVideoCard(
                     Column(Modifier.weight(1f).padding(start = 8.dp)) {
                         Text("Video analysis", fontWeight = FontWeight.Bold)
                         // While a video can still be chosen, the caption sits in the video source panel instead.
-                        if (completed) Text(storageCaption, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (completed) Text(storageCaption, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 headerContent?.invoke()
@@ -239,7 +240,7 @@ internal fun AssessmentVideoCard(
                                         driveVideos.isEmpty() -> "No Drive videos"
                                         else -> "Google Drive (${driveVideos.size})"
                                     },
-                                    fontSize = 12.sp,
+                                    fontSize = AppFontSize.Small,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f).padding(start = 6.dp)
@@ -252,7 +253,7 @@ internal fun AssessmentVideoCard(
                                         text = {
                                             Column {
                                                 Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                Text(file.modifiedTime.take(10), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(file.modifiedTime.take(10), fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
                                         },
                                         onClick = {
@@ -294,7 +295,7 @@ internal fun AssessmentVideoCard(
                         Icon(Icons.Outlined.PhoneAndroid, contentDescription = null, modifier = Modifier.size(16.dp))
                         Text(
                             if (localSelected) selectedVideoName else "From device",
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(start = 6.dp)
@@ -314,7 +315,7 @@ internal fun AssessmentVideoCard(
                         )
                         Text(
                             if (driveConnected) "Switch account" else "Connect Drive",
-                            fontSize = 12.sp,
+                            fontSize = AppFontSize.Small,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(start = 6.dp)
@@ -323,7 +324,7 @@ internal fun AssessmentVideoCard(
                 }
                 }
             }
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
 
             AssessmentBattingReview(
                 analysisRepository = analysisRepository,

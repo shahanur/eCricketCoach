@@ -125,7 +125,7 @@ internal fun SignInScreen(
             Spacer(Modifier.height(18.dp))
             Text(
                 "eCricketCoach",
-                fontSize = 28.sp,
+                fontSize = AppFontSize.HeadlineLarge,
                 fontWeight = FontWeight.ExtraBold,
                 style = TextStyle(brush = Brush.linearGradient(listOf(scheme.onBackground, scheme.primary, Orchid)))
             )
@@ -133,7 +133,7 @@ internal fun SignInScreen(
             Text(
                 "Train with purpose. Your coaching workspace, wherever you play.",
                 color = muted,
-                fontSize = 15.sp,
+                fontSize = AppFontSize.Body,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(28.dp))
@@ -145,8 +145,8 @@ internal fun SignInScreen(
                 border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.6f))
             ) {
                 Column(Modifier.padding(22.dp)) {
-                    Text("Sign in", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = scheme.onSurface)
-                    Text("Use the account linked to your club.", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.65f))
+                    Text("Sign in", fontSize = AppFontSize.TitleLarge, fontWeight = FontWeight.Bold, color = scheme.onSurface)
+                    Text("Use the account linked to your club.", fontSize = AppFontSize.Small, color = scheme.onSurface.copy(alpha = 0.65f))
                     Spacer(Modifier.height(18.dp))
                     when {
                         providers.isEmpty() && error.isBlank() -> Row(
@@ -156,7 +156,7 @@ internal fun SignInScreen(
                         ) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(10.dp))
-                            Text("Connecting…", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.65f))
+                            Text("Connecting…", fontSize = AppFontSize.Small, color = scheme.onSurface.copy(alpha = 0.65f))
                         }
                         providers.isNotEmpty() && enabledProviders.isEmpty() -> SignInNotice(
                             "No sign-in provider is configured. Configure an identity provider on the eCricketCoach API, then retry.",
@@ -176,7 +176,7 @@ internal fun SignInScreen(
                         ) {
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(10.dp))
-                            Text("Signing you in…", fontSize = 13.sp, color = scheme.onSurface.copy(alpha = 0.7f))
+                            Text("Signing you in…", fontSize = AppFontSize.Small, color = scheme.onSurface.copy(alpha = 0.7f))
                         }
                     }
                     if (error.isNotBlank()) {
@@ -196,7 +196,7 @@ internal fun SignInScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Lock, contentDescription = null, tint = muted, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Secure sign-in · v${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = muted)
+                Text("Secure sign-in · v${BuildConfig.VERSION_NAME}", fontSize = AppFontSize.Small, color = muted)
             }
         }
     }
@@ -227,11 +227,11 @@ private fun ProviderButton(provider: SignInProvider, enabled: Boolean, onClick: 
                 Modifier.size(28.dp).clip(CircleShape).background(provider.markColor.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(provider.mark, color = provider.markColor, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                Text(provider.mark, color = provider.markColor, fontWeight = FontWeight.ExtraBold, fontSize = AppFontSize.Body)
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(provider.label, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(provider.label, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body, modifier = Modifier.weight(1f))
         Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp), tint = scheme.primary)
     }
 }
@@ -248,8 +248,8 @@ private fun SignInFeature(icon: ImageVector, title: String, detail: String) {
         }
         Spacer(Modifier.width(14.dp))
         Column {
-            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = scheme.onBackground)
-            Text(detail, fontSize = 12.sp, color = scheme.onBackground.copy(alpha = 0.65f))
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Body, color = scheme.onBackground)
+            Text(detail, fontSize = AppFontSize.Small, color = scheme.onBackground.copy(alpha = 0.65f))
         }
     }
 }
@@ -263,6 +263,6 @@ private fun SignInNotice(message: String, isError: Boolean) {
     ) {
         Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
-        Text(message, color = tint, fontSize = 13.sp)
+        Text(message, color = tint, fontSize = AppFontSize.Small)
     }
 }

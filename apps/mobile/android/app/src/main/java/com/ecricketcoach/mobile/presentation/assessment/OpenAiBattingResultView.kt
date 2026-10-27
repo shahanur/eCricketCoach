@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.assessment
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -28,7 +29,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
@@ -40,13 +40,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -258,9 +255,9 @@ internal fun OpenAiBattingReviewResult(
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Batting review", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Batting review", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                         if (playerName.isNotBlank()) {
-                            Text(playerName, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(playerName, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Pill(contactLabel(analysis.contact.status), Violet)
@@ -297,7 +294,7 @@ private fun Pill(text: String, accent: ReviewAccent, modifier: Modifier = Modifi
             .background(tone.copy(alpha = 0.12f), RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 3.dp),
         color = tone,
-        fontSize = 11.sp,
+        fontSize = AppFontSize.Caption,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1
     )
@@ -322,7 +319,7 @@ private fun AccentSection(
 
 @Composable
 private fun SectionHeading(text: String, accent: ReviewAccent) {
-    Text(text.uppercase(Locale.getDefault()), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = accent.tone())
+    Text(text.uppercase(Locale.getDefault()), fontSize = AppFontSize.Caption, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp, color = accent.tone())
 }
 
 @Composable
@@ -340,7 +337,7 @@ private fun CoachReviewSection(analysisRepository: AnalysisRepository, analysis:
         SectionHeading("Coach review", Emerald)
         Text(
             "Mark findings and add your coaching note. Your notes will be added to the report.",
-            fontSize = 11.sp,
+            fontSize = AppFontSize.Caption,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         findings.forEachIndexed { index, finding ->
@@ -354,15 +351,18 @@ private fun CoachReviewSection(analysisRepository: AnalysisRepository, analysis:
                 onNote = { reviews = reviews + (index to (status to it.take(1000))) }
             )
         }
-        OutlinedTextField(
+        AppTextField(
             value = coachNote,
-            onValueChange = { coachNote = it.take(3000) },
+            onValueChange = { coachNote = it },
+            label = null,
             modifier = Modifier.fillMaxWidth(),
+            singleLine = false,
             minLines = 2,
             maxLines = 5,
+            maxLength = 3000,
             textStyle = MaterialTheme.typography.bodySmall,
-            placeholder = { Text("Overall coach note, context, or next-session focus", fontSize = 12.sp) },
-            trailingIcon = { VoiceMicButton(coachNote, { coachNote = it.take(3000) }, "Speak the overall coach note") }
+            placeholder = "Overall coach note, context, or next-session focus",
+            voicePrompt = "Speak the overall coach note"
         )
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -391,9 +391,9 @@ private fun CoachReviewSection(analysisRepository: AnalysisRepository, analysis:
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34D399), contentColor = Color(0xFF020617)),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                Text(if (saving) "Saving\u2026" else "Save coach review", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(if (saving) "Saving\u2026" else "Save coach review", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold)
             }
-            message?.let { Text(it, fontSize = 11.sp, color = Emerald.tone(), modifier = Modifier.weight(1f)) }
+            message?.let { Text(it, fontSize = AppFontSize.Caption, color = Emerald.tone(), modifier = Modifier.weight(1f)) }
         }
     }
 }
@@ -410,25 +410,25 @@ private fun FindingCard(
     var showEvidence by remember(finding) { mutableStateOf(false) }
     val details: @Composable (Modifier) -> Unit = { modifier ->
         Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(finding.title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            if (finding.coachingImplication.isNotBlank()) Text(finding.coachingImplication, fontSize = 12.sp)
-            if (finding.coachingCue.isNotBlank()) Text("Cue: ${finding.coachingCue}", fontSize = 12.sp, color = Violet.tone())
-            if (finding.drill.isNotBlank()) Text("Drill: ${finding.drill}", fontSize = 12.sp, color = Emerald.tone())
+            Text(finding.title, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
+            if (finding.coachingImplication.isNotBlank()) Text(finding.coachingImplication, fontSize = AppFontSize.Small)
+            if (finding.coachingCue.isNotBlank()) Text("Cue: ${finding.coachingCue}", fontSize = AppFontSize.Small, color = Violet.tone())
+            if (finding.drill.isNotBlank()) Text("Drill: ${finding.drill}", fontSize = AppFontSize.Small, color = Emerald.tone())
             Text(
                 "Advanced details \u00B7 evidence",
-                fontSize = 10.sp,
+                fontSize = AppFontSize.Micro,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.clickable { showEvidence = !showEvidence }.padding(vertical = 2.dp)
             )
             if (showEvidence) {
                 val muted = MaterialTheme.colorScheme.onSurfaceVariant
-                if (finding.observation.isNotBlank()) Text(finding.observation, fontSize = 10.sp, color = muted)
+                if (finding.observation.isNotBlank()) Text(finding.observation, fontSize = AppFontSize.Micro, color = muted)
                 if (finding.alternativeExplanation.isNotBlank()) {
-                    Text("Alternative explanation: ${finding.alternativeExplanation}", fontSize = 10.sp, color = muted)
+                    Text("Alternative explanation: ${finding.alternativeExplanation}", fontSize = AppFontSize.Micro, color = muted)
                 }
                 Text(
                     "Evidence references: ${finding.frameIndices.joinToString(", ").ifBlank { "not cited" }} \u00B7 ${finding.confidence} confidence",
-                    fontSize = 10.sp,
+                    fontSize = AppFontSize.Micro,
                     color = muted
                 )
             }
@@ -436,16 +436,23 @@ private fun FindingCard(
     }
     val controls: @Composable (Modifier) -> Unit = { modifier ->
         Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Review decision", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            DecisionDropdown(status, onStatus)
-            OutlinedTextField(
+            Text("Review decision", fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AppDropdown(
+                label = null,
+                options = findingStatuses,
+                selectedKey = status,
+                onSelected = onStatus,
+                modifier = Modifier.fillMaxWidth()
+            )
+            AppTextField(
                 value = note,
                 onValueChange = onNote,
+                label = null,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,
-                placeholder = { Text("Coach correction or note", fontSize = 11.sp) },
-                trailingIcon = { VoiceMicButton(note, onNote, "Speak a coach correction", singleLine = true) }
+                placeholder = "Coach correction or note",
+                voicePrompt = "Speak a coach correction"
             )
         }
     }
@@ -463,37 +470,6 @@ private fun FindingCard(
             Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 details(Modifier.fillMaxWidth())
                 controls(Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
-
-@Composable
-private fun DecisionDropdown(selected: String, onSelected: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Surface(
-            onClick = { expanded = true },
-            shape = RoundedCornerShape(6.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    findingStatuses.firstOrNull { it.first == selected }?.second ?: "Not reviewed",
-                    fontSize = 12.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
-            }
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            findingStatuses.forEach { (value, label) ->
-                DropdownMenuItem(
-                    text = { Text(label, fontSize = 12.sp, fontWeight = if (value == selected) FontWeight.SemiBold else null) },
-                    onClick = { onSelected(value); expanded = false }
-                )
             }
         }
     }
@@ -519,8 +495,8 @@ private fun MovementSection(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Column {
-                Text("Movement and technique", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Cyan.tone())
-                Text("A clear review of the player\u2019s movement and technique.", fontSize = 11.sp, color = muted)
+                Text("Movement and technique", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, color = Cyan.tone())
+                Text("A clear review of the player\u2019s movement and technique.", fontSize = AppFontSize.Caption, color = muted)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.align(Alignment.CenterVertically)) {
                 LabeledValue(
@@ -533,22 +509,22 @@ private fun MovementSection(
         if (loading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                Text("Preparing movement images and alignment checklist\u2026", fontSize = 12.sp, color = Cyan.tone())
+                Text("Preparing movement images and alignment checklist\u2026", fontSize = AppFontSize.Small, color = Cyan.tone())
             }
         }
         if (error.isNotBlank()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(error, fontSize = 12.sp, color = Rose.tone(), modifier = Modifier.weight(1f))
+                Text(error, fontSize = AppFontSize.Small, color = Rose.tone(), modifier = Modifier.weight(1f))
                 if (result == null && (analysis.poseOverlayInput != null || analysis.savedPoseOverlayJson != null)) {
-                    TextButton(onClick = onRetry) { Text("Retry overlay", fontSize = 12.sp) }
+                    TextButton(onClick = onRetry) { Text("Retry overlay", fontSize = AppFontSize.Small) }
                 }
             }
         }
         if (result != null) {
             AccentSection(null) {
-                Text("TECHNIQUE SUMMARY", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Violet.tone())
-                Text(result.verdict.ifBlank { "No verdict" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                if (result.rulesShotType.isNotBlank()) Text(formatShotType(result.rulesShotType), fontSize = 11.sp, color = muted)
+                Text("TECHNIQUE SUMMARY", fontSize = AppFontSize.Caption, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Violet.tone())
+                Text(result.verdict.ifBlank { "No verdict" }, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
+                if (result.rulesShotType.isNotBlank()) Text(formatShotType(result.rulesShotType), fontSize = AppFontSize.Caption, color = muted)
             }
             val kinematics = listOf(
                 poseMetricRow(result, "shot", "back_knee", "Back knee", "\u00B0"),
@@ -579,14 +555,14 @@ private fun MovementSection(
             if (hasFixes) {
                 Collapsible("What to Fix") {
                     if (!result.scoreScope.startsWith("partial")) {
-                        Text("Rule-check score: ${formatNumber(result.score)}/100", fontSize = 12.sp, color = muted)
+                        Text("Rule-check score: ${formatNumber(result.score)}/100", fontSize = AppFontSize.Small, color = muted)
                     }
                     result.faults.forEach { FaultCard(it) }
-                    result.strengths.forEach { Text("\u2022 $it", fontSize = 12.sp, color = Emerald.tone()) }
+                    result.strengths.forEach { Text("\u2022 $it", fontSize = AppFontSize.Small, color = Emerald.tone()) }
                     if (result.unavailable.isNotEmpty()) {
                         Text(
                             "Not assessed: ${result.unavailable.joinToString(", ") { it.replace('_', ' ') }}.",
-                            fontSize = 11.sp,
+                            fontSize = AppFontSize.Caption,
                             color = muted
                         )
                     }
@@ -599,7 +575,7 @@ private fun MovementSection(
                     result.overlayImage?.let { "Movement overlay" to it }
                 )
                 if (images.isEmpty()) {
-                    Text("Movement images are not available for this review.", fontSize = 11.sp, color = muted)
+                    Text("Movement images are not available for this review.", fontSize = AppFontSize.Caption, color = muted)
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         images.forEach { (caption, data) ->
@@ -610,8 +586,8 @@ private fun MovementSection(
             }
             if (result.sequence.isNotEmpty()) {
                 AccentSection(null) {
-                    Text("POSE THROUGH CONTACT", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Cyan.tone())
-                    Text("Key positions before, during, and after contact.", fontSize = 11.sp, color = muted)
+                    Text("POSE THROUGH CONTACT", fontSize = AppFontSize.Caption, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Cyan.tone())
+                    Text("Key positions before, during, and after contact.", fontSize = AppFontSize.Caption, color = muted)
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -628,8 +604,8 @@ private fun MovementSection(
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                                 ) {
                                     Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                                        Text(frame.error ?: "Pose unavailable for this frame.", fontSize = 11.sp, color = muted)
-                                        Text(caption, fontSize = 10.sp)
+                                        Text(frame.error ?: "Pose unavailable for this frame.", fontSize = AppFontSize.Caption, color = muted)
+                                        Text(caption, fontSize = AppFontSize.Micro)
                                     }
                                 }
                             }
@@ -644,8 +620,8 @@ private fun MovementSection(
 @Composable
 private fun LabeledValue(label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("  $value", fontSize = 12.sp)
+        Text(label, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("  $value", fontSize = AppFontSize.Small)
     }
 }
 
@@ -655,22 +631,22 @@ private fun PoseMetricTable(title: String, rows: List<PoseMetricRow>, modifier: 
     val divider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.padding(vertical = 4.dp)) {
-            Text(title, fontSize = 11.sp, color = muted, modifier = Modifier.weight(1.4f))
-            Text("Measured", fontSize = 11.sp, color = muted, modifier = Modifier.weight(0.8f))
-            Text("Expected", fontSize = 11.sp, color = muted, modifier = Modifier.weight(0.9f))
-            Text("Status", fontSize = 11.sp, color = muted, modifier = Modifier.weight(1.1f))
+            Text(title, fontSize = AppFontSize.Caption, color = muted, modifier = Modifier.weight(1.4f))
+            Text("Measured", fontSize = AppFontSize.Caption, color = muted, modifier = Modifier.weight(0.8f))
+            Text("Expected", fontSize = AppFontSize.Caption, color = muted, modifier = Modifier.weight(0.9f))
+            Text("Status", fontSize = AppFontSize.Caption, color = muted, modifier = Modifier.weight(1.1f))
         }
         rows.forEach { row ->
             HorizontalDivider(color = divider)
             Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(row.label, fontSize = 12.sp, modifier = Modifier.weight(1.4f))
+                Text(row.label, fontSize = AppFontSize.Small, modifier = Modifier.weight(1.4f))
                 Text(
                     row.value?.let { String.format(Locale.getDefault(), "%.1f%s", it, row.unit) } ?: "\u2014",
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(0.8f)
                 )
-                Text(row.expected, fontSize = 12.sp, color = muted, modifier = Modifier.weight(0.9f))
+                Text(row.expected, fontSize = AppFontSize.Small, color = muted, modifier = Modifier.weight(0.9f))
                 Box(Modifier.weight(1.1f)) {
                     val key = row.severity ?: row.status
                     val text = row.severity?.let(::formatShotType) ?: row.status
@@ -680,7 +656,7 @@ private fun PoseMetricTable(title: String, rows: List<PoseMetricRow>, modifier: 
                     } else {
                         Text(
                             text,
-                            fontSize = 11.sp,
+                            fontSize = AppFontSize.Caption,
                             color = muted,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -703,20 +679,20 @@ private fun FaultCard(fault: PoseRuleFault) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 fault.verdict ?: fault.message,
-                fontSize = 12.sp,
+                fontSize = AppFontSize.Small,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
             Pill(fault.severity.uppercase(Locale.getDefault()), accent)
         }
-        if (fault.message.isNotBlank()) Text(fault.message, fontSize = 12.sp)
+        if (fault.message.isNotBlank()) Text(fault.message, fontSize = AppFontSize.Small)
         Text(
             "${fault.metric.replace('_', ' ')}: ${String.format(Locale.getDefault(), "%.1f", fault.value)} \u00B7 ${faultExpected(fault)}",
-            fontSize = 11.sp,
+            fontSize = AppFontSize.Caption,
             color = muted
         )
-        if (fault.recommendation.isNotBlank()) Text(fault.recommendation, fontSize = 12.sp)
-        fault.drill?.let { Text("Drill: $it", fontSize = 11.sp, color = Violet.tone()) }
+        if (fault.recommendation.isNotBlank()) Text(fault.recommendation, fontSize = AppFontSize.Small)
+        fault.drill?.let { Text("Drill: $it", fontSize = AppFontSize.Caption, color = Violet.tone()) }
     }
 }
 
@@ -734,7 +710,7 @@ private fun Collapsible(title: String, content: @Composable () -> Unit) {
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(" $title", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(" $title", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (expanded) content()
     }
@@ -774,7 +750,7 @@ private fun ReviewFigure(caption: String, data: Any, modifier: Modifier = Modifi
             }
             Text(
                 caption,
-                fontSize = 10.sp,
+                fontSize = AppFontSize.Micro,
                 color = Color(0xFFCBD5E1),
                 modifier = Modifier.fillMaxWidth().background(Color(0xFF020617)).padding(horizontal = 8.dp, vertical = 4.dp)
             )
@@ -789,23 +765,23 @@ private fun CoachingGuidance(analysis: OpenAiBattingAnalysis) {
     AccentSection(Violet) {
         SectionHeading("Coaching guidance", Violet)
         if (analysis.priorityCue.isNotBlank()) {
-            Text("Priority cue: ${analysis.priorityCue}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("Priority cue: ${analysis.priorityCue}", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
         }
         if (analysis.drill.title.isNotBlank()) {
             AccentSection(null) {
-                Text("Drill: ${analysis.drill.title}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Violet.tone())
-                if (analysis.drill.rationale.isNotBlank()) Text(analysis.drill.rationale, fontSize = 12.sp, color = muted)
+                Text("Drill: ${analysis.drill.title}", fontSize = AppFontSize.Small, fontWeight = FontWeight.Bold, color = Violet.tone())
+                if (analysis.drill.rationale.isNotBlank()) Text(analysis.drill.rationale, fontSize = AppFontSize.Small, color = muted)
                 analysis.drill.instructions.filter(String::isNotBlank).forEachIndexed { index, step ->
-                    Text("${index + 1}. $step", fontSize = 12.sp, color = muted)
+                    Text("${index + 1}. $step", fontSize = AppFontSize.Small, color = muted)
                 }
             }
         }
         if (analysis.strengthItems.isNotEmpty()) {
-            Text("Strengths", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Emerald.tone())
+            Text("Strengths", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = Emerald.tone())
             analysis.strengthItems.forEach { strength ->
                 Text(
                     if (strength.title.isBlank()) "\u2022 ${strength.observation}" else "\u2022 ${strength.title}: ${strength.observation}",
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     color = muted
                 )
             }
@@ -892,10 +868,10 @@ internal fun PastBattingReviews(
     AccentSection(null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Past AI Video Analyses", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("Past AI Video Analyses", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Saved batting reviews for $playerName. Select one to open it above.",
-                    fontSize = 11.sp,
+                    fontSize = AppFontSize.Caption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -905,11 +881,11 @@ internal fun PastBattingReviews(
             }
         }
         when {
-            error.isNotBlank() -> Text(error, fontSize = 12.sp, color = Rose.tone())
-            loading && reports.isEmpty() -> Text("Loading history\u2026", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            error.isNotBlank() -> Text(error, fontSize = AppFontSize.Small, color = Rose.tone())
+            loading && reports.isEmpty() -> Text("Loading history\u2026", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
             reports.isEmpty() -> Text(
                 "No saved batting reviews yet for this player. Run a review above to build their history.",
-                fontSize = 12.sp,
+                fontSize = AppFontSize.Small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             else -> BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -939,10 +915,10 @@ internal fun PastBattingReviews(
                     }
                     if (reports.size > columns * 2) {
                         TextButton(onClick = { showAll = !showAll }) {
-                            Text(if (showAll) "Show fewer" else "Show all ${reports.size}", fontSize = 12.sp)
+                            Text(if (showAll) "Show fewer" else "Show all ${reports.size}", fontSize = AppFontSize.Small)
                         }
                     }
-                    if (pdfError.isNotBlank()) Text(pdfError, fontSize = 12.sp, color = Rose.tone())
+                    if (pdfError.isNotBlank()) Text(pdfError, fontSize = AppFontSize.Small, color = Rose.tone())
                 }
             }
         }
@@ -1011,14 +987,14 @@ private fun PastReviewRow(
                 )
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(report.sourceName ?: "Untitled video", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(report.sourceName ?: "Untitled video", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${formatReportDate(report.createdAt)} \u00B7 ${when (report.sourceType) {
                         "GOOGLE_DRIVE" -> "Google Drive"
                         "LOCAL_UPLOAD" -> "Device upload"
                         else -> "Source not recorded"
                     }}",
-                    fontSize = 10.sp,
+                    fontSize = AppFontSize.Micro,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1027,7 +1003,7 @@ private fun PastReviewRow(
                     Pill(report.discipline.lowercase(Locale.getDefault()).replaceFirstChar { it.titlecase(Locale.getDefault()) }, Amber)
                     Text(
                         "${if (report.discipline == "BOWLING") "Bowling type" else "Shot"}: ${report.shotType ?: "Not identified"}",
-                        fontSize = 10.sp,
+                        fontSize = AppFontSize.Micro,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
@@ -1054,7 +1030,7 @@ private fun PastReviewRow(
                         else Icon(Icons.Outlined.Download, contentDescription = null, tint = Violet.tone(), modifier = Modifier.size(14.dp))
                         Text(
                             if (downloading) "Preparing" else "PDF",
-                            fontSize = 10.sp,
+                            fontSize = AppFontSize.Micro,
                             fontWeight = FontWeight.SemiBold,
                             color = Violet.tone().copy(alpha = if (downloadEnabled || downloading) 1f else 0.5f)
                         )
@@ -1075,7 +1051,7 @@ private fun PastReviewRow(
                         val tint = DeleteRed.copy(alpha = if (deleteEnabled || deleting) 1f else 0.5f)
                         if (deleting) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = DeleteRed)
                         else Icon(Icons.Outlined.Delete, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
-                        Text(if (deleting) "Deleting" else "Delete", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = tint)
+                        Text(if (deleting) "Deleting" else "Delete", fontSize = AppFontSize.Micro, fontWeight = FontWeight.SemiBold, color = tint)
                     }
                 }
             }

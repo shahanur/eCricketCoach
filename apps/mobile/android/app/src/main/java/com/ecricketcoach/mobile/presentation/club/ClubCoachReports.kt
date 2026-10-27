@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.club
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -33,7 +34,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -661,11 +661,10 @@ internal fun ClubReportsPanel(
             Text("Session delivery, assigned participants, attendance and recorded individual coaching notes.")
             if (loadError.isNotBlank()) Text(loadError, color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                DateField(fromDate, { fromDate = it }, "From", Modifier.weight(1f))
-                DateField(throughDate, { throughDate = it }, "Through", Modifier.weight(1f))
+                AppDateField(fromDate, { fromDate = it }, "From", Modifier.weight(1f))
+                AppDateField(throughDate, { throughDate = it }, "Through", Modifier.weight(1f))
             }
-            OutlinedTextField(squad, { squad = it }, label = { Text("Filter squad") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                trailingIcon = { VoiceMicButton(squad, { squad = it }, "Say a squad name", singleLine = true, replace = true) })
+            AppTextField(squad, { squad = it }, "Filter squad", Modifier.fillMaxWidth(), voicePrompt = "Say a squad name")
             if (!validRange) Text("Enter valid dates and make sure the start date is not after the end date.", color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = rows.isNotEmpty() && validRange, onClick = {
@@ -728,7 +727,7 @@ internal fun DeliveredSessionsPanel(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text(session.title, fontWeight = FontWeight.SemiBold)
-                    Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = 12.sp)
+                    Text("${session.sessionDate} · ${session.squadName} · ${session.durationMinutes} min", fontSize = AppFontSize.Small)
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         WorkspaceAction("Download PDF", Icons.Outlined.Download, {
                             error = runCatching {
@@ -772,9 +771,9 @@ internal fun ParticipantsPanel(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text(player.name, fontWeight = FontWeight.SemiBold)
-                    Text(player.email, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
-                    Text("${player.ageGroup.ifBlank { "No age group" }} · ${player.discipline} · ${player.currentLevel}", fontSize = 12.sp)
-                    Text("Squad: ${player.squad}", fontSize = 12.sp)
+                    Text(player.email, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f))
+                    Text("${player.ageGroup.ifBlank { "No age group" }} · ${player.discipline} · ${player.currentLevel}", fontSize = AppFontSize.Small)
+                    Text("Squad: ${player.squad}", fontSize = AppFontSize.Small)
                 }
             }
         }
@@ -805,13 +804,11 @@ internal fun CertificatesPanel(
     LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text("Certificates", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            OutlinedTextField(query, { query = it }, label = { Text("Filter player, level or number") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                trailingIcon = { VoiceMicButton(query, { query = it }, "Say a player, level or number", singleLine = true, replace = true) })
-            OutlinedTextField(discipline, { discipline = it }, label = { Text("Filter discipline") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                trailingIcon = { VoiceMicButton(discipline, { discipline = it }, "Say a discipline", singleLine = true, replace = true) })
+            AppTextField(query, { query = it }, "Filter player, level or number", Modifier.fillMaxWidth(), voicePrompt = "Say a player, level or number")
+            AppTextField(discipline, { discipline = it }, "Filter discipline", Modifier.fillMaxWidth(), voicePrompt = "Say a discipline")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                DateField(issuedFrom, { issuedFrom = it }, "Issued from", Modifier.weight(1f))
-                DateField(issuedThrough, { issuedThrough = it }, "Issued through", Modifier.weight(1f))
+                AppDateField(issuedFrom, { issuedFrom = it }, "Issued from", Modifier.weight(1f))
+                AppDateField(issuedThrough, { issuedThrough = it }, "Issued through", Modifier.weight(1f))
             }
             Text("PDFs use the saved certificate fields and club branding.", style = MaterialTheme.typography.bodySmall)
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)

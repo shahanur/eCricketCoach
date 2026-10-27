@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.assessment
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -288,27 +289,27 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
             Text(
                 "Detailed ${if (target == "batter") "batting" else "bowling"} analysis",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
+                fontSize = AppFontSize.Body,
                 modifier = Modifier.weight(1f).padding(start = 6.dp)
             )
             if (canSubmit && !setupOpen && job?.isPending != true) {
-                TextButton(onClick = { setupOpen = true; error = "" }) { Text(if (job == null) "Analyse" else "New", fontSize = 12.sp) }
+                TextButton(onClick = { setupOpen = true; error = "" }) { Text(if (job == null) "Analyse" else "New", fontSize = AppFontSize.Small) }
             }
         }
 
         if (setupOpen) {
-            Text("${if (target == "batter") "Batter" else "Bowler"} hand", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${if (target == "batter") "Batter" else "Bowler"} hand", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("right", "left").forEach { hand ->
-                    FilterChip(selected = handedness == hand, onClick = { handedness = hand }, label = { Text("${pretty(hand)}-handed", fontSize = 12.sp) })
+                    FilterChip(selected = handedness == hand, onClick = { handedness = hand }, label = { Text("${pretty(hand)}-handed", fontSize = AppFontSize.Small) })
                 }
             }
-            Text(if (target == "batter") "Shot" else "Bowling type", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (target == "batter") "Shot" else "Bowling type", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (target == "batter") {
-                    SHOT_TYPES.forEach { shot -> FilterChip(selected = shotType == shot, onClick = { shotType = shot }, label = { Text(pretty(shot), fontSize = 12.sp) }) }
+                    SHOT_TYPES.forEach { shot -> FilterChip(selected = shotType == shot, onClick = { shotType = shot }, label = { Text(pretty(shot), fontSize = AppFontSize.Small) }) }
                 } else {
-                    BOWLER_TYPES.forEach { type -> FilterChip(selected = bowlerType == type, onClick = { bowlerType = type }, label = { Text(pretty(type), fontSize = 12.sp) }) }
+                    BOWLER_TYPES.forEach { type -> FilterChip(selected = bowlerType == type, onClick = { bowlerType = type }, label = { Text(pretty(type), fontSize = AppFontSize.Small) }) }
                 }
             }
             OutlinedButton(onClick = { picker.launch(arrayOf("video/*")) }, enabled = !busy, shape = RoundedCornerShape(14.dp)) {
@@ -319,10 +320,10 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                 Text(
                     if (points.size < 4) "Tap corner ${points.size + 1}: ${CORNER_LABELS[points.size]} (left/right as seen from the bowler's end)."
                     else "All four corners marked.",
-                    fontSize = 12.sp
+                    fontSize = AppFontSize.Small
                 )
                 CalibrationOverlay(current, points) { if (points.size < 4) points.add(it) }
-                if (points.isNotEmpty()) TextButton(onClick = { points.clear() }) { Text("Reset corners", fontSize = 12.sp) }
+                if (points.isNotEmpty()) TextButton(onClick = { points.clear() }) { Text("Reset corners", fontSize = AppFontSize.Small) }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -371,7 +372,7 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
             setupOpen -> Unit
             current == null -> Text(
                 if (canSubmit) "Upload a clip for pose, error and recommendation feedback with downloadable images." else "No detailed analysis for this assessment.",
-                fontSize = 12.sp,
+                fontSize = AppFontSize.Small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             current.isPending -> {
@@ -382,14 +383,14 @@ internal fun CapeAnalysisSection(analysisRepository: AnalysisRepository, assessm
                         current.queuePosition != null -> "Queued – position ${current.queuePosition}"
                         else -> "Queued…"
                     } + " You can leave and come back.",
-                    fontSize = 12.sp,
+                    fontSize = AppFontSize.Small,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            current.status == "FAILED" -> Text(current.errorMessage ?: "The analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            current.status == "FAILED" -> Text(current.errorMessage ?: "The analysis failed.", color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
             current.result != null -> CapeResultPanel(analysisRepository, current.result, current.jobId, assessment.playerName, canAssign = canSubmit)
         }
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
     }
 }
 
@@ -517,14 +518,14 @@ internal fun CapeResultPanel(
                 Text(result.verdict, fontWeight = FontWeight.SemiBold)
                 Text(
                     "${pretty(result.shotType ?: result.bowlerType ?: result.target)} · ${pretty(result.handedness)}-handed",
-                    fontSize = 11.sp,
+                    fontSize = AppFontSize.Caption,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (result.contactManual && result.contactFrame != null) {
                     Text(
                         "Contact frame #${result.contactFrame}" +
                             if (result.contactCandidateCount > 1) " chosen from ${result.contactCandidateCount} selected frames" else " selected manually",
-                        fontSize = 11.sp,
+                        fontSize = AppFontSize.Caption,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -579,25 +580,25 @@ internal fun CapeResultPanel(
             SectionTitle("Kinetics")
             result.kinetics.forEach { row ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(row.label, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text("${fmt(row.value)}${row.unit}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(row.label, fontSize = AppFontSize.Small, modifier = Modifier.weight(1f))
+                    Text("${fmt(row.value)}${row.unit}", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
                 }
             }
             Note("Momentum and energy use the calibrated 2D track and an assumed 156 g cricket ball.")
         }
 
         if (result.faults.isNotEmpty()) {
-            Text("What to fix", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("What to fix", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
             result.faults.forEach { fault ->
                 val color = severityColor(fault.severity)
                 Column(
                     Modifier.fillMaxWidth().border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.08f), RoundedCornerShape(12.dp)).padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text("${fault.message} (${pretty(fault.severity)})", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = color)
-                    Text("${pretty(fault.metric)}: ${fmt(fault.value)} · expected ${expectedRange(fault)} · ${pretty(fault.milestone)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(fault.recommendation, fontSize = 12.sp)
-                    fault.drill?.let { Text("Drill: $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Text("${fault.message} (${pretty(fault.severity)})", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = color)
+                    Text("${pretty(fault.metric)}: ${fmt(fault.value)} · expected ${expectedRange(fault)} · ${pretty(fault.milestone)}", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(fault.recommendation, fontSize = AppFontSize.Small)
+                    fault.drill?.let { Text("Drill: $it", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }
@@ -611,29 +612,29 @@ internal fun CapeResultPanel(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = violet, modifier = Modifier.size(16.dp))
-                    Text("  Coaching guidance", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = violet)
+                    Text("  Coaching guidance", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = violet)
                 }
-                if (guidance.summary.isNotBlank()) Text(guidance.summary, fontSize = 12.sp)
+                if (guidance.summary.isNotBlank()) Text(guidance.summary, fontSize = AppFontSize.Small)
                 Note("Generated by Gemini from CAPE’s measured findings; Gemini does not change measurements or severity.")
                 guidance.items.forEach { item ->
                     Column(
                         Modifier.fillMaxWidth().border(1.dp, violet.copy(alpha = 0.25f), RoundedCornerShape(10.dp)).padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(item.title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = violet)
-                        if (item.whyItMatters.isNotBlank()) Text(item.whyItMatters, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(item.title, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small, color = violet)
+                        if (item.whyItMatters.isNotBlank()) Text(item.whyItMatters, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (item.cues.isNotEmpty()) {
-                            Text("COACHING CUES", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            item.cues.forEach { Text("• $it", fontSize = 12.sp) }
+                            Text("COACHING CUES", fontSize = AppFontSize.Micro, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            item.cues.forEach { Text("• $it", fontSize = AppFontSize.Small) }
                         }
-                        if (item.drillName.isNotBlank()) Text("Drill: ${item.drillName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = GOOD)
-                        item.drillInstructions.forEachIndexed { index, step -> Text("${index + 1}. $step", fontSize = 11.sp) }
+                        if (item.drillName.isNotBlank()) Text("Drill: ${item.drillName}", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = GOOD)
+                        item.drillInstructions.forEachIndexed { index, step -> Text("${index + 1}. $step", fontSize = AppFontSize.Caption) }
                         if (item.equipment.isNotEmpty()) Note("Equipment: ${item.equipment.joinToString()}")
                         val assigned = assignedByFault[item.faultCode]
                         when {
                             assigned != null -> Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = GOOD, modifier = Modifier.size(14.dp))
-                                Text("  Assigned to ${assigned.playerName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = GOOD)
+                                Text("  Assigned to ${assigned.playerName}", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, color = GOOD)
                             }
                             canAssign && jobId != null -> Button(
                                 onClick = { assign(item.faultCode) },
@@ -642,18 +643,18 @@ internal fun CapeResultPanel(
                             ) {
                                 if (assigningCode == item.faultCode) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                                 else Icon(Icons.Outlined.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("  Assign to ${playerName ?: "player"}", fontSize = 12.sp)
+                                Text("  Assign to ${playerName ?: "player"}", fontSize = AppFontSize.Small)
                             }
                         }
                     }
                 }
-                if (assignError.isNotBlank()) Text(assignError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (assignError.isNotBlank()) Text(assignError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
                 if (assignments.isNotEmpty()) {
-                    Text("Assigned drills", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                    Text("Assigned drills", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
                     assignments.forEach { a ->
                         Text(
                             "• ${a.title} — ${a.playerName}" + (a.assignedByName?.let { " · by $it" } ?: "") + " · ${a.createdAt.take(10)}",
-                            fontSize = 11.sp
+                            fontSize = AppFontSize.Caption
                         )
                     }
                 }
@@ -661,16 +662,16 @@ internal fun CapeResultPanel(
         }
 
         if (result.strengths.isNotEmpty()) {
-            Text("Strengths", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-            result.strengths.forEach { Text("• $it", fontSize = 12.sp) }
+            Text("Strengths", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
+            result.strengths.forEach { Text("• $it", fontSize = AppFontSize.Small) }
         }
-        result.summary?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        result.summary?.let { Text(it, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (result.unavailable.isNotEmpty()) {
-            Text("Not measured: ${result.unavailable.joinToString { pretty(it) }}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Not measured: ${result.unavailable.joinToString { pretty(it) }}", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         if (result.images.isNotEmpty()) {
-            Text("Images", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Text("Images", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
             result.images.forEach { (key, path) ->
                 Column(Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)).padding(6.dp)) {
                     val bitmap = images[key]
@@ -680,7 +681,7 @@ internal fun CapeResultPanel(
                         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(SNAPSHOT_LABELS[key] ?: pretty(key), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Text(SNAPSHOT_LABELS[key] ?: pretty(key), fontSize = AppFontSize.Small, modifier = Modifier.weight(1f))
                         IconButton(onClick = { download(path, share = false) }) { Icon(Icons.Outlined.Download, contentDescription = "Save image") }
                         IconButton(onClick = { download(path, share = true) }) { Icon(Icons.Outlined.Share, contentDescription = "Share image") }
                     }
@@ -696,25 +697,25 @@ internal fun CapeResultPanel(
                 }
             }
         }
-        if (message.isNotBlank()) Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (message.isNotBlank()) Text(message, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) = Text(text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+private fun SectionTitle(text: String) = Text(text, fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
 
 @Composable
-private fun Note(text: String) = Text(text, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun Note(text: String) = Text(text, fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
 @Composable
 private fun MetricRow(name: String, value: String, expected: String, status: String, color: Color) {
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(name, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(value, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp))
+            Text(name, fontSize = AppFontSize.Small, modifier = Modifier.weight(1f))
+            Text(value, fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp))
             Badge(status, color)
         }
-        Text(expected, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(expected, fontSize = AppFontSize.Micro, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -726,6 +727,6 @@ private fun Badge(text: String, color: Color?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (color == GOOD) Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp).padding(end = 2.dp))
-        Text(text, fontSize = 11.sp, color = if (color == null) MaterialTheme.colorScheme.onSurface else tint)
+        Text(text, fontSize = AppFontSize.Caption, color = if (color == null) MaterialTheme.colorScheme.onSurface else tint)
     }
 }

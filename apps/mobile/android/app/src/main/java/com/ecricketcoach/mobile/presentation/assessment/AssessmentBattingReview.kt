@@ -1,5 +1,6 @@
 package com.ecricketcoach.mobile.presentation.assessment
 
+import com.ecricketcoach.mobile.presentation.common.theme.AppFontSize
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.domain.repository.*
 import com.ecricketcoach.mobile.utils.*
@@ -19,7 +20,6 @@ import android.widget.VideoView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronLeft
@@ -48,14 +47,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -65,7 +61,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -225,7 +220,7 @@ internal fun AssessmentBattingReview(
             Text(
                 "OpenAI batting video review is available for batting assessments.",
                 modifier = Modifier.padding(12.dp),
-                fontSize = 12.sp,
+                fontSize = AppFontSize.Small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -318,10 +313,10 @@ internal fun AssessmentBattingReview(
                     val shotSettings: @Composable (Modifier) -> Unit = { settingsModifier ->
                     Column(settingsModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Batting video review", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Batting video review", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                         Text(
                             "Set the shot details, mark contact, then review.",
-                            fontSize = 11.sp,
+                            fontSize = AppFontSize.Caption,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -333,46 +328,50 @@ internal fun AssessmentBattingReview(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        ReviewOptionChip(
+                        AppDropdown(
                             label = "Shot",
-                            selected = shotType,
                             options = listOf(
                                 "front_foot_drive" to "Front-foot drive",
                                 "front_foot_defence" to "Front-foot defence",
                                 "unknown" to "Identify if visible"
                             ),
-                            enabled = !isRunning,
-                            onSelected = { shotType = it }
+                            selectedKey = shotType,
+                            onSelected = { shotType = it },
+                            modifier = Modifier.width(190.dp),
+                            enabled = !isRunning
                         )
-                        ReviewOptionChip(
+                        AppDropdown(
                             label = "Batter",
-                            selected = handedness,
                             options = listOf("right" to "Right-handed", "left" to "Left-handed", "unknown" to "Unknown"),
-                            enabled = !isRunning,
-                            onSelected = { handedness = it }
+                            selectedKey = handedness,
+                            onSelected = { handedness = it },
+                            modifier = Modifier.width(190.dp),
+                            enabled = !isRunning
                         )
-                        ReviewOptionChip(
+                        AppDropdown(
                             label = "Camera",
-                            selected = cameraView,
                             options = listOf(
                                 "front_on" to "Front-on",
                                 "side_on" to "Side-on",
                                 "three_quarter" to "Three-quarter",
                                 "unknown" to "Unknown"
                             ),
-                            enabled = !isRunning,
-                            onSelected = { cameraView = it }
+                            selectedKey = cameraView,
+                            onSelected = { cameraView = it },
+                            modifier = Modifier.width(190.dp),
+                            enabled = !isRunning
                         )
-                        ReviewOptionChip(
+                        AppDropdown(
                             label = "Speed",
-                            selected = playbackSpeed,
                             options = listOf(
                                 "real_time" to "Real-time",
                                 "slow_motion" to "Slow motion",
                                 "unknown" to "Unknown"
                             ),
-                            enabled = !isRunning,
-                            onSelected = { playbackSpeed = it }
+                            selectedKey = playbackSpeed,
+                            onSelected = { playbackSpeed = it },
+                            modifier = Modifier.width(190.dp),
+                            enabled = !isRunning
                         )
                         AssistChip(
                             onClick = { showMoreOptions = !showMoreOptions },
@@ -386,7 +385,7 @@ internal fun AssessmentBattingReview(
                                         append(" · ")
                                         append(if (captureFps.isBlank()) "fps auto" else "$captureFps fps")
                                     },
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     maxLines = 1,
                                     color = if (fpsIsValid) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
                                 )
@@ -405,11 +404,11 @@ internal fun AssessmentBattingReview(
                     val videoSource: @Composable (Modifier) -> Unit = { sourceModifier ->
                         Column(sourceModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Video", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Video", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
                                 if (!sourceCaption.isNullOrBlank()) {
                                     Text(
                                         sourceCaption,
-                                        fontSize = 11.sp,
+                                        fontSize = AppFontSize.Caption,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -445,7 +444,7 @@ internal fun AssessmentBattingReview(
                                     FilterChip(
                                         selected = checked,
                                         onClick = { priorities = if (checked) priorities - key else priorities + key },
-                                        label = { Text(label, fontSize = 11.sp) },
+                                        label = { Text(label, fontSize = AppFontSize.Caption) },
                                         leadingIcon = if (checked) {
                                             { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                         } else null,
@@ -454,22 +453,24 @@ internal fun AssessmentBattingReview(
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                OutlinedTextField(
+                                AppTextField(
                                     value = captureFps,
-                                    onValueChange = { captureFps = it.filter { char -> char.isDigit() || char == '.' }.take(7) },
+                                    onValueChange = { captureFps = it.filter { char -> char.isDigit() || char == '.' } },
+                                    label = "Frame rate (fps)",
                                     modifier = Modifier.width(150.dp),
-                                    label = { Text("Frame rate (fps)", fontSize = 11.sp) },
-                                    placeholder = { Text("Auto", fontSize = 12.sp) },
+                                    placeholder = "Auto",
                                     textStyle = MaterialTheme.typography.bodySmall,
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    voice = false,
+                                    keyboardType = KeyboardType.Decimal,
+                                    maxLength = 7,
                                     isError = !fpsIsValid,
                                     enabled = !isRunning
                                 )
                                 Text(
                                     if (fpsIsValid) "Optional. Helps the review time slow-motion clips."
                                     else "Enter a frame rate between 1 and 1000.",
-                                    fontSize = 11.sp,
+                                    fontSize = AppFontSize.Caption,
                                     color = if (fpsIsValid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -488,11 +489,11 @@ internal fun AssessmentBattingReview(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Contact point", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        Text("Contact point", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
                         if (manualContact && previewLoading) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
                         Text(
                             contactHint,
-                            fontSize = 11.sp,
+                            fontSize = AppFontSize.Caption,
                             color = if (manualContact && previewError.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -505,14 +506,14 @@ internal fun AssessmentBattingReview(
                                 shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                                 enabled = !isRunning,
                                 icon = {}
-                            ) { Text("Mark it", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            ) { Text("Mark it", fontSize = AppFontSize.Caption, maxLines = 1, softWrap = false) }
                             SegmentedButton(
                                 selected = !manualContact,
                                 onClick = { manualContact = false },
                                 shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                                 enabled = !isRunning,
                                 icon = {}
-                            ) { Text("Auto-detect", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                            ) { Text("Auto-detect", fontSize = AppFontSize.Caption, maxLines = 1, softWrap = false) }
                         }
                     }
 
@@ -549,7 +550,7 @@ internal fun AssessmentBattingReview(
                             val timing: @Composable (Modifier) -> Unit = { timingModifier ->
                                 Column(timingModifier) {
                                     if (videoDuration <= 0f) {
-                                        Text("Preparing preview…", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("Preparing preview…", fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     } else {
                                         ReviewTimeLabel("Shot range", "${formatReviewTime(startSeconds)} – ${formatReviewTime(endSeconds)}")
                                         RangeSlider(
@@ -586,11 +587,11 @@ internal fun AssessmentBattingReview(
                                                 onClick = { videoPlayer?.let { moveContact(it.currentPosition / 1000f) } },
                                                 enabled = !isRunning,
                                                 contentPadding = PaddingValues(horizontal = 8.dp)
-                                            ) { Text("Use paused frame", fontSize = 11.sp) }
+                                            ) { Text("Use paused frame", fontSize = AppFontSize.Caption) }
                                         }
                                         Text(
                                             "Play or drag the video, pause on contact, then tap “Use paused frame”.",
-                                            fontSize = 10.sp,
+                                            fontSize = AppFontSize.Micro,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -615,13 +616,13 @@ internal fun AssessmentBattingReview(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             if (!isRunning && reviewHint.isNotBlank()) {
-                                Text(reviewHint, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(reviewHint, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
                                 Text(
                                     "Ball and bat measurements (CAPE) are temporarily off.",
-                                    fontSize = 10.sp,
+                                    fontSize = AppFontSize.Micro,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -637,23 +638,23 @@ internal fun AssessmentBattingReview(
                         ) {
                             if (isRunning) {
                                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                Text("  Reviewing…", fontSize = 13.sp)
+                                Text("  Reviewing…", fontSize = AppFontSize.Small)
                             } else {
                                 Icon(Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("  Review batting", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("  Review batting", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 }
             }
         } else if (isLoadingSaved) {
-            Text("Loading this assessment’s latest review…", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Loading this assessment’s latest review…", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else if (analysis == null && savedError.isBlank()) {
-            Text("No batting video review was recorded for this assessment.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("No batting video review was recorded for this assessment.", fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        if (savedError.isNotBlank()) Text(savedError, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        if (savedError.isNotBlank()) Text(savedError, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
+        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = AppFontSize.Small)
         analysis?.let { current ->
             key(current.reportId) {
                 OpenAiBattingReviewResult(analysisRepository, current, assessment.playerName) { updated ->
@@ -687,48 +688,10 @@ internal fun AssessmentBattingReview(
 }
 
 @Composable
-private fun ReviewOptionChip(
-    label: String,
-    selected: String,
-    options: List<Pair<String, String>>,
-    enabled: Boolean,
-    onSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        AssistChip(
-            onClick = { expanded = true },
-            enabled = enabled,
-            label = {
-                Text("$label: ", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    options.firstOrNull { it.first == selected }?.second ?: selected,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
-            },
-            trailingIcon = { Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp)) }
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (value, title) ->
-                DropdownMenuItem(
-                    text = { Text(title, fontSize = 12.sp, fontWeight = if (value == selected) FontWeight.SemiBold else null) },
-                    leadingIcon = if (value == selected) {
-                        { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                    } else null,
-                    onClick = { onSelected(value); expanded = false }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ReviewTimeLabel(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        Text(value, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+        Text(label, fontSize = AppFontSize.Caption, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(value, fontSize = AppFontSize.Caption, color = MaterialTheme.colorScheme.primary)
     }
 }
 

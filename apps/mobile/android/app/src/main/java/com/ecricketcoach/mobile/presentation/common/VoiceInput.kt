@@ -19,6 +19,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
@@ -43,7 +44,8 @@ internal fun VoiceMicButton(
     enabled: Boolean = true,
     singleLine: Boolean = false,
     replace: Boolean = false,
-    transform: (String) -> String = { it }
+    transform: (String) -> String = { it },
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val latest by rememberUpdatedState(current)
@@ -63,6 +65,7 @@ internal fun VoiceMicButton(
         }
     }
     IconButton(
+        modifier = modifier,
         enabled = enabled,
         onClick = {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
