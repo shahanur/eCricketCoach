@@ -2,6 +2,9 @@ package com.ecricketcoach.mobile.presentation.home
 
 import com.ecricketcoach.mobile.domain.model.*
 import com.ecricketcoach.mobile.presentation.common.theme.*
+import com.ecricketcoach.mobile.presentation.common.AppHeader
+import com.ecricketcoach.mobile.presentation.common.HeaderGreetingTitle
+import com.ecricketcoach.mobile.presentation.common.timeOfDayGreeting
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -90,26 +93,15 @@ internal fun HomeScreen(
     var selectedTab by remember { mutableStateOf("Drills") }
     val coachAccess = user.hasCoachAccess()
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        AppHeader(
+            isDark = isDark,
+            onToggleTheme = onToggleTheme,
+            onSignOut = onSignOut,
+            clubName = user.clubName?.takeIf(String::isNotBlank) ?: "eCricketCoach",
+            greeting = timeOfDayGreeting()
         ) {
-            Column {
-                Text("eCricketCoach", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    user.clubName?.takeIf(String::isNotBlank) ?: "CRICKET TRAINING",
-                    color = Green,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp
-                )
-            }
-            TextButton(onClick = onToggleTheme) { Text(if (isDark) "Light" else "Dark") }
+            HeaderGreetingTitle(user.name, "Your drills and training plans.")
         }
-        Spacer(Modifier.height(22.dp))
-        Text("Welcome back,", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-        Text(user.name, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(18.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -148,7 +140,6 @@ internal fun HomeScreen(
             TextButton(onClick = onSync, enabled = !refreshing) {
                 Text(if (refreshing) "Syncing…" else "Sync now")
             }
-            TextButton(onClick = onSignOut) { Text("Sign out") }
         }
     }
 }

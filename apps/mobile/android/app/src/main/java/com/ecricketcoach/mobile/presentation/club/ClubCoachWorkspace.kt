@@ -693,7 +693,7 @@ internal fun ClubCoachWorkspace(
                     )
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                EkotaWorkspaceHeader(
+                ClubWorkspaceHeader(
                     tab,
                     user,
                     isDark,
@@ -1862,205 +1862,6 @@ private fun ClubWorkspaceSidebar(
     }
 }
 
-@Composable
-private fun EkotaWorkspaceHeader(
-    tab: String,
-    user: CoachUser,
-    isDark: Boolean,
-    onToggleTheme: () -> Unit,
-    onSignOut: () -> Unit,
-    activeSession: ClubTrainingSession? = null,
-    activeAssessment: PlayerAssessment? = null,
-    onAssessmentBack: () -> Unit = {},
-    activeSessionPageTitle: String? = null,
-    onSessionBack: (() -> Unit)? = null
-) {
-    MaterialTheme(colorScheme = WorkspaceColors) {
-        val isOverview = tab == "Overview"
-        val pageTitle = when (tab) {
-            "Sessions", "Edit session", "Schedule session" -> "Training Sessions"
-            "Assessments", "Edit assessment", "Assessment" -> "Player Assessments"
-            "Edit squad" -> "Squads"
-            "Delivered sessions" -> "Delivered Sessions"
-            else -> tab
-        }
-        val pageIconLabel = when (tab) {
-            "Sessions", "Edit session", "Schedule session", "Delivered sessions" -> "Sessions"
-            "Assessments", "Edit assessment", "Assessment" -> "Assessments"
-            "Edit squad" -> "Squads"
-            "Participants" -> "Members"
-            else -> tab
-        }
-        val pageDescription = when (tab) {
-            "Video Analysis" -> "Pick any player and review their batting technique from a video."
-            "Members" -> "Manage club staff and players."
-            "Squads", "Edit squad" -> "Organize players into squads and track their development."
-            "Sessions" -> "Plan, deliver and track coaching sessions."
-            "Edit session" -> "Update session details, drills and squad assignments."
-            "Schedule session" -> "Plan a training session for your squad."
-            "Assessments" -> "Track player progress and development."
-            "Edit assessment" -> "Update assessment details and evaluation criteria."
-            "Assessment" -> "Review and complete this player assessment."
-            "Reports" -> "Review club activity, participation and player progress."
-            "Certificates" -> "Manage player achievements and certificates."
-            "Drills", "Club drills" -> "Browse and manage coaching drills."
-            "Templates" -> "Create and manage reusable training plans."
-            "Progression" -> "Review player development and progression."
-            "Settings" -> "Manage your club settings and branding."
-            "Delivered sessions" -> "Review completed sessions and coaching outcomes."
-            "Participants" -> "Review participants in the selected session."
-            else -> "Manage your club workspace."
-        }
-        val greeting = when (LocalTime.now().hour) {
-            in 5..11 -> "Good morning,"
-            in 12..16 -> "Good afternoon,"
-            else -> "Good evening,"
-        }
-        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                if (isOverview && activeSession == null) {
-                    Text(greeting, color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 17.sp, modifier = Modifier.weight(1f))
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-                IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
-                    Icon(if (isDark) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, contentDescription = if (isDark) "Switch to light theme" else "Switch to dark theme", tint = WorkspaceColors.primary)
-                }
-                IconButton(onClick = onSignOut, modifier = Modifier.size(38.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = "Sign out", tint = WorkspaceColors.onSurface)
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    if (activeSession != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = WorkspaceColors.surface,
-                                border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    IconButton(onClick = { onSessionBack?.invoke() }) {
-                                        Icon(
-                                            Icons.AutoMirrored.Outlined.ArrowBack,
-                                            contentDescription = "Back",
-                                            tint = WorkspaceColors.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-                                }
-                            }
-                            Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(
-                                    activeSessionPageTitle ?: activeSession.title,
-                                    color = WorkspaceColors.onSurface,
-                                    fontSize = 23.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    if (activeSessionPageTitle != null) {
-                                        "${activeSession.title}  ·  ${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}"
-                                    } else {
-                                        "${activeSession.sessionDate}  ·  ${activeSession.durationMinutes} min  ·  ${activeSession.squadName}"
-                                    },
-                                    color = WorkspaceColors.onSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    } else if (activeAssessment != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = WorkspaceColors.surface,
-                                border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    IconButton(onClick = onAssessmentBack) {
-                                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back to assessments", tint = WorkspaceColors.primary, modifier = Modifier.size(24.dp))
-                                    }
-                                }
-                            }
-                            Column(Modifier.weight(1f).padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    "${activeAssessment.playerName} · ${activeAssessment.discipline}".uppercase(),
-                                    color = WorkspaceColors.primary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text(
-                                        activeAssessment.title,
-                                        color = WorkspaceColors.onSurface,
-                                        fontSize = 23.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    Text(
-                                        activeAssessment.status.replace('_', ' '),
-                                        color = WorkspaceColors.primary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier
-                                            .background(WorkspaceColors.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
-                                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
-                                Text(
-                                    activeAssessment.scheduledDate +
-                                        (activeAssessment.scheduledTime?.let { " at $it" } ?: "") +
-                                        (activeAssessment.coachName.takeIf(String::isNotBlank)?.let { " · Coach $it" } ?: ""),
-                                    color = WorkspaceColors.onSurfaceVariant,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    } else if (isOverview) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(user.name, color = WorkspaceColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(" 👋", fontSize = 24.sp)
-                        }
-                        Text("Let’s plan, coach and grow together.", color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(workspaceTabIcon(pageIconLabel), contentDescription = null, tint = WorkspaceColors.primary, modifier = Modifier.size(29.dp))
-                                Text(pageTitle, color = WorkspaceColors.onSurface, fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Text(pageDescription, color = WorkspaceColors.onSurface.copy(alpha = 0.72f), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = WorkspaceColors.surface,
-                    border = BorderStroke(1.dp, WorkspaceColors.primary.copy(alpha = 0.18f)),
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = WorkspaceColors.primary, modifier = Modifier.size(18.dp))
-                        Text(user.clubName ?: "Ekota Academy", color = WorkspaceColors.onSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-                        Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = WorkspaceColors.onSurface, modifier = Modifier.padding(start = 4.dp).size(17.dp))
-                    }
-                }
-            }
-        }
-        HorizontalDivider(color = WorkspaceColors.outline.copy(alpha = 0.8f))
-    }
-}
-
 private fun workspaceSectionFor(tab: String): String = when (tab) {
     "Delivered sessions", "Participants" -> "Overview"
     "Edit squad" -> "Squads"
@@ -2069,7 +1870,7 @@ private fun workspaceSectionFor(tab: String): String = when (tab) {
     else -> tab
 }
 
-private fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when (label) {
+internal fun workspaceTabIcon(label: String): androidx.compose.ui.graphics.vector.ImageVector = when (label) {
     "Overview" -> Icons.Outlined.Dashboard
     "Members" -> Icons.Outlined.Group
     "Squads" -> Icons.Outlined.Groups
