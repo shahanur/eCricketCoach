@@ -1404,7 +1404,8 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
     }
 
     internal fun googleDriveConnectUrl(token: String): String =
-        "${baseUrl.trimEnd('/')}/api/google-drive/connect?token=${URLEncoder.encode(token, UTF_8)}"
+        "${baseUrl.trimEnd('/')}/api/google-drive/connect?token=${URLEncoder.encode(token, UTF_8)}" +
+            "&returnTo=${URLEncoder.encode(DRIVE_CALLBACK, UTF_8)}"
 
     suspend fun listGoogleDriveVideos(token: String): List<DriveVideoFile> = withContext(Dispatchers.IO) {
         val files = JSONObject(request("/api/google-drive/videos", token)).optJSONArray("files") ?: JSONArray()
@@ -1822,6 +1823,7 @@ class CoachApi(private val baseUrl: String, private val oauthOrigin: String) {
 
     companion object {
         const val MOBILE_CALLBACK = "ecricketcoach://auth/callback"
+        const val DRIVE_CALLBACK = "ecricketcoach://drive/callback"
         private const val UTF_8 = "UTF-8"
         private const val MAX_VIDEO_BYTES = 500L * 1024 * 1024
         private val PROVIDERS = setOf("google", "microsoft", "apple")

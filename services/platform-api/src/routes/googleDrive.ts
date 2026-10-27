@@ -35,9 +35,18 @@ const driveRedirectUri = (origin: string) => `${origin}/api/google-drive/callbac
 interface StatePayload {
   userId: string;
   origin?: string;
+  returnTo?: string;
 }
 
-function callbackHtml(message: Record<string, string>): string {
+// Only the mobile app's own deep link may be used as a post-connect redirect target.
+const MOBILE_DRIVE_CALLBACK = 'ecricketcoach://drive/callback';
+const safeReturnTo = (value: unknown): string | undefined =>
+  value === MOBILE_DRIVE_CALLBACK ? value : undefined;
+
+function callbackHtml(message: Record<string, string>, returnTo?: string): string {
+  const returnUrl = returnTo
+    ? `${returnTo}?status=${message.type === 'GOOGLE_DRIVE_CONNECTED' ? 'connected' : 'error'}`
+    : '';
   return `<!DOCTYPE html>
 <html>
   <head><title>Google Drive Connection</title></head>
@@ -45,10 +54,12 @@ function callbackHtml(message: Record<string, string>): string {
     <main style="max-width:36rem;padding:2rem;text-align:center">
       <h1 id="status">Finishing Google Drive connection…</h1>
       <p id="detail">Return to eCricketCoach and refresh the Drive connection status.</p>
+      ${returnUrl ? `<p><a id="return" href="${returnUrl}" style="display:inline-block;margin-top:1rem;padding:.75rem 1.5rem;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Return to eCricketCoach</a></p>` : ''}
     </main>
     <script>
       (function () {
         var payload = ${JSON.stringify(message)};
+        var returnUrl = ${JSON.stringify(returnUrl)};
         var connected = payload.type === 'GOOGLE_DRIVE_CONNECTED';
         document.getElementById('status').textContent = connected
           ? 'Google Drive connected.'
@@ -56,6 +67,10 @@ function callbackHtml(message: Record<string, string>): string {
         document.getElementById('detail').textContent = connected
           ? 'Return to eCricketCoach and refresh the Drive connection status.'
           : (payload.error || 'Google Drive access was not granted.');
+        if (returnUrl) {
+          if (connected) window.location.replace(returnUrl);
+          return;
+        }
         if (window.opener) {
           window.opener.postMessage(payload, '*');
         }
@@ -74,17 +89,18 @@ router.get('/connect', (req: Request, res: Response) => {
   }
 
   const token = String(req.query.token || '');
+  const returnTo = safeReturnTo(req.query.returnTo);
   let userId: string;
   try {
     const decoded = jwt.verify(token, jwtSecret) as { userId: string };
     userId = decoded.userId;
   } catch {
-    res.status(401).send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Your session has expired. Please sign in again and retry.' }));
+    res.status(401).send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Your session has expired. Please sign in again and retry.' }, returnTo));
     return;
   }
 
   const origin = resolveAppOrigin(req);
-  const state = jwt.sign({ userId, origin } as StatePayload, jwtSecret, { expiresIn: '10m' });
+  const state = jwt.sign({ userId, origin, returnTo } as StatePayload, jwtSecret, { expiresIn: '10m' });
 
   const authUrl = new URL(GOOGLE_AUTH_URL);
   authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
@@ -104,14 +120,18 @@ router.get('/callback', async (req: Request, res: Response) => {
   const code = String(req.query.code || '');
   const state = String(req.query.state || '');
   const errorParam = String(req.query.error || '');
+  // Peek at the (not yet verified) state so even early errors can offer the app deep link;
+  // safeReturnTo only ever allows the fixed mobile callback URL.
+  const peekedState = jwt.decode(state) as StatePayload | null;
+  let returnTo = safeReturnTo(peekedState?.returnTo);
 
   if (errorParam) {
-    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Google Drive access was not granted.' }));
+    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Google Drive access was not granted.' }, returnTo));
     return;
   }
 
   if (!code || !state) {
-    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Google did not return the expected authorization code.' }));
+    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Google did not return the expected authorization code.' }, returnTo));
     return;
   }
 
@@ -121,8 +141,9 @@ router.get('/callback', async (req: Request, res: Response) => {
     const decoded = jwt.verify(state, jwtSecret) as StatePayload;
     userId = decoded.userId;
     origin = isAllowedAppOrigin(decoded.origin) ? decoded.origin : resolveAppOrigin(req);
+    returnTo = safeReturnTo(decoded.returnTo);
   } catch {
-    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Your Google Drive connection request expired. Please try again.' }));
+    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Your Google Drive connection request expired. Please try again.' }, returnTo));
     return;
   }
 
@@ -147,7 +168,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     };
 
     if (!tokenRes.ok || !tokenData.access_token) {
-      res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: tokenData.error_description || 'Unable to exchange the Google authorization code.' }));
+      res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: tokenData.error_description || 'Unable to exchange the Google authorization code.' }, returnTo));
       return;
     }
 
@@ -180,10 +201,10 @@ router.get('/callback', async (req: Request, res: Response) => {
       }
     });
 
-    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_CONNECTED', email }));
+    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_CONNECTED', email }, returnTo));
   } catch (err) {
     console.error('Google Drive callback error:', err);
-    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Something went wrong while connecting to Google Drive.' }));
+    res.send(callbackHtml({ type: 'GOOGLE_DRIVE_ERROR', error: 'Something went wrong while connecting to Google Drive.' }, returnTo));
   }
 });
 
