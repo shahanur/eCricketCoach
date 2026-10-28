@@ -1,10 +1,10 @@
-import { UnavailableScreen } from "../../../features/navigation/unavailable-screen";
+import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
 
 export default function PracticeScreen() {
   return (
-    <UnavailableScreen
-      title="Practice"
-      message="Solo drills and practice history need player-owned practice contracts."
+    <ComingSoonScreen
+      title="Solo practice"
+      message="Guided drills and practice logs tailored to your personal roadmap."
     />
   );
 }

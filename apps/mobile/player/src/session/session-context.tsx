@@ -9,14 +9,27 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import { getUserFacingErrorMessage } from "../api/api-error";
+import { getPlayerAccess } from "../features/auth/player-session-api";
+import { clearDeviceGoogleCredentialState } from "../platform/google-identity";
 import { secureSessionStorage } from "./secure-session-storage";
-import { restoreSessionState, type SessionState } from "./session-state";
+import {
+  restoreSessionState,
+  sessionStateFromAccess,
+  type SessionState,
+} from "./session-state";
 
 type SessionContextValue = {
   state: SessionState;
   restoreError: string | null;
   signOutError: string | null;
   retryRestore: () => void;
+  /**
+   * Confirms player access for a new session token. Only tokens for an active
+   * Individual Player plan are kept in secure storage. Rejects with the API
+   * error when access cannot be confirmed.
+   */
+  completeSignIn: (accessToken: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -28,61 +41,70 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const restoreAttempt = useRef(0);
 
-  const retryRestore = useCallback(() => {
-    setRestoreError(null);
-    setState({ status: "restoring" });
-    const attempt = ++restoreAttempt.current;
-    void secureSessionStorage
-      .getAccessToken()
-      .then((token) => {
+  const restore = useCallback((attempt: number) => {
+    void restoreSessionState(secureSessionStorage.getAccessToken, (token) =>
+      getPlayerAccess(token),
+    )
+      .then((restoredState) => {
         if (attempt === restoreAttempt.current) {
-          setState(
-            token
-              ? { status: "verificationRequired" }
-              : { status: "signedOut" },
-          );
+          setState(restoredState);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (attempt === restoreAttempt.current) {
-          setRestoreError("Secure session storage could not be read. Try again.");
+          setRestoreError(getUserFacingErrorMessage(error));
           setState({ status: "restoreError" });
         }
       });
+  }, []);
+
+  const retryRestore = useCallback(() => {
+    setRestoreError(null);
+    setState({ status: "restoring" });
+    restore(++restoreAttempt.current);
+  }, [restore]);
+
+  const completeSignIn = useCallback(async (accessToken: string) => {
+    const access = await getPlayerAccess(accessToken);
+    if (access.access === "ACTIVE") {
+      await secureSessionStorage.setAccessToken(accessToken);
+    }
+    restoreAttempt.current += 1;
+    setSignOutError(null);
+    setState(sessionStateFromAccess(access));
   }, []);
 
   const signOut = useCallback(async () => {
     setSignOutError(null);
     try {
       await secureSessionStorage.clearAccessToken();
-      setState({ status: "signedOut" });
     } catch {
-      setSignOutError("The saved session could not be removed. Try again.");
+      setSignOutError("We couldn't sign you out. Please try again.");
+      return;
     }
+    restoreAttempt.current += 1;
+    setState({ status: "signedOut" });
+    // Account selection reset is best effort; the session is already removed.
+    await clearDeviceGoogleCredentialState().catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    const attempt = ++restoreAttempt.current;
-    void restoreSessionState(secureSessionStorage.getAccessToken)
-      .then((restoredState) => {
-        if (attempt === restoreAttempt.current) {
-          setState(restoredState);
-        }
-      })
-      .catch(() => {
-        if (attempt === restoreAttempt.current) {
-          setRestoreError("Secure session storage could not be read. Try again.");
-          setState({ status: "restoreError" });
-        }
-      });
+    restore(++restoreAttempt.current);
     return () => {
       restoreAttempt.current += 1;
     };
-  }, []);
+  }, [restore]);
 
   const value = useMemo(
-    () => ({ state, restoreError, signOutError, retryRestore, signOut }),
-    [restoreError, retryRestore, signOut, signOutError, state],
+    () => ({
+      state,
+      restoreError,
+      signOutError,
+      retryRestore,
+      completeSignIn,
+      signOut,
+    }),
+    [completeSignIn, restoreError, retryRestore, signOut, signOutError, state],
   );
 
   return (

@@ -18,7 +18,8 @@ the player is approved or entitled.
 ```powershell
 npm ci
 Copy-Item .env.example .env.local
-# Set EXPO_PUBLIC_API_URL in .env.local to the reachable API origin.
+# Set EXPO_PUBLIC_API_URL in .env.local to the reachable API origin, and
+# EXPO_PUBLIC_WEB_APP_URL to the web app where players register.
 npm start
 ```
 
@@ -100,11 +101,32 @@ external services. They have not been provisioned.
 
 - Routes are under `src/app`; shared components, API code, session state, and
   theme primitives live under `src/`.
-- The public welcome, sign-in, and registration destinations are navigation
-  scaffolds only. Authentication, approval status, and entitlement are not
-  implemented in this module.
-- A stored bearer credential is treated as unverified. Protected tabs render
-  only after a future server-backed session flow confirms player access.
+- Registration starts on the web app: the player chooses the Individual Player
+  plan and selects **Register as Player** (identity verification, checkout, then
+  system-admin approval). The app's Register screen explains those steps and
+  opens `EXPO_PUBLIC_WEB_APP_URL` in the browser; it collects no personal or
+  payment data. If the variable is unset, the button is disabled.
+- Sign-in on Android uses native Google sign-in, matching the club app:
+  `GET /api/auth/google/native` issues a five-minute nonce challenge, the local
+  Expo module in `modules/google-identity` shows the Credential Manager account
+  chooser bound to that nonce, and `POST /api/auth/google/native` verifies the
+  Google ID token server-side and returns a session token. The Google ID token
+  is never stored. Accounts that are not registered or not yet approved receive
+  `REGISTRATION_REQUIRED` and are directed to the website.
+- After sign-in, `GET /api/auth/player-access` (bearer session token) decides
+  access on the server: only a `PLAYER` session whose own `INDIVIDUAL` tenant is
+  `ACTIVE` or `TRIAL` returns `ACTIVE`. Only those session tokens are kept in
+  `expo-secure-store`; other accounts see the plan-unavailable screen. On launch
+  a stored token is re-checked; a rejected (401) token asks the player to sign
+  in again and connectivity failures offer a retry. Sessions last eight hours;
+  the API has no refresh or revocation endpoint.
+- Google sign-in requires an Android OAuth client in the same Google Cloud
+  project as `GOOGLE_CLIENT_ID`, registered for package
+  `com.ecricketcoach.player` and the signing certificate SHA-1 (the debug
+  keystore's SHA-1 for development builds; the release/Play signing SHA-1 for
+  store builds). iOS native sign-in, Microsoft/Apple in-app sign-in, browser
+  callback handling, and approval status remain gated; on those paths the
+  screen directs players to the website.
 - Home, Practice, Analyze, Progress, and Profile routes are present but
   explicitly unavailable until their APIs and feature modules are implemented.
 - The centralized API client validates response DTOs and surfaces transport,

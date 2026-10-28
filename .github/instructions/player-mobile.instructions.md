@@ -34,6 +34,15 @@ applyTo: "apps/mobile/player/**"
 - Do not fabricate speed/spin/swing, pitch maps, scores, recommendations, milestones, or medical conclusions. Require supported, versioned analysis outputs with units, provenance, confidence/quality, and unavailable states.
 - Protect youth users: gate unresolved age/guardian-consent, retention, privacy, and sharing requirements before production release; default media and progress to private.
 
+## Production quality
+
+- Treat every prompt, feature, and fix in this app as work on a shipping, store-ready product, not a prototype, demo, or scaffold. Each change must be release quality as delivered.
+- All user-facing text must be polished, professional product copy written for players and parents. Never show developer or internal language in the UI: no mentions of contracts, APIs, endpoints, servers, tokens, credentials, storage, scaffolds, foundations, mocks, environment variables, "not connected yet", "pending setup", or similar implementation details. Keep such notes in code comments, docs, and logs.
+- When a capability is gated or not yet released, present it the way a production app would: a branded, intentional state that explains what the player can do now (for example, register or manage the plan on the website), not an engineering status message. Do not fake data or functionality to fill the gap.
+- Error, empty, loading, offline, and permission states use friendly, actionable wording ("We couldn't load your drills. Check your connection and try again."), never raw error messages, codes, or stack details. Render API failures through `getUserFacingErrorMessage` in `src/api/api-error.ts`; `ApiError.message` is diagnostic text for logs only.
+- Use consistent branding (eCricketCoach name, app icon, theme colors, typography scale, spacing) and a cohesive visual hierarchy on every screen. Avoid placeholder titles, lorem ipsum, debug labels, and starter-template assets.
+- Before finishing, review every screen you touched as a first-time player would see it and remove anything that reads as unfinished.
+
 ## Verification
 
 - Add focused unit and integration/component tests with each module. Mock only in tests or explicitly marked development fixtures, never as a production API fallback.

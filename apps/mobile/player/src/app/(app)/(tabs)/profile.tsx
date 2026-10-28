@@ -1,10 +1,10 @@
-import { UnavailableScreen } from "../../../features/navigation/unavailable-screen";
+import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
 
 export default function ProfileScreen() {
   return (
-    <UnavailableScreen
-      title="Profile"
-      message="A self profile and account settings will be available after the player identity contract is implemented."
+    <ComingSoonScreen
+      title="Your profile"
+      message="Manage your player details, plan and app preferences."
     />
   );
 }

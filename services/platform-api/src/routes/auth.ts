@@ -69,7 +69,8 @@ function getProvider(value: string): Provider | undefined {
 }
 
 function safeReturnTo(value: unknown): string {
-  if (value === 'ecricketcoach://auth/callback') return value;
+  if (value === 'ecricketcoach://auth/callback' ||
+      value === 'ecricketcoach-player://auth/callback') return value;
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') ? value : '/';
 }
 
@@ -197,6 +198,54 @@ authRouter.post('/google/native', async (req: Request, res: Response) => {
   } catch {
     console.error('Unable to resolve the native Google sign-in account.');
     res.status(500).json({ error: 'Google sign-in could not be completed.' });
+  }
+});
+
+/**
+ * Player-app access check. Entitlement is derived only from trusted server state:
+ * the verified session's PLAYER role and the caller's own INDIVIDUAL tenant, which
+ * must be ACTIVE or TRIAL and registered to the session email. Club-member players,
+ * coaches, administrators, and suspended tenants receive `UNAVAILABLE`.
+ */
+authRouter.get('/player-access', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const header = req.headers.authorization;
+  const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) {
+    res.status(401).json({ error: 'Sign in to continue.' });
+    return;
+  }
+  let claims: JWTPayload;
+  try {
+    const verified = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
+    if (typeof verified === 'string') throw new Error('Unexpected session payload.');
+    claims = verified;
+  } catch {
+    res.status(401).json({ error: 'Your session has ended. Please sign in again.' });
+    return;
+  }
+  const email = typeof claims.email === 'string' ? claims.email.toLowerCase() : '';
+  const tenantId = typeof claims.tenantId === 'string' ? claims.tenantId : '';
+  if (!email || !tenantId || typeof claims.role !== 'string') {
+    res.status(401).json({ error: 'Your session has ended. Please sign in again.' });
+    return;
+  }
+  try {
+    const tenant = claims.role === 'PLAYER'
+      ? await prisma.customerTenant.findUnique({ where: { id: tenantId } })
+      : null;
+    const isActivePlayer = Boolean(tenant &&
+      tenant.type === 'INDIVIDUAL' &&
+      ['ACTIVE', 'TRIAL'].includes(tenant.status) &&
+      tenant.email.toLowerCase() === email);
+    res.json({
+      access: isActivePlayer ? 'ACTIVE' : 'UNAVAILABLE',
+      email,
+      displayName: isActivePlayer && tenant ? tenant.name : null
+    });
+  } catch {
+    console.error('Unable to resolve player access.');
+    res.status(500).json({ error: 'Player access could not be checked.' });
   }
 });
 

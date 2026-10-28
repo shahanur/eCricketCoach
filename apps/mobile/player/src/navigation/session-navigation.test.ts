@@ -11,7 +11,7 @@ describe("getSessionDestination", () => {
       { status: "active", hasPlayerEntitlement: false },
       "/(public)/access-unavailable",
     ],
-    [{ status: "active", hasPlayerEntitlement: true }, "/(app)/(tabs)"],
+    [{ status: "active", hasPlayerEntitlement: true }, "/(app)/(tabs)/home"],
   ] satisfies [SessionState, string | null][])(
     "routes %p safely",
     (state, expected) => {

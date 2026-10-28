@@ -1,3 +1,5 @@
+import { ApiError } from "../api/api-error";
+
 export type SessionState =
   | { status: "restoring" }
   | { status: "restoreError" }
@@ -11,7 +13,7 @@ export type SessionDestination =
   | "/(public)/session-verification"
   | "/(public)/approval"
   | "/(public)/access-unavailable"
-  | "/(app)/(tabs)";
+  | "/(app)/(tabs)/home";
 
 export function getSessionDestination(
   state: SessionState,
@@ -28,14 +30,34 @@ export function getSessionDestination(
       return "/(public)/approval";
     case "active":
       return state.hasPlayerEntitlement
-        ? "/(app)/(tabs)"
+        ? "/(app)/(tabs)/home"
         : "/(public)/access-unavailable";
   }
 }
 
+export type PlayerAccessResult = { access: "ACTIVE" | "UNAVAILABLE" };
+
+export function sessionStateFromAccess(access: PlayerAccessResult): SessionState {
+  return { status: "active", hasPlayerEntitlement: access.access === "ACTIVE" };
+}
+
+/**
+ * A stored token is only trusted after the server confirms it. An expired or
+ * rejected token asks the player to sign in again; connectivity failures are
+ * rethrown so the caller can offer a retry without discarding the session.
+ */
 export async function restoreSessionState(
   readAccessToken: () => Promise<string | null>,
+  checkAccess: (accessToken: string) => Promise<PlayerAccessResult>,
 ): Promise<SessionState> {
   const token = await readAccessToken();
-  return token ? { status: "verificationRequired" } : { status: "signedOut" };
+  if (!token) return { status: "signedOut" };
+  try {
+    return sessionStateFromAccess(await checkAccess(token));
+  } catch (error) {
+    if (error instanceof ApiError && error.kind === "http" && error.status === 401) {
+      return { status: "verificationRequired" };
+    }
+    throw error;
+  }
 }

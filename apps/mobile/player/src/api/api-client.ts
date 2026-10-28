@@ -13,7 +13,10 @@ type JsonRequestOptions<T> = {
   timeoutMs?: number;
 };
 
-function getErrorMessage(body: string, status: number): string {
+function getErrorDetails(
+  body: string,
+  status: number,
+): { message: string; code?: string } {
   try {
     const parsed: unknown = JSON.parse(body);
     if (typeof parsed === "object" && parsed !== null) {
@@ -24,16 +27,18 @@ function getErrorMessage(body: string, status: number): string {
           : typeof errorRecord.error === "string"
             ? errorRecord.error
             : null;
+      const code =
+        typeof errorRecord.code === "string" ? errorRecord.code : undefined;
 
       if (message) {
-        return message;
+        return { message, code };
       }
     }
   } catch {
     // Non-JSON error bodies are reported with the HTTP status only.
   }
 
-  return `The server returned HTTP ${status}.`;
+  return { message: `The server returned HTTP ${status}.` };
 }
 
 export async function requestJson<T>({
@@ -96,11 +101,8 @@ export async function requestJson<T>({
     const responseBody = await response.text();
 
     if (!response.ok) {
-      throw new ApiError(
-        getErrorMessage(responseBody, response.status),
-        "http",
-        response.status,
-      );
+      const { message, code } = getErrorDetails(responseBody, response.status);
+      throw new ApiError(message, "http", response.status, code);
     }
 
     let responseData: unknown;

@@ -1,10 +1,10 @@
-import { UnavailableScreen } from "../../../features/navigation/unavailable-screen";
+import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
 
 export default function ProgressScreen() {
   return (
-    <UnavailableScreen
-      title="Progress"
-      message="Roadmaps, milestones, and certificates require validated player progression contracts."
+    <ComingSoonScreen
+      title="Your progress"
+      message="Track milestones across batting, bowling, wicketkeeping and fielding, and earn certificates."
     />
   );
 }

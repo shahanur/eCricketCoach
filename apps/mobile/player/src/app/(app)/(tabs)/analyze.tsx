@@ -1,10 +1,10 @@
-import { UnavailableScreen } from "../../../features/navigation/unavailable-screen";
+import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
 
 export default function AnalyzeScreen() {
   return (
-    <UnavailableScreen
-      title="Analyze"
-      message="Video analysis is disabled until owner-scoped jobs and server-enforced usage are available."
+    <ComingSoonScreen
+      title="Video analysis"
+      message="Upload batting, bowling and wicketkeeping clips for AI biomechanics feedback."
     />
   );
 }

@@ -13,8 +13,8 @@ export default function EntryRoute() {
       <AppScreen>
         <FeedbackScreen
           variant="loading"
-          title="Restoring session"
-          message="Checking secure session storage."
+          title="Getting things ready"
+          message="Just a moment."
         />
       </AppScreen>
     );
@@ -25,8 +25,8 @@ export default function EntryRoute() {
       <AppScreen>
         <FeedbackScreen
           variant="error"
-          title="Session could not be restored"
-          message={restoreError ?? "Secure session storage is unavailable."}
+          title="Something went wrong"
+          message={restoreError ?? "We couldn't load your account on this device. Please try again."}
           onRetry={retryRestore}
         />
       </AppScreen>
