@@ -28,7 +28,7 @@ describe("welcome hero", () => {
     expect(screen.queryByText("Your game.")).toBeNull();
     expect(screen.queryByText("Personal roadmap")).toBeNull();
     expect(screen.getByRole("button", { name: "Get Started →" })).toBeTruthy();
-    expect(screen.getByLabelText("/(public)/register")).toBeTruthy();
+    expect(screen.getByLabelText("/(public)/sign-in")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Log in" }).props.accessibilityHint).toBe("/(public)/sign-in");
     expect(screen.getByText("Already have an account?")).toBeTruthy();
   });

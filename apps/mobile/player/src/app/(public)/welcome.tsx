@@ -26,7 +26,7 @@ export default function WelcomeScreen() {
           />
         </View>
         <View style={styles.actions}>
-          <Link href="/(public)/register" asChild>
+          <Link href="/(public)/sign-in" asChild>
             <AppButton>Get Started →</AppButton>
           </Link>
           <View style={styles.loginRow}>

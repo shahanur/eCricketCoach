@@ -128,6 +128,18 @@ payment controls that resemble a working checkout. Google-only native sign-in
 and website registration remain unchanged; the design does not introduce
 password, Apple, payment, biometric or Drive flows that do not exist.
 
+Welcome's Get Started and Log in actions both open the social-only sign-in
+screen. That screen offers supported social authentication, with Create account
+and Sign up links to the existing website-registration guidance. It has no
+email/password form, password-login action, or password-recovery flow. Native
+Google remains Android-only. Continue with Google launches the existing nonce,
+native credential and session exchange flow directly, without blocking on the
+provider-discovery response. It is disabled only during an in-flight sign-in;
+actual failures remain visible and retryable. Apple is disabled with an
+explicit release-availability note. There is no divider or "Continue on
+the website" sign-in action. Registration guidance still opens the website
+when a new player needs to register.
+
 - Routes are under `src/app`; shared components, API code, session state, and
   theme primitives live under `src/`.
 - Registration starts on the web app: the player chooses the Individual Player
