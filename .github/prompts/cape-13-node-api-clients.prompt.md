@@ -5,7 +5,7 @@ description: CAPE 13/13 – job API, result screen and image downloads in web an
 
 Follow `.github/instructions/cape-api.instructions.md` (architecture + token rules). Also follow `.github/copilot-instructions.md` for `services/platform-api`.
 
-Requires task 12. Spec: §11.1, §11.2 and §11.7 (read only those). Read only `services/platform-api/src/routes/assessments.ts` (video routes), the `CapeJob` model, `src/queues/capeQueue.ts`, the assessment video UI in `apps/web`, and `apps/mobile/android/.../AssessmentVideoCard.kt` + `CoachApi.kt`.
+Requires task 12. Spec: §11.1, §11.2 and §11.7 (read only those). Read only `services/platform-api/src/routes/assessments.ts` (video routes), the `CapeJob` model, `src/queues/capeQueue.ts`, the assessment video UI in `apps/web`, and `apps/mobile/club/android/.../AssessmentVideoCard.kt` + `CoachApi.kt`.
 
 **Server.** Every route uses `authenticateToken` + `requireRole('CLUB_ADMIN','COACH')` + the existing `canAccessAssessment` (players may read only their own jobs) and is scoped by `tenantId`:
 - `POST /api/club/assessments/:id/video` gets `engine: 'gemini' | 'cape'` (default `gemini`, unchanged behaviour). For `cape` it takes the §11.1 fields, validates them with the same enums, creates a `CapeJob` and enqueues it, returning `202 { jobId, status }`.
@@ -30,4 +30,4 @@ Requires task 12. Spec: §11.1, §11.2 and §11.7 (read only those). Read only `
 - Downloads saved via `MediaStore` (Pictures/eCricketCoach and Downloads for the ZIP), with a share action.
 - Add the `CoachApi` methods.
 
-Verify with `npx tsc --noEmit -p .` in `services/platform-api` and `apps/web`, plus `cd apps/mobile/android; .\gradlew.bat :app:compileDebugKotlin --no-daemon -q`. Don't run test suites.
+Verify with `npx tsc --noEmit -p .` in `services/platform-api` and `apps/web`, plus `cd apps/mobile/club/android; .\gradlew.bat :app:compileDebugKotlin --no-daemon -q`. Don't run test suites.

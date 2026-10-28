@@ -9,7 +9,8 @@ eCricketCoach/
 ├── apps/
 │   ├── web/                         # React + Vite frontend
 │   └── mobile/
-│       └── android/                 # Existing Kotlin + Jetpack Compose app
+│       └── club/
+│           └── android/             # Existing Kotlin + Jetpack Compose club app
 ├── services/
 │   ├── platform-api/                # Node.js + Express API and Prisma
 │   ├── cape-api/                    # Python biomechanics API
@@ -30,7 +31,7 @@ eCricketCoach/
 ## Existing paths to migrate
 
 - `web-app/client/` → `apps/web/`
-- `mobile-app/` → `apps/mobile/android/`
+- `mobile-app/` → `apps/mobile/club/android/`
 - `web-app/server/` → `services/platform-api/`
 - `cape-api/` → `services/cape-api/`
 - `web-app/aihub/` → `services/ai-hub/`
@@ -40,7 +41,7 @@ eCricketCoach/
 - `web-app/docker-compose.yml` → `deploy/compose.yml`
 - `web-app/docker-compose.cape-cpu.yml` → `deploy/compose.cape-cpu.yml`
 
-Keep the existing single Android application intact. Do not invent separate customer, coach, or admin apps; the app can be split into persona-specific projects later if the codebase supports that.
+Keep the existing club Android application intact. The separate individual-player app belongs in `apps/mobile/player`; do not merge its implementation with the club app or invent additional persona projects.
 
 ## Migration requirements
 

@@ -6,7 +6,7 @@ Create a separately maintained Android/iOS application in `apps/mobile/player` u
 
 Expo is recommended for cross-platform native UI, TypeScript support, camera/media integrations, secure storage, and independent builds. Use development builds and supported native modules where required. Validate camera throughput, capture timing, video playback, and background transfers on real devices before committing to advanced capture features. Native modules may be needed; do not switch the whole app to a different framework without evidence and agreement.
 
-The existing Kotlin club/academy app remains in `apps/mobile/android`, unchanged. Do not use the unrelated `mobile-app` directory as the new application root. The player app needs its own identifiers, configuration, navigation, dependencies, build/release pipeline, and assets. Backend reuse does not mean sharing privileged club UI or trusting role checks made only on the device.
+The existing Kotlin club/academy app lives in `apps/mobile/club/android`, separate from `apps/mobile/player`. Do not use the unrelated `mobile-app` directory as the new application root. The player app needs its own identifiers, configuration, navigation, dependencies, build/release pipeline, and assets. Backend reuse does not mean sharing privileged club UI or trusting role checks made only on the device.
 
 ## Requirements and evidence
 

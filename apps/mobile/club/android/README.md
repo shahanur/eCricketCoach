@@ -11,7 +11,7 @@ API.
 - A running eCricketCoach API (`services/platform-api`)
 - At least one configured social identity provider on the API
 
-Open `apps/mobile/android` in Android Studio and run the `app` configuration on an
+Open `apps/mobile/club/android` in Android Studio and run the `app` configuration on an
 emulator or device. Or use the deployment helper from Bash (Git Bash on
 Windows), with Android SDK tools and JDK 17 installed:
 

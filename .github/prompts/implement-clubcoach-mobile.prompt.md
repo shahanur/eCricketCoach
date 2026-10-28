@@ -3,7 +3,7 @@ name: implement-clubcoach-mobile
 description: finish the remaining Club Coach web workflows in the native Android app
 ---
 
-Implement the Club Coach functionality that is still missing from the native Android app in `apps/mobile/android`, bringing it into parity with the existing Club Coach web experience. The Android app already includes club roster/squad workflows, basic session scheduling and publishing/delivery, player assessments, custom drills, progression, branding, and local-video analysis. Do not replace or regress those features.
+Implement the Club Coach functionality that is still missing from the native Android app in `apps/mobile/club/android`, bringing it into parity with the existing Club Coach web experience. The Android app already includes club roster/squad workflows, basic session scheduling and publishing/delivery, player assessments, custom drills, progression, branding, and local-video analysis. Do not replace or regress those features.
 
 Before coding, inspect the current Android implementation, the matching web UI/API methods, and the Express routes. Reuse the existing backend contracts where possible. If a capability needs API or persistence support that does not exist, add it to the current backend architecture with authentication, role checks, tenant isolation, validation, and tests; do not simulate success in the client or put secrets in source control.
 
@@ -19,4 +19,4 @@ Complete the remaining Club Coach workflows:
 
 Review the web Club Portal and Coach Operations screens against Android after implementation and address any other clearly missing Club Coach action in those flows. Preserve the current provider sign-in, dark/light themes, responsive Compose UI, encrypted token storage, role-specific access, and existing same-origin/API configuration. Do not introduce React Native, a web view, React Router, or an unrelated state-management framework.
 
-Update `apps/mobile/android/README.md` with completed capabilities, backend/provider configuration, offline behavior and limitations. Add or update focused tests for API contracts, persistence/queue behavior, permission/access rules, and export formatting. Run the Android unit tests and the relevant backend tests/builds; resolve failures introduced by the changes and report any external configuration or device-only verification that could not be completed.
+Update `apps/mobile/club/android/README.md` with completed capabilities, backend/provider configuration, offline behavior and limitations. Add or update focused tests for API contracts, persistence/queue behavior, permission/access rules, and export formatting. Run the Android unit tests and the relevant backend tests/builds; resolve failures introduced by the changes and report any external configuration or device-only verification that could not be completed.

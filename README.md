@@ -59,7 +59,7 @@ To run the CAPE service on CPU explicitly, use `CAPE_MODE=cpu bash ./scripts/dep
 
 - **Web client:** `cd apps/web` and run `npm install` once, then `npm run dev`.
 - **Platform API:** `cd services/platform-api` and run `npm install` once, then `npm run dev`. Configure local API variables in `services/platform-api/.env` when running outside Compose.
-- **Android app:** `cd apps/mobile/android`; build with `.\gradlew.bat :app:assembleDebug` in PowerShell.
+- **Club Android app:** `cd apps/mobile/club/android`; build with `.\gradlew.bat :app:assembleDebug` in PowerShell.
 - **CAPE tests:** from `services/cape-api`, run `python -m pytest`.
 
 The web and Android clients remain independent applications and communicate with backend services through their existing HTTP/API clients.

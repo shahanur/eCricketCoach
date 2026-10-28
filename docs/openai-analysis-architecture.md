@@ -21,7 +21,7 @@ Primary sources:
 | Persistence model | [services/platform-api/prisma/schema.prisma](../services/platform-api/prisma/schema.prisma) (`OpenAiBattingReport`) |
 | Cropped pose overlay proxy | [services/platform-api/src/routes/kinematics.ts](../services/platform-api/src/routes/kinematics.ts) → [services/pose-overlay-api/app.py](../services/pose-overlay-api/app.py) |
 | Web client | [apps/web/src/components/club/ClubPortal.tsx](../apps/web/src/components/club/ClubPortal.tsx), [CroppedPoseOverlayPanel.tsx](../apps/web/src/components/club/CroppedPoseOverlayPanel.tsx), [services/api.ts](../apps/web/src/services/api.ts) |
-| Mobile client | [apps/mobile/android/.../ClubCoachExtensions.kt](../apps/mobile/android/app/src/main/java/com/ecricketcoach/mobile/ClubCoachExtensions.kt), [CoachApi.kt](../apps/mobile/android/app/src/main/java/com/ecricketcoach/mobile/CoachApi.kt) |
+| Mobile client | [ClubCoachExtensions.kt](../apps/mobile/club/android/app/src/main/java/com/ecricketcoach/mobile/presentation/club/ClubCoachExtensions.kt), [CoachApi.kt](../apps/mobile/club/android/app/src/main/java/com/ecricketcoach/mobile/data/api/CoachApi.kt) |
 | Feature notes | [docs/openai-batting-analysis.md](openai-batting-analysis.md) |
 
 ---

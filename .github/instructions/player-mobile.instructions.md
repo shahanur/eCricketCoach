@@ -7,7 +7,7 @@ applyTo: "apps/mobile/player/**"
 ## Architecture
 
 - Build only the individual-player app in `apps/mobile/player` using Expo, React Native, Expo Router, and strict TypeScript for Android and iOS. Use an Expo development build when native capabilities require it; do not assume Expo Go supports all integrations.
-- This is a separate application, not a role switch inside `apps/mobile/android`. Preserve the existing native club/academy app, web app, and their builds.
+- This is a separate application, not a role switch inside `apps/mobile/club/android`. Preserve the existing native club/academy app, web app, and their builds.
 - Give this app independent package scripts, environment configuration, bundle/application identifiers, deep-link scheme, assets, build profiles, and release pipeline. Confirm identifiers before provisioning external services.
 - Use the existing backend microservices through centralized, typed HTTP clients. Never import backend code, Prisma, Kotlin UI, or service credentials into the mobile bundle.
 - Follow [the player delivery guide](../../docs/features/individual-player/README.md) for scope, dependencies, product decisions, and backend gaps. Older native-Android implementation prompts target the club app, not this application.
