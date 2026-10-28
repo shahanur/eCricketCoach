@@ -191,56 +191,48 @@ internal fun AssessmentVideoCard(
     }
 
     AppPanel(modifier = modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), spacing = 0.dp) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val storageCaption = when {
                 !driveConnected -> "Choose a video from this device or connect Google Drive."
                 driveEmail.isNotBlank() -> "Stored in Google Drive · $driveEmail"
                 else -> "Stored in Google Drive"
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (showTitle) {
-                    Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text("Video analysis", fontWeight = FontWeight.Bold)
-                        // While a video can still be chosen, the caption sits in the video source panel instead.
-                        if (completed) Text(storageCaption, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            if (showTitle) Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text("Video analysis", fontWeight = FontWeight.Bold)
+                    // While a video can still be chosen, the caption sits in the video source panel instead.
+                    if (completed) Text(storageCaption, fontSize = AppFontSize.Small, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 headerContent?.invoke()
-                if (!showTitle) Spacer(Modifier.weight(1f))
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             }
 
             val sourcePicker: @Composable () -> Unit = {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Without a title row, the header content (e.g. a player picker) leads the video source section.
+                if (!showTitle) headerContent?.invoke()
                 if (driveConnected) Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     run {
                         Box(Modifier.weight(1f)) {
-                            OutlinedButton(
-                                onClick = { driveMenuOpen = true },
+                            AppPickerField(
+                                value = selectedDriveVideo?.name.orEmpty(),
+                                label = "Google Drive video",
+                                trailingIcon = Icons.Outlined.ArrowDropDown,
+                                modifier = Modifier.fillMaxWidth(),
                                 enabled = !reviewRunning && driveVideos.isNotEmpty(),
-                                shape = AppShapes.Small,
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                modifier = Modifier.fillMaxWidth().height(40.dp)
-                            ) {
-                                Icon(Icons.Outlined.Cloud, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text(
-                                    selectedDriveVideo?.name ?: when {
-                                        driveLoading -> "Loading Drive videos…"
-                                        driveVideos.isEmpty() -> "No Drive videos"
-                                        else -> "Google Drive (${driveVideos.size})"
-                                    },
-                                    fontSize = AppFontSize.Small,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f).padding(start = 6.dp)
-                                )
-                                Icon(Icons.Outlined.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
+                                placeholder = when {
+                                    driveLoading -> "Loading Drive videos…"
+                                    driveVideos.isEmpty() -> "No Drive videos"
+                                    else -> "Choose from ${driveVideos.size} videos"
+                                },
+                                leadingIcon = Icons.Outlined.Cloud,
+                                onOpen = { driveMenuOpen = true }
+                            )
                             DropdownMenu(expanded = driveMenuOpen, onDismissRequest = { driveMenuOpen = false }) {
                                 driveVideos.forEach { file ->
                                     DropdownMenuItem(
@@ -266,7 +258,7 @@ internal fun AssessmentVideoCard(
                                 scope.launch { error = ""; loadDriveVideos() }
                             },
                             enabled = !driveLoading && !reviewRunning,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(AppControlHeight)
                         ) {
                             if (driveLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                             else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh Google Drive videos", modifier = Modifier.size(18.dp))
@@ -282,7 +274,7 @@ internal fun AssessmentVideoCard(
                     OutlinedButton(
                         onClick = { picker.launch(arrayOf("video/*")) },
                         enabled = !reviewRunning,
-                        shape = AppShapes.Small,
+                        shape = AppShapes.Button,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier.weight(1f).height(40.dp)
                     ) {
@@ -298,7 +290,7 @@ internal fun AssessmentVideoCard(
                     OutlinedButton(
                         onClick = { if (driveConnected) confirmSwitch = true else launchDriveConnect() },
                         enabled = !reviewRunning && !switching,
-                        shape = AppShapes.Small,
+                        shape = AppShapes.Button,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier.weight(1f).height(40.dp)
                     ) {
@@ -329,7 +321,8 @@ internal fun AssessmentVideoCard(
                 onRunningChange = { reviewRunning = it },
                 onNotice = onNotice,
                 sourcePicker = sourcePicker.takeIf { !completed },
-                sourceCaption = storageCaption
+                sourceCaption = storageCaption,
+                sourceTitle = if (!showTitle && headerContent != null) "Player & video" else "Video"
             )
 
             if (!completed || video?.driveLink != null) {

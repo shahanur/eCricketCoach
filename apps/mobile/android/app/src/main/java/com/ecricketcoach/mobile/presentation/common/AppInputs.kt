@@ -296,7 +296,7 @@ fun AppSearchField(
 
 /** Read-only field that looks like [AppTextField] but opens something (a picker or menu) when tapped. */
 @Composable
-private fun AppPickerField(
+internal fun AppPickerField(
     value: String,
     label: String?,
     trailingIcon: ImageVector,

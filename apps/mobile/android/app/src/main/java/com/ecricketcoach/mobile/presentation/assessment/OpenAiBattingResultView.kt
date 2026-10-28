@@ -868,19 +868,20 @@ internal fun PastBattingReviews(
         }
     }
 
-    AccentSection(null) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Past AI Video Analyses", fontSize = AppFontSize.Small, fontWeight = FontWeight.SemiBold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Past AI video analyses", fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Saved batting reviews for $playerName. Select one to open it above.",
-                    fontSize = AppFontSize.Caption,
+                    fontSize = AppFontSize.Small,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = { refresh++ }, modifier = Modifier.size(32.dp)) {
-                if (loading) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh history", modifier = Modifier.size(16.dp))
+            IconButton(onClick = { refresh++ }, modifier = Modifier.size(40.dp)) {
+                if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Icon(Icons.Outlined.Refresh, contentDescription = "Refresh history", modifier = Modifier.size(18.dp))
             }
         }
         when {

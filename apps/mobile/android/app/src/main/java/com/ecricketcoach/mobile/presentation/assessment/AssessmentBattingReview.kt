@@ -88,6 +88,7 @@ import kotlin.math.roundToInt
 import java.io.File
 import java.util.Locale
 import com.ecricketcoach.mobile.presentation.common.theme.AppShapes
+import androidx.compose.foundation.layout.Box
 
 private val assessmentReviewPriorities = listOf(
     "footwork" to "Footwork",
@@ -110,7 +111,8 @@ internal fun AssessmentBattingReview(
     onRunningChange: (Boolean) -> Unit,
     onNotice: (String) -> Unit,
     sourcePicker: (@Composable () -> Unit)? = null,
-    sourceCaption: String? = null
+    sourceCaption: String? = null,
+    sourceTitle: String = "Video"
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -300,34 +302,21 @@ internal fun AssessmentBattingReview(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (canSubmit) {
+            // Flat layout: the surrounding card already frames the review, so sections are split by dividers only.
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = AppShapes.Medium,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                color = androidx.compose.ui.graphics.Color.Transparent
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     val shotSettings: @Composable (Modifier) -> Unit = { settingsModifier ->
-                    Column(settingsModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Batting video review", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
-                        Text(
-                            "Set the shot details, mark contact, then review.",
-                            fontSize = AppFontSize.Caption,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
+                    Column(settingsModifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ReviewSectionTitle("Shot details", "Describe the clip so the review knows what to look for.")
+                    val fieldModifier = Modifier.fillMaxWidth()
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.weight(1f)) {
                         AppDropdown(
                             label = "Shot",
                             options = listOf(
@@ -337,17 +326,23 @@ internal fun AssessmentBattingReview(
                             ),
                             selectedKey = shotType,
                             onSelected = { shotType = it },
-                            modifier = Modifier.width(190.dp),
+                            modifier = fieldModifier,
                             enabled = !isRunning
                         )
+                        }
+                        Box(Modifier.weight(1f)) {
                         AppDropdown(
                             label = "Batter",
                             options = listOf("right" to "Right-handed", "left" to "Left-handed", "unknown" to "Unknown"),
                             selectedKey = handedness,
                             onSelected = { handedness = it },
-                            modifier = Modifier.width(190.dp),
+                            modifier = fieldModifier,
                             enabled = !isRunning
                         )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.weight(1f)) {
                         AppDropdown(
                             label = "Camera",
                             options = listOf(
@@ -358,9 +353,11 @@ internal fun AssessmentBattingReview(
                             ),
                             selectedKey = cameraView,
                             onSelected = { cameraView = it },
-                            modifier = Modifier.width(190.dp),
+                            modifier = fieldModifier,
                             enabled = !isRunning
                         )
+                        }
+                        Box(Modifier.weight(1f)) {
                         AppDropdown(
                             label = "Speed",
                             options = listOf(
@@ -370,63 +367,52 @@ internal fun AssessmentBattingReview(
                             ),
                             selectedKey = playbackSpeed,
                             onSelected = { playbackSpeed = it },
-                            modifier = Modifier.width(190.dp),
+                            modifier = fieldModifier,
                             enabled = !isRunning
                         )
-                        AssistChip(
-                            onClick = { showMoreOptions = !showMoreOptions },
-                            enabled = !isRunning,
-                            leadingIcon = { Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                            label = {
-                                Text(
-                                    buildString {
-                                        append("Focus: ")
-                                        append(if (priorities.size == assessmentReviewPriorities.size) "all" else "${priorities.size}/${assessmentReviewPriorities.size}")
-                                        append(" · ")
-                                        append(if (captureFps.isBlank()) "fps auto" else "$captureFps fps")
-                                    },
-                                    fontSize = AppFontSize.Caption,
-                                    maxLines = 1,
-                                    color = if (fpsIsValid) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
-                                )
+                        }
+                    }
+                    TextButton(
+                        onClick = { showMoreOptions = !showMoreOptions },
+                        enabled = !isRunning,
+                        shape = AppShapes.Button,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            buildString {
+                                append("  Coaching focus: ")
+                                append(if (priorities.size == assessmentReviewPriorities.size) "all" else "${priorities.size}/${assessmentReviewPriorities.size}")
+                                append(" · ")
+                                append(if (captureFps.isBlank()) "fps auto" else "$captureFps fps")
                             },
-                            trailingIcon = {
-                                Icon(
-                                    if (showMoreOptions) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                                    contentDescription = if (showMoreOptions) "Hide coaching focus" else "Show coaching focus",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            fontSize = AppFontSize.Small,
+                            maxLines = 1,
+                            color = if (fpsIsValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                        Icon(
+                            if (showMoreOptions) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = if (showMoreOptions) "Hide coaching focus" else "Show coaching focus",
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                     }
                     }
                     val videoSource: @Composable (Modifier) -> Unit = { sourceModifier ->
-                        Column(sourceModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Video", fontWeight = FontWeight.Bold, fontSize = AppFontSize.Body)
-                                if (!sourceCaption.isNullOrBlank()) {
-                                    Text(
-                                        sourceCaption,
-                                        fontSize = AppFontSize.Caption,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
-                                }
-                            }
+                        Column(sourceModifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ReviewSectionTitle(sourceTitle, sourceCaption)
                             sourcePicker?.invoke()
                         }
                     }
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         if (sourcePicker != null && maxWidth >= 640.dp) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                                 videoSource(Modifier.weight(1f))
                                 shotSettings(Modifier.weight(1f))
                             }
                         } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 if (sourcePicker != null) videoSource(Modifier.fillMaxWidth())
                                 shotSettings(Modifier.fillMaxWidth())
                             }
@@ -485,32 +471,32 @@ internal fun AssessmentBattingReview(
                         previewUri == null -> "Choose a video to mark contact."
                         else -> "Mark the moment the bat meets the ball."
                     }
+                    ReviewDivider()
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Contact point", fontWeight = FontWeight.SemiBold, fontSize = AppFontSize.Small)
-                        if (manualContact && previewLoading) CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
-                        Text(
-                            contactHint,
-                            fontSize = AppFontSize.Caption,
-                            color = if (manualContact && previewError.isNotBlank()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        SingleChoiceSegmentedButtonRow(Modifier.height(34.dp).widthIn(min = 220.dp)) {
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                            ReviewSectionTitle(
+                                "Contact point",
+                                contactHint,
+                                captionColor = if (manualContact && previewError.isNotBlank()) MaterialTheme.colorScheme.error else null,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (manualContact && previewLoading) CircularProgressIndicator(Modifier.padding(start = 8.dp).size(14.dp), strokeWidth = 1.5.dp)
+                        }
+                        SingleChoiceSegmentedButtonRow(Modifier.height(AppControlHeight).widthIn(min = 240.dp)) {
                             SegmentedButton(
                                 selected = manualContact,
                                 onClick = { manualContact = true },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2, baseShape = androidx.compose.foundation.shape.RoundedCornerShape(com.ecricketcoach.mobile.presentation.common.theme.AppCorner.Medium)),
                                 enabled = !isRunning,
                                 icon = {}
                             ) { Text("Mark it", fontSize = AppFontSize.Caption, maxLines = 1, softWrap = false) }
                             SegmentedButton(
                                 selected = !manualContact,
                                 onClick = { manualContact = false },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2, baseShape = androidx.compose.foundation.shape.RoundedCornerShape(com.ecricketcoach.mobile.presentation.common.theme.AppCorner.Medium)),
                                 enabled = !isRunning,
                                 icon = {}
                             ) { Text("Auto-detect", fontSize = AppFontSize.Caption, maxLines = 1, softWrap = false) }
@@ -613,6 +599,7 @@ internal fun AssessmentBattingReview(
                         }
                     }
 
+                    ReviewDivider()
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Column(Modifier.weight(1f)) {
                             if (!isRunning && reviewHint.isNotBlank()) {
@@ -685,6 +672,32 @@ internal fun AssessmentBattingReview(
             }
         }
     }
+}
+
+@Composable
+private fun ReviewSectionTitle(
+    title: String,
+    caption: String?,
+    modifier: Modifier = Modifier,
+    captionColor: androidx.compose.ui.graphics.Color? = null
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, fontSize = AppFontSize.BodyLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+        if (!caption.isNullOrBlank()) {
+            Text(
+                caption,
+                fontSize = AppFontSize.Small,
+                color = captionColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReviewDivider() {
+    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
 }
 
 @Composable
