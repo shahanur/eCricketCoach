@@ -8,6 +8,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getUserFacingErrorMessage } from "../api/api-error";
 import { getPlayerAccess } from "../features/auth/player-session-api";
@@ -36,6 +37,7 @@ type SessionContextValue = {
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<SessionState>({ status: "restoring" });
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -66,13 +68,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const completeSignIn = useCallback(async (accessToken: string) => {
     const access = await getPlayerAccess(accessToken);
+    queryClient.clear();
     if (access.access === "ACTIVE") {
       await secureSessionStorage.setAccessToken(accessToken);
     }
     restoreAttempt.current += 1;
     setSignOutError(null);
     setState(sessionStateFromAccess(access));
-  }, []);
+  }, [queryClient]);
 
   const signOut = useCallback(async () => {
     setSignOutError(null);
@@ -83,10 +86,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
       return;
     }
     restoreAttempt.current += 1;
+    queryClient.clear();
     setState({ status: "signedOut" });
     // Account selection reset is best effort; the session is already removed.
     await clearDeviceGoogleCredentialState().catch(() => undefined);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     restore(++restoreAttempt.current);

@@ -1,5 +1,5 @@
-import { SubscriptionScreen } from "../../../features/subscription/subscription-screen";
+import { PlayerProfileScreen } from "../../../features/profile/player-profile-screen";
 
-export default function ProfileScreen() {
-  return <SubscriptionScreen profile />;
+export default function ProfileRoute() {
+  return <PlayerProfileScreen />;
 }

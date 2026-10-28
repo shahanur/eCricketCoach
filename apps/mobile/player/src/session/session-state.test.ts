@@ -16,11 +16,20 @@ describe("restoreSessionState", () => {
   });
 
   it("activates only after the server confirms Individual Player access", async () => {
-    const checkAccess = jest.fn(async () => ({ access: "ACTIVE" as const }));
+    const checkAccess = jest.fn(async () => ({
+      access: "ACTIVE" as const,
+      email: "player@example.test",
+      displayName: "Asha",
+    }));
 
     await expect(
       restoreSessionState(async () => "saved-bearer-token", checkAccess),
-    ).resolves.toEqual({ status: "active", hasPlayerEntitlement: true });
+    ).resolves.toEqual({
+      status: "active",
+      hasPlayerEntitlement: true,
+      email: "player@example.test",
+      displayName: "Asha",
+    });
     expect(checkAccess).toHaveBeenCalledWith("saved-bearer-token");
   });
 
@@ -28,8 +37,15 @@ describe("restoreSessionState", () => {
     await expect(
       restoreSessionState(async () => "saved-bearer-token", async () => ({
         access: "UNAVAILABLE",
+        email: "player@example.test",
+        displayName: null,
       })),
-    ).resolves.toEqual({ status: "active", hasPlayerEntitlement: false });
+    ).resolves.toEqual({
+      status: "active",
+      hasPlayerEntitlement: false,
+      email: "player@example.test",
+      displayName: null,
+    });
   });
 
   it("asks the player to sign in again when the session is rejected", async () => {

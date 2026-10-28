@@ -8,10 +8,20 @@ describe("getSessionDestination", () => {
     [{ status: "verificationRequired" }, "/(public)/session-verification"],
     [{ status: "pendingApproval" }, "/(public)/approval"],
     [
-      { status: "active", hasPlayerEntitlement: false },
+      {
+        status: "active",
+        hasPlayerEntitlement: false,
+        email: "player@example.test",
+        displayName: null,
+      },
       "/(public)/access-unavailable",
     ],
-    [{ status: "active", hasPlayerEntitlement: true }, "/(app)/(tabs)/home"],
+    [{
+      status: "active",
+      hasPlayerEntitlement: true,
+      email: "player@example.test",
+      displayName: "Asha",
+    }, "/(app)/(tabs)/home"],
   ] satisfies [SessionState, string | null][])(
     "routes %p safely",
     (state, expected) => {

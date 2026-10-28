@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "test:player-subscriptions": "tsx --test src/services/playerDevelopmentSubscription.test.ts src/routes/playerSubscription.test.ts",
+    "test:player-profile": "tsx --test src/services/playerProfile.test.ts src/routes/playerProfile.test.ts",
     "test:auth": "tsx --test src/routes/auth.test.ts src/utils/googleIdentity.test.ts",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

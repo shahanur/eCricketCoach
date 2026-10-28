@@ -21,8 +21,27 @@ model CustomerTenant {
   activeMembers    Int      @default(1) @map("active_members")
   joinedAt         String   @map("joined_at")
   developmentPlayerSubscription PlayerDevelopmentSubscription?
+  playerProfile    PlayerProfile?
 
   @@map("customer_tenants")
+}
+
+model PlayerProfile {
+  id                 String   @id
+  tenantId           String   @unique @map("tenant_id")
+  ownerEmail         String   @unique @map("owner_email")
+  displayName        String   @map("display_name")
+  battingHandedness  String   @map("batting_handedness")
+  bowlingStyle       String   @map("bowling_style")
+  primaryDisciplines String[] @default([]) @map("primary_disciplines")
+  experienceLevel    String   @map("experience_level")
+  goals              String[] @default([])
+  version            Int      @default(0)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  tenant             CustomerTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("player_profiles")
 }
 
 model PlayerDevelopmentSubscription {

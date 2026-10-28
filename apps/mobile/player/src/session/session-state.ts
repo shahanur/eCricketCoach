@@ -6,7 +6,12 @@ export type SessionState =
   | { status: "signedOut" }
   | { status: "verificationRequired" }
   | { status: "pendingApproval" }
-  | { status: "active"; hasPlayerEntitlement: boolean };
+  | {
+      status: "active";
+      hasPlayerEntitlement: boolean;
+      email: string;
+      displayName: string | null;
+    };
 
 export type SessionDestination =
   | "/(public)/welcome"
@@ -35,10 +40,19 @@ export function getSessionDestination(
   }
 }
 
-export type PlayerAccessResult = { access: "ACTIVE" | "UNAVAILABLE" };
+export type PlayerAccessResult = {
+  access: "ACTIVE" | "UNAVAILABLE";
+  email: string;
+  displayName: string | null;
+};
 
 export function sessionStateFromAccess(access: PlayerAccessResult): SessionState {
-  return { status: "active", hasPlayerEntitlement: access.access === "ACTIVE" };
+  return {
+    status: "active",
+    hasPlayerEntitlement: access.access === "ACTIVE",
+    email: access.email,
+    displayName: access.displayName,
+  };
 }
 
 /**

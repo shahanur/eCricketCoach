@@ -58,6 +58,24 @@ export async function initDb() {
       CHECK (ends_at > starts_at)
     )`,
 
+    `CREATE TABLE IF NOT EXISTS player_profiles (
+      id VARCHAR(100) PRIMARY KEY,
+      tenant_id VARCHAR(100) NOT NULL UNIQUE REFERENCES customer_tenants(id) ON DELETE CASCADE,
+      owner_email TEXT NOT NULL UNIQUE,
+      display_name VARCHAR(80) NOT NULL,
+      batting_handedness VARCHAR(20) NOT NULL,
+      bowling_style VARCHAR(30) NOT NULL,
+      primary_disciplines TEXT[] NOT NULL DEFAULT '{}',
+      experience_level VARCHAR(20) NOT NULL,
+      goals TEXT[] NOT NULL DEFAULT '{}',
+      version INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK (version >= 0),
+      CHECK (cardinality(primary_disciplines) <= 4),
+      CHECK (cardinality(goals) <= 3)
+    )`,
+
     `CREATE TABLE IF NOT EXISTS drills (
       id VARCHAR(100) PRIMARY KEY,
       title VARCHAR(255) NOT NULL,

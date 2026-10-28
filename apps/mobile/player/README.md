@@ -130,12 +130,18 @@ external services. They have not been provisioned.
 - Home and Profile show the player's server-derived subscription status and
   expiry, with refresh, renewal guidance and sign-out. Practice, Analyze and
   Progress remain gated until their APIs and feature modules are implemented.
+- Profile also loads, creates and edits one server-owned self profile through
+  `GET`/`PUT /api/player/profile`. It supports a player name, batting hand,
+  bowling style, one or more cricket disciplines, experience band and up to
+  three training goals; incomplete onboarding can be saved and resumed. The
+  account email is read-only. Age/guardian details and avatar media remain
+  gated until their privacy and private-media decisions are approved.
 - The centralized API client validates response DTOs and surfaces transport,
   HTTP, configuration, and validation failures. It does not define or mock API
   endpoints.
-- Product/payment, pending-approval, player-profile, quota, privacy, and native
-  OAuth decisions remain gated as recorded in the individual-player delivery
-  guide.
+- Product/payment, pending-approval, age/guardian consent, avatar media, quota,
+  privacy and native OAuth decisions remain gated as recorded in the
+  individual-player delivery guide.
 
 ## Approval-backed development subscriptions
 
@@ -173,7 +179,7 @@ approval/sign-in cannot create a second subscription or reset its expiry.
 Disabling the mode makes these subscriptions unavailable without deleting them.
 
 This is a development access mechanism, not a verified payment. Real checkout,
-purchase restoration, self-profile editing, analysis uploads and quota counters
-remain gated. The app does not display a fabricated five-use balance or reset
-date. See the [delivery guide](../../../docs/features/individual-player/README.md)
+purchase restoration, age/guardian consent, avatar media, analysis uploads and
+quota counters remain gated. The app does not display a fabricated five-use
+balance or reset date. See the [delivery guide](../../../docs/features/individual-player/README.md)
 for the contract, test coverage and remaining production blockers.
