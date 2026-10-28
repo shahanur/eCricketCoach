@@ -49,6 +49,15 @@ export async function initDb() {
       created_at VARCHAR(50) NOT NULL
     )`,
 
+    `CREATE TABLE IF NOT EXISTS player_development_subscriptions (
+      tenant_id VARCHAR(100) PRIMARY KEY REFERENCES customer_tenants(id) ON DELETE CASCADE,
+      owner_email TEXT NOT NULL UNIQUE,
+      approval_id VARCHAR(100) NOT NULL UNIQUE REFERENCES club_approvals(id),
+      starts_at TIMESTAMPTZ(3) NOT NULL,
+      ends_at TIMESTAMPTZ(3) NOT NULL,
+      CHECK (ends_at > starts_at)
+    )`,
+
     `CREATE TABLE IF NOT EXISTS drills (
       id VARCHAR(100) PRIMARY KEY,
       title VARCHAR(255) NOT NULL,

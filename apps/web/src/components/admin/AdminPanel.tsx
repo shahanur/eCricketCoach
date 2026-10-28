@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CustomerTenant, Invoice, ClubApproval, Drill, Discipline, ContextType, AdminNotification, SupportTicket } from '../../types';
 import { ConfirmationModal, ConfirmationType } from '../common/ConfirmationModal';
 import { CheckCircle2, MessageSquare, LifeBuoy, Clock, ShieldCheck, Search, Pencil, Trash2 } from 'lucide-react';
 import { readDrillImage } from '../../utils/drillImage';
+import { api } from '../../services/api';
 
 interface AdminPanelProps {
   customers: CustomerTenant[];
@@ -40,6 +41,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [adminTab, setAdminTab] = useState<'CUSTOMERS' | 'SUPPORT_TICKETS' | 'BILLING' | 'CLUB_APPROVALS' | 'DRILL_CURATOR' | 'NOTIFICATIONS'>('CUSTOMERS');
   const [customerFilterType, setCustomerFilterType] = useState<string>('ALL');
   const [customerSearch, setCustomerSearch] = useState<string>('');
+  const [playerRenewalEnabled, setPlayerRenewalEnabled] = useState(false);
+  const [renewingPlayerId, setRenewingPlayerId] = useState<string | null>(null);
+  const [playerSubscriptionMessage, setPlayerSubscriptionMessage] = useState('');
+  const [playerSubscriptionError, setPlayerSubscriptionError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void api.getPlayerSubscriptionConfig().then(config => {
+      if (active) setPlayerRenewalEnabled(config.developmentSubscriptionsEnabled);
+    }).catch(() => {
+      if (active) setPlayerSubscriptionError('Unable to load player renewal options. Refresh this page to try again.');
+    });
+    return () => { active = false; };
+  }, []);
+
+  const renewPlayer = async (tenantId: string) => {
+    if (renewingPlayerId) return;
+    setRenewingPlayerId(tenantId);
+    setPlayerSubscriptionError('');
+    setPlayerSubscriptionMessage('');
+    try {
+      const subscription = await api.renewPlayerSubscription(tenantId);
+      setPlayerSubscriptionMessage(`Player access is active until ${new Date(subscription.period.endsAt).toLocaleString()}. Renewal does not extend an already-active period.`);
+    } catch (error) {
+      setPlayerSubscriptionError(error instanceof Error ? error.message : 'Unable to renew this player. Please try again.');
+    } finally {
+      setRenewingPlayerId(null);
+    }
+  };
 
   // Support Tickets Filter & Resolution Modal state
   const [ticketStatusFilter, setTicketStatusFilter] = useState<'ALL' | 'OPEN' | 'RESOLVED'>('ALL');
@@ -196,9 +226,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
             <p className="font-semibold text-white">{appr.clubName}</p>
             <p className="text-slate-400">Admin: {appr.adminName} ({appr.adminEmail})</p>
-            <p className="text-emerald-400">Plan: {appr.plan} • £{appr.amountPaid} (Paid)</p>
+            <p className="text-emerald-400">Plan: {appr.plan}</p>
           </div>
-          <p className="text-[11px] text-slate-400">This will immediately generate their active tenancy and dispatch login access tokens.</p>
+          <p className="text-[11px] text-slate-400">Approval allows the account owner to sign in with their registered email. {appr.type === 'INDIVIDUAL' && playerRenewalEnabled ? 'Player access lasts one month and must then be renewed here.' : ''}</p>
         </div>
       ),
       type: 'confirm',
@@ -446,6 +476,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
+          {playerSubscriptionMessage && <p role="status" className="text-xs text-emerald-300">{playerSubscriptionMessage}</p>}
+          {playerSubscriptionError && <p role="alert" className="text-xs text-rose-300">{playerSubscriptionError}</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -500,6 +532,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <td className="py-3 px-3 font-semibold text-slate-200">£{cust.mrr.toFixed(2)}/mo</td>
                     <td className="py-3 px-3 text-slate-400">{cust.activeMembers}</td>
                     <td className="py-3 px-3 text-right space-x-1.5">
+                      {playerRenewalEnabled && cust.type === 'INDIVIDUAL' && cust.status === 'ACTIVE' && cust.subscriptionPlan === 'INDIVIDUAL' && (
+                        <button
+                          disabled={renewingPlayerId !== null}
+                          onClick={() => void renewPlayer(cust.id)}
+                          className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 rounded text-[11px] disabled:opacity-50"
+                        >
+                          {renewingPlayerId === cust.id ? 'Renewing...' : 'Renew player month'}
+                        </button>
+                      )}
                       {cust.status === 'PAST_DUE' ? (
                         <button onClick={() => onUpdateCustomerStatus(cust.id, 'ACTIVE')} className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px]">Clear Due</button>
                       ) : cust.status === 'ACTIVE' ? (

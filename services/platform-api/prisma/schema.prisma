@@ -20,8 +20,21 @@ model CustomerTenant {
   mrr              Decimal  @default(0) @db.Decimal(10, 2)
   activeMembers    Int      @default(1) @map("active_members")
   joinedAt         String   @map("joined_at")
+  developmentPlayerSubscription PlayerDevelopmentSubscription?
 
   @@map("customer_tenants")
+}
+
+model PlayerDevelopmentSubscription {
+  tenantId   String   @id @map("tenant_id")
+  ownerEmail String   @unique @map("owner_email")
+  approvalId String   @unique @map("approval_id")
+  startsAt   DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt     DateTime @map("ends_at") @db.Timestamptz(3)
+  tenant     CustomerTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approval   ClubApproval @relation(fields: [approvalId], references: [id])
+
+  @@map("player_development_subscriptions")
 }
 
 model Invoice {
@@ -59,6 +72,7 @@ model ClubApproval {
   billingCycle String  @map("billing_cycle")
   status       String
   createdAt    String  @map("created_at")
+  developmentPlayerSubscription PlayerDevelopmentSubscription?
 
   @@map("club_approvals")
 }

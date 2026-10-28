@@ -42,6 +42,7 @@ services:
     environment:
       PORT: 5001
       NODE_ENV: development
+      PLAYER_DEVELOPMENT_SUBSCRIPTIONS: ${PLAYER_DEVELOPMENT_SUBSCRIPTIONS:-false}
       DATABASE_URL: postgresql://${POSTGRES_USER:-cricket_user}:${POSTGRES_PASSWORD:-cricket_secret}@postgres:5432/${POSTGRES_DB:-ecricketcoach}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_change_in_production}

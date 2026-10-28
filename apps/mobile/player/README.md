@@ -127,11 +127,53 @@ external services. They have not been provisioned.
   store builds). iOS native sign-in, Microsoft/Apple in-app sign-in, browser
   callback handling, and approval status remain gated; on those paths the
   screen directs players to the website.
-- Home, Practice, Analyze, Progress, and Profile routes are present but
-  explicitly unavailable until their APIs and feature modules are implemented.
+- Home and Profile show the player's server-derived subscription status and
+  expiry, with refresh, renewal guidance and sign-out. Practice, Analyze and
+  Progress remain gated until their APIs and feature modules are implemented.
 - The centralized API client validates response DTOs and surfaces transport,
   HTTP, configuration, and validation failures. It does not define or mock API
   endpoints.
 - Product/payment, pending-approval, player-profile, quota, privacy, and native
   OAuth decisions remain gated as recorded in the individual-player delivery
   guide.
+
+## Approval-backed development subscriptions
+
+Until a real payment provider is integrated, the platform API can explicitly
+enable development-only player subscriptions:
+
+```dotenv
+NODE_ENV=development
+PLAYER_DEVELOPMENT_SUBSCRIPTIONS=true
+```
+
+Set these on the **platform API** and restart it. Never add them to the mobile
+app's public environment configuration. Both settings are required;
+`NODE_ENV=production` always disables this mode.
+For the repository's local Docker stack, set
+`PLAYER_DEVELOPMENT_SUBSCRIPTIONS=true` in `deploy/.env` and rebuild/recreate the
+`server` service. Compose already sets `NODE_ENV=development`; the opt-in flag
+defaults to `false`. For a directly run API, use `services/platform-api/.env`
+or its process environment.
+
+1. Register for the monthly Individual Player plan on the website. Player
+   applications need no card details and create no paid invoice.
+2. Sign in to the website as system admin and approve the application.
+3. Sign in to the player app with that registered Google account. The app opens
+   the dashboard and loads `GET /api/player/subscription` using the securely
+   stored session.
+4. The development subscription lasts one month, does not auto-renew, and is
+   shown as expired at its end. In the web admin Customers tab, use
+   **Renew player month** to give an expired player another month. Retrying
+   renewal does not extend an already-active period.
+
+Existing active individual tenants with a matching approved application receive
+one initial development month on their first subscription lookup. Repeated
+approval/sign-in cannot create a second subscription or reset its expiry.
+Disabling the mode makes these subscriptions unavailable without deleting them.
+
+This is a development access mechanism, not a verified payment. Real checkout,
+purchase restoration, self-profile editing, analysis uploads and quota counters
+remain gated. The app does not display a fabricated five-use balance or reset
+date. See the [delivery guide](../../../docs/features/individual-player/README.md)
+for the contract, test coverage and remaining production blockers.

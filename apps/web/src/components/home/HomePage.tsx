@@ -182,10 +182,11 @@ interface HomePageProps {
     name: string;
     email: string;
     organizationName: string;
-    cardNumber: string;
-    expiry: string;
-    cvc: string;
-  }) => void;
+    cardNumber?: string;
+    expiry?: string;
+    cvc?: string;
+    registrationToken?: string;
+  }) => Promise<void>;
   onExploreDemo: () => void;
   onOpenHelp: () => void;
   publicPage: PublicPage;
@@ -232,9 +233,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
     setSelectedPlanForPayment(null);
   };
 
-  const handleSubmitPayment = (e: React.FormEvent) => {
+  const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPlanForPayment) return;
+    if (!selectedPlanForPayment || isProcessing) return;
     if (!subscriberName || !subscriberEmail) {
       setHomeModal({
         isOpen: true,
@@ -249,24 +250,22 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
 
     setIsProcessing(true);
 
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      const isPlayer = selectedPlanForPayment.type === 'INDIVIDUAL';
       const data = {
         plan: selectedPlanForPayment,
-        billingCycle,
+        billingCycle: isPlayer ? 'MONTHLY' as const : billingCycle,
         name: subscriberName,
         email: subscriberEmail,
         organizationName: organizationName || (selectedPlanForPayment.type === 'CLUB' ? subscriberName + ' Cricket Club' : subscriberName),
-        cardNumber: cardNumber || '•••• •••• •••• 4242',
-        expiry: cardExpiry || '12/28',
-        cvc: cardCvc || '123'
-        , registrationToken: socialRegistration?.token
+        ...(isPlayer ? {} : { cardNumber, expiry: cardExpiry, cvc: cardCvc }),
+        registrationToken: socialRegistration?.token
       };
 
-      onRegisterPlan(data);
+      await onRegisterPlan(data);
 
       setPaymentSuccessMessage(
-        `Payment successful! An automated confirmation email was sent to ${subscriberEmail}. A notification email has been dispatched to the System Admin, and your registration has been placed in the Admin Approval Queue.`
+        `Your registration has been received and is awaiting system-admin approval. Once approved, sign in with ${subscriberEmail}${isPlayer ? ' in the eCricketCoach Player app' : ''}.`
       );
 
       // Reset form
@@ -276,7 +275,19 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
       setCardNumber('');
       setCardExpiry('');
       setCardCvc('');
-    }, 1200);
+    } catch (error) {
+      console.error('Registration failed:', error);
+      setHomeModal({
+        isOpen: true,
+        title: 'Registration not completed',
+        message: 'We could not submit your registration. Please check your connection and try again.',
+        type: 'warning',
+        confirmLabel: 'OK',
+        onConfirm: () => setHomeModal(null)
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const currentService = CORE_SERVICES[activeServiceIndex];
@@ -562,8 +573,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
         {/* 3 Subscription Plan Boxes */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
           {PLANS.map(plan => {
-            const price = billingCycle === 'MONTHLY' ? plan.priceMonthly : plan.priceAnnual;
-            const periodText = billingCycle === 'MONTHLY' ? '/ month' : '/ year';
+            const monthly = plan.type === 'INDIVIDUAL' || billingCycle === 'MONTHLY';
+            const price = monthly ? plan.priceMonthly : plan.priceAnnual;
+            const periodText = monthly ? '/ month' : '/ year';
 
             return (
               <div
@@ -592,7 +604,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                       <span className="text-xs text-slate-400 font-medium">{periodText}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      {billingCycle === 'ANNUAL' ? 'Billed annually with instant activation' : 'Billed monthly, cancel anytime'}
+                      {plan.type === 'INDIVIDUAL' ? 'Monthly plan; registration requires approval' : billingCycle === 'ANNUAL' ? 'Billed annually with instant activation' : 'Billed monthly, cancel anytime'}
                     </p>
                   </div>
 
@@ -889,14 +901,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl">💳</span>
-                <h3 className="text-base sm:text-lg font-bold text-white">Subscribe to {selectedPlanForPayment.name}</h3>
+                <h3 className="text-base sm:text-lg font-bold text-white">{selectedPlanForPayment.type === 'INDIVIDUAL' ? 'Register for' : 'Subscribe to'} {selectedPlanForPayment.name}</h3>
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Amount:{' '}
                 <span className="font-bold text-emerald-400">
-                  £{(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)}
+                  £{(selectedPlanForPayment.type === 'INDIVIDUAL' || billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)}
                 </span>{' '}
-                ({billingCycle.toLowerCase()})
+                ({selectedPlanForPayment.type === 'INDIVIDUAL' ? 'monthly' : billingCycle.toLowerCase()})
               </p>
             </div>
 
@@ -905,7 +917,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                 <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs leading-relaxed flex items-start gap-3">
                   <span className="text-2xl">🎉</span>
                   <div>
-                    <p className="font-bold text-white mb-1">Registration & Payment Confirmed!</p>
+                    <p className="font-bold text-white mb-1">Registration received</p>
                     <p>{paymentSuccessMessage}</p>
                   </div>
                 </div>
@@ -917,7 +929,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                     }}
                     className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs"
                   >
-                    Go to Portal & View Queue →
+                    Continue to sign in →
                   </button>
                 </div>
               </div>
@@ -966,7 +978,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                   )}
 
                   {/* Payment Card Details */}
-                  <div className="pt-2 border-t border-slate-800 space-y-3">
+                  {selectedPlanForPayment.type !== 'INDIVIDUAL' && <div className="pt-2 border-t border-slate-800 space-y-3">
                     <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Payment Method (Card)</p>
                     <div>
                       <label className="text-[10px] text-slate-400">Card Number</label>
@@ -1005,13 +1017,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                         />
                       </div>
                     </div>
-                  </div>
+                  </div>}
                 </div>
 
                 <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
                   <span className="text-emerald-400 mt-0.5">🔒</span>
                   <span>
-                    Secured by 256-bit encryption. System Admin will immediately receive a registration notification email and an approval item in the Super-Admin panel.
+                    Your registration will be sent for system-admin approval. No card details are needed for a player application.
                   </span>
                 </div>
 
@@ -1032,11 +1044,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onRegisterPlan, onExploreDem
                     {isProcessing ? (
                       <>
                         <span className="animate-spin text-sm">↻</span>
-                        <span>Authorizing Payment...</span>
+                        <span>Submitting registration...</span>
                       </>
                     ) : (
                       <>
-                        <span>Pay £{(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)} & Register</span>
+                        <span>{selectedPlanForPayment.type === 'INDIVIDUAL' ? 'Submit player application' : `Pay £${(billingCycle === 'MONTHLY' ? selectedPlanForPayment.priceMonthly : selectedPlanForPayment.priceAnnual).toFixed(2)} & Register`}</span>
                         <span>→</span>
                       </>
                     )}

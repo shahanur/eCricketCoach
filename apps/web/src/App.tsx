@@ -333,78 +333,31 @@ export default function App() {
     return cloned;
   };
 
-  // Called from HomePage when a user subscribes and pays
+  // Player applications can be approved for development access without a payment.
   const handleRegisterFromHomePage = async (data: {
     plan: PlanConfig;
     billingCycle: 'MONTHLY' | 'ANNUAL';
     name: string;
     email: string;
     organizationName: string;
-    cardNumber: string;
-    expiry: string;
-    cvc: string;
+    cardNumber?: string;
+    expiry?: string;
+    cvc?: string;
     registrationToken?: string;
   }) => {
-    try {
-      const result = await api.checkout({
-        planId: data.plan.type === 'CLUB' ? 'CLUB_ACADEMY' : data.plan.type === 'COACH' ? 'COACH_PRO' : 'INDIVIDUAL',
-        billingCycle: data.billingCycle,
-        name: data.name,
-        email: data.email,
-        organizationName: data.organizationName,
-        cardNumber: data.cardNumber,
-        registrationToken: data.registrationToken
-      });
-
-      if (result) {
-        setClubApprovals(prev => [result.approval, ...prev]);
-        setInvoices(prev => [result.invoice, ...prev]);
-        setAdminNotifications(prev => [result.notification, ...prev]);
-        return;
-      }
-    } catch (err) {
-      console.error('Checkout API error, falling back to local update:', err);
-    }
-
-    const amountPaid = data.billingCycle === 'MONTHLY' ? data.plan.priceMonthly : data.plan.priceAnnual;
-    const approvalId = 'appr-' + Date.now();
-    const invoiceId = 'INV-' + Math.floor(1100 + Math.random() * 900);
-
-    const newApproval: ClubApproval = {
-      id: approvalId,
-      clubName: data.organizationName,
-      adminName: data.name,
-      adminEmail: data.email,
-      plan: `${data.plan.name} (${data.billingCycle === 'MONTHLY' ? 'Monthly' : 'Annual'})`,
-      amountPaid: amountPaid,
-      type: data.plan.type,
+    const result = await api.checkout({
+      planId: data.plan.type === 'CLUB' ? 'CLUB_ACADEMY' : data.plan.type === 'COACH' ? 'COACH_PRO' : 'INDIVIDUAL',
       billingCycle: data.billingCycle,
-      status: 'AWAITING_APPROVAL',
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-    setClubApprovals(prev => [newApproval, ...prev]);
-
-    const newInvoice: Invoice = {
-      id: invoiceId,
-      tenantId: 'pending-' + approvalId,
-      customerName: data.organizationName,
-      amount: amountPaid,
-      currency: 'USD',
-      status: 'PAID',
-      date: new Date().toISOString().split('T')[0],
-      planName: `${data.plan.name} (${data.billingCycle})`
-    };
-    setInvoices(prev => [newInvoice, ...prev]);
-
-    const newNotification: AdminNotification = {
-      id: 'notif-' + Date.now(),
-      title: `New Registration Paid: ${data.organizationName} (${data.plan.name})`,
-      message: `System Admin Notification: ${data.name} (${data.email}) just completed a successful payment of £${amountPaid.toFixed(2)} for the ${data.plan.name} plan via Card ending in 4242. The application has been queued under Admin Panel > Awaiting Approvals.`,
-      type: 'PAYMENT_RECEIVED',
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      read: false
-    };
-    setAdminNotifications(prev => [newNotification, ...prev]);
+      name: data.name,
+      email: data.email,
+      organizationName: data.organizationName,
+      ...(data.plan.type === 'INDIVIDUAL' ? {} : { cardNumber: data.cardNumber }),
+      registrationToken: data.registrationToken
+    });
+    setClubApprovals(prev => [result.approval, ...prev.filter(approval => approval.id !== result.approval.id)]);
+    const invoice = result.invoice;
+    if (invoice) setInvoices(prev => [invoice, ...prev.filter(item => item.id !== invoice.id)]);
+    setAdminNotifications(prev => [result.notification, ...prev.filter(notification => notification.id !== result.notification.id)]);
   };
 
   const handleApproveClub = async (apprId: string) => {
@@ -412,14 +365,14 @@ export default function App() {
       const res = await api.approveClub(apprId);
       if (res?.customer) {
         setClubApprovals(prev => prev.filter(a => a.id !== apprId));
-        setCustomers(prev => [res.customer, ...prev]);
+        setCustomers(prev => [res.customer, ...prev.filter(customer => customer.id !== res.customer.id)]);
         if (res.notification) {
           setAdminNotifications(prev => [res.notification, ...prev]);
         }
         setAppModal({
           isOpen: true,
           title: 'Account Approved & Activated',
-          message: `🎉 Account "${res.item.clubName}" has been successfully approved! Credentials and welcome access tokens have been dispatched to ${res.item.adminEmail}.`,
+          message: `Account "${res.item.clubName}" has been approved. The player or account owner can now sign in using their registered email.`,
           type: 'success',
           confirmLabel: 'Done',
           onConfirm: () => setAppModal(null)
@@ -427,53 +380,16 @@ export default function App() {
         return;
       }
     } catch (err) {
-      console.error('Approve API error, applying state fallback:', err);
+      console.error('Registration approval failed:', err);
+      setAppModal({
+        isOpen: true,
+        title: 'Unable to approve account',
+        message: 'The application was not activated. Please try again.',
+        type: 'danger',
+        confirmLabel: 'OK',
+        onConfirm: () => setAppModal(null)
+      });
     }
-
-    const appr = clubApprovals.find(a => a.id === apprId);
-    if (!appr) return;
-    setClubApprovals(prev => prev.filter(a => a.id !== apprId));
-
-    const priceMonthly = appr.type === 'CLUB' ? 199.99 : appr.type === 'COACH' ? 49.99 : 14.99;
-    const planType: CustomerTenant['subscriptionPlan'] =
-      appr.type === 'CLUB' ? 'CLUB_ACADEMY' : appr.type === 'COACH' ? 'COACH_PRO' : 'INDIVIDUAL';
-
-    setCustomers(prev => [
-      {
-        id: 'ten-' + Date.now(),
-        name: appr.clubName,
-        type: appr.type || 'CLUB',
-        email: appr.adminEmail,
-        subscriptionPlan: planType,
-        status: 'ACTIVE',
-        billingCycle: appr.billingCycle === 'MONTHLY' ? 'MONTHLY' : 'ANNUAL',
-        mrr: priceMonthly,
-        activeMembers: 1,
-        joinedAt: new Date().toISOString().split('T')[0]
-      },
-      ...prev
-    ]);
-
-    setAdminNotifications(prev => [
-      {
-        id: 'notif-' + Date.now(),
-        title: `Account Activated: ${appr.clubName}`,
-        message: `System Admin approved the registration for ${appr.adminName} (${appr.adminEmail}). Welcome email and access tokens have been dispatched.`,
-        type: 'TENANT_ACTIVATED',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        read: false
-      },
-      ...prev
-    ]);
-
-    setAppModal({
-      isOpen: true,
-      title: 'Account Approved & Activated',
-      message: `🎉 Account "${appr.clubName}" has been approved! Onboarding link & credentials dispatched to ${appr.adminEmail}.`,
-      type: 'success',
-      confirmLabel: 'Done',
-      onConfirm: () => setAppModal(null)
-    });
   };
 
   const handleUpdateCustomerStatus = async (id: string, newStatus: CustomerTenant['status']) => {

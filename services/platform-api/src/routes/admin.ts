@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { DbService } from '../services/dbService.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
+import { approveDevelopmentPlayer, developmentSubscriptionsEnabled, PlayerSubscriptionError, renewDevelopmentPlayer } from '../services/playerDevelopmentSubscription.js';
+import { sendPlayerSubscriptionError } from './playerSubscription.js';
 
 export const adminRouter = Router();
 
@@ -155,9 +158,15 @@ adminRouter.get('/club-approvals', async (_req: Request, res: Response) => {
 });
 
 // Admin: Approve pending club registration
-adminRouter.post('/club-approvals/:id/approve', async (req: Request, res: Response) => {
+adminRouter.post('/club-approvals/:id/approve', authenticateToken, requireRole(['SUPER_ADMIN']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (developmentSubscriptionsEnabled()) {
+      const application = await DbService.client.clubApproval.findUnique({ where: { id } });
+      if (application?.type === 'INDIVIDUAL') {
+        return res.json(await approveDevelopmentPlayer(id));
+      }
+    }
     const approvedItem = await DbService.approveClub(id);
     if (!approvedItem) return res.status(404).json({ error: 'Club application not found' });
 
@@ -195,6 +204,22 @@ adminRouter.post('/club-approvals/:id/approve', async (req: Request, res: Respon
       notification: notif
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    if (err instanceof PlayerSubscriptionError) return sendPlayerSubscriptionError(err, res);
+    console.error('Registration approval failed:', err);
+    return res.status(500).json({ error: 'Registration approval failed. Please try again.' });
+  }
+});
+
+adminRouter.get('/player-subscriptions/config', authenticateToken, requireRole(['SUPER_ADMIN']), (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ developmentSubscriptionsEnabled: developmentSubscriptionsEnabled() });
+});
+
+adminRouter.post('/customers/:id/renew-player-subscription', authenticateToken, requireRole(['SUPER_ADMIN']), async (req: Request, res: Response) => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(await renewDevelopmentPlayer(req.params.id));
+  } catch (error) {
+    sendPlayerSubscriptionError(error, res);
   }
 });

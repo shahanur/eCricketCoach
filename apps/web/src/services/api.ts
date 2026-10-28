@@ -186,9 +186,24 @@ export const api = {
 
   async approveClub(id: string): Promise<{ item: ClubApproval; customer: CustomerTenant; notification: AdminNotification }> {
     const res = await fetch(`${API_BASE}/admin/club-approvals/${id}/approve`, {
-      method: 'POST'
+      method: 'POST',
+      headers: authenticatedHeaders()
     });
     if (!res.ok) throw new Error('Failed to approve club registration');
+    return res.json();
+  },
+
+  async getPlayerSubscriptionConfig(): Promise<{ developmentSubscriptionsEnabled: boolean }> {
+    const res = await fetch(`${API_BASE}/admin/player-subscriptions/config`, { headers: authenticatedHeaders() });
+    if (!res.ok) throw await responseError(res, 'Unable to load player subscription settings.');
+    return res.json();
+  },
+
+  async renewPlayerSubscription(tenantId: string): Promise<{ status: string; period: { startsAt: string; endsAt: string } }> {
+    const res = await fetch(`${API_BASE}/admin/customers/${encodeURIComponent(tenantId)}/renew-player-subscription`, {
+      method: 'POST', headers: authenticatedHeaders()
+    });
+    if (!res.ok) throw await responseError(res, 'Unable to renew the player subscription.');
     return res.json();
   },
 
@@ -554,7 +569,7 @@ export const api = {
     organizationName: string;
     cardNumber?: string;
     registrationToken?: string;
-  }): Promise<{ approval: ClubApproval; invoice: Invoice; notification: AdminNotification }> {
+  }): Promise<{ approval: ClubApproval; invoice: Invoice | null; notification: AdminNotification }> {
     const res = await fetch(`${API_BASE}/subscriptions/checkout`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

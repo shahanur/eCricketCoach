@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { DbService } from '../services/dbService.js';
 import { ClubApproval, Invoice, AdminNotification, CustomerTenant } from '../types/index.js';
+import { developmentSubscriptionsEnabled, PlayerSubscriptionError, registerDevelopmentPlayer } from '../services/playerDevelopmentSubscription.js';
+import { sendPlayerSubscriptionError } from './playerSubscription.js';
 
 export const subscriptionsRouter = Router();
 
@@ -59,6 +61,16 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
     if (!planId || !name || !email) {
       return res.status(400).json({ error: 'planId, name, and email are required.' });
     }
+    if (!['INDIVIDUAL', 'COACH_PRO', 'CLUB_ACADEMY'].includes(planId) ||
+      !['MONTHLY', 'ANNUAL'].includes(billingCycle)) {
+      return res.status(400).json({ error: 'Choose a supported plan and billing cycle.' });
+    }
+    if (planId === 'INDIVIDUAL' && !developmentSubscriptionsEnabled()) {
+      return res.status(503).json({
+        error: 'Individual player registration is unavailable until payment integration is configured.',
+        code: 'PLAYER_PURCHASE_UNAVAILABLE'
+      });
+    }
 
     let verifiedName = name;
     let verifiedEmail = email;
@@ -69,6 +81,17 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
       }
       verifiedName = grant.name;
       verifiedEmail = grant.email;
+    }
+
+    if (planId === 'INDIVIDUAL' && developmentSubscriptionsEnabled()) {
+      if (billingCycle !== 'MONTHLY' || typeof verifiedName !== 'string' || typeof verifiedEmail !== 'string') {
+        return res.status(400).json({ error: 'Individual player applications require a name, email and monthly plan.' });
+      }
+      if (['cardNumber', 'cvc', 'expiry'].some(field => req.body[field] !== undefined)) {
+        return res.status(400).json({ error: 'Do not submit card details with a player application.' });
+      }
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(201).json(await registerDevelopmentPlayer(verifiedName, verifiedEmail));
     }
 
     const isAnnual = billingCycle === 'ANNUAL';
@@ -138,6 +161,11 @@ subscriptionsRouter.post('/checkout', async (req: Request, res: Response) => {
       }
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    if (err instanceof PlayerSubscriptionError) return sendPlayerSubscriptionError(err, res);
+    if (err instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: 'Invalid or expired social registration grant.' });
+    }
+    console.error('Subscription registration failed:', err);
+    return res.status(500).json({ error: 'Unable to complete registration. Please try again.' });
   }
 });

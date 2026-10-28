@@ -16,6 +16,7 @@ import { trainingTemplatesRouter } from './routes/trainingTemplates.js';
 import { kinematicsRouter } from './routes/kinematics.js';
 import { DRILL_IMAGE_JSON_LIMIT } from './services/drillImage.js';
 import { startCapeWorker } from './workers/capeWorker.js';
+import { playerSubscriptionRouter } from './routes/playerSubscription.js';
 
 dotenv.config();
 
@@ -46,6 +47,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // Modular Routes & Microservice Endpoints
 app.use('/api/subscriptions', subscriptionsRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/player', playerSubscriptionRouter);
 app.use('/api/drills', drillsRouter);
 app.use('/api/training-templates', trainingTemplatesRouter);
 app.use('/api/admin', adminRouter);
