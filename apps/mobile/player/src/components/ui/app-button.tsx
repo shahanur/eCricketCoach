@@ -1,0 +1,61 @@
+import type { PropsWithChildren } from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
+
+import { useAppTheme } from "../../theme/use-app-theme";
+
+type AppButtonProps = PropsWithChildren<{
+  onPress?: () => void;
+  variant?: "primary" | "secondary";
+  disabled?: boolean;
+}>;
+
+export function AppButton({
+  children,
+  onPress,
+  variant = "primary",
+  disabled = false,
+}: AppButtonProps) {
+  const { colors } = useAppTheme();
+  const isPrimary = variant === "primary";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          backgroundColor: isPrimary ? colors.primary : colors.secondary,
+          opacity: pressed ? 0.78 : disabled ? 0.5 : 1,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          styles.label,
+          { color: isPrimary ? colors.onPrimary : colors.text },
+        ]}
+      >
+        {children}
+      </Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: {
+    alignItems: "center",
+    borderRadius: 12,
+    justifyContent: "center",
+    minHeight: 48,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+});

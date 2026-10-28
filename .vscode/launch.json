@@ -1,0 +1,41 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    
+        {
+            "name": "Attach Player Android (Hermes)",
+            "cwd": "${workspaceFolder}\\apps\\mobile\\player",
+            "type": "reactnativedirect",
+            "request": "attach",
+            "platform": "android",
+            "port": 8081,
+            "useHermesEngine": true
+        },
+        {
+            "name": "Run Player Android (Expo development build)",
+            "cwd": "${workspaceFolder}\\apps\\mobile\\player",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "npx expo run:android"
+        },
+        {
+            "name": "Attach Player iOS (Hermes)",
+            "cwd": "${workspaceFolder}\\apps\\mobile\\player",
+            "type": "reactnativedirect",
+            "request": "attach",
+            "platform": "ios",
+            "port": 8081,
+            "useHermesEngine": true
+        },
+        {
+            "name": "Run Player iOS (Expo development build; macOS)",
+            "cwd": "${workspaceFolder}\\apps\\mobile\\player",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "npx expo run:ios"
+        }
+    ]
+}

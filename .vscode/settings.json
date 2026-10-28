@@ -1,0 +1,4 @@
+{
+    "python.terminal.useEnvFile": true,
+    "react-native-tools.projectRoot": "apps\\mobile\\player"
+}
