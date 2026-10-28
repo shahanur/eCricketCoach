@@ -1,10 +1,5 @@
-import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
+import { TrainingPreviewScreen } from "../../../features/navigation/training-preview-screen";
 
 export default function PracticeScreen() {
-  return (
-    <ComingSoonScreen
-      title="Solo practice"
-      message="Guided drills and practice logs tailored to your personal roadmap."
-    />
-  );
+  return <TrainingPreviewScreen feature="practice" />;
 }

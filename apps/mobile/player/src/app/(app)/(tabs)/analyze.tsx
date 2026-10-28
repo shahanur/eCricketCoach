@@ -1,10 +1,5 @@
-import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
+import { TrainingPreviewScreen } from "../../../features/navigation/training-preview-screen";
 
 export default function AnalyzeScreen() {
-  return (
-    <ComingSoonScreen
-      title="Video analysis"
-      message="Upload batting, bowling and wicketkeeping clips for AI biomechanics feedback."
-    />
-  );
+  return <TrainingPreviewScreen feature="analyze" />;
 }

@@ -11,6 +11,7 @@ export type SessionState =
       hasPlayerEntitlement: boolean;
       email: string;
       displayName: string | null;
+      accessReason?: PlayerAccessResult["reason"];
     };
 
 export type SessionDestination =
@@ -44,6 +45,7 @@ export type PlayerAccessResult = {
   access: "ACTIVE" | "UNAVAILABLE";
   email: string;
   displayName: string | null;
+  reason?: "ACCOUNT_TYPE_MISMATCH" | "PLAYER_ACCESS_UNAVAILABLE";
 };
 
 export function sessionStateFromAccess(access: PlayerAccessResult): SessionState {
@@ -52,6 +54,7 @@ export function sessionStateFromAccess(access: PlayerAccessResult): SessionState
     hasPlayerEntitlement: access.access === "ACTIVE",
     email: access.email,
     displayName: access.displayName,
+    ...(access.access === "UNAVAILABLE" && access.reason ? { accessReason: access.reason } : {}),
   };
 }
 

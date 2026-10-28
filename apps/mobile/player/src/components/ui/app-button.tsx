@@ -27,7 +27,8 @@ export function AppButton({
       style={({ pressed }) => [
         styles.button,
         {
-          backgroundColor: isPrimary ? colors.primary : colors.secondary,
+          backgroundColor: isPrimary ? colors.accent : colors.surface,
+          borderColor: isPrimary ? colors.accent : colors.border,
           opacity: pressed ? 0.78 : disabled ? 0.5 : 1,
         },
       ]}
@@ -35,7 +36,7 @@ export function AppButton({
       <Text
         style={[
           styles.label,
-          { color: isPrimary ? colors.onPrimary : colors.text },
+          { color: isPrimary ? colors.onAccent : colors.text },
         ]}
       >
         {children}
@@ -48,6 +49,7 @@ const styles = StyleSheet.create({
   button: {
     alignItems: "center",
     borderRadius: 12,
+    borderWidth: 1,
     justifyContent: "center",
     minHeight: 48,
     paddingHorizontal: 20,
@@ -55,7 +57,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     textAlign: "center",
   },
 });

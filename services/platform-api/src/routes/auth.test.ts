@@ -193,6 +193,9 @@ test('player access is derived from the verified session and the caller-owned in
     assert.equal(result.status, 200);
     assert.equal(result.body.access, 'UNAVAILABLE', JSON.stringify(claims));
     assert.equal(result.body.displayName, null);
+    assert.equal(result.body.reason,
+      claims.role !== 'PLAYER' || claims.tenantId === 'club-1'
+        ? 'ACCOUNT_TYPE_MISMATCH' : 'PLAYER_ACCESS_UNAVAILABLE');
   }
   assert.ok(findUnique.mock.calls.every(call => ['ind-1', 'ind-trial', 'ind-suspended', 'club-1', 'missing'].includes(call.arguments[0].where.id)));
 

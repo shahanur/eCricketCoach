@@ -3,11 +3,10 @@ import { StyleSheet, Text, View } from "react-native";
 import { BrandMark } from "../../components/brand/brand-mark";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
+import { StatusBadge } from "../../components/ui/player-card";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
 
-// A stored credential is never trusted on its own; until server-side session
-// verification ships, the player is asked to sign in again.
 export default function SessionVerificationScreen() {
   const { signOut, signOutError } = useSession();
   const { colors } = useAppTheme();
@@ -17,6 +16,7 @@ export default function SessionVerificationScreen() {
       <View style={styles.content}>
         <BrandMark />
         <View style={styles.body}>
+          <StatusBadge label="Keep your account safe" />
           <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
             Please sign in again
           </Text>

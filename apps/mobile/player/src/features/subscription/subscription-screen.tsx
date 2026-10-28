@@ -1,7 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import { ApiError, getUserFacingErrorMessage } from "../../api/api-error";
-import { BrandMark } from "../../components/brand/brand-mark";
+import { AppIcon } from "../../components/ui/app-icon";
+import { StatusBadge } from "../../components/ui/player-card";
+import { ScreenHeading } from "../../components/ui/screen-heading";
 import { FeedbackScreen } from "../../components/feedback/feedback-screen";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
@@ -44,18 +46,14 @@ export function SubscriptionContent({ state, onRetry, onSignOut, signOutError, p
   const expired = subscription.status === "EXPIRED";
   return (
     <View style={styles.content}>
-      <BrandMark />
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
-        {profile ? "Your account" : "Your dashboard"}
-      </Text>
+      <ScreenHeading title={profile ? "Your account" : "Subscription"} backTo="/(app)/(tabs)/profile" />
       <Text style={[styles.body, { color: colors.mutedText }]}>
         {active ? "Welcome to your personal cricket training space." : "Your account is ready. Review your plan below."}
       </Text>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <AppIcon name="award" color={colors.gold} size={32} />
         <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>{subscription.plan.name}</Text>
-        <Text style={[styles.status, { color: active ? colors.primary : colors.mutedText }]}>
-          {active ? "Active" : expired ? "Expired" : "Not active"}
-        </Text>
+        <StatusBadge label={active ? "Active" : expired ? "Expired" : "Not active"} />
         <Text style={[styles.body, { color: colors.mutedText }]}>
           {active ? "Your registration has been approved. Your plan covers one player." :
             expired ? "Your month of access has ended. Contact eCricketCoach to renew your plan." :
@@ -68,12 +66,20 @@ export function SubscriptionContent({ state, onRetry, onSignOut, signOutError, p
             {". This plan does not renew automatically."}
           </Text>
         ) : null}
+        <Text style={[styles.body, { color: colors.mutedText }]}>
+          Monthly plan allowance: {subscription.plan.monthlyAnalysisLimit} AI video actions.
+          {" Analysis and usage tracking are not available in this release."}
+        </Text>
       </View>
       <Text style={[styles.body, { color: colors.mutedText }]}>
         Video analysis and guided training will be available in a future release.
       </Text>
-      <AppButton onPress={onRetry} variant="secondary">Refresh plan</AppButton>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>Manage your membership</Text>
+        <Text style={[styles.body, { color: colors.mutedText }]}>Visit eCricketCoach to review your membership. Purchase, payment-method changes and invoice history are not available in this app.</Text>
       <OpenWebAppButton label="Visit eCricketCoach" variant="secondary" />
+      </View>
+      <AppButton onPress={onRetry} variant="secondary">Refresh plan</AppButton>
       {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
       <AppButton onPress={onSignOut} variant="secondary">Sign out</AppButton>
     </View>

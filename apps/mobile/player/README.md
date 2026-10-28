@@ -99,6 +99,35 @@ external services. They have not been provisioned.
 
 ## Foundation boundaries
 
+### Visual design and device appearance
+
+The player app uses a compact cricket-inspired visual system: rounded surface
+cards, emerald actions, discipline tiles, segmented feature views and an
+icon-labelled bottom navigation. The welcome screen uses the supplied branded
+batter/stadium artwork in `assets/welcome-hero.png`, with its embedded logo and
+tagline displayed once and native Get Started / Log in controls below. The
+image retains its original colors and full aspect ratio without cropping;
+surrounding backgrounds and controls follow the device theme. Other cricket
+illustrations and line icons are drawn locally with React Native primitives.
+Layouts are scrollable and capped at 620
+points on wider displays, with wrapping cards and accessible native controls.
+
+Appearance always follows `useColorScheme()` and updates when the device
+changes between light and dark. There is no app-level override; Settings
+explains how to change the device appearance. Both palettes define backgrounds,
+surfaces, borders, readable text and accents; text contrast is tested. The
+Expo configuration keeps `userInterfaceStyle: "automatic"` and the status bar
+uses automatic contrast.
+
+Home and Profile render verified player data only. Profile has an overview
+and an explicit editor, preserving the existing save, conflict and discard
+flows. Settings and Subscription are protected routes reachable from Home or
+Profile. Practice, Analysis, roadmap and certificates have navigable previews
+with explicit unreleased states, not fabricated measurements or disabled
+payment controls that resemble a working checkout. Google-only native sign-in
+and website registration remain unchanged; the design does not introduce
+password, Apple, payment, biometric or Drive flows that do not exist.
+
 - Routes are under `src/app`; shared components, API code, session state, and
   theme primitives live under `src/`.
 - Registration starts on the web app: the player chooses the Individual Player
@@ -120,6 +149,20 @@ external services. They have not been provisioned.
   a stored token is re-checked; a rejected (401) token asks the player to sign
   in again and connectivity failures offer a retry. Sessions last eight hours;
   the API has no refresh or revocation endpoint.
+- Public session screens (plan unavailable, approval, and session verification)
+  react to session changes: successful local sign-out returns to Welcome,
+  including when revisiting those screens through Android back navigation.
+  Secure-storage removal failures keep the screen visible with retry guidance;
+  Google account-selection reset does not delay leaving the screen. Approved
+  players visiting public screens are redirected to Home.
+- Administrator and player identities stay separate. Emails in the platform
+  API's `ADMIN_EMAILS` receive a system-admin session before tenant lookup, even
+  if they also own an active individual tenant. Use a separate approved player
+  email for this app. Player access responses include an optional rejection
+  `reason`: `ACCOUNT_TYPE_MISMATCH` for non-player roles or club tenants,
+  otherwise `PLAYER_ACCESS_UNAVAILABLE`. The app explains the account mismatch
+  without asserting that a subscription has expired; older responses without
+  a reason retain generic access-review guidance.
 - Google sign-in requires an Android OAuth client in the same Google Cloud
   project as `GOOGLE_CLIENT_ID`, registered for package
   `com.ecricketcoach.player` and the signing certificate SHA-1 (the debug
@@ -127,9 +170,11 @@ external services. They have not been provisioned.
   store builds). iOS native sign-in, Microsoft/Apple in-app sign-in, browser
   callback handling, and approval status remain gated; on those paths the
   screen directs players to the website.
-- Home and Profile show the player's server-derived subscription status and
-  expiry, with refresh, renewal guidance and sign-out. Practice, Analyze and
-  Progress remain gated until their APIs and feature modules are implemented.
+- Home shows the self-owned profile, saved goals, discipline preferences and
+  server-derived plan status. Pull to refresh updates both live sections;
+  individual failures have separate retries. Profile provides plan management
+  and sign-out. Practice, Analyze and Progress remain gated until their APIs
+  and feature modules are implemented.
 - Profile also loads, creates and edits one server-owned self profile through
   `GET`/`PUT /api/player/profile`. It supports a player name, batting hand,
   bowling style, one or more cricket disciplines, experience band and up to
@@ -142,6 +187,34 @@ external services. They have not been provisioned.
 - Product/payment, pending-approval, age/guardian consent, avatar media, quota,
   privacy and native OAuth decisions remain gated as recorded in the
   individual-player delivery guide.
+
+## Performance dashboard boundaries
+
+Home composes the existing typed `GET /api/player/profile` and
+`GET /api/player/subscription` adapters; it never queries club/roster resources
+or supplies a player ID. Goals are the player's saved, unassigned text goals;
+discipline selections are training preferences, not assessed skill stages.
+No progress percentage, training total, trend, milestone or certificate is
+inferred from profile completion.
+
+The monthly video-action limit comes from the plan DTO. It is not a remaining
+balance: the existing contract provides neither usage nor a quota reset date,
+and explicitly disables analysis. Subscription `period.endsAt` is the access
+expiry, never an allowance reset. No usage chart is rendered without measured
+data. Practice, roadmap, analysis/history and awards have explicit unreleased
+states, not empty-result claims or example achievements.
+
+Requests run in parallel on focus and refresh, with no automatic retries.
+Leaving Home cancels both requests. In-memory query keys include the session
+email; sign-in/sign-out clears the query cache. Home's profile key has a
+`dashboard` suffix so cancelling Home never cancels the profile editor's
+request. Profile saves update both caches immediately, and returning Home
+revalidates both sections. Cache retention is five minutes after the last observer is removed;
+there is no disk persistence. Only network/timeout failures may show a prior
+snapshot, with its fetch timestamp and an out-of-date warning. HTTP and schema
+failures do not use stale fallbacks; 401/403 hides all dashboard content.
+Active access is rechecked at expiry (at most once daily for longer periods)
+while Home is focused. Existing protected routing handles pending approval.
 
 ## Approval-backed development subscriptions
 

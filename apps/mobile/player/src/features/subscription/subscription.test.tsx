@@ -81,7 +81,7 @@ describe("player subscription dashboard", () => {
         onRetry={onRetry} onSignOut={onSignOut} signOutError={null}
       />,
     );
-    expect(screen.getByText("Your dashboard")).toBeTruthy();
+    expect(screen.getByText("Subscription")).toBeTruthy();
     expect(screen.getByText("Individual Player")).toBeTruthy();
     expect(screen.getByText("Active")).toBeTruthy();
     expect(screen.getByText(/This plan does not renew automatically/)).toBeTruthy();

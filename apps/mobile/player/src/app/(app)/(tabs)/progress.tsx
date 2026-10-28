@@ -1,10 +1,5 @@
-import { ComingSoonScreen } from "../../../features/navigation/coming-soon-screen";
+import { TrainingPreviewScreen } from "../../../features/navigation/training-preview-screen";
 
 export default function ProgressScreen() {
-  return (
-    <ComingSoonScreen
-      title="Your progress"
-      message="Track milestones across batting, bowling, wicketkeeping and fielding, and earn certificates."
-    />
-  );
+  return <TrainingPreviewScreen feature="progress" />;
 }

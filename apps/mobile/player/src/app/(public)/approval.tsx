@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { BrandMark } from "../../components/brand/brand-mark";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
+import { StatusBadge } from "../../components/ui/player-card";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
 
@@ -15,12 +16,13 @@ export default function ApprovalScreen() {
       <View style={styles.content}>
         <BrandMark />
         <View style={styles.body}>
+          <StatusBadge label="Application received" />
           <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
             Thanks for registering
           </Text>
           <Text style={[styles.message, { color: colors.mutedText }]}>
-            Your player account is being reviewed. Once it’s approved, sign in
-            on the eCricketCoach website with the same account.
+            Your player account is being reviewed. Once it’s approved, return
+            to this app and sign in with the same Google account.
           </Text>
         </View>
         {signOutError ? (

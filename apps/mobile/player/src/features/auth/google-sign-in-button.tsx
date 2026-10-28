@@ -22,7 +22,7 @@ export function GoogleSignInButton({ onPress, disabled = false }: GoogleSignInBu
       style={({ pressed }) => [
         styles.button,
         {
-          backgroundColor: colors.background,
+          backgroundColor: colors.surface,
           borderColor: colors.border,
           opacity: pressed ? 0.78 : disabled ? 0.55 : 1,
         },
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 12,
-    minHeight: 54,
+    minHeight: 52,
     paddingHorizontal: 14,
   },
   mark: {

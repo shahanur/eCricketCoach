@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
@@ -13,6 +14,9 @@ import { ApiError, getUserFacingErrorMessage } from "../../api/api-error";
 import { FeedbackScreen } from "../../components/feedback/feedback-screen";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
+import { AppIcon } from "../../components/ui/app-icon";
+import { PlayerCard, StatusBadge } from "../../components/ui/player-card";
+import { ScreenHeading } from "../../components/ui/screen-heading";
 import { OpenWebAppButton } from "../web-app/open-web-app-button";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
@@ -340,6 +344,7 @@ export function PlayerProfileScreen() {
   const { state, signOut, signOutError } = useSession();
   const subscription = useSubscription();
   const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const email = state.status === "active" ? state.email : "";
   const profileKey = ["player-profile", email] as const;
   const profileQuery = useQuery({
@@ -351,6 +356,7 @@ export function PlayerProfileScreen() {
     mutationFn: (update: PlayerProfileUpdate) => updatePlayerProfile(update),
     onSuccess: (profile) => {
       queryClient.setQueryData(profileKey, profile);
+      queryClient.setQueryData([...profileKey, "dashboard"], profile);
     },
   });
 
@@ -385,8 +391,14 @@ export function PlayerProfileScreen() {
 
   return (
     <AppScreen>
-      <PlanSummary state={subscription.state} onRetry={subscription.retry} onSignOut={() => void signOut()} />
-      <ProfileEditor
+      <ScreenHeading title={editing ? "Edit your profile" : "Your profile"} settings />
+      {editing ? <>
+        <AppButton variant="secondary" onPress={() => Alert.alert(
+          "Close profile editor?",
+          "Make sure you've saved any changes you want to keep.",
+          [{ text: "Keep editing", style: "cancel" }, { text: "Close editor", onPress: () => setEditing(false) }],
+        )}>Back to profile</AppButton>
+        <ProfileEditor
         key={`${email}-${profileQuery.data.version}`}
         profile={profileQuery.data}
         email={email}
@@ -397,6 +409,36 @@ export function PlayerProfileScreen() {
         saveError={saveError}
         saveConflict={updateMutation.error instanceof ApiError && updateMutation.error.code === "PROFILE_VERSION_CONFLICT"}
       />
+      </> : <>
+        <View style={styles.identity}>
+          <View style={[styles.avatar, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
+            <AppIcon name="profile" color={colors.primary} size={44} />
+          </View>
+          <Text style={[styles.title, { color: colors.text }]}>{profileQuery.data.displayName}</Text>
+          <StatusBadge label="Individual Player" />
+          <Text style={[styles.helper, { color: colors.mutedText }]}>{email}</Text>
+        </View>
+        <PlayerCard title="Your training focus">
+          <Text style={[styles.body, { color: colors.mutedText }]}>
+            {profileQuery.data.primaryDisciplines.length
+              ? disciplines.filter(({ value }) => profileQuery.data.primaryDisciplines.includes(value)).map(({ label }) => label).join(" / ")
+              : "Choose your disciplines to start shaping your journey."}
+          </Text>
+          <Text style={[styles.helper, { color: colors.mutedText }]}>Training preferences, not an assessed skill stage.</Text>
+        </PlayerCard>
+        <PlayerCard title="Your goals">
+          {profileQuery.data.goals.length ? profileQuery.data.goals.map((goal, index) => (
+            <View key={index} style={styles.goalRow}>
+              <View style={[styles.goalDot, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.goal, { color: colors.text }]}>{goal}</Text>
+            </View>
+          )) : <Text style={[styles.body, { color: colors.mutedText }]}>Add a personal goal to give your training a focus.</Text>}
+        </PlayerCard>
+        <AppButton onPress={() => setEditing(true)}>{profileQuery.data.isComplete ? "Edit profile" : "Complete your profile"}</AppButton>
+        <AppButton variant="secondary" onPress={() => router.navigate("/(app)/(tabs)/progress")}>View your roadmap</AppButton>
+      </>}
+      <PlanSummary state={subscription.state} onRetry={subscription.retry} onSignOut={() => void signOut()} />
+      <AppButton variant="secondary" onPress={() => router.navigate("/(app)/subscription")}>Subscription details</AppButton>
       {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
       <AppButton onPress={() => void signOut()} variant="secondary">Sign out</AppButton>
     </AppScreen>
@@ -419,4 +461,9 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 14, fontWeight: "600" },
   helper: { fontSize: 14, lineHeight: 20 },
   error: { fontSize: 14, lineHeight: 20 },
+  identity: { alignItems: "center", gap: 10, paddingVertical: 16 },
+  avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+  goalRow: { flexDirection: "row", gap: 10, alignItems: "center" },
+  goalDot: { height: 7, width: 7, borderRadius: 4 },
+  goal: { fontSize: 15, lineHeight: 22, flex: 1 },
 });

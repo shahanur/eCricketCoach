@@ -16,6 +16,7 @@ const playerAccessSchema = z.object({
   access: z.enum(["ACTIVE", "UNAVAILABLE"]),
   email: z.string(),
   displayName: z.string().nullable(),
+  reason: z.enum(["ACCOUNT_TYPE_MISMATCH", "PLAYER_ACCESS_UNAVAILABLE"]).optional(),
 });
 
 export type GoogleSignInChallenge = z.infer<typeof googleChallengeSchema>;

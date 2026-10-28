@@ -2,6 +2,8 @@ import { Link } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 
 import { BrandMark } from "../../components/brand/brand-mark";
+import { ScreenHeading } from "../../components/ui/screen-heading";
+import { PlayerCard, StatusBadge } from "../../components/ui/player-card";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
 import { OpenWebAppButton } from "../../features/web-app/open-web-app-button";
@@ -22,7 +24,7 @@ const REGISTRATION_STEPS = [
   },
   {
     title: "Start training",
-    text: "Once approved, sign in on the website with the same account.",
+    text: "Once approved, return to this app and sign in with the same Google account.",
   },
 ] as const;
 
@@ -32,6 +34,7 @@ export default function RegisterScreen() {
   return (
     <AppScreen>
       <View style={styles.content}>
+        <ScreenHeading title="Create account" backTo="/(public)/welcome" />
         <BrandMark />
         <View style={styles.intro}>
           <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
@@ -41,6 +44,12 @@ export default function RegisterScreen() {
             Registration takes just a few minutes on the eCricketCoach website.
           </Text>
         </View>
+        <PlayerCard title="Made for your individual journey">
+          <StatusBadge label="Individual Player" />
+          <Text style={[styles.message, { color: colors.mutedText }]}>
+            One player. Your own goals. Complete registration on our website, then return here after approval.
+          </Text>
+        </PlayerCard>
 
         <View accessibilityRole="list" style={styles.steps}>
           {REGISTRATION_STEPS.map(({ title, text }, index) => (
@@ -73,7 +82,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    gap: 28,
+    gap: 20,
     paddingVertical: 16,
   },
   intro: {
@@ -94,13 +103,14 @@ const styles = StyleSheet.create({
   step: {
     flexDirection: "row",
     gap: 14,
+    borderRadius: 14,
   },
   stepBadge: {
     alignItems: "center",
-    borderRadius: 16,
-    height: 32,
+    borderRadius: 12,
+    height: 40,
     justifyContent: "center",
-    width: 32,
+    width: 40,
   },
   stepNumber: {
     fontSize: 15,

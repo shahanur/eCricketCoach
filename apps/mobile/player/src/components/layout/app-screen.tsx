@@ -4,6 +4,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  type ScrollViewProps,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -11,9 +12,10 @@ import { useAppTheme } from "../../theme/use-app-theme";
 
 type AppScreenProps = PropsWithChildren<{
   scroll?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
 }>;
 
-export function AppScreen({ children, scroll = true }: AppScreenProps) {
+export function AppScreen({ children, scroll = true, refreshControl }: AppScreenProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -28,6 +30,8 @@ export function AppScreen({ children, scroll = true }: AppScreenProps) {
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}
+            showsVerticalScrollIndicator={false}
           >
             {children}
           </ScrollView>
@@ -48,6 +52,12 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 28,
+    width: "100%",
+    maxWidth: 620,
+    alignSelf: "center",
+    gap: 16,
   },
 });

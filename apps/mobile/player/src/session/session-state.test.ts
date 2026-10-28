@@ -56,6 +56,15 @@ describe("restoreSessionState", () => {
     ).resolves.toEqual({ status: "verificationRequired" });
   });
 
+  it("retains a verified account-type rejection without granting player access", async () => {
+    await expect(restoreSessionState(async () => "admin-session", async () => ({
+      access: "UNAVAILABLE", email: "admin@example.test", displayName: null,
+      reason: "ACCOUNT_TYPE_MISMATCH",
+    }))).resolves.toMatchObject({
+      status: "active", hasPlayerEntitlement: false, accessReason: "ACCOUNT_TYPE_MISMATCH",
+    });
+  });
+
   it("rethrows connectivity and server failures so they can be retried", async () => {
     await expect(
       restoreSessionState(async () => "saved-bearer-token", async () => {

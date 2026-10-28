@@ -5,6 +5,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { BrandMark } from "../../components/brand/brand-mark";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
+import { ScreenHeading } from "../../components/ui/screen-heading";
+import { AppIcon } from "../../components/ui/app-icon";
 import { GoogleSignInButton } from "../../features/auth/google-sign-in-button";
 import type { AuthProvider } from "../../features/auth/auth-providers";
 import { useSignIn } from "../../features/auth/use-sign-in";
@@ -19,6 +21,7 @@ export default function SignInScreen() {
   return (
     <AppScreen>
       <View style={styles.content}>
+        <ScreenHeading title="Log in" backTo="/(public)/welcome" />
         <View style={styles.header}>
           <BrandMark size="large" />
           <Text style={[styles.tagline, { color: colors.mutedText }]}>
@@ -34,10 +37,16 @@ export default function SignInScreen() {
         >
           <View style={styles.cardHeading}>
             <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
-              Sign in
+              Welcome back
             </Text>
             <Text style={[styles.subtitle, { color: colors.mutedText }]}>
               Use the account linked to your Individual Player plan.
+            </Text>
+          </View>
+          <View style={[styles.accountNotice, { backgroundColor: colors.secondary }]}>
+            <AppIcon name="profile" color={colors.primary} size={22} />
+            <Text style={[styles.body, { color: colors.mutedText, flex: 1 }]}>
+              Your Google account keeps your player profile private and your training together.
             </Text>
           </View>
 
@@ -148,7 +157,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     gap: 24,
-    justifyContent: "center",
     paddingVertical: 16,
   },
   header: {
@@ -167,10 +175,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   cardHeading: {
-    gap: 4,
+    gap: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "800",
   },
   subtitle: {
@@ -180,6 +188,7 @@ const styles = StyleSheet.create({
   stack: {
     gap: 12,
   },
+  accountNotice: { borderRadius: 12, padding: 14, gap: 12, flexDirection: "row", alignItems: "center" },
   body: {
     fontSize: 15,
     lineHeight: 22,

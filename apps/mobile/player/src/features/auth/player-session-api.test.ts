@@ -89,5 +89,21 @@ describe("player session API", () => {
     await expect(getPlayerAccess("session-token")).rejects.toMatchObject({
       kind: "invalid-response",
     });
+
+  });
+
+  it("preserves the server-derived account-type reason", async () => {
+    respond({
+      access: "UNAVAILABLE", email: "admin@example.test", displayName: null,
+      reason: "ACCOUNT_TYPE_MISMATCH",
+    });
+    await expect(getPlayerAccess("session-token")).resolves.toMatchObject({
+      access: "UNAVAILABLE", reason: "ACCOUNT_TYPE_MISMATCH",
+    });
+  });
+
+  it("rejects unknown access reasons", async () => {
+    respond({ access: "UNAVAILABLE", email: "p@example.test", displayName: null, reason: "UNKNOWN" });
+    await expect(getPlayerAccess("session-token")).rejects.toMatchObject({ kind: "invalid-response" });
   });
 });

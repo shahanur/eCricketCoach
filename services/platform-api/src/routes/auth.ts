@@ -241,7 +241,11 @@ authRouter.get('/player-access', async (req: Request, res: Response) => {
     res.json({
       access: isActivePlayer ? 'ACTIVE' : 'UNAVAILABLE',
       email,
-      displayName: isActivePlayer && tenant ? tenant.name : null
+      displayName: isActivePlayer && tenant ? tenant.name : null,
+      ...(!isActivePlayer ? {
+        reason: claims.role !== 'PLAYER' || (tenant && tenant.type !== 'INDIVIDUAL')
+          ? 'ACCOUNT_TYPE_MISMATCH' : 'PLAYER_ACCESS_UNAVAILABLE'
+      } : {})
     });
   } catch {
     console.error('Unable to resolve player access.');

@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 
 import { playerTabRoutes } from "../../../navigation/player-tabs";
+import { AppIcon } from "../../../components/ui/app-icon";
 import { useAppTheme } from "../../../theme/use-app-theme";
 
 export default function PlayerTabsLayout() {
@@ -16,14 +17,16 @@ export default function PlayerTabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          minHeight: 60,
-          paddingBottom: 6,
+          minHeight: 64,
           paddingTop: 6,
         },
       }}
     >
       {playerTabRoutes.map(({ name, title }) => (
-        <Tabs.Screen key={name} name={name} options={{ title }} />
+        <Tabs.Screen key={name} name={name} options={{
+          title,
+          tabBarIcon: ({ color }) => <AppIcon name={name === "practice" ? "practice" : name === "analyze" ? "analyze" : name === "progress" ? "progress" : name === "profile" ? "profile" : "home"} color={color} size={22} />,
+        }} />
       ))}
     </Tabs>
   );

@@ -1,5 +1,5 @@
-import { SubscriptionScreen } from "../../../features/subscription/subscription-screen";
+import { DashboardScreen } from "../../../features/dashboard/dashboard-screen";
 
 export default function HomeScreen() {
-  return <SubscriptionScreen />;
+  return <DashboardScreen />;
 }
