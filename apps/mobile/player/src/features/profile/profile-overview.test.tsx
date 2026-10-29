@@ -5,6 +5,7 @@ import { useColorScheme } from "react-native";
 
 import { ApiError } from "../../api/api-error";
 import { useSession } from "../../session/session-context";
+import { colorSchemes } from "../../theme/colors";
 import { getPlayerDashboard, type PlayerDashboard } from "../dashboard/dashboard-api";
 import { useSubscription } from "../subscription/use-subscription";
 import { getPlayerProfile, type PlayerProfile } from "./player-profile-api";
@@ -99,7 +100,7 @@ describe("reference player profile", () => {
   it.each(["light", "dark"] as const)("preserves the %s theme", async (scheme) => {
     jest.mocked(useColorScheme).mockReturnValue(scheme);
     const screen = await render(<ProfileOverview profile={profile} overview={ready(empty)} onEdit={jest.fn()} onRetry={jest.fn()} />);
-    expect(screen.getByText("Your Player Profile")).toHaveStyle({ color: scheme === "dark" ? "#F0F8F3" : "#102A1D" });
+    expect(screen.getByText("Your Player Profile")).toHaveStyle({ color: colorSchemes[scheme].text });
   });
 
   it("opens the existing editable form from the profile overview", async () => {

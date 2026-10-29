@@ -6,6 +6,13 @@ not import the club Android app or backend code. This foundation uses Expo SDK
 storage is only a credential store; a locally stored token never proves that
 the player is approved or entitled.
 
+## Theme
+
+Shared light/dark palettes live in `src/theme/colors.ts`, consumed through
+`useAppTheme`. The app uses sky-blue accents on slate surfaces in dark mode,
+and deep-blue accents on pale slate in light mode. Discipline and statistic
+icons retain their category colors. Theme tests check normal-text contrast.
+
 ## Player profile
 
 The Profile tab shows the player identity, current stage, a two-by-two Quick

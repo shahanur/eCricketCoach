@@ -4,6 +4,7 @@ import { useColorScheme } from "react-native";
 
 import { ApiError } from "../../api/api-error";
 import { useSession } from "../../session/session-context";
+import { colorSchemes } from "../../theme/colors";
 import type { PlayerDashboard } from "../dashboard/dashboard-api";
 import { useDashboard, type DashboardSection } from "../dashboard/use-dashboard";
 import { PracticeContent, PracticeScreen } from "./practice-screen";
@@ -107,7 +108,7 @@ describe("reference practice screen", () => {
   it.each(["light", "dark"] as const)("follows the device's %s theme", async (scheme) => {
     jest.mocked(useColorScheme).mockReturnValue(scheme);
     const screen = await render(<PracticeContent overview={ready(empty)} onRetry={jest.fn()} />);
-    expect(screen.getByText("Practice")).toHaveStyle({ color: scheme === "light" ? "#102A1D" : "#F0F8F3" });
+    expect(screen.getByText("Practice")).toHaveStyle({ color: colorSchemes[scheme].text });
     expect(screen.getByText("Batting")).toHaveStyle({ color: "#FFFFFF" });
   });
 
