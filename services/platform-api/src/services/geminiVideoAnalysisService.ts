@@ -45,8 +45,8 @@ function rankModelName(name: string): number {
   return score;
 }
 
-async function fetchAvailableGeminiModels(): Promise<string[]> {
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`);
+async function fetchAvailableGeminiModels(signal?: AbortSignal): Promise<string[]> {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`, { signal });
   if (!res.ok) {
     throw new Error(`Failed to list Gemini models (HTTP ${res.status})`);
   }
@@ -65,21 +65,21 @@ async function fetchAvailableGeminiModels(): Promise<string[]> {
  * available models via the Gemini API (cached for an hour), falling back to a static list only
  * if discovery itself fails (e.g. no network connectivity).
  */
-async function resolveModelCandidates(): Promise<string[]> {
+async function resolveModelCandidates(signal?: AbortSignal): Promise<string[]> {
   const envOverride = process.env.GEMINI_MODEL?.trim();
-  const discovered = await discoverModelCandidates();
+  const discovered = await discoverModelCandidates(signal);
   // The override is tried first, but discovered models remain as fallbacks if it stalls or is overloaded.
   return envOverride ? [envOverride, ...discovered.filter(name => name !== envOverride)] : discovered;
 }
 
-async function discoverModelCandidates(): Promise<string[]> {
+async function discoverModelCandidates(signal?: AbortSignal): Promise<string[]> {
   const now = Date.now();
   if (cachedModelCandidates.length > 0 && now - cachedCandidatesFetchedAt < MODEL_CACHE_TTL_MS) {
     return cachedModelCandidates;
   }
 
   try {
-    const models = await fetchAvailableGeminiModels();
+    const models = await fetchAvailableGeminiModels(signal);
     if (models.length === 0) {
       throw new Error('Gemini returned no usable models.');
     }
@@ -89,6 +89,7 @@ async function discoverModelCandidates(): Promise<string[]> {
     console.log(`Gemini: dynamically resolved model candidates (best first): ${ranked.slice(0, 5).join(', ')}`);
     return ranked;
   } catch (err) {
+    signal?.throwIfAborted();
     console.warn('Gemini: dynamic model discovery failed, falling back to static defaults.', err instanceof Error ? err.message : err);
     cachedModelCandidates = STATIC_FALLBACK_MODELS;
     cachedCandidatesFetchedAt = now;
@@ -288,13 +289,14 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
     parts: any[],
     isValid: (data: any) => data is T,
     label: string,
-    options: { jsonMode?: boolean; responseSchema?: ResponseSchema; timeoutMs?: number } = {}
+    options: { jsonMode?: boolean; responseSchema?: ResponseSchema; timeoutMs?: number; signal?: AbortSignal } = {}
   ): Promise<{ data: T; model: string }> {
+    options.signal?.throwIfAborted();
     if (!GEMINI_API_KEY) {
       throw new Error('Gemini is not configured on this server. Set GEMINI_API_KEY to enable AI analysis.');
     }
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const candidates = (await resolveModelCandidates()).slice(0, 4);
+    const candidates = (await resolveModelCandidates(options.signal)).slice(0, 4);
     let lastError: unknown = null;
     const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
     const generationConfig = options.responseSchema
@@ -311,10 +313,11 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
       try {
         const parsed = await withRetry(
           async attempt => {
+            options.signal?.throwIfAborted();
             // The SDK's own `timeout` option makes requests hang in this runtime, so race against a timer instead.
             let timer: NodeJS.Timeout | undefined;
             const result = await Promise.race([
-              model.generateContent(parts),
+              model.generateContent(parts, { signal: options.signal }),
               new Promise<never>((_, reject) => {
                 timer = setTimeout(() => reject(new Error(`Gemini request timed out after ${timeoutMs}ms`)), timeoutMs);
               })
@@ -330,7 +333,7 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
             baseDelayMs: BASE_DELAY_MS,
             maxDelayMs: MAX_DELAY_MS,
             // Hard quota exhaustion won't reset within seconds, so fall through to the next model instead.
-            isRetryable: err => isRateLimitOrOverloadedError(err) && !isQuotaExceededError(err),
+            isRetryable: err => !options.signal?.aborted && isRateLimitOrOverloadedError(err) && !isQuotaExceededError(err),
             label
           }
         );
@@ -338,6 +341,7 @@ Use the pose measurements as supporting evidence, but inspect the footage for cr
         lastUsedModel = modelName;
         return { data: parsed, model: modelName };
       } catch (err: any) {
+        options.signal?.throwIfAborted();
         lastError = err;
         const message = err instanceof Error ? err.message : String(err);
         const isModelUnavailable = /not found|404|is not supported|does not support|unknown model/i.test(message);

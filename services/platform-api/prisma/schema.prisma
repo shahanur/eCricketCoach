@@ -41,8 +41,57 @@ model PlayerProfile {
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   tenant             CustomerTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roadmap            PlayerRoadmap?
 
   @@map("player_profiles")
+}
+
+model PlayerRoadmap {
+  profileId           String @id @map("profile_id")
+  version             Int @default(0)
+  answers             Json @default("{}")
+  generatingKey       String? @map("generating_key")
+  generationStartedAt DateTime? @map("generation_started_at") @db.Timestamptz(3)
+  profile             PlayerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  revisions           PlayerRoadmapRevision[]
+  practice            PlayerRoadmapPractice[]
+
+  @@map("player_roadmaps")
+}
+
+model PlayerRoadmapRevision {
+  id            String @id
+  profileId     String @map("profile_id")
+  requestId     String @map("request_id")
+  inputVersion  Int @map("input_version")
+  profileVersion Int @map("profile_version")
+  snapshot      Json
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  roadmap       PlayerRoadmap @relation(fields: [profileId], references: [profileId], onDelete: Cascade)
+  practice      PlayerRoadmapPractice[]
+
+  @@unique([profileId, requestId])
+  @@index([profileId, createdAt])
+  @@map("player_roadmap_revisions")
+}
+
+model PlayerRoadmapPractice {
+  id          String @id
+  profileId   String @map("profile_id")
+  requestId   String @map("request_id")
+  revisionId  String @map("revision_id")
+  drillId     String @map("drill_id")
+  discipline  String
+  minutes     Int
+  reflection  String
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(3)
+  roadmap     PlayerRoadmap @relation(fields: [profileId], references: [profileId], onDelete: Cascade)
+  revision    PlayerRoadmapRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, requestId])
+  @@unique([profileId, revisionId, drillId])
+  @@index([profileId, completedAt])
+  @@map("player_roadmap_practice")
 }
 
 model PlayerDashboardDemo {

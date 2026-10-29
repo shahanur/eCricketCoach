@@ -34,6 +34,30 @@ not measured results. Other accounts and release builds show an unassessed
 stage, a generic avatar, and unavailable values until measured profile-stat
 contracts exist. Loading and failed dashboard requests are displayed explicitly.
 
+## Development roadmap
+
+The Progress tab opens the personalized four-discipline roadmap using the shared
+platform API, not sample progress charts. Complete the baseline check-in, prepare
+an AI-guided path, view drill instructions, and record self-reported practice.
+Earlier paths and completion evidence remain saved when goals change or the
+player reassesses. Practice also links to this path.
+
+The Your Plan screen uses Roadmap, Goals and Certificates tabs with a green-accented
+vertical timeline. Select a discipline and tap View Recommended Drills to open
+its recommendations and practice forms; Back returns to the overview. Timeline
+progress measures logged practice only, not assessed skill. Goals contains the
+check-in and expandable history; Certificates explains the locked award state.
+Instruction labels are bold and colour-coded, including a distinct Safety
+section. Draft check-ins and reflections stay intact while switching views.
+History shows five items at a time with Show more controls.
+
+Stages remain unassessed and certificates unavailable until verified video and
+approved assessment criteria support them. The backend requires an active
+individual subscription, a configured roadmap AI provider and public individual
+drills. Missing data or provider failures display explicit unavailable/retry
+states, never mock recommendations. See the [roadmap delivery notes](../../../docs/features/individual-player/roadmap.md)
+for DTOs, migration prerequisites, evidence rules and testing.
+
 ## Prerequisites
 
 - Node.js supported by the selected Expo SDK and npm

@@ -13,6 +13,10 @@ export const colorSchemes = {
     gold: "#88620A",
     blue: "#2267A7",
     error: "#A32929",
+    planAccent: "#167444",
+    onPlanAccent: "#FFFFFF",
+    planTrack: "#D5E4DC",
+    planBackground: "#F3F8F5",
   },
   dark: {
     background: "#0B1220",
@@ -28,6 +32,10 @@ export const colorSchemes = {
     gold: "#F4CE63",
     blue: "#79BCF5",
     error: "#FFAAA5",
+    planAccent: "#59E99A",
+    onPlanAccent: "#062417",
+    planTrack: "#263F36",
+    planBackground: "#061711",
   },
 } as const;
 

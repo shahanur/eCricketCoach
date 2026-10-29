@@ -33,6 +33,11 @@ export function getUserFacingErrorMessage(error: unknown): string {
     case "timeout":
       return "This is taking longer than expected. Please try again.";
     case "http":
+      if (error.code === "ROADMAP_CONTENT_UNAVAILABLE") return "Solo training drills are not available yet. Please try again later.";
+      if (error.code === "ROADMAP_AI_UNAVAILABLE") return "We couldn't prepare your training path. Please try again in a few minutes.";
+      if (error.code === "INVALID_ROADMAP_AI") return "We couldn't prepare a reliable training path. Please try again.";
+      if (error.code === "ROADMAP_GENERATING") return "Your training path is already being prepared. Pull down to refresh in a moment.";
+      if (error.code === "ROADMAP_VERSION_CONFLICT" || error.code === "ROADMAP_INPUT_CHANGED") return "Your goals or practice have changed. Pull down to refresh, then prepare your path again.";
       if (error.status === 401) return "Your session has ended. Please sign in again.";
       if (error.status === 403) return "Your account doesn't have access to this yet.";
       if (error.status === 404) return "We couldn't find what you were looking for.";

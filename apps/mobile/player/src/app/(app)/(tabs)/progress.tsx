@@ -1,5 +1,1 @@
-import { TrainingPreviewScreen } from "../../../features/navigation/training-preview-screen";
-
-export default function ProgressScreen() {
-  return <TrainingPreviewScreen feature="progress" />;
-}
+export { RoadmapScreen as default } from "../../../features/roadmap/roadmap-screen";

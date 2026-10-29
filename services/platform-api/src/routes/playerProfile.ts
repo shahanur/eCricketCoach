@@ -4,6 +4,8 @@ import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest, AuthenticatedUser } from '../middleware/auth.js';
 import { getPlayerProfile, PlayerProfileError, updatePlayerProfile } from '../services/playerProfile.js';
 import { getPlayerDashboard } from '../services/playerDashboard.js';
+import { getPlayerRoadmap, saveRoadmapAnswers, generatePlayerRoadmap, completeRoadmapDrill } from '../services/playerRoadmap.js';
+import { PlayerSubscriptionError } from '../services/playerDevelopmentSubscription.js';
 
 export const playerProfileRouter = Router();
 
@@ -37,12 +39,12 @@ function getPlayerSession(req: AuthenticatedRequest, res: Response): Authenticat
 }
 
 function sendProfileError(error: unknown, res: Response) {
-  if (error instanceof PlayerProfileError) {
+  if (error instanceof PlayerProfileError || error instanceof PlayerSubscriptionError) {
     res.status(error.status).json({ error: error.message, code: error.code });
     return;
   }
   console.error('Player profile request failed:', error);
-  res.status(500).json({ error: 'Unable to save your profile right now.', code: 'PROFILE_FAILED' });
+  res.status(500).json({ error: 'Unable to complete your request right now.', code: 'PROFILE_FAILED' });
 }
 
 playerProfileRouter.get('/profile', async (req: AuthenticatedRequest, res: Response) => {
@@ -54,6 +56,28 @@ playerProfileRouter.get('/profile', async (req: AuthenticatedRequest, res: Respo
     sendProfileError(error, res);
   }
 });
+
+playerProfileRouter.get('/roadmap', async (req: AuthenticatedRequest, res: Response) => {
+  const user = getPlayerSession(req, res);
+  if (!user) return;
+  try {
+    res.json({ roadmap: await getPlayerRoadmap(user) });
+  } catch (error) { sendProfileError(error, res); }
+});
+
+for (const [path, action] of [
+  ['/roadmap/answers', saveRoadmapAnswers],
+  ['/roadmap/generate', generatePlayerRoadmap],
+  ['/roadmap/practice', completeRoadmapDrill],
+] as const) {
+  playerProfileRouter.post(path, async (req: AuthenticatedRequest, res: Response) => {
+    const user = getPlayerSession(req, res);
+    if (!user) return;
+    try {
+      res.json({ roadmap: await action(user, req.body) });
+    } catch (error) { sendProfileError(error, res); }
+  });
+}
 
 playerProfileRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
   const user = getPlayerSession(req, res);

@@ -4,6 +4,7 @@
   "description": "eCricketCoach Containerized Node.js Backend API",
   "main": "dist/index.js",
   "scripts": {
+    "test:player-roadmap": "tsx --test src/services/playerRoadmap.test.ts src/services/playerRoadmapAi.test.ts",
     "test:player-subscriptions": "tsx --test src/services/playerDevelopmentSubscription.test.ts src/routes/playerSubscription.test.ts",
     "test:player-profile": "tsx --test src/services/playerProfile.test.ts src/routes/playerProfile.test.ts",
     "test:auth": "tsx --test src/routes/auth.test.ts src/utils/googleIdentity.test.ts",

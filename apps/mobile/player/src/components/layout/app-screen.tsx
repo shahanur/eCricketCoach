@@ -13,14 +13,15 @@ import { useAppTheme } from "../../theme/use-app-theme";
 type AppScreenProps = PropsWithChildren<{
   scroll?: boolean;
   refreshControl?: ScrollViewProps["refreshControl"];
+  backgroundColor?: string;
 }>;
 
-export function AppScreen({ children, scroll = true, refreshControl }: AppScreenProps) {
+export function AppScreen({ children, scroll = true, refreshControl, backgroundColor }: AppScreenProps) {
   const { colors } = useAppTheme();
 
   return (
     <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: colors.background }]}
+      style={[styles.safeArea, { backgroundColor: backgroundColor ?? colors.background }]}
     >
       <KeyboardAvoidingView
         style={styles.flex}

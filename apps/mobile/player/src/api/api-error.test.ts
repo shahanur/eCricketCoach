@@ -12,6 +12,10 @@ describe("getUserFacingErrorMessage", () => {
   });
 
   it.each([
+    [new ApiError("private diagnostic", "http", 503, "ROADMAP_CONTENT_UNAVAILABLE"), /Solo training drills/],
+    [new ApiError("private diagnostic", "http", 503, "ROADMAP_AI_UNAVAILABLE"), /prepare your training path/],
+    [new ApiError("private diagnostic", "http", 502, "INVALID_ROADMAP_AI"), /reliable training path/],
+    [new ApiError("private diagnostic", "http", 409, "ROADMAP_VERSION_CONFLICT"), /Pull down to refresh/],
     [new ApiError("x", "network"), /offline/],
     [new ApiError("x", "timeout"), /longer than expected/],
     [new ApiError("x", "http", 401), /sign in again/],
