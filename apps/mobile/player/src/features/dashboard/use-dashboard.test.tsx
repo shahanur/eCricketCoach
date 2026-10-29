@@ -8,6 +8,7 @@ import type { SessionState } from "../../session/session-state";
 import { getPlayerProfile, type PlayerProfile } from "../profile/player-profile-api";
 import { getPlayerSubscription, type PlayerSubscription } from "../subscription/subscription-api";
 import { useDashboard } from "./use-dashboard";
+import { getPlayerDashboard } from "./dashboard-api";
 
 let mockFocused = true;
 jest.mock("expo-router", () => ({
@@ -20,6 +21,7 @@ jest.mock("expo-router", () => ({
 jest.mock("../../session/session-context", () => ({ useSession: jest.fn() }));
 jest.mock("../profile/player-profile-api", () => ({ getPlayerProfile: jest.fn() }));
 jest.mock("../subscription/subscription-api", () => ({ getPlayerSubscription: jest.fn() }));
+jest.mock("./dashboard-api", () => ({ getPlayerDashboard: jest.fn() }));
 
 const profile: PlayerProfile = {
   id: "self", displayName: "Asha", battingHandedness: "RIGHT", bowlingStyle: "NOT_SET",
@@ -52,6 +54,7 @@ describe("dashboard fetching and isolation", () => {
     session({ status: "active", email: "asha@example.test", displayName: "Asha", hasPlayerEntitlement: true });
     jest.mocked(getPlayerProfile).mockResolvedValue(profile);
     jest.mocked(getPlayerSubscription).mockResolvedValue(subscription);
+    jest.mocked(getPlayerDashboard).mockResolvedValue({ source: "NONE", progress: null, focus: null, notification: null });
   });
   afterEach(async () => {
     await cleanup();
@@ -65,9 +68,11 @@ describe("dashboard fetching and isolation", () => {
     await waitFor(() => expect(hook.result.current.profile.status).toBe("ready"));
     expect(getPlayerProfile).toHaveBeenCalledTimes(1);
     expect(getPlayerSubscription).toHaveBeenCalledTimes(1);
+    expect(getPlayerDashboard).toHaveBeenCalledTimes(1);
     await act(() => hook.result.current.refresh());
     await waitFor(() => expect(getPlayerProfile).toHaveBeenCalledTimes(2));
     expect(getPlayerSubscription).toHaveBeenCalledTimes(2);
+    expect(getPlayerDashboard).toHaveBeenCalledTimes(2);
     await act(() => client.setQueryData(["player-profile", "asha@example.test", "dashboard"], { ...profile, goals: ["New goal"] }));
     await waitFor(() => expect(hook.result.current.profile).toMatchObject({ data: { goals: ["New goal"] } }));
   });
@@ -106,13 +111,16 @@ describe("dashboard fetching and isolation", () => {
     let resolveProfile: ((value: PlayerProfile) => void) | undefined;
     jest.mocked(getPlayerProfile).mockImplementationOnce(() => new Promise((resolve) => { resolveProfile = resolve; }));
     jest.mocked(getPlayerSubscription).mockImplementationOnce(() => new Promise(() => {}));
+    jest.mocked(getPlayerDashboard).mockImplementationOnce(() => new Promise(() => {}));
     const hook = await renderHook(() => useDashboard(), { wrapper: Wrapper });
     const profileSignal = jest.mocked(getPlayerProfile).mock.calls[0][0];
     const planSignal = jest.mocked(getPlayerSubscription).mock.calls[0][0];
+    const dashboardSignal = jest.mocked(getPlayerDashboard).mock.calls[0][0];
     mockFocused = false;
     await hook.rerender({});
     expect(profileSignal?.aborted).toBe(true);
     expect(planSignal?.aborted).toBe(true);
+    expect(dashboardSignal?.aborted).toBe(true);
     await act(() => resolveProfile?.({ ...profile, displayName: "Late response" }));
     expect(hook.result.current.profile.status).toBe("loading");
     mockFocused = true;

@@ -48,4 +48,13 @@ test('player profile HTTP routes reject unauthenticated, expired and non-player 
   });
   assert.equal(invalidUpdate.status, 400);
   assert.equal((await invalidUpdate.json() as { code: string }).code, 'INVALID_PROFILE');
+  const dashboardUrl = url.replace('/profile', '/dashboard');
+  assert.equal((await fetch(dashboardUrl)).status, 401);
+  assert.equal((await fetch(dashboardUrl, { headers: headers('invalid-token') })).status, 401);
+  assert.equal((await fetch(dashboardUrl, {
+    headers: headers(token({ userId: 'player', tenantId: 'tenant', role: 'PLAYER', email: 'p@example.test' }, -1)),
+  })).status, 401);
+  assert.equal((await fetch(dashboardUrl, {
+    headers: headers(token({ userId: 'club', tenantId: 'tenant', role: 'CLUB_ADMIN', email: 'p@example.test' })),
+  })).status, 403);
 });

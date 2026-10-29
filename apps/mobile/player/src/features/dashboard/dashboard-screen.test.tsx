@@ -1,9 +1,10 @@
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import { router } from "expo-router";
 
 import { ApiError } from "../../api/api-error";
 import type { PlayerProfile } from "../profile/player-profile-api";
 import type { PlayerSubscription } from "../subscription/subscription-api";
+import type { PlayerDashboard } from "./dashboard-api";
 import { DashboardContent } from "./dashboard-screen";
 import type { DashboardSection } from "./use-dashboard";
 
@@ -23,145 +24,125 @@ const subscription: PlayerSubscription = {
   },
   capabilities: { purchase: false, restorePurchases: false, analysis: false },
 };
+const demo: PlayerDashboard = {
+  source: "DEVELOPMENT_SEED", progress: { percent: 72, stage: "Developing Player" },
+  focus: { title: "Front Foot Drive Drill", discipline: "Batting", minutes: 15, description: "Sample practice focus." },
+  notification: "Your sample training focus is ready.",
+};
+const empty: PlayerDashboard = { source: "NONE", progress: null, focus: null, notification: null };
 const ready = <T,>(data: T): DashboardSection<T> => ({ status: "ready", data, updatedAt: 1_798_000_000_000 });
 
 function content(overrides: Partial<Parameters<typeof DashboardContent>[0]> = {}) {
   return <DashboardContent
-    profile={ready(profile)} subscription={ready(subscription)}
-    onRefreshProfile={jest.fn()} onRefreshSubscription={jest.fn()} onSignOut={jest.fn()}
-    signOutError={null} {...overrides}
+    profile={ready(profile)} subscription={ready(subscription)} overview={ready(demo)}
+    onRefreshProfile={jest.fn()} onRefreshSubscription={jest.fn()} onRefreshOverview={jest.fn()}
+    onSignOut={jest.fn()} signOutError={null} {...overrides}
   />;
 }
 
-describe("self-player dashboard", () => {
-  beforeEach(() => {
-    jest.useFakeTimers().setSystemTime(new Date("2026-10-28T12:00:00.000Z"));
-    jest.clearAllMocks();
-  });
-  afterEach(() => jest.useRealTimers());
+describe("reference player home", () => {
+  beforeEach(() => jest.clearAllMocks());
 
-  it("shows only verified goals, discipline selections and plan limits, not invented progress or usage", async () => {
+  it("includes the reference greeting, stage, focus, notification and all four quick actions", async () => {
     const screen = await render(content());
-    expect(screen.getByText("Asha Player")).toBeTruthy();
-    expect(screen.getByText("Improve footwork")).toBeTruthy();
-    expect(screen.getAllByText("Stage and progress: coming soon")).toHaveLength(4);
-    expect(screen.getAllByText("Selected training focus")).toHaveLength(1);
-    expect(screen.getByText("Individual Player: Active")).toBeTruthy();
-    expect(screen.getByText("Monthly AI allowance: 5 video actions in the Individual Player plan.")).toBeTruthy();
-    expect(screen.getByText(/Usage, remaining actions and the next allowance reset are unavailable/)).toBeTruthy();
-    expect(screen.queryByText(/0 of 5|5 remaining|100%|0 sessions/)).toBeNull();
-    expect(screen.getByText(/Milestones and certificates are coming soon/)).toBeTruthy();
-  });
-
-  it("offers an actionable first-time state without treating saved preferences as achievements", async () => {
-    const screen = await render(content({
-      profile: ready({ ...profile, isComplete: false, primaryDisciplines: [], goals: [] }),
-    }));
-    expect(screen.getByText(/Start your journey by choosing/)).toBeTruthy();
-    expect(screen.getByText(/No goals added yet/)).toBeTruthy();
-    await fireEvent.press(screen.getByText("Complete your profile"));
-    expect(router.navigate).toHaveBeenCalledWith("/(app)/(tabs)/profile");
-  });
-
-  it("navigates to released screens with explicit coming-soon labels and disables unavailable history", async () => {
-    const screen = await render(content());
-    for (const [label, route] of [
-      ["Explore practice: Coming soon", "practice"],
-      ["View roadmap: Coming soon", "progress"],
-      ["Record or upload: Coming soon", "analyze"],
-      ["Manage profile and plan", "profile"],
-    ]) {
-      await fireEvent.press(screen.getByText(label));
-      expect(router.navigate).toHaveBeenLastCalledWith(`/(app)/(tabs)/${route}`);
+    expect(screen.getByText("Welcome back,\nAsha \uD83D\uDC4B")).toBeTruthy();
+    expect(screen.getByText("Keep practicing. You're on track\nto reach the next stage.")).toBeTruthy();
+    expect(screen.getByText("Current Stage")).toBeTruthy();
+    expect(screen.getByText("Developing Player")).toBeTruthy();
+    expect(screen.getByRole("progressbar")).toHaveAccessibilityValue({ min: 0, max: 100, now: 72 });
+    expect(screen.getByText("72%")).toBeTruthy();
+    expect(screen.getByText("Today's Focus")).toBeTruthy();
+    expect(screen.getByText("Front Foot Drive Drill")).toBeTruthy();
+    expect(screen.getByText("Batting \u00B7 15 min")).toBeTruthy();
+    expect(screen.getByRole("image", { name: "Batter practising a front foot drive" })).toBeTruthy();
+    expect(screen.getByText(/Demo data/)).toBeTruthy();
+    expect(screen.getByTestId("notification-dot")).toBeTruthy();
+    for (const label of ["Record Video", "Upload from Drive", "Practice Drills", "View Analysis"]) {
+      expect(screen.getByRole("button", { name: label })).toBeTruthy();
     }
-    expect(screen.getByRole("button", { name: "Analysis history: Coming soon", disabled: true })).toBeTruthy();
-    await fireEvent.press(screen.getByText("Analysis history: Coming soon"));
-    expect(router.navigate).toHaveBeenCalledTimes(4);
-  });
-
-  it("keeps a failed section explicit and independently retryable", async () => {
-    const retry = jest.fn();
-    const screen = await render(content({
-      profile: { status: "error", error: new ApiError("diagnostic SQL detail", "http", 500) },
-      onRefreshProfile: retry,
-    }));
-    expect(screen.getByText("Individual Player: Active")).toBeTruthy();
-    expect(screen.queryByText("Asha Player")).toBeNull();
-    expect(screen.queryByText(/diagnostic SQL/)).toBeNull();
-    await fireEvent.press(screen.getByText("Retry your player profile"));
-    expect(retry).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText(/0 sessions/)).toBeNull();
-  });
-
-  it("shows loading independently rather than replacing missing details with zeros", async () => {
-    const screen = await render(content({ subscription: { status: "loading" } }));
-    expect(screen.getByText("Loading your plan and allowance...")).toBeTruthy();
-    expect(screen.getByText("Asha Player")).toBeTruthy();
+    expect(screen.queryByText("Your performance")).toBeNull();
     expect(screen.queryByText(/Monthly AI allowance/)).toBeNull();
   });
 
-  it("labels offline snapshots with a timestamp and does not claim current entitlement", async () => {
-    const screen = await render(content({
-      subscription: {
-        status: "error", error: new ApiError("offline", "network"),
-        cached: { data: subscription, updatedAt: 1_798_000_000_000 },
-      },
-    }));
-    expect(screen.getByText(/You appear to be offline/)).toBeTruthy();
-    expect(screen.getByText(/Showing saved details from .*These may be out of date/)).toBeTruthy();
-    expect(screen.getByText("Retry your plan and allowance")).toBeTruthy();
+  it("wires every navigation action to the appropriate protected destination", async () => {
+    const screen = await render(content());
+    for (const [label, route] of [
+      ["View Roadmap", "progress"], ["See all practice drills", "practice"],
+      ["Record Video", "analyze"], ["Upload from Drive", "analyze"],
+      ["Practice Drills", "practice"], ["View Analysis", "analyze"],
+    ]) {
+      await fireEvent.press(screen.getByRole("button", { name: label }));
+      expect(router.navigate).toHaveBeenLastCalledWith(`/(app)/(tabs)/${route}`);
+    }
+    expect(router.navigate).toHaveBeenCalledTimes(6);
   });
 
-  it.each([401, 403])("hides all saved dashboard data when access is rejected (%s)", async (status) => {
-    const signOut = jest.fn();
+  it("opens focus details without claiming a completed practice session", async () => {
+    const screen = await render(content());
+    await fireEvent.press(screen.getByRole("button", { name: "Front Foot Drive Drill, Batting, 15 minutes" }));
+    expect(screen.getByText("Sample practice focus.")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Explore practice" }));
+    expect(router.navigate).toHaveBeenCalledWith("/(app)/(tabs)/practice");
+    expect(screen.queryByText("Sample practice focus.")).toBeNull();
+  });
+
+  it("opens notifications, clears the unread dot and allows dismissal", async () => {
+    const screen = await render(content());
+    await fireEvent.press(screen.getByRole("button", { name: "Notifications, unread notification" }));
+    expect(screen.getByText("Your sample training focus is ready.")).toBeTruthy();
+    expect(screen.queryByTestId("notification-dot")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText("Your sample training focus is ready.")).toBeNull();
+  });
+
+  it("does not turn profile preferences into measured progress for unseeded players", async () => {
+    const screen = await render(content({ overview: ready(empty) }));
+    expect(screen.getByText("Not yet assessed")).toBeTruthy();
+    expect(screen.getByText("Find your training focus")).toBeTruthy();
+    expect(screen.queryByText("72%")).toBeNull();
+    expect(screen.queryByText("Developing Player")).toBeNull();
+    expect(screen.queryByText(/Demo data/)).toBeNull();
+    expect(screen.queryByTestId("notification-dot")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Notifications" }));
+    expect(screen.getByText("You're all caught up.")).toBeTruthy();
+  });
+
+  it("preserves independent loading and retry states without exposing diagnostics", async () => {
+    const retry = jest.fn();
     const screen = await render(content({
-      subscription: { status: "error", error: new ApiError("private diagnostic", "http", status) },
-      onSignOut: signOut,
+      overview: { status: "error", error: new ApiError("SQL detail", "http", 500) },
+      subscription: { status: "loading" }, onRefreshOverview: retry,
+    }));
+    expect(screen.getByText(/Welcome back/)).toBeTruthy();
+    expect(screen.queryByText(/SQL detail/)).toBeNull();
+    expect(screen.queryByText("72%")).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Retry your dashboard" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+    await screen.rerender(content({ profile: { status: "loading" }, overview: { status: "loading" } }));
+    expect(screen.getByText("Loading your profile...")).toBeTruthy();
+    expect(screen.getByText("Loading your stage...")).toBeTruthy();
+    expect(screen.getByText("Loading your focus...")).toBeTruthy();
+  });
+
+  it("labels offline snapshots explicitly and keeps retry available", async () => {
+    const screen = await render(content({
+      overview: { status: "error", error: new ApiError("offline", "network"), cached: { data: demo, updatedAt: 1_798_000_000_000 } },
+    }));
+    expect(screen.getByText(/Showing saved details from .*These may be out of date/)).toBeTruthy();
+    expect(screen.getByText("72%")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry your dashboard" })).toBeTruthy();
+  });
+
+  it.each([401, 403])("hides all dashboard data when any contract rejects access (%s)", async status => {
+    const onSignOut = jest.fn();
+    const screen = await render(content({
+      overview: { status: "error", error: new ApiError("private diagnostic", "http", status) }, onSignOut,
       signOutError: "We couldn't sign you out. Please try again.",
     }));
-    expect(screen.queryByText("Asha Player")).toBeNull();
-    expect(screen.queryByText("Improve footwork")).toBeNull();
+    expect(screen.queryByText(/Welcome back/)).toBeNull();
+    expect(screen.queryByText("72%")).toBeNull();
     await fireEvent.press(screen.getByText(status === 401 ? "Sign in again" : "Return to sign in"));
-    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(onSignOut).toHaveBeenCalledTimes(1);
     expect(screen.getByText("We couldn't sign you out. Please try again.")).toBeTruthy();
-  });
-
-  it("treats a passed access boundary as expired even before the refreshed response arrives", async () => {
-    const screen = await render(content({
-      subscription: ready({
-        ...subscription,
-        period: { startsAt: "2026-09-01T00:00:00.000Z", endsAt: "2026-10-01T00:00:00.000Z" },
-      }),
-    }));
-    expect(screen.getByText("Individual Player: Expired")).toBeTruthy();
-    expect(screen.getByText(/Your access has ended/)).toBeTruthy();
-    expect(screen.queryByText(/Your approved access covers/)).toBeNull();
-  });
-
-  it("expires an offline plan snapshot while the screen remains open", async () => {
-    const screen = await render(content({
-      subscription: {
-        status: "error", error: new ApiError("offline", "network"),
-        cached: {
-          data: {
-            ...subscription,
-            period: { startsAt: "2026-10-01T00:00:00.000Z", endsAt: "2026-10-28T12:00:10.000Z" },
-          },
-          updatedAt: Date.now(),
-        },
-      },
-    }));
-    expect(screen.getByText("Individual Player: Active")).toBeTruthy();
-    await act(async () => { await jest.advanceTimersByTimeAsync(10_000); });
-    expect(screen.getByText("Individual Player: Expired")).toBeTruthy();
-  });
-
-  it.each(["INACTIVE", "UNAVAILABLE"] as const)("distinguishes %s plans without inventing access or billing periods", async (status) => {
-    const screen = await render(content({
-      subscription: ready({ ...subscription, status, source: "NONE", period: null }),
-    }));
-    expect(screen.getByText(`Individual Player: ${status === "INACTIVE" ? "Not active" : "Unavailable"}`)).toBeTruthy();
-    expect(screen.queryByText(/Access until|Access ended/)).toBeNull();
-    expect(screen.queryByText(/Your approved access covers/)).toBeNull();
   });
 });

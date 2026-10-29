@@ -25,7 +25,7 @@ export default function PlayerTabsLayout() {
       {playerTabRoutes.map(({ name, title }) => (
         <Tabs.Screen key={name} name={name} options={{
           title,
-          tabBarIcon: ({ color }) => <AppIcon name={name === "practice" ? "practice" : name === "analyze" ? "analyze" : name === "progress" ? "progress" : name === "profile" ? "profile" : "home"} color={color} size={22} />,
+          tabBarIcon: ({ color }) => <AppIcon name={name === "practice" ? "runner" : name === "analyze" ? "analyze" : name === "progress" ? "award" : name === "profile" ? "profile" : "home"} color={color} size={22} />,
         }} />
       ))}
     </Tabs>

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 
 import { AuthenticatedRequest, AuthenticatedUser } from '../middleware/auth.js';
 import { getPlayerProfile, PlayerProfileError, updatePlayerProfile } from '../services/playerProfile.js';
+import { getPlayerDashboard } from '../services/playerDashboard.js';
 
 export const playerProfileRouter = Router();
 
@@ -51,6 +52,21 @@ playerProfileRouter.get('/profile', async (req: AuthenticatedRequest, res: Respo
     res.json({ profile: await getPlayerProfile(user) });
   } catch (error) {
     sendProfileError(error, res);
+  }
+});
+
+playerProfileRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
+  const user = getPlayerSession(req, res);
+  if (!user) return;
+  try {
+    res.json({ dashboard: await getPlayerDashboard(user) });
+  } catch (error) {
+    if (error instanceof PlayerProfileError) {
+      res.status(error.status).json({ error: error.message, code: error.code });
+      return;
+    }
+    console.error('Player dashboard request failed:', error);
+    res.status(500).json({ error: 'Unable to load your dashboard right now.', code: 'DASHBOARD_FAILED' });
   }
 });
 

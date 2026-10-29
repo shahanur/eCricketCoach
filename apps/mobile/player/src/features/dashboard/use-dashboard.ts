@@ -6,6 +6,7 @@ import { ApiError } from "../../api/api-error";
 import { useSession } from "../../session/session-context";
 import { getPlayerProfile } from "../profile/player-profile-api";
 import { getPlayerSubscription } from "../subscription/subscription-api";
+import { getPlayerDashboard } from "./dashboard-api";
 
 export type DashboardSection<T> =
   | { status: "loading" }
@@ -55,6 +56,16 @@ export function useDashboard() {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+  const overview = useQuery({
+    queryKey: ["player-dashboard", owner],
+    queryFn: ({ signal }) => getPlayerDashboard(signal),
+    enabled: focused && !!owner,
+    staleTime: 0,
+    gcTime: 300_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
 
   useFocusEffect(useCallback(() => {
     setFocused(true);
@@ -62,11 +73,13 @@ export function useDashboard() {
       setFocused(false);
       void queryClient.cancelQueries({ queryKey: ["player-profile", owner, "dashboard"], exact: true });
       void queryClient.cancelQueries({ queryKey: ["player-subscription", owner], exact: true });
+      void queryClient.cancelQueries({ queryKey: ["player-dashboard", owner], exact: true });
     };
   }, [owner, queryClient]));
 
   const refreshProfile = () => { if (focused && owner) void profile.refetch(); };
   const refreshSubscription = () => { if (focused && owner) void subscription.refetch(); };
+  const refreshOverview = () => { if (focused && owner) void overview.refetch(); };
 
   useEffect(() => {
     const plan = subscription.data;
@@ -82,9 +95,11 @@ export function useDashboard() {
   return {
     profile: toSection(profile),
     subscription: toSection(subscription),
-    refreshing: profile.isFetching || subscription.isFetching,
+    overview: toSection(overview),
+    refreshing: profile.isFetching || subscription.isFetching || overview.isFetching,
     refreshProfile,
     refreshSubscription,
-    refresh: () => { refreshProfile(); refreshSubscription(); },
+    refreshOverview,
+    refresh: () => { refreshProfile(); refreshSubscription(); refreshOverview(); },
   };
 }

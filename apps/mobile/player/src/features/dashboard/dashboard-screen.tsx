@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useEffect, useState, type PropsWithChildren, type ReactNode } from "react";
-import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useState, type ReactNode } from "react";
+import { Image, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
 import { ApiError, getUserFacingErrorMessage } from "../../api/api-error";
 import { BrandMark } from "../../components/brand/brand-mark";
@@ -8,247 +8,273 @@ import { FeedbackScreen } from "../../components/feedback/feedback-screen";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
 import { AppIcon, type AppIconName } from "../../components/ui/app-icon";
-import { PlayerCard, StatusBadge } from "../../components/ui/player-card";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
 import type { PlayerProfile } from "../profile/player-profile-api";
 import type { PlayerSubscription } from "../subscription/subscription-api";
+import type { PlayerDashboard } from "./dashboard-api";
 import { useDashboard, type DashboardSection } from "./use-dashboard";
 
-const disciplines = [
-  ["BATTING", "Batting"],
-  ["BOWLING", "Bowling"],
-  ["KEEPING", "Wicketkeeping"],
-  ["FIELDING", "Fielding"],
-] as const;
-
-function Card({ title, children }: PropsWithChildren<{ title: string }>) {
-  return <PlayerCard title={title}>{children}</PlayerCard>;
+function snapshot<T>(section: DashboardSection<T>) {
+  return section.status === "ready" ? section : section.status === "error" ? section.cached : undefined;
 }
 
-function Copy({ children }: PropsWithChildren) {
+function SectionNotice({ section, label, onRetry }: {
+  section: DashboardSection<unknown>; label: string; onRetry: () => void;
+}) {
   const { colors } = useAppTheme();
-  return <Text style={[styles.body, { color: colors.mutedText }]}>{children}</Text>;
+  if (section.status !== "error") return null;
+  return <View style={styles.notice}>
+    <Text accessibilityRole="alert" style={[styles.body, { color: colors.error }]}>
+      {getUserFacingErrorMessage(section.error)}
+    </Text>
+    {section.cached ? <Text style={{ color: colors.mutedText }}>
+      Showing saved details from {new Date(section.cached.updatedAt).toLocaleString()}. These may be out of date.
+    </Text> : null}
+    <AppButton variant="secondary" onPress={onRetry}>Retry {label}</AppButton>
+  </View>;
 }
 
-function QuickAction({ label, icon, onPress, disabled = false }: {
-  label: string; icon: AppIconName; onPress?: () => void; disabled?: boolean;
+function ProgressRing({ percent }: { percent: number | null }) {
+  const { colors } = useAppTheme();
+  return <View
+    accessible accessibilityRole="progressbar"
+    accessibilityLabel={percent === null ? "Progress not yet assessed" : "Current stage progress"}
+    accessibilityValue={percent === null ? { text: "Not yet assessed" } : { min: 0, max: 100, now: percent }}
+    style={styles.ring}
+  >
+    <View style={[styles.ringTrack, { borderColor: colors.secondary }]} />
+    {Array.from({ length: percent ?? 0 }, (_, index) => <View key={index} style={[
+      styles.ringSegment, { backgroundColor: colors.primary, transform: [{ rotate: `${index * 3.6}deg` }, { translateY: -41 }] },
+    ]} />)}
+    <Text style={[styles.percent, { color: colors.text }]}>{percent === null ? "\u2014" : `${percent}%`}</Text>
+  </View>;
+}
+
+function QuickAction({ label, icon, tone, onPress }: {
+  label: string; icon: AppIconName; tone: string; onPress: () => void;
 }) {
   const { colors } = useAppTheme();
   return <Pressable
     accessibilityRole="button"
-    accessibilityState={{ disabled }}
-    disabled={disabled}
+    accessibilityLabel={label.replace("\n", " ")}
     onPress={onPress}
     style={({ pressed }) => [styles.quickAction, {
-      backgroundColor: colors.surface, borderColor: colors.border, opacity: disabled ? 0.6 : pressed ? 0.8 : 1,
+      backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1,
     }]}
   >
-    <View style={[styles.quickIcon, { backgroundColor: colors.secondary }]}><AppIcon name={icon} color={colors.primary} size={22} /></View>
+    <View style={[styles.quickIcon, { backgroundColor: colors.secondary }]}>
+      <AppIcon name={icon} color={tone} size={29} />
+    </View>
     <Text style={[styles.quickLabel, { color: colors.text }]}>{label}</Text>
   </Pressable>;
 }
 
-function Section<T>({
-  title, section, onRetry, children,
-}: {
-  title: string;
-  section: DashboardSection<T>;
-  onRetry: () => void;
-  children: (data: T) => ReactNode;
+function DetailModal({ title, children, onClose }: {
+  title: string; children: ReactNode; onClose: () => void;
 }) {
   const { colors } = useAppTheme();
-  const snapshot = section.status === "ready" ? section : section.status === "error" ? section.cached : undefined;
-  return (
-    <Card title={title}>
-      {section.status === "loading" ? <Copy>Loading {title.toLowerCase()}...</Copy> : null}
-      {section.status === "error" ? (
-        <>
-          <Text accessibilityRole="alert" style={[styles.body, { color: colors.error }]}>
-            {getUserFacingErrorMessage(section.error)}
-          </Text>
-          {snapshot ? (
-            <Copy>Showing saved details from {new Date(snapshot.updatedAt).toLocaleString()}. These may be out of date.</Copy>
-          ) : <Copy>We couldn&apos;t load {title.toLowerCase()}.</Copy>}
-          <AppButton onPress={onRetry} variant="secondary">Retry {title.toLowerCase()}</AppButton>
-        </>
-      ) : null}
-      {snapshot ? children(snapshot.data) : null}
-    </Card>
-  );
-}
-
-function PlanDetails({ plan }: { plan: PlayerSubscription }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (plan.status !== "ACTIVE" || !plan.period) return;
-    const end = Date.parse(plan.period.endsAt);
-    if (end <= now) return;
-    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Math.min(end - Date.now(), 86_400_000)));
-    return () => clearTimeout(timer);
-  }, [plan, now]);
-  const expired = plan.status === "EXPIRED" ||
-    (plan.status === "ACTIVE" && !!plan.period && Date.parse(plan.period.endsAt) <= now);
-  const active = plan.status === "ACTIVE" && !expired;
-  const unavailable = plan.status === "UNAVAILABLE";
-  return (
-    <>
-      <StatusBadge label={`${plan.plan.name}: ${active ? "Active" : expired ? "Expired" : unavailable ? "Unavailable" : "Not active"}`} />
-      <Copy>
-        {active ? `Your approved access covers ${plan.plan.profileLimit} player profile.` :
-          expired ? "Your access has ended. Visit your profile for renewal guidance." :
-            unavailable ? "Plan access is unavailable. Visit your profile to review your options." :
-              "Your plan is not active. Visit your profile to review your access."}
-      </Copy>
-      {plan.period ? (
-        <Copy>
-          {expired ? "Access ended " : "Access until "}{new Date(plan.period.endsAt).toLocaleString()}.
-          {" This plan does not renew automatically."}
-        </Copy>
-      ) : null}
-      <Copy>Monthly AI allowance: {plan.plan.monthlyAnalysisLimit} video actions in the Individual Player plan.</Copy>
-      <Copy>
-        AI analysis is not available in this release. Usage, remaining actions and the next allowance reset are unavailable.
-        {" Your access end date is not an allowance reset date."}
-      </Copy>
-    </>
-  );
+  return <Modal transparent animationType="fade" onRequestClose={onClose}>
+    <View style={styles.modalBackdrop}>
+      <View accessibilityViewIsModal style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+        <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+        {children}
+        <AppButton variant="secondary" onPress={onClose}>Close</AppButton>
+      </View>
+    </View>
+  </Modal>;
 }
 
 type Props = {
   profile: DashboardSection<PlayerProfile>;
   subscription: DashboardSection<PlayerSubscription>;
+  overview: DashboardSection<PlayerDashboard>;
   onRefreshProfile: () => void;
   onRefreshSubscription: () => void;
+  onRefreshOverview: () => void;
   onSignOut: () => void;
   signOutError: string | null;
 };
 
 export function DashboardContent({
-  profile, subscription, onRefreshProfile, onRefreshSubscription, onSignOut, signOutError,
+  profile, subscription, overview, onRefreshProfile, onRefreshSubscription, onRefreshOverview, onSignOut, signOutError,
 }: Props) {
   const { colors } = useAppTheme();
-  const accessError = [profile, subscription].find(
+  const [detail, setDetail] = useState<"notifications" | "focus" | null>(null);
+  const [readNotification, setReadNotification] = useState<string | null>(null);
+  const player = snapshot(profile)?.data;
+  const dashboard = snapshot(overview)?.data;
+  const notification = dashboard?.notification;
+  const unread = !!notification && readNotification !== notification;
+  const accessError = [profile, subscription, overview].find(
     (section) => section.status === "error" && section.error instanceof ApiError &&
       (section.error.status === 401 || section.error.status === 403),
   );
   if (accessError?.status === "error") {
     const ended = accessError.error instanceof ApiError && accessError.error.status === 401;
-    return (
-      <>
-        <FeedbackScreen
-          variant="error"
-          title={ended ? "Please sign in again" : "Your access needs a review"}
-          message={getUserFacingErrorMessage(accessError.error)}
-          onRetry={onSignOut}
-          retryLabel={ended ? "Sign in again" : "Return to sign in"}
-        />
-        {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
-      </>
-    );
+    return <>
+      <FeedbackScreen
+        variant="error"
+        title={ended ? "Please sign in again" : "Your access needs a review"}
+        message={getUserFacingErrorMessage(accessError.error)}
+        onRetry={onSignOut}
+        retryLabel={ended ? "Sign in again" : "Return to sign in"}
+      />
+      {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
+    </>;
   }
-  return (
-    <View style={styles.content}>
-      <View style={styles.topBar}>
-        <BrandMark />
-        <Pressable accessibilityRole="button" accessibilityLabel="Open settings" onPress={() => router.navigate("/(app)/settings")} style={[styles.settings, { backgroundColor: colors.secondary }]}>
-          <AppIcon name="settings" color={colors.primary} size={20} />
+  const openPractice = () => router.navigate("/(app)/(tabs)/practice");
+  return <View style={styles.content}>
+    <View style={styles.topBar}>
+      <BrandMark />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={unread ? "Notifications, unread notification" : "Notifications"}
+        onPress={() => { setReadNotification(notification ?? null); setDetail("notifications"); }}
+        style={styles.notifications}
+      >
+        <AppIcon name="bell" color={colors.text} size={25} />
+        {unread ? <View testID="notification-dot" style={styles.notificationDot} /> : null}
+      </Pressable>
+    </View>
+    <View style={styles.greeting}>
+      <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
+        Welcome back,{player ? `\n${player.displayName.split(/\s+/)[0]} \uD83D\uDC4B` : ""}
+      </Text>
+      {profile.status === "loading" ? <Text style={[styles.body, { color: colors.mutedText }]}>Loading your profile...</Text> : null}
+      <Text style={[styles.body, { color: colors.text }]}>Keep practicing. You&apos;re on track{"\n"}to reach the next stage.</Text>
+    </View>
+    <SectionNotice section={profile} label="your player profile" onRetry={onRefreshProfile} />
+    <SectionNotice section={overview} label="your dashboard" onRetry={onRefreshOverview} />
+    <SectionNotice section={subscription} label="your plan" onRetry={onRefreshSubscription} />
+    {dashboard?.source === "DEVELOPMENT_SEED" ? <Text
+      style={[styles.demoLabel, { color: colors.mutedText }]}
+    >Demo data · Sample stage and training focus</Text> : null}
+    <View style={[styles.stageCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <ProgressRing percent={dashboard?.progress?.percent ?? null} />
+      <View style={styles.stageDetails}>
+        <Text style={[styles.stageCaption, { color: colors.mutedText }]}>Current Stage</Text>
+        <Text style={[styles.stageName, { color: colors.text }]}>
+          {overview.status === "loading" ? "Loading your stage..." : dashboard?.progress?.stage ?? "Not yet assessed"}
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="View Roadmap" onPress={() => router.navigate("/(app)/(tabs)/progress")} style={styles.roadmap}>
+          <Text style={[styles.link, { color: colors.primary }]}>View Roadmap</Text>
+          <Text accessible={false} style={[styles.linkArrow, { color: colors.primary }]}>&rarr;</Text>
         </Pressable>
       </View>
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>Your performance</Text>
-      <Copy>Your personal cricket journey, one step at a time.</Copy>
-      <Section title="Your player profile" section={profile} onRetry={onRefreshProfile}>
-        {(player) => (
-          <>
-            <StatusBadge label="Welcome back" />
-            <Text style={[styles.heading, { color: colors.text }]}>{player.displayName}</Text>
-            <Copy>
-              {player.isComplete ? "Your training preferences are saved." :
-                "Start your journey by choosing your cricket disciplines and adding a training goal."}
-            </Copy>
-            <Text style={[styles.label, { color: colors.text }]}>Your current goals</Text>
-            {player.goals.length ? player.goals.map((goal, index) => <Copy key={index}>{goal}</Copy>) :
-              <Copy>No goals added yet. Set a goal in your profile to give your training a focus.</Copy>}
-            <Text style={[styles.label, { color: colors.text }]}>Your disciplines</Text>
-            <View style={styles.disciplineGrid}>{disciplines.map(([value, label]) => (
-              <View key={value} style={[styles.discipline, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <AppIcon name={value === "BATTING" ? "practice" : value === "BOWLING" ? "analyze" : value === "KEEPING" ? "profile" : "practice"} color={colors.primary} size={20} />
-                <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
-                <Copy>{player.primaryDisciplines.includes(value) ? "Selected training focus" : "Not selected as a training focus"}</Copy>
-                <Copy>Stage and progress: coming soon</Copy>
-              </View>
-            ))}</View>
-            <AppButton onPress={() => router.navigate("/(app)/(tabs)/profile")}>
-              {player.isComplete ? "Edit profile and goals" : "Complete your profile"}
-            </AppButton>
-          </>
-        )}
-      </Section>
-      <Card title="Your next step">
-        <Copy>Review your profile and goals today. Guided roadmaps and solo practice are coming soon.</Copy>
-        <AppButton onPress={() => router.navigate("/(app)/(tabs)/profile")}>Review your profile</AppButton>
-      </Card>
-      <Text accessibilityRole="header" style={[styles.heading, { color: colors.text }]}>Quick actions</Text>
-      <View style={styles.quickGrid}>
-        <QuickAction icon="practice" label="Explore practice: Coming soon" onPress={() => router.navigate("/(app)/(tabs)/practice")} />
-        <QuickAction icon="progress" label="View roadmap: Coming soon" onPress={() => router.navigate("/(app)/(tabs)/progress")} />
-        <QuickAction icon="analyze" label="Record or upload: Coming soon" onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
-        <QuickAction icon="progress" label="Analysis history: Coming soon" disabled />
-      </View>
-      <Card title="Practice progress">
-        <Copy>Practice tracking is coming soon. Session totals, training minutes and completion trends are not available yet.</Copy>
-      </Card>
-      <Card title="Recent analysis">
-        <Copy>Video recording, uploads and AI feedback are coming soon. Analysis results and history are not available yet.</Copy>
-      </Card>
-      <Card title="Milestones and certificates">
-        <Copy>Milestones and certificates are coming soon. Keep your goals up to date as you prepare for your next stage.</Copy>
-      </Card>
-      <Section title="Your plan and allowance" section={subscription} onRetry={onRefreshSubscription}>
-        {(plan) => <PlanDetails plan={plan} />}
-      </Section>
-      <AppButton variant="secondary" onPress={() => router.navigate("/(app)/(tabs)/profile")}>Manage profile and plan</AppButton>
     </View>
-  );
+    <View style={styles.focusSection}>
+      <View style={styles.sectionHeader}>
+        <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Today&apos;s Focus</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="See all practice drills" onPress={openPractice} style={styles.seeAll}>
+          <Text style={[styles.link, { color: colors.primary }]}>See all</Text>
+        </Pressable>
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={dashboard?.focus ? `${dashboard.focus.title}, ${dashboard.focus.discipline}, ${dashboard.focus.minutes} minutes` : "Explore practice"}
+        onPress={() => dashboard?.focus ? setDetail("focus") : openPractice()}
+        style={({ pressed }) => [styles.focusCard, {
+          backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1,
+        }]}
+      >
+        {dashboard?.focus ? <Image
+          accessible accessibilityRole="image"
+          accessibilityLabel="Batter practising a front foot drive"
+          source={require("../../../assets/front-foot-drive.png")}
+          style={styles.focusImage}
+        /> : <View style={[styles.focusImage, styles.emptyImage, { backgroundColor: colors.secondary }]}>
+          <AppIcon name="runner" color={colors.primary} size={32} />
+        </View>}
+        <View style={styles.focusText}>
+          <Text style={[styles.focusTitle, { color: colors.text }]}>
+            {overview.status === "loading" ? "Loading your focus..." : dashboard?.focus?.title ?? "Find your training focus"}
+          </Text>
+          <Text style={[styles.focusMeta, { color: colors.mutedText }]}>
+            {dashboard?.focus ? `${dashboard.focus.discipline} \u00B7 ${dashboard.focus.minutes} min` : "Explore practice drills"}
+          </Text>
+        </View>
+        <AppIcon name="arrow" color={colors.text} size={18} />
+      </Pressable>
+    </View>
+    <View style={styles.quickSection}>
+      <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
+      <View style={styles.quickGrid}>
+        <QuickAction icon="video" label={"Record\nVideo"} tone="#F04452" onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
+        <QuickAction icon="drive" label={"Upload\nfrom Drive"} tone={colors.primary} onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
+        <QuickAction icon="runner" label={"Practice\nDrills"} tone={colors.primary} onPress={openPractice} />
+        <QuickAction icon="progress" label={"View\nAnalysis"} tone={colors.blue} onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
+      </View>
+    </View>
+    {detail === "notifications" ? <DetailModal title="Notifications" onClose={() => setDetail(null)}>
+      <Text style={[styles.body, { color: colors.text }]}>{notification ?? "You're all caught up."}</Text>
+      {notification ? <Text style={{ color: colors.mutedText }}>Demo notification</Text> : null}
+    </DetailModal> : null}
+    {detail === "focus" && dashboard?.focus ? <DetailModal title={dashboard.focus.title} onClose={() => setDetail(null)}>
+      <Text style={[styles.body, { color: colors.mutedText }]}>{dashboard.focus.discipline} · {dashboard.focus.minutes} min · Demo data</Text>
+      <Text style={[styles.body, { color: colors.text }]}>{dashboard.focus.description}</Text>
+      <AppButton onPress={() => { setDetail(null); openPractice(); }}>Explore practice</AppButton>
+    </DetailModal> : null}
+  </View>;
 }
 
 export function DashboardScreen() {
   const dashboard = useDashboard();
-  const { signOut, signOutError } = useSession();
+  const { state, signOut, signOutError } = useSession();
   const { colors } = useAppTheme();
-  return (
-    <AppScreen refreshControl={
-      <RefreshControl
-        refreshing={dashboard.refreshing}
-        onRefresh={dashboard.refresh}
-        tintColor={colors.primary}
-        colors={[colors.primary]}
-      />
-    }>
-      <DashboardContent
-        profile={dashboard.profile}
-        subscription={dashboard.subscription}
-        onRefreshProfile={dashboard.refreshProfile}
-        onRefreshSubscription={dashboard.refreshSubscription}
-        onSignOut={() => void signOut()}
-        signOutError={signOutError}
-      />
-    </AppScreen>
-  );
+  return <AppScreen refreshControl={
+    <RefreshControl refreshing={dashboard.refreshing} onRefresh={dashboard.refresh} tintColor={colors.primary} colors={[colors.primary]} />
+  }>
+    <DashboardContent
+      key={state.status === "active" ? state.email : state.status}
+      profile={dashboard.profile}
+      subscription={dashboard.subscription}
+      overview={dashboard.overview}
+      onRefreshProfile={dashboard.refreshProfile}
+      onRefreshSubscription={dashboard.refreshSubscription}
+      onRefreshOverview={dashboard.refreshOverview}
+      onSignOut={() => void signOut()}
+      signOutError={signOutError}
+    />
+  </AppScreen>;
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 16, paddingVertical: 8 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
-  settings: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 28, fontWeight: "800", letterSpacing: -0.8 },
-  heading: { fontSize: 21, fontWeight: "700", letterSpacing: -0.4 },
-  label: { fontSize: 15, fontWeight: "700" },
-  body: { fontSize: 15, lineHeight: 23 },
-  disciplineGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  discipline: { flexBasis: "45%", flexGrow: 1, gap: 6, padding: 12, borderWidth: 1, borderRadius: 12 },
-  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  quickAction: { flexBasis: "45%", flexGrow: 1, gap: 10, padding: 14, borderRadius: 16, borderWidth: 1 },
-  quickIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  quickLabel: { fontSize: 13, fontWeight: "600", lineHeight: 19 },
+  content: { gap: 14, paddingTop: 0, paddingBottom: 4 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  notifications: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  notificationDot: { position: "absolute", top: 7, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: "#F04452" },
+  greeting: { gap: 8 },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: "700", letterSpacing: -0.5 },
+  body: { fontSize: 16, lineHeight: 23 },
+  demoLabel: { fontSize: 11, lineHeight: 15 },
+  stageCard: { flexDirection: "row", alignItems: "center", gap: 16, borderRadius: 15, borderWidth: 1, padding: 14, minHeight: 124 },
+  ring: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
+  ringTrack: { position: "absolute", width: 90, height: 90, borderWidth: 8, borderRadius: 45 },
+  ringSegment: { position: "absolute", width: 3.5, height: 8, borderRadius: 4 },
+  percent: { fontSize: 27, fontWeight: "700", letterSpacing: -0.8 },
+  stageDetails: { flex: 1, gap: 5 },
+  stageCaption: { fontSize: 14 },
+  stageName: { fontSize: 18, fontWeight: "700", lineHeight: 24 },
+  roadmap: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
+  link: { fontSize: 14, fontWeight: "600" },
+  linkArrow: { fontSize: 23 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", lineHeight: 24 },
+  focusSection: { gap: 4 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  seeAll: { minHeight: 44, minWidth: 48, alignItems: "flex-end", justifyContent: "center" },
+  focusCard: { flexDirection: "row", alignItems: "center", gap: 12, padding: 9, borderRadius: 15, borderWidth: 1, minHeight: 94 },
+  focusImage: { width: 82, height: 76, borderRadius: 9 },
+  emptyImage: { alignItems: "center", justifyContent: "center" },
+  focusText: { flex: 1, gap: 6 },
+  focusTitle: { fontSize: 15, fontWeight: "600", lineHeight: 20 },
+  focusMeta: { fontSize: 14, lineHeight: 19 },
+  quickSection: { gap: 10 },
+  quickGrid: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  quickAction: { flex: 1, alignItems: "center", gap: 8, paddingVertical: 11, paddingHorizontal: 2, borderRadius: 14, borderWidth: 1 },
+  quickIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  quickLabel: { fontSize: 12, lineHeight: 16, textAlign: "center" },
+  notice: { gap: 8 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "center", padding: 24 },
+  modalCard: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 24, borderRadius: 20, gap: 16 },
 });

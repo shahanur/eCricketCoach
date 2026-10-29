@@ -1,5 +1,1 @@
-import { TrainingPreviewScreen } from "../../../features/navigation/training-preview-screen";
-
-export default function PracticeScreen() {
-  return <TrainingPreviewScreen feature="practice" />;
-}
+export { PracticeScreen as default } from "../../../features/practice/practice-screen";

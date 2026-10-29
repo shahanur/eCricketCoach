@@ -202,12 +202,61 @@ when a new player needs to register.
 
 ## Performance dashboard boundaries
 
-Home composes the existing typed `GET /api/player/profile` and
-`GET /api/player/subscription` adapters; it never queries club/roster resources
-or supplies a player ID. Goals are the player's saved, unassigned text goals;
-discipline selections are training preferences, not assessed skill stages.
-No progress percentage, training total, trend, milestone or certificate is
-inferred from profile completion.
+Practice uses the supplied photographic two-by-two discipline grid, coloured
+arrow controls and the "Recommended for you" card, with device-controlled
+light/dark appearance and the existing bottom navigation. Discipline taps open
+details and a route to training goals; they do not simulate practice sessions.
+The "Back Foot Defence Drill" artwork/copy is an explicitly labelled local UI
+fixture, shown only in a development build after the authenticated dashboard
+returns `DEVELOPMENT_SEED` for the seeded owner. It does not replace Home's
+server-provided focus, claim a personalised recommendation, or appear as a
+production fallback. Other accounts see an intentional empty state; loading,
+error/retry and rejected access are handled explicitly. The source screenshot
+is only 170 pixels wide, so higher-resolution photos are needed for sharp
+full-size artwork.
+
+Home matches the supplied compact reference: branded header, notification bell,
+personal greeting, stage ring and roadmap link, Today's Focus drill thumbnail,
+four quick actions, and the five existing bottom tabs. It follows the device's
+light/dark appearance. Profile and plan details remain on their dedicated screens.
+All quick actions navigate to protected training screens; video/Drive/AI execution
+remains gated, not simulated by the home screen.
+
+Home composes typed `GET /api/player/profile`, `GET /api/player/subscription`,
+and `GET /api/player/dashboard` adapters; it never queries club/roster resources
+or supplies a player ID. Profile preferences never become measured achievements.
+The dashboard endpoint returns `{dashboard: {source: "NONE", progress: null,
+focus: null, notification: null}}` for players without a development fixture and
+in production. The UI shows "Not yet assessed" and invites the player to explore
+practice rather than manufacturing a percentage.
+
+### Local reference data
+
+The explicitly labelled `DEVELOPMENT_SEED` response provides
+`progress: {percent, stage}`, `focus: {title, discipline, minutes, description}`,
+and a sample `notification`. It is read only in development/test, scoped by
+verified PLAYER session, active individual tenant and owner email. It grants no
+entitlement, quota, completed practice, analysis result or milestone. Opening the
+notification clears its dot for the current home-screen session; it is not a
+production notification inbox. The drill thumbnail is cropped from the supplied
+reference image; a higher-resolution source can replace it.
+
+Apply the additive schema before deploying the endpoint to an existing database:
+[`player-dashboard-schema.sql`](../../../services/platform-api/src/scripts/player-dashboard-schema.sql).
+Then run the idempotent
+[`seed-player-dashboard.sql`](../../../services/platform-api/src/scripts/seed-player-dashboard.sql)
+against the local API database. It requires exactly one existing active individual
+tenant for `shahanur.reza.rony@gmail.com`, seeds only that tenant's demo, and never
+changes approval, billing, profile preferences or other accounts. Both scripts are
+transactional and fail explicitly on invalid prerequisites. For the existing local
+Docker stack, from the repository root in PowerShell:
+
+```powershell
+Get-Content services\platform-api\src\scripts\player-dashboard-schema.sql |
+  docker exec -i ecricketcoach-postgres-1 sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+Get-Content services\platform-api\src\scripts\seed-player-dashboard.sql |
+  docker exec -i ecricketcoach-postgres-1 sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
 
 The monthly video-action limit comes from the plan DTO. It is not a remaining
 balance: the existing contract provides neither usage nor a quota reset date,
@@ -217,11 +266,11 @@ data. Practice, roadmap, analysis/history and awards have explicit unreleased
 states, not empty-result claims or example achievements.
 
 Requests run in parallel on focus and refresh, with no automatic retries.
-Leaving Home cancels both requests. In-memory query keys include the session
+Leaving Home cancels all three requests. In-memory query keys include the session
 email; sign-in/sign-out clears the query cache. Home's profile key has a
 `dashboard` suffix so cancelling Home never cancels the profile editor's
 request. Profile saves update both caches immediately, and returning Home
-revalidates both sections. Cache retention is five minutes after the last observer is removed;
+revalidates all sections. Cache retention is five minutes after the last observer is removed;
 there is no disk persistence. Only network/timeout failures may show a prior
 snapshot, with its fetch timestamp and an out-of-date warning. HTTP and schema
 failures do not use stale fallbacks; 401/403 hides all dashboard content.

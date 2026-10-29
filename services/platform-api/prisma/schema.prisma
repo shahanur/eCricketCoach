@@ -22,6 +22,7 @@ model CustomerTenant {
   joinedAt         String   @map("joined_at")
   developmentPlayerSubscription PlayerDevelopmentSubscription?
   playerProfile    PlayerProfile?
+  dashboardDemo    PlayerDashboardDemo?
 
   @@map("customer_tenants")
 }
@@ -42,6 +43,21 @@ model PlayerProfile {
   tenant             CustomerTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("player_profiles")
+}
+
+model PlayerDashboardDemo {
+  tenantId        String   @id @map("tenant_id")
+  ownerEmail      String   @unique @map("owner_email")
+  progressPercent Int      @map("progress_percent")
+  stage           String
+  focusTitle      String   @map("focus_title")
+  focusDiscipline String   @map("focus_discipline")
+  focusMinutes    Int      @map("focus_minutes")
+  focusDescription String  @map("focus_description")
+  notification    String
+  tenant          CustomerTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("player_dashboard_demos")
 }
 
 model PlayerDevelopmentSubscription {

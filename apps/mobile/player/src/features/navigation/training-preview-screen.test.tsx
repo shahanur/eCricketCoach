@@ -8,17 +8,6 @@ jest.mock("expo-router", () => ({ router: { navigate: jest.fn() } }));
 describe("training screen designs", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("explores four disciplines without pretending practice is released", async () => {
-    const screen = await render(<TrainingPreviewScreen feature="practice" />);
-    for (const discipline of ["Batting", "Bowling", "Keeping", "Fielding"]) {
-      await fireEvent.press(screen.getByRole("button", { name: `Explore ${discipline.toLowerCase()}` }));
-      expect(screen.getByText(`${discipline} practice`)).toBeTruthy();
-    }
-    expect(screen.getByRole("button", { name: "Start practice", disabled: true })).toBeTruthy();
-    await fireEvent.press(screen.getByText("Review training goals"));
-    expect(router.navigate).toHaveBeenCalledWith("/(app)/(tabs)/profile");
-  });
-
   it("switches analysis panels with explicit unavailable states and no invented score", async () => {
     const screen = await render(<TrainingPreviewScreen feature="analyze" />);
     await fireEvent.press(screen.getByRole("tab", { name: "Pose" }));
