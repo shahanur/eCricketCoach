@@ -38,8 +38,10 @@ describe("reference practice screen", () => {
     expect(screen.getByText("Recommended for you")).toBeTruthy();
     expect(screen.getByText("Back Foot Defence Drill")).toBeTruthy();
     expect(screen.getByText("Improve balance and timing")).toBeTruthy();
-    expect(screen.getByText("Demo data")).toBeTruthy();
+    expect(screen.queryByText("Demo data")).toBeNull();
     expect(screen.getByRole("image", { name: "Batter practising back foot defence" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back Foot Defence Drill, Improve balance and timing" }).props.accessibilityHint)
+      .toBe("Sample drill for preview only; this is not a personal assessment.");
     expect(screen.queryByText("Coming soon")).toBeNull();
     expect(screen.queryByText("Make it personal")).toBeNull();
   });

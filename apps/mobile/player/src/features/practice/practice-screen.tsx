@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
 import { ApiError, getUserFacingErrorMessage } from "../../api/api-error";
 import { FeedbackScreen } from "../../components/feedback/feedback-screen";
@@ -24,6 +24,10 @@ export function PracticeContent({ overview, onRetry }: {
   onRetry: () => void;
 }) {
   const { colors } = useAppTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const contentWidth = Math.min(windowWidth, 620) - 40;
+  const tileWidth = (contentWidth - 10) / 2;
+  const tileHeight = tileWidth / 0.87;
   const [detail, setDetail] = useState<{ title: string; description: string } | null>(null);
   // This artwork-only recommendation is an explicit fixture, never a production fallback.
   const showReferenceDrill = __DEV__ && overview.status === "ready" && overview.data.source === "DEVELOPMENT_SEED";
@@ -38,10 +42,12 @@ export function PracticeContent({ overview, onRetry }: {
         accessibilityRole="button"
         accessibilityLabel={`Explore ${title.toLowerCase()}`}
         onPress={() => setDetail({ title: `${title} practice`, description })}
-        style={({ pressed }) => [styles.tile, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
+        style={({ pressed }) => [styles.tile, { width: tileWidth, height: tileHeight, backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 }]}
       >
-        <Image source={image} resizeMode="cover" style={styles.photo} />
-        <View style={styles.photoShade} />
+        <View pointerEvents="none" style={styles.photoContainer}>
+          <Image source={image} resizeMode="cover" style={styles.photo} />
+          <View style={styles.photoShade} />
+        </View>
         <View style={styles.tileFooter}>
           <Text style={styles.tileTitle}>{title}</Text>
           <View style={[styles.arrowCircle, { backgroundColor: color }]}>
@@ -60,6 +66,7 @@ export function PracticeContent({ overview, onRetry }: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back Foot Defence Drill, Improve balance and timing"
+          accessibilityHint="Sample drill for preview only; this is not a personal assessment."
           onPress={() => setDetail({ title: "Back Foot Defence Drill", description: "Improve balance and timing. This is a sample drill, not a personal assessment." })}
           style={({ pressed }) => [styles.drill, { opacity: pressed ? 0.75 : 1 }]}
         >
@@ -73,7 +80,6 @@ export function PracticeContent({ overview, onRetry }: {
           </View>
           <AppIcon name="arrow" color={colors.mutedText} size={20} />
         </Pressable>
-        <Text style={[styles.sample, { color: colors.mutedText }]}>Demo data</Text>
       </> : overview.status === "loading" ? (
         <ActivityIndicator accessibilityLabel="Loading practice recommendations" color={colors.primary} />
       ) : overview.status === "error" ? (
@@ -127,11 +133,12 @@ const styles = StyleSheet.create({
   heading: { gap: 5, marginTop: 16, marginBottom: 8 },
   title: { fontSize: 30, lineHeight: 36, fontWeight: "700" },
   subtitle: { fontSize: 15, lineHeight: 22 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  tile: { flexBasis: "45%", flexGrow: 1, aspectRatio: 0.87, borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  photo: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
+  grid: { width: "100%", flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 10 },
+  tile: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  photoContainer: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 0 },
+  photo: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
   photoShade: { position: "absolute", left: 0, right: 0, bottom: 0, height: 48, backgroundColor: "rgba(0, 0, 0, 0.52)" },
-  tileFooter: { position: "absolute", bottom: 4, left: 10, right: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2 },
+  tileFooter: { position: "absolute", zIndex: 1, bottom: 4, left: 10, right: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 2 },
   tileTitle: { fontSize: 18, fontWeight: "600", color: "#FFFFFF", flexShrink: 1 },
   arrowCircle: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center" },
   arrowShaft: { width: 16, height: 1.8, backgroundColor: "#102A1D", position: "absolute", left: 12 },
@@ -143,7 +150,6 @@ const styles = StyleSheet.create({
   drillCopy: { flex: 1, gap: 6 },
   drillTitle: { fontSize: 15, lineHeight: 21, fontWeight: "600" },
   drillSubtitle: { fontSize: 12, lineHeight: 18 },
-  sample: { fontSize: 11 },
   notice: { gap: 12 },
   body: { fontSize: 15, lineHeight: 23 },
   modalBackdrop: { flex: 1, padding: 24, backgroundColor: "rgba(0, 0, 0, 0.6)", justifyContent: "center", alignItems: "center" },

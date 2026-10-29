@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
 import {
   Alert,
+  BackHandler,
   Pressable,
   StyleSheet,
   Text,
@@ -15,13 +16,13 @@ import { FeedbackScreen } from "../../components/feedback/feedback-screen";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
 import { AppIcon } from "../../components/ui/app-icon";
-import { PlayerCard, StatusBadge } from "../../components/ui/player-card";
-import { ScreenHeading } from "../../components/ui/screen-heading";
 import { OpenWebAppButton } from "../web-app/open-web-app-button";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
 import { useSubscription } from "../subscription/use-subscription";
 import type { SubscriptionState } from "../subscription/use-subscription";
+import { getPlayerDashboard } from "../dashboard/dashboard-api";
+import { ProfileOverview } from "./profile-overview";
 import {
   getPlayerProfile,
   updatePlayerProfile,
@@ -102,6 +103,7 @@ export function ProfileEditor({
   isSaving,
   saveError,
   saveConflict,
+  onClose,
 }: {
   profile: PlayerProfile;
   email: string;
@@ -111,10 +113,12 @@ export function ProfileEditor({
   isSaving: boolean;
   saveError: string | null;
   saveConflict: boolean;
+  onClose?: () => void;
 }) {
   const { colors } = useAppTheme();
   const [draft, setDraft] = useState(() => toDraft(profile));
   const [validationError, setValidationError] = useState<string | null>(null);
+  const saving = useRef(false);
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(profile));
   const completed = draft.primaryDisciplines.length > 0;
 
@@ -131,18 +135,42 @@ export function ProfileEditor({
     updateDraft("primaryDisciplines", next);
   };
 
-  const save = async () => {
+  const save = useCallback(async () => {
+    if (isSaving || saving.current) return false;
     const update = getUpdate(profile, draft);
     if (!update.displayName || update.displayName.length > 80) {
       setValidationError("Enter a player name of up to 80 characters.");
-      return;
+      return false;
     }
     if (update.goals.length > 3 || update.goals.some((goal) => goal.length > 120)) {
       setValidationError("Add up to three goals, with no more than 120 characters each.");
-      return;
+      return false;
     }
-    await onSave(update);
-  };
+    saving.current = true;
+    try {
+      await onSave(update);
+      return true;
+    } catch (error) {
+      setValidationError(getUserFacingErrorMessage(error));
+      return false;
+    } finally {
+      saving.current = false;
+    }
+  }, [draft, profile, isSaving, onSave]);
+
+  const goBack = useCallback(async () => {
+    if (isSaving || saving.current) return;
+    if (!dirty || await save()) onClose?.();
+  }, [dirty, isSaving, save, onClose]);
+
+  useFocusEffect(useCallback(() => {
+    if (!onClose) return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      void goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [goBack, onClose]));
 
   const discard = () => {
     Alert.alert("Discard your changes?", "Your unsaved profile edits will be lost.", [
@@ -160,70 +188,89 @@ export function ProfileEditor({
 
   return (
     <View style={styles.content}>
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
-        Your cricket profile
-      </Text>
-      <Text style={[styles.body, { color: colors.mutedText }]}>
-        Keep your training details up to date. Your account email is managed through your sign-in provider.
-      </Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.label, { color: colors.text }]}>Account email</Text>
+      {onClose ? <View style={styles.editorHeading}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" disabled={isSaving} style={styles.backAction} onPress={() => void goBack()}>
+          <AppIcon name="back" color={colors.text} size={23} />
+        </Pressable>
+        <View style={styles.editorHeadingCopy}>
+          <Text accessibilityRole="header" style={[styles.editorTitle, { color: colors.text }]}>Edit Profile</Text>
+          <Text style={[styles.helper, { color: colors.mutedText }]}>Changes save when you go back.</Text>
+        </View>
+      </View> : null}
+      <View style={[styles.editorCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.sectionHeading}>
+          <AppIcon name="profile" color={colors.primary} size={20} />
+          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Player details</Text>
+        </View>
+        <FieldLabel label="Player name" colors={colors} />
+        <TextInput
+          accessibilityLabel="Player name"
+          autoCapitalize="words"
+          maxLength={80}
+          onChangeText={(value) => updateDraft("displayName", value)}
+          placeholder="Your name"
+          placeholderTextColor={colors.mutedText}
+          style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+          value={draft.displayName}
+        />
+        <Text style={[styles.label, { color: colors.mutedText }]}>Account email</Text>
         <Text accessibilityLabel={`Account email: ${email}`} style={[styles.readOnly, { color: colors.mutedText }]}>
           {email}
         </Text>
       </View>
-      <FieldLabel label="Player name" colors={colors} />
-      <TextInput
-        accessibilityLabel="Player name"
-        autoCapitalize="words"
-        maxLength={80}
-        onChangeText={(value) => updateDraft("displayName", value)}
-        placeholder="Your name"
-        placeholderTextColor={colors.mutedText}
-        style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-        value={draft.displayName}
-      />
-      <OptionGroup
-        label="Your main disciplines"
-        colors={colors}
-        multiple
-        onChange={toggleDiscipline}
-        options={disciplines}
-        selected={draft.primaryDisciplines}
-      />
-      <OptionGroup
-        label="Batting hand"
-        colors={colors}
-        onChange={(value) => updateDraft("battingHandedness", value)}
-        options={handednessOptions}
-        selected={[draft.battingHandedness]}
-      />
-      <OptionGroup
-        label="Bowling style"
-        colors={colors}
-        onChange={(value) => updateDraft("bowlingStyle", value)}
-        options={bowlingOptions}
-        selected={[draft.bowlingStyle]}
-      />
-      <OptionGroup
-        label="Playing experience"
-        colors={colors}
-        onChange={(value) => updateDraft("experienceLevel", value)}
-        options={experienceOptions}
-        selected={[draft.experienceLevel]}
-      />
-      <FieldLabel label="Training goals (up to three)" colors={colors} />
-      <TextInput
-        accessibilityLabel="Training goals, one per line"
-        maxLength={365}
-        multiline
-        onChangeText={(value) => updateDraft("goalsText", value)}
-        placeholder={"For example:\nImprove my front-foot drive"}
-        placeholderTextColor={colors.mutedText}
-        style={[styles.input, styles.goalsInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-        textAlignVertical="top"
-        value={draft.goalsText}
-      />
+      <View style={[styles.editorCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.sectionHeading}>
+          <AppIcon name="practice" color={colors.primary} size={20} />
+          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Your game</Text>
+        </View>
+        <OptionGroup
+          label="Your main disciplines"
+          colors={colors}
+          multiple
+          onChange={toggleDiscipline}
+          options={disciplines}
+          selected={draft.primaryDisciplines}
+        />
+        <OptionGroup
+          label="Batting hand"
+          colors={colors}
+          onChange={(value) => updateDraft("battingHandedness", value)}
+          options={handednessOptions}
+          selected={[draft.battingHandedness]}
+        />
+        <OptionGroup
+          label="Bowling style"
+          colors={colors}
+          onChange={(value) => updateDraft("bowlingStyle", value)}
+          options={bowlingOptions}
+          selected={[draft.bowlingStyle]}
+        />
+        <OptionGroup
+          label="Playing experience"
+          colors={colors}
+          onChange={(value) => updateDraft("experienceLevel", value)}
+          options={experienceOptions}
+          selected={[draft.experienceLevel]}
+        />
+      </View>
+      <View style={[styles.editorCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.sectionHeading}>
+          <AppIcon name="list" color={colors.primary} size={20} />
+          <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Training goals</Text>
+        </View>
+        <Text style={[styles.helper, { color: colors.mutedText }]}>Add up to three goals, one per line. Keep it specific to your game.</Text>
+        <TextInput
+          accessibilityLabel="Training goals, one per line"
+          maxLength={365}
+          multiline
+          onChangeText={(value) => updateDraft("goalsText", value)}
+          placeholder={"For example:\nImprove my front-foot drive"}
+          placeholderTextColor={colors.mutedText}
+          style={[styles.input, styles.goalsInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+          textAlignVertical="top"
+          value={draft.goalsText}
+        />
+      </View>
       <Text style={[styles.helper, { color: colors.mutedText }]}>
         {completed ? "Your profile is complete." : "Choose at least one discipline to complete your profile."}
       </Text>
@@ -273,11 +320,18 @@ function OptionGroup<T extends string>({
               style={[
                 styles.option,
                 {
-                  backgroundColor: checked ? colors.secondary : colors.surface,
+                  backgroundColor: checked ? colors.secondary : colors.background,
                   borderColor: checked ? colors.primary : colors.border,
                 },
               ]}
             >
+              <View style={[styles.selectionMark, {
+                borderColor: checked ? colors.primary : colors.mutedText,
+                borderRadius: multiple ? 4 : 9,
+                backgroundColor: checked ? colors.primary : "transparent",
+              }]}>
+                {checked ? <View style={[styles.selectionDot, { backgroundColor: colors.onPrimary }]} /> : null}
+              </View>
               <Text style={[styles.optionText, { color: colors.text }]}>{option.label}</Text>
             </Pressable>
           );
@@ -352,6 +406,12 @@ export function PlayerProfileScreen() {
     queryFn: ({ signal }) => getPlayerProfile(signal),
     enabled: email.length > 0,
   });
+  const overviewQuery = useQuery({
+    queryKey: ["player-dashboard", email],
+    queryFn: ({ signal }) => getPlayerDashboard(signal),
+    enabled: email.length > 0,
+    retry: false,
+  });
   const updateMutation = useMutation({
     mutationFn: (update: PlayerProfileUpdate) => updatePlayerProfile(update),
     onSuccess: (profile) => {
@@ -360,6 +420,19 @@ export function PlayerProfileScreen() {
     },
   });
 
+  const accessError = [profileQuery.error, overviewQuery.error,
+    subscription.state.status === "error" ? subscription.state.error : null,
+  ].find((error) => error instanceof ApiError && (error.status === 401 || error.status === 403));
+  if (accessError) return <AppScreen>
+    <FeedbackScreen
+      variant="error"
+      title={accessError instanceof ApiError && accessError.status === 401 ? "Please sign in again" : "Your access needs a review"}
+      message={getUserFacingErrorMessage(accessError)}
+      onRetry={() => void signOut()}
+      retryLabel="Sign out"
+    />
+    {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
+  </AppScreen>;
   if (profileQuery.isPending) {
     return <AppScreen>
       <PlanSummary state={subscription.state} onRetry={subscription.retry} onSignOut={() => void signOut()} />
@@ -391,79 +464,54 @@ export function PlayerProfileScreen() {
 
   return (
     <AppScreen>
-      <ScreenHeading title={editing ? "Edit your profile" : "Your profile"} settings />
-      {editing ? <>
-        <AppButton variant="secondary" onPress={() => Alert.alert(
-          "Close profile editor?",
-          "Make sure you've saved any changes you want to keep.",
-          [{ text: "Keep editing", style: "cancel" }, { text: "Close editor", onPress: () => setEditing(false) }],
-        )}>Back to profile</AppButton>
-        <ProfileEditor
-        key={`${email}-${profileQuery.data.version}`}
+      {editing ? <ProfileEditor
+          key={`${email}-${profileQuery.data.version}`}
+          profile={profileQuery.data}
+          email={email}
+          onSave={async (update) => { await updateMutation.mutateAsync(update); }}
+          onRefresh={() => void profileQuery.refetch()}
+          onEdit={() => updateMutation.reset()}
+          onClose={() => setEditing(false)}
+          isSaving={updateMutation.isPending}
+          saveError={saveError}
+          saveConflict={updateMutation.error instanceof ApiError && updateMutation.error.code === "PROFILE_VERSION_CONFLICT"}
+        />
+      : <ProfileOverview
         profile={profileQuery.data}
-        email={email}
-        onSave={async (update) => { await updateMutation.mutateAsync(update); }}
-        onRefresh={() => void profileQuery.refetch()}
-        onEdit={() => updateMutation.reset()}
-        isSaving={updateMutation.isPending}
-        saveError={saveError}
-        saveConflict={updateMutation.error instanceof ApiError && updateMutation.error.code === "PROFILE_VERSION_CONFLICT"}
-      />
-      </> : <>
-        <View style={styles.identity}>
-          <View style={[styles.avatar, { backgroundColor: colors.secondary, borderColor: colors.primary }]}>
-            <AppIcon name="profile" color={colors.primary} size={44} />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>{profileQuery.data.displayName}</Text>
-          <StatusBadge label="Individual Player" />
-          <Text style={[styles.helper, { color: colors.mutedText }]}>{email}</Text>
-        </View>
-        <PlayerCard title="Your training focus">
-          <Text style={[styles.body, { color: colors.mutedText }]}>
-            {profileQuery.data.primaryDisciplines.length
-              ? disciplines.filter(({ value }) => profileQuery.data.primaryDisciplines.includes(value)).map(({ label }) => label).join(" / ")
-              : "Choose your disciplines to start shaping your journey."}
-          </Text>
-          <Text style={[styles.helper, { color: colors.mutedText }]}>Training preferences, not an assessed skill stage.</Text>
-        </PlayerCard>
-        <PlayerCard title="Your goals">
-          {profileQuery.data.goals.length ? profileQuery.data.goals.map((goal, index) => (
-            <View key={index} style={styles.goalRow}>
-              <View style={[styles.goalDot, { backgroundColor: colors.primary }]} />
-              <Text style={[styles.goal, { color: colors.text }]}>{goal}</Text>
-            </View>
-          )) : <Text style={[styles.body, { color: colors.mutedText }]}>Add a personal goal to give your training a focus.</Text>}
-        </PlayerCard>
-        <AppButton onPress={() => setEditing(true)}>{profileQuery.data.isComplete ? "Edit profile" : "Complete your profile"}</AppButton>
-        <AppButton variant="secondary" onPress={() => router.navigate("/(app)/(tabs)/progress")}>View your roadmap</AppButton>
-      </>}
-      <PlanSummary state={subscription.state} onRetry={subscription.retry} onSignOut={() => void signOut()} />
-      <AppButton variant="secondary" onPress={() => router.navigate("/(app)/subscription")}>Subscription details</AppButton>
+        overview={overviewQuery.isError
+          ? { status: "error", error: overviewQuery.error }
+          : overviewQuery.data
+            ? { status: "ready", data: overviewQuery.data, updatedAt: overviewQuery.dataUpdatedAt }
+            : { status: "loading" }}
+        onEdit={() => setEditing(true)}
+        onRetry={() => void overviewQuery.refetch()}
+      />}
       {signOutError ? <Text accessibilityRole="alert" style={{ color: colors.error }}>{signOutError}</Text> : null}
-      <AppButton onPress={() => void signOut()} variant="secondary">Sign out</AppButton>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, gap: 14, paddingVertical: 8 },
-  title: { fontSize: 28, fontWeight: "800" },
-  body: { fontSize: 16, lineHeight: 24 },
+  content: { gap: 14, paddingBottom: 8 },
+  editorHeading: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 4 },
+  backAction: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  editorHeadingCopy: { flex: 1, gap: 2 },
+  editorTitle: { fontSize: 23, lineHeight: 29, fontWeight: "700" },
+  editorCard: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12 },
+  sectionHeading: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  sectionTitle: { fontSize: 16, fontWeight: "700" },
   card: { borderWidth: 1, borderRadius: 14, gap: 8, padding: 16 },
-  label: { fontSize: 15, fontWeight: "700" },
+  label: { fontSize: 13, fontWeight: "600" },
   planStatus: { fontSize: 17, fontWeight: "700" },
-  readOnly: { fontSize: 16, lineHeight: 24 },
-  input: { borderRadius: 12, borderWidth: 1, fontSize: 16, minHeight: 48, paddingHorizontal: 14, paddingVertical: 12 },
-  goalsInput: { minHeight: 110 },
+  readOnly: { fontSize: 13, lineHeight: 19 },
+  input: { borderRadius: 10, borderWidth: 1, fontSize: 14, minHeight: 46, paddingHorizontal: 12, paddingVertical: 10 },
+  goalsInput: { minHeight: 96 },
   group: { gap: 10 },
   options: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  option: { borderRadius: 18, borderWidth: 1, minHeight: 44, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8 },
-  optionText: { fontSize: 14, fontWeight: "600" },
-  helper: { fontSize: 14, lineHeight: 20 },
+  option: { width: "48%", borderRadius: 10, borderWidth: 1, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 10, paddingVertical: 8 },
+  optionText: { fontSize: 12, fontWeight: "500", flexShrink: 1 },
+  selectionMark: { width: 16, height: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  selectionDot: { width: 6, height: 6, borderRadius: 3 },
+  helper: { fontSize: 12, lineHeight: 18 },
   error: { fontSize: 14, lineHeight: 20 },
-  identity: { alignItems: "center", gap: 10, paddingVertical: 16 },
-  avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: "center", justifyContent: "center", marginBottom: 4 },
-  goalRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  goalDot: { height: 7, width: 7, borderRadius: 4 },
-  goal: { fontSize: 15, lineHeight: 22, flex: 1 },
 });

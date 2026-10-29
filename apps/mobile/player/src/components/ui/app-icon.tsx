@@ -1,11 +1,32 @@
 import { View, type ViewStyle } from "react-native";
 
-export type AppIconName = "home" | "practice" | "analyze" | "progress" | "profile" | "settings" | "arrow" | "back" | "award" | "bell" | "video" | "drive" | "runner" | "bulb";
+export type AppIconName = "home" | "practice" | "analyze" | "progress" | "profile" | "settings" | "arrow" | "back" | "award" | "bell" | "video" | "drive" | "runner" | "bulb" | "camera" | "crown" | "trophy" | "list";
 
 export function AppIcon({ name, color, size = 24 }: { name: AppIconName; color: ViewStyle["borderColor"]; size?: number }) {
   const line = { borderColor: color, borderWidth: 1.8 };
   return (
     <View accessible={false} importantForAccessibility="no-hide-descendants" style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      {name === "camera" ? <>
+        <View style={[line, { width: size * 0.85, height: size * 0.6, borderRadius: 3 }]} />
+        <View style={[line, { position: "absolute", width: size * 0.3, height: size * 0.3, borderRadius: size }]} />
+        <View style={{ position: "absolute", top: size * 0.09, width: size * 0.35, height: size * 0.16, backgroundColor: color, borderRadius: 1 }} />
+      </> : null}
+      {name === "list" ? <View style={{ gap: size * 0.17 }}>
+        {[0, 1, 2].map((row) => <View key={row} style={{ flexDirection: "row", alignItems: "center", gap: size * 0.15 }}>
+          <View style={{ width: size * 0.12, height: size * 0.12, borderRadius: size, backgroundColor: color }} />
+          <View style={{ width: size * 0.48, height: 2, borderRadius: 1, backgroundColor: color }} />
+        </View>)}
+      </View> : null}
+      {name === "crown" ? <>
+        <View style={{ position: "absolute", bottom: size * 0.18, width: size * 0.7, height: size * 0.33, backgroundColor: color, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }} />
+        {[-1, 0, 1].map((point) => <View key={point} style={{ position: "absolute", left: size * (0.13 + (point + 1) * 0.26), top: size * (point === 0 ? 0.08 : 0.2), width: size * 0.22, height: size * 0.45, backgroundColor: color, transform: [{ rotate: `${point * 18}deg` }] }} />)}
+      </> : null}
+      {name === "trophy" ? <>
+        <View style={[line, { position: "absolute", top: size * 0.15, width: size * 0.87, height: size * 0.36, borderBottomLeftRadius: size, borderBottomRightRadius: size }]} />
+        <View style={{ position: "absolute", top: size * 0.07, width: size * 0.5, height: size * 0.53, borderBottomLeftRadius: size, borderBottomRightRadius: size, backgroundColor: color }} />
+        <View style={{ position: "absolute", bottom: size * 0.16, width: size * 0.12, height: size * 0.3, backgroundColor: color }} />
+        <View style={{ position: "absolute", bottom: size * 0.09, width: size * 0.45, height: size * 0.08, borderRadius: 2, backgroundColor: color }} />
+      </> : null}
       {name === "bulb" ? <>
         <View style={{ width: size * 0.48, height: size * 0.55, borderRadius: size, backgroundColor: color, position: "absolute", top: size * 0.12 }} />
         <View style={{ width: size * 0.22, height: size * 0.17, borderRadius: 2, backgroundColor: color, position: "absolute", top: size * 0.62 }} />

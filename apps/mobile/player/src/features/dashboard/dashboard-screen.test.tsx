@@ -43,7 +43,7 @@ function content(overrides: Partial<Parameters<typeof DashboardContent>[0]> = {}
 describe("reference player home", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it("includes the reference greeting, stage, focus, notification and all four quick actions", async () => {
+  it("includes the greeting, stage, focus and notification without quick actions", async () => {
     const screen = await render(content());
     expect(screen.getByText("Welcome back,\nAsha \uD83D\uDC4B")).toBeTruthy();
     expect(screen.getByText("Keep practicing. You're on track\nto reach the next stage.")).toBeTruthy();
@@ -58,8 +58,9 @@ describe("reference player home", () => {
     expect(screen.getByText(/Demo data/)).toBeTruthy();
     expect(screen.getByTestId("notification-dot")).toBeTruthy();
     for (const label of ["Record Video", "Upload from Drive", "Practice Drills", "View Analysis"]) {
-      expect(screen.getByRole("button", { name: label })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
     }
+    expect(screen.queryByText("Quick Actions")).toBeNull();
     expect(screen.queryByText("Your performance")).toBeNull();
     expect(screen.queryByText(/Monthly AI allowance/)).toBeNull();
   });
@@ -68,13 +69,11 @@ describe("reference player home", () => {
     const screen = await render(content());
     for (const [label, route] of [
       ["View Roadmap", "progress"], ["See all practice drills", "practice"],
-      ["Record Video", "analyze"], ["Upload from Drive", "analyze"],
-      ["Practice Drills", "practice"], ["View Analysis", "analyze"],
     ]) {
       await fireEvent.press(screen.getByRole("button", { name: label }));
       expect(router.navigate).toHaveBeenLastCalledWith(`/(app)/(tabs)/${route}`);
     }
-    expect(router.navigate).toHaveBeenCalledTimes(6);
+    expect(router.navigate).toHaveBeenCalledTimes(2);
   });
 
   it("opens focus details without claiming a completed practice session", async () => {

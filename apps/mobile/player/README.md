@@ -6,6 +6,27 @@ not import the club Android app or backend code. This foundation uses Expo SDK
 storage is only a credential store; a locally stored token never proves that
 the player is approved or entitled.
 
+## Player profile
+
+The Profile tab shows the player identity, current stage, a two-by-two Quick
+Stats grid, and Edit Profile. The settings gear opens account, subscription,
+and sign-out controls. Edit Profile retains the existing validated editor,
+training preferences, goals, and save-conflict handling. The avatar badge also
+opens this editor; photo upload is not available in this release.
+The editor uses separate Player details, Your game, and Training goals cards,
+with compact selection controls. The back arrow and Android Back save changed,
+valid details before closing without a confirmation popup. Invalid details or
+failed saves keep the editor open with an inline error; unchanged profiles close
+without a save request. Membership and
+sign-out actions stay in Settings rather than beneath the editing form.
+
+The reference portrait and example stats (22 videos, 78 technique score,
+12 drills, 3 certificates) are artwork fixtures shown only in development when
+the authenticated dashboard explicitly returns `DEVELOPMENT_SEED`. They are
+not measured results. Other accounts and release builds show an unassessed
+stage, a generic avatar, and unavailable values until measured profile-stat
+contracts exist. Loading and failed dashboard requests are displayed explicitly.
+
 ## Prerequisites
 
 - Node.js supported by the selected Expo SDK and npm

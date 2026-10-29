@@ -7,7 +7,7 @@ import { BrandMark } from "../../components/brand/brand-mark";
 import { FeedbackScreen } from "../../components/feedback/feedback-screen";
 import { AppScreen } from "../../components/layout/app-screen";
 import { AppButton } from "../../components/ui/app-button";
-import { AppIcon, type AppIconName } from "../../components/ui/app-icon";
+import { AppIcon } from "../../components/ui/app-icon";
 import { useSession } from "../../session/session-context";
 import { useAppTheme } from "../../theme/use-app-theme";
 import type { PlayerProfile } from "../profile/player-profile-api";
@@ -49,25 +49,6 @@ function ProgressRing({ percent }: { percent: number | null }) {
     ]} />)}
     <Text style={[styles.percent, { color: colors.text }]}>{percent === null ? "\u2014" : `${percent}%`}</Text>
   </View>;
-}
-
-function QuickAction({ label, icon, tone, onPress }: {
-  label: string; icon: AppIconName; tone: string; onPress: () => void;
-}) {
-  const { colors } = useAppTheme();
-  return <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label.replace("\n", " ")}
-    onPress={onPress}
-    style={({ pressed }) => [styles.quickAction, {
-      backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1,
-    }]}
-  >
-    <View style={[styles.quickIcon, { backgroundColor: colors.secondary }]}>
-      <AppIcon name={icon} color={tone} size={29} />
-    </View>
-    <Text style={[styles.quickLabel, { color: colors.text }]}>{label}</Text>
-  </Pressable>;
 }
 
 function DetailModal({ title, children, onClose }: {
@@ -197,15 +178,6 @@ export function DashboardContent({
         <AppIcon name="arrow" color={colors.text} size={18} />
       </Pressable>
     </View>
-    <View style={styles.quickSection}>
-      <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
-      <View style={styles.quickGrid}>
-        <QuickAction icon="video" label={"Record\nVideo"} tone="#F04452" onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
-        <QuickAction icon="drive" label={"Upload\nfrom Drive"} tone={colors.primary} onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
-        <QuickAction icon="runner" label={"Practice\nDrills"} tone={colors.primary} onPress={openPractice} />
-        <QuickAction icon="progress" label={"View\nAnalysis"} tone={colors.blue} onPress={() => router.navigate("/(app)/(tabs)/analyze")} />
-      </View>
-    </View>
     {detail === "notifications" ? <DetailModal title="Notifications" onClose={() => setDetail(null)}>
       <Text style={[styles.body, { color: colors.text }]}>{notification ?? "You're all caught up."}</Text>
       {notification ? <Text style={{ color: colors.mutedText }}>Demo notification</Text> : null}
@@ -269,11 +241,6 @@ const styles = StyleSheet.create({
   focusText: { flex: 1, gap: 6 },
   focusTitle: { fontSize: 15, fontWeight: "600", lineHeight: 20 },
   focusMeta: { fontSize: 14, lineHeight: 19 },
-  quickSection: { gap: 10 },
-  quickGrid: { flexDirection: "row", gap: 8, alignItems: "stretch" },
-  quickAction: { flex: 1, alignItems: "center", gap: 8, paddingVertical: 11, paddingHorizontal: 2, borderRadius: 14, borderWidth: 1 },
-  quickIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center" },
-  quickLabel: { fontSize: 12, lineHeight: 16, textAlign: "center" },
   notice: { gap: 8 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "center", padding: 24 },
   modalCard: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 24, borderRadius: 20, gap: 16 },
