@@ -7,6 +7,7 @@ type AppButtonProps = PropsWithChildren<{
   onPress?: () => void;
   variant?: "primary" | "secondary";
   disabled?: boolean;
+  tone?: "default" | "plan";
 }>;
 
 export function AppButton({
@@ -14,8 +15,9 @@ export function AppButton({
   onPress,
   variant = "primary",
   disabled = false,
+  tone = "default",
 }: AppButtonProps) {
-  const { colors } = useAppTheme();
+  const { colors } = useAppTheme(tone);
   const isPrimary = variant === "primary";
 
   return (
@@ -29,6 +31,7 @@ export function AppButton({
         {
           backgroundColor: isPrimary ? colors.accent : colors.surface,
           borderColor: isPrimary ? colors.accent : colors.border,
+          borderRadius: tone === "plan" ? 24 : 12,
           opacity: pressed ? 0.78 : disabled ? 0.5 : 1,
         },
       ]}

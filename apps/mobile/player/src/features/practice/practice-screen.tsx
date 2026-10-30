@@ -36,7 +36,7 @@ export function PracticeContent({ overview, onRetry }: {
       <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>Practice</Text>
       <Text style={[styles.subtitle, { color: colors.text }]}>Choose a discipline to start your session.</Text>
     </View>
-    <AppButton variant="secondary" onPress={() => router.navigate("/(app)/(tabs)/progress")}>Your personal training path</AppButton>
+    <AppButton variant="secondary" onPress={() => router.navigate("/(app)/(tabs)/progress")}>Your journey & provisional practice</AppButton>
     <View style={styles.grid}>
       {disciplines.map(({ title, image, color, detail: description }) => <Pressable
         key={title}

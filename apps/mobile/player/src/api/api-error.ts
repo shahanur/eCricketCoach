@@ -33,6 +33,7 @@ export function getUserFacingErrorMessage(error: unknown): string {
     case "timeout":
       return "This is taking longer than expected. Please try again.";
     case "http":
+      if (error.code === "ROADMAP_VIDEO_BASELINE_REQUIRED") return "Your personal roadmap needs a verified video baseline. Video analysis is not available yet; provisional practice is still available.";
       if (error.code === "ROADMAP_CONTENT_UNAVAILABLE") return "Solo training drills are not available yet. Please try again later.";
       if (error.code === "ROADMAP_AI_UNAVAILABLE") return "We couldn't prepare your training path. Please try again in a few minutes.";
       if (error.code === "INVALID_ROADMAP_AI") return "We couldn't prepare a reliable training path. Please try again.";

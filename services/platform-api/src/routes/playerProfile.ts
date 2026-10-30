@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { AuthenticatedRequest, AuthenticatedUser } from '../middleware/auth.js';
 import { getPlayerProfile, PlayerProfileError, updatePlayerProfile } from '../services/playerProfile.js';
 import { getPlayerDashboard } from '../services/playerDashboard.js';
-import { getPlayerRoadmap, saveRoadmapAnswers, generatePlayerRoadmap, completeRoadmapDrill } from '../services/playerRoadmap.js';
+import { getPlayerRoadmap, saveRoadmapAnswers, generatePlayerRoadmap, generateProvisionalPractice, completeRoadmapDrill } from '../services/playerRoadmap.js';
 import { PlayerSubscriptionError } from '../services/playerDevelopmentSubscription.js';
 
 export const playerProfileRouter = Router();
@@ -68,6 +68,7 @@ playerProfileRouter.get('/roadmap', async (req: AuthenticatedRequest, res: Respo
 for (const [path, action] of [
   ['/roadmap/answers', saveRoadmapAnswers],
   ['/roadmap/generate', generatePlayerRoadmap],
+  ['/roadmap/provisional/generate', generateProvisionalPractice],
   ['/roadmap/practice', completeRoadmapDrill],
 ] as const) {
   playerProfileRouter.post(path, async (req: AuthenticatedRequest, res: Response) => {

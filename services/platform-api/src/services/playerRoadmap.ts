@@ -53,6 +53,14 @@ export async function getPlayerRoadmap(user: AuthenticatedUser, client: PrismaCl
     answers: data.state?.answers ?? {},
     stage: 'UNASSESSED' as const,
     baseline: 'SELF_REPORTED' as const,
+    planKind: 'PROVISIONAL_PRACTICE' as const,
+    journey: {
+      nextStep: profile.primaryDisciplines.length && profile.experienceLevel !== 'NOT_SET' && profile.goals.length
+        ? 'VIDEO_BASELINE' as const : 'COMPLETE_PROFILE' as const,
+      videoBaseline: 'UNAVAILABLE' as const,
+      personalRoadmap: 'BLOCKED_PENDING_VERIFIED_VIDEO' as const,
+      progressReview: 'UNAVAILABLE' as const,
+    },
     milestoneEligibility: 'BLOCKED_PENDING_VERIFIED_VIDEO_AND_APPROVED_RUBRIC' as const,
     policyVersion: roadmapPolicyVersion,
     generating: !!data.state?.generatingKey && !!data.state.generationStartedAt &&
@@ -89,6 +97,17 @@ export async function saveRoadmapAnswers(user: AuthenticatedUser, value: unknown
 }
 
 export async function generatePlayerRoadmap(
+  user: AuthenticatedUser, value: unknown, client: PrismaClient = prisma,
+) {
+  const input = objectInput(value, ['version', 'requestId']);
+  versionInput(input.version);
+  textInput(input.requestId, 100);
+  await owner(user, client);
+  roadmapError(409, 'ROADMAP_VIDEO_BASELINE_REQUIRED',
+    'A verified video baseline is required for your personal roadmap. Player video analysis is not available yet; provisional practice remains available.');
+}
+
+export async function generateProvisionalPractice(
   user: AuthenticatedUser, value: unknown, client: PrismaClient = prisma, ai: RoadmapAi = generateRoadmapAi,
 ) {
   const input = objectInput(value, ['version', 'requestId']);
@@ -135,7 +154,7 @@ export async function generatePlayerRoadmap(
       })),
       ...practice.map(entry => ({ ...entry, source: 'SELF_REPORTED' })),
     ];
-    const result = await ai(`You are preparing a private cricket development roadmap.
+    const result = await ai(`You are preparing provisional cricket practice suggestions, not a personal development roadmap.
 Return a JSON array with exactly one entry per discipline: BATTING, BOWLING, KEEPING, FIELDING.
 Each entry must contain only {discipline, objective, proposedStage: string|null, evidence: string[], drills: [{drillId, reason}]}.
 Reference only supplied evidence IDs and 0-3 matching catalogue drill IDs per discipline.
@@ -168,7 +187,7 @@ Catalogue: ${JSON.stringify(catalogue)}`);
             evidence, recommendations: recommendations.map(row => ({
               ...row, drills: row.drills.map(drill => ({ ...catalogue.find(entry => entry.id === drill.drillId)!, reason: drill.reason })),
             })),
-            stage: 'UNASSESSED', baseline: 'SELF_REPORTED',
+            stage: 'UNASSESSED', baseline: 'SELF_REPORTED', planKind: 'PROVISIONAL_PRACTICE',
           }),
         },
       });

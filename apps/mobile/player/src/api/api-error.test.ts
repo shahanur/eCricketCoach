@@ -12,6 +12,7 @@ describe("getUserFacingErrorMessage", () => {
   });
 
   it.each([
+    [new ApiError("private diagnostic", "http", 409, "ROADMAP_VIDEO_BASELINE_REQUIRED"), /verified video baseline/],
     [new ApiError("private diagnostic", "http", 503, "ROADMAP_CONTENT_UNAVAILABLE"), /Solo training drills/],
     [new ApiError("private diagnostic", "http", 503, "ROADMAP_AI_UNAVAILABLE"), /prepare your training path/],
     [new ApiError("private diagnostic", "http", 502, "INVALID_ROADMAP_AI"), /reliable training path/],

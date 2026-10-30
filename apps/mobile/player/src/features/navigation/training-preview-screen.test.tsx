@@ -7,6 +7,8 @@ describe("training screen designs", () => {
 
   it("switches analysis panels with explicit unavailable states and no invented score", async () => {
     const screen = await render(<TrainingPreviewScreen feature="analyze" />);
+    expect(screen.getByText("Baseline first, progress reviews next")).toBeTruthy();
+    expect(screen.getByText(/Player video upload, analysis and comparison are not available yet/)).toBeTruthy();
     await fireEvent.press(screen.getByRole("tab", { name: "Pose" }));
     expect(screen.getByRole("tab", { name: "Pose", selected: true })).toBeTruthy();
     expect(screen.getByText("Understand your movement")).toBeTruthy();

@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { useAppTheme } from "../../theme/use-app-theme";
 
-export function PlayerCard({ title, children }: PropsWithChildren<{ title?: string }>) {
-  const { colors } = useAppTheme();
+export function PlayerCard({ title, children, tone = "default" }: PropsWithChildren<{ title?: string; tone?: "default" | "plan" }>) {
+  const { colors } = useAppTheme(tone);
   return <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
     {title ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
     {children}

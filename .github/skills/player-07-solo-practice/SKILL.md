@@ -1,11 +1,13 @@
 ---
 name: player-07-solo-practice
-description: "Implement self-guided drills, solo practice sessions and evidence-based progress logging."
+description: "Implement player self-practice, retain self-reported history, and connect only verified video evidence to assessed progress."
 disable-model-invocation: true
 ---
 Implement solo practice and self-guided technical drills.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), and [delivery guide](../../docs/features/individual-player/README.md). Prerequisite: 06, verified catalogue access and solo-practice persistence.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), and [delivery guide](../../../docs/features/individual-player/README.md). Prerequisite: 06, verified catalogue access and solo-practice persistence.
+
+Follow the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md). Practice logs and Q&A remain self-reported: retain them as history and provisional practice context, but never treat them as a verified baseline, measured skill progress, or certificate evidence. Re-review this boundary whenever practice completion or progress summaries change.
 
 - Reuse the shared drill/training-template catalogue through the central API client. Confirm individual-player read access rather than assuming coach/club routes are usable.
 - Build discovery/filtering by discipline, level and relevant equipment; show instructions, demonstrations where licensed/available, duration/repetitions, safety guidance and roadmap relevance.

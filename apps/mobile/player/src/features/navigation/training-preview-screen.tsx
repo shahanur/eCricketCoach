@@ -196,6 +196,10 @@ export function TrainingPreviewScreen({ feature }: { feature: "analyze" | "progr
       />
       <>
         <CricketArt compact />
+        <PlayerCard title="Baseline first, progress reviews next">
+          <Text style={[styles.body, { color: colors.mutedText }]}>After completing your profile, record or upload a cricket video for your baseline. Verified strengths and areas to improve will inform your personal roadmap. After practice, a progress video will be compared with that baseline before goals or stages can advance.</Text>
+          <Text style={[styles.body, { color: colors.mutedText }]}>Player video upload, analysis and comparison are not available yet. Check-ins and logged drills are provisional practice, not verified video evidence. No goal achievement, stage advancement or certificate is awarded from practice logs.</Text>
+        </PlayerCard>
         <ChoiceTabs options={options} selected={selected} onSelect={setSelected} />
         <PlayerCard title={section.heading}>
           <View style={[styles.featureIcon, { backgroundColor: colors.secondary }]}>

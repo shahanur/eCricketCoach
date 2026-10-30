@@ -1,11 +1,13 @@
 ---
 name: player-10-analysis-upload
-description: "Implement owner-safe device uploads, analysis job lifecycle, progress and quota-aware retries."
+description: "Implement owner-safe video uploads and completed analysis results for the player's baseline and later progress comparison."
 disable-model-invocation: true
 ---
 Implement video upload and asynchronous AI analysis.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), [delivery guide](../../docs/features/individual-player/README.md), and relevant [video API documentation](../../docs/video-analysis-api.md). Prerequisites: 03, 04, 08 and agreed owner-safe analysis contracts.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), [delivery guide](../../../docs/features/individual-player/README.md), and relevant [video API documentation](../../../docs/video-analysis-api.md). Prerequisites: 03, 04, 08 and agreed owner-safe analysis contracts.
+
+Follow the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md). Only completed, verified, owner-scoped video results can supply baseline or later-comparison evidence; upload, pending, failed, anonymous, or Q&A-only paths cannot. Baseline/comparison APIs and rubrics are not implemented: keep dependent claims unavailable until implemented and tested, without mock results or a human-coach fallback. Re-review result lifecycle and ownership whenever baseline/progress contracts change.
 
 - Accept a captured draft or explicitly selected existing clip. Validate supported type/codec/size/duration against server limits; the current general upload route has a 500 MB limit, which is not permission to assume every engine accepts every file.
 - Use the central client with typed upload/analysis DTOs, cancellation, progress and explicit server errors. Keep analysis/AI keys server-side; do not call AI vendors directly.

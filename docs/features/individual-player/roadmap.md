@@ -1,8 +1,15 @@
 # Personalized development roadmap
 
-## Approved scope — 2026-10-29
+## Approved scope
 
-- Server-side AI recommends a four-discipline training path from profile goals,
+The [approved player journey](./README.md#approved-player-journey) supersedes the
+earlier Q&A-first roadmap terminology. A **personal roadmap requires a verified
+video baseline**. Player baseline ingestion/quality acceptance and baseline-to-review
+comparison contracts are not implemented yet, so personal roadmap generation is
+explicitly blocked on the server. No client flag or club analysis establishes a
+baseline. Pending/failed analysis must never qualify.
+
+- Server-side AI recommends four-discipline **provisional practice** from profile goals,
   preferences, player Q&A and completed self-practice.
 - Q&A and practice are explicitly self-reported, not verified skill measurements.
 - The authoritative baseline/stage is **unassessed**. AI may suggest a provisional
@@ -23,7 +30,8 @@ separate prerequisite. Responses are private (`Cache-Control: no-store`).
 |---|---|---|
 | `GET /roadmap` | No player/tenant ID | `{roadmap}` |
 | `POST /roadmap/answers` | `{version, answers}` | `{roadmap}` with incremented evidence version |
-| `POST /roadmap/generate` | `{version, requestId}` | `{roadmap}` with a new immutable AI revision |
+| `POST /roadmap/generate` | `{version, requestId}` | `409 ROADMAP_VIDEO_BASELINE_REQUIRED`; no AI call or revision |
+| `POST /roadmap/provisional/generate` | `{version, requestId}` | `{roadmap}` with an immutable provisional-practice AI revision |
 | `POST /roadmap/practice` | `{requestId, revisionId, drillId, minutes, reflection}` | `{roadmap}` with persisted completion evidence |
 
 `answers` contains exactly `BATTING`, `BOWLING`, `KEEPING`, `FIELDING`. Each value
@@ -36,6 +44,18 @@ The roadmap response includes `version`, `profileVersion`, `goals`,
 `baseline: "SELF_REPORTED"`, `policyVersion`, `generating`,
 `needsReassessment`, `revisions` and `practice`. `milestoneEligibility` is
 `BLOCKED_PENDING_VERIFIED_VIDEO_AND_APPROVED_RUBRIC`.
+
+The response also includes `planKind: "PROVISIONAL_PRACTICE"` and
+`journey: {nextStep: "COMPLETE_PROFILE" | "VIDEO_BASELINE",
+videoBaseline: "UNAVAILABLE", personalRoadmap: "BLOCKED_PENDING_VERIFIED_VIDEO",
+progressReview: "UNAVAILABLE"}`. Next step is derived from the owned profile's
+disciplines, experience choice and goals, never a demo stage. These availability
+values deliberately describe missing contracts, not assumed analysis results.
+Clients must upgrade with the API: `/generate` no longer creates Q&A-only paths;
+explicit provisional generation uses `/provisional/generate`. Other GET, answers
+and practice routes retain their payloads. Extra verification/media flags are
+rejected. Existing snapshots remain intact and are presented as provisional
+practice; new snapshots also store `planKind`. No schema migration is required.
 
 Each revision contains its ID, timestamps, profile/evidence versions and a
 snapshot with provider/model attribution, policy version, input evidence,
@@ -116,25 +136,32 @@ access or anonymous analysis behavior were changed.
 
 ## Mobile experience
 
-The Progress tab and existing View Roadmap links open the real roadmap instead of
-the sample progress dashboard. Practice links to the same personal training path.
-Players can update Q&A, prepare/reassess a path, read full drill instructions,
+The Progress tab and existing View Roadmap links open the baseline gate and
+provisional practice instead of sample progress charts. Practice links to the
+same journey. Personal roadmap creation remains unavailable pending video support.
+Players can update Q&A, prepare/refresh provisional practice, read full drill instructions,
 record practice/reflection, and view earlier revisions and evidence. Loading,
 empty, unavailable, retry, expired-session and forbidden states are explicit.
 Network errors never substitute mock charts, recommendations or progression.
 
 The reference-style **Your Plan** screen has **Roadmap**, **Goals** and
-**Certificates** tabs, a dark green background in dark mode, mint-green accents,
-and a vertical four-discipline training timeline. The shared theme provides a
-corresponding light palette; other screens retain their blue/slate theme.
-Timeline completion and dates derive only from logged drills on the viewed
-revision. Percentages describe the fraction of drills logged, not skill scores.
-No fake completed stages, arbitrary ordering restrictions or awards are added.
-The certificate node is explicitly locked pending a verified assessment.
+**Certificates** tabs, a dark slate background in dark mode, sky-blue accents,
+and a numbered five-step journey: Quick Setup, Baseline Check, AI Builds Your
+Plan, Weekly Self-Coaching Loop and Stage Progression. Tapping a step opens a
+focused detail view, not an expanded wall of content. Blue/slate cards, borders
+and blue actions apply to every roadmap subview, including goals and drills,
+through the shared theme's optional `plan` tone. The corresponding light palette
+retains readable contrast; other screens keep their blue/slate theme.
+Only profile readiness can mark setup complete; no video or skill completion is
+fabricated. The two-week plan preview is explicitly gated, the weekly loop
+illustrates Practice -> Record -> Review -> Adjust, and Foundation / Consistency /
+Execution / Match Ready remain a locked progression framework.
 
-Select a timeline discipline, then **View Recommended Drills** to open its focus,
-recommendations and practice forms. The back arrow returns to the compact timeline
-(or Home from the overview). Drill instructions open on demand with bold Equipment,
+**View Recommended Drills** opens existing provisional practice, with discipline
+tabs for focus, recommendations and practice forms. Percentages measure only
+logged assigned drills on the viewed revision, not skill scores. The header arrow
+and Android Back return from details to the compact overview (or Home via the
+overview's header arrow). Drill instructions open on demand with bold Equipment,
 Setup, Steps, Cues and Safety sections; unstructured instructions remain fully
 readable. Practice logging opens separately and unsaved drafts survive navigation
 between these views.

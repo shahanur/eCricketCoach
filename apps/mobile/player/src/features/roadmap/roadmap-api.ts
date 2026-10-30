@@ -19,6 +19,7 @@ const revisionSchema = z.object({
   snapshot: z.object({
     policyVersion: z.string(), provider: z.enum(["GEMINI", "OPENAI"]), model: z.string(),
     stage: z.literal("UNASSESSED"), baseline: z.literal("SELF_REPORTED"),
+    planKind: z.literal("PROVISIONAL_PRACTICE").optional(),
     evidence: z.array(z.object({ id: z.string(), source: z.string() }).passthrough()),
     recommendations: z.array(z.object({
       discipline: disciplineSchema, objective: z.string(), proposedStage: z.string().nullable(),
@@ -34,6 +35,13 @@ export const roadmapSchema = z.object({
     KEEPING: answerSchema.optional(), FIELDING: answerSchema.optional(),
   }),
   stage: z.literal("UNASSESSED"), baseline: z.literal("SELF_REPORTED"),
+  planKind: z.literal("PROVISIONAL_PRACTICE"),
+  journey: z.object({
+    nextStep: z.enum(["COMPLETE_PROFILE", "VIDEO_BASELINE"]),
+    videoBaseline: z.literal("UNAVAILABLE"),
+    personalRoadmap: z.literal("BLOCKED_PENDING_VERIFIED_VIDEO"),
+    progressReview: z.literal("UNAVAILABLE"),
+  }),
   milestoneEligibility: z.literal("BLOCKED_PENDING_VERIFIED_VIDEO_AND_APPROVED_RUBRIC"),
   policyVersion: z.string(), generating: z.boolean(), needsReassessment: z.boolean(),
   revisions: z.array(revisionSchema),
@@ -57,7 +65,7 @@ async function request(path: string, body?: unknown, signal?: AbortSignal) {
 
 export const getRoadmap = (signal?: AbortSignal) => request("", undefined, signal);
 export const saveRoadmapAnswers = (version: number, answers: RoadmapAnswers) => request("/answers", { version, answers });
-export const generateRoadmap = (version: number, requestId: string) => request("/generate", { version, requestId });
+export const generateRoadmap = (version: number, requestId: string) => request("/provisional/generate", { version, requestId });
 export const completeRoadmapDrill = (input: {
   requestId: string; revisionId: string; drillId: string; minutes: number; reflection: string;
 }) => request("/practice", input);

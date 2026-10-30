@@ -1,6 +1,7 @@
-import { fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "expo-router";
+import { BackHandler } from "react-native";
 
 import { ApiError } from "../../api/api-error";
 import { useSession } from "../../session/session-context";
@@ -22,6 +23,8 @@ jest.mock("./roadmap-api", () => ({
 const empty: PlayerRoadmap = {
   version: 0, profileVersion: 1, goals: ["Improve timing"], primaryDisciplines: ["BATTING"],
   answers: {}, stage: "UNASSESSED", baseline: "SELF_REPORTED",
+  planKind: "PROVISIONAL_PRACTICE",
+  journey: { nextStep: "VIDEO_BASELINE", videoBaseline: "UNAVAILABLE", personalRoadmap: "BLOCKED_PENDING_VERIFIED_VIDEO", progressReview: "UNAVAILABLE" },
   milestoneEligibility: "BLOCKED_PENDING_VERIFIED_VIDEO_AND_APPROVED_RUBRIC",
   policyVersion: "self-reported-evidence-v1", generating: false, needsReassessment: false,
   revisions: [], practice: [],
@@ -73,6 +76,103 @@ describe("personal roadmap", () => {
     return { screen, client };
   }
 
+  it("requires a video baseline without hiding existing provisional practice", async () => {
+    const { screen } = await setup(withPath);
+    expect(screen.getByText("Next step · Video baseline coming soon")).toBeTruthy();
+    expect(screen.getByText(/Practice suggestions are provisional/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "About video baseline" }));
+    expect(router.navigate).toHaveBeenLastCalledWith("/(app)/(tabs)/analyze");
+    await fireEvent.press(screen.getByRole("button", { name: "View Recommended Drills" }));
+    expect(screen.getByText("Balance drill")).toBeTruthy();
+  });
+
+  it("resumes an incomplete profile before the baseline step", async () => {
+    const { screen } = await setup({ ...empty, journey: { ...empty.journey, nextStep: "COMPLETE_PROFILE" } });
+    await fireEvent.press(screen.getByRole("button", { name: "Complete player profile" }));
+    expect(router.navigate).toHaveBeenLastCalledWith("/(app)/(tabs)/profile");
+    expect(screen.queryByRole("button", { name: "About video baseline" })).toBeNull();
+  });
+
+  it("opens each reference journey screen without starting video analysis or generation", async () => {
+    const { screen } = await setup(withPath);
+    for (const [label, heading] of [
+      ["1. Quick Setup · Profile saved", "A plan that starts with you"],
+      ["2. Baseline Check · Next step", "Find your starting point"],
+      ["3. AI Builds Your Plan", "Your next two weeks"],
+      ["4. Weekly Self-Coaching Loop", "A simple loop. Real commitment."],
+      ["5. Stage Progression", "Stage progression"],
+    ]) {
+      await fireEvent.press(screen.getByRole("button", { name: label }));
+      expect(screen.getByRole("header", { name: heading })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "1. Quick Setup · Profile saved" })).toBeNull();
+      await fireEvent.press(screen.getByRole("button", { name: "Back to roadmap" }));
+    }
+    expect(generateRoadmap).not.toHaveBeenCalled();
+    expect(completeRoadmapDrill).not.toHaveBeenCalled();
+  });
+
+  it("keeps the two-week plan as a preview and exposes only actual provisional practice", async () => {
+    const { screen } = await setup(withPath);
+    await fireEvent.press(screen.getByRole("button", { name: "3. AI Builds Your Plan" }));
+    expect(screen.getByText("PERSONAL PLAN · AWAITING VIDEO BASELINE")).toBeTruthy();
+    for (const title of ["Primary focus", "Secondary focus", "2-week goals", "Recommended drills", "Success metric"]) {
+      expect(screen.getByText(title)).toBeTruthy();
+    }
+    expect(screen.getByText(/No video-based plan or review date has been set yet/)).toBeTruthy();
+    expect(screen.getByText("AVAILABLE NOW · PROVISIONAL PRACTICE")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "View Recommended Drills" }));
+    expect(screen.getByRole("header", { name: "Your Drills" })).toBeTruthy();
+    expect(screen.getByText("Balance drill")).toBeTruthy();
+  });
+
+  it("uses the supplied baseline artwork without offering a fake playable analysis", async () => {
+    const { screen } = await setup(withPath);
+    await fireEvent.press(screen.getByRole("button", { name: "2. Baseline Check · Next step" }));
+    expect(screen.getByLabelText("Example cricket video setup, not your personal analysis")).toBeTruthy();
+    expect(screen.getByText("VIDEO BASELINE · COMING SOON")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Play|Upload|Record video/ })).toBeNull();
+    await fireEvent.press(screen.getByRole("button", { name: "Answer practice questions" }));
+    expect(screen.getByRole("tab", { name: "Goals", selected: true })).toBeTruthy();
+    expect(generateRoadmap).not.toHaveBeenCalled();
+  });
+
+  it("returns to the latest suggestions from the overview after viewing earlier practice", async () => {
+    const newest = {
+      ...withPath.revisions[0], id: "latest",
+      snapshot: { ...withPath.revisions[0].snapshot, recommendations: withPath.revisions[0].snapshot.recommendations.map(row => ({
+        ...row, drills: row.drills.map(drill => ({ ...drill, id: "new-drill", title: "Latest balance drill" })),
+      })) },
+    };
+    const { screen } = await setup({ ...withPath, revisions: [newest, withPath.revisions[0]] });
+    await fireEvent.press(screen.getByRole("tab", { name: "Goals" }));
+    await fireEvent.press(screen.getByRole("button", { name: "View history" }));
+    await fireEvent.press(screen.getByRole("button", { name: /Previous path/ }));
+    expect(screen.getByText("Balance drill")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "Back to roadmap" }));
+    await fireEvent.press(screen.getByRole("button", { name: "View Recommended Drills" }));
+    expect(screen.getByText("Latest balance drill")).toBeTruthy();
+    expect(screen.queryByText("Balance drill")).toBeNull();
+  });
+
+  it("takes Android Back to the overview from a journey detail", async () => {
+    let onBack: Parameters<typeof BackHandler.addEventListener>[1] | undefined;
+    const listener = jest.spyOn(BackHandler, "addEventListener").mockImplementation((_, handler) => {
+      onBack = handler;
+      return { remove: jest.fn() };
+    });
+    try {
+      const { screen } = await setup(withPath);
+      await fireEvent.press(screen.getByRole("button", { name: "4. Weekly Self-Coaching Loop" }));
+      expect(screen.getByLabelText("Practice, then record, then review, then adjust. Repeat the self-coaching loop.")).toBeTruthy();
+      expect(onBack).toBeDefined();
+      await act(async () => { expect(onBack?.({ type: "hardwareBackPress", timeStamp: Date.now() })).toBe(true); });
+      expect(screen.getByRole("header", { name: "Your Plan" })).toBeTruthy();
+      expect(router.navigate).not.toHaveBeenCalled();
+    } finally {
+      listener.mockRestore();
+    }
+  });
+
   it("shows loading without a sample path", async () => {
     jest.mocked(getRoadmap).mockImplementation(() => new Promise(() => undefined));
     const { screen } = await setupScreen();
@@ -104,7 +204,7 @@ describe("personal roadmap", () => {
     jest.mocked(generateRoadmap).mockRejectedValue(new ApiError("expired", "http", 401));
     const { screen } = await setupScreen();
     await waitFor(() => expect(screen.getByRole("button", { name: "View Recommended Drills" })).toBeTruthy());
-    await fireEvent.press(screen.getByRole("button", { name: "Reassess training path" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Refresh practice suggestions" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy());
     expect(screen.queryByText("Balance drill")).toBeNull();
   });
@@ -112,7 +212,7 @@ describe("personal roadmap", () => {
   it("does not invent a baseline, score, stage or certificate and validates all four answers", async () => {
     const { screen } = await setup(empty);
     expect(screen.queryByText("76%")).toBeNull();
-    expect(screen.getByRole("button", { name: "Prepare my training path", disabled: true })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Prepare practice suggestions" })).toBeNull();
     await fireEvent.press(screen.getByRole("tab", { name: "Certificates" }));
     expect(screen.getByText("Current stage: Not yet assessed")).toBeTruthy();
     await fireEvent.press(screen.getByRole("tab", { name: "Goals" }));
@@ -139,9 +239,9 @@ describe("personal roadmap", () => {
   it("generates a real path and reuses the request id when a request fails", async () => {
     jest.mocked(generateRoadmap).mockRejectedValue(new ApiError("private diagnostic", "network"));
     const { screen } = await setup(withAnswers);
-    await fireEvent.press(screen.getByRole("button", { name: "Prepare my training path" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Prepare practice suggestions" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
-    await fireEvent.press(screen.getByRole("button", { name: "Prepare my training path" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Prepare practice suggestions" }));
     await waitFor(() => expect(generateRoadmap).toHaveBeenCalledTimes(2));
     expect(jest.mocked(generateRoadmap).mock.calls[0]).toEqual(jest.mocked(generateRoadmap).mock.calls[1]);
     expect(screen.queryByText("private diagnostic")).toBeNull();
@@ -190,7 +290,7 @@ describe("personal roadmap", () => {
         { ...withPath.revisions[0], createdAt: "2026-10-28T19:00:00.000Z" },
       ],
     });
-    expect(screen.getByRole("button", { name: "Preparing your path...", disabled: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Preparing practice...", disabled: true })).toBeTruthy();
     await fireEvent.press(screen.getByRole("tab", { name: "Goals" }));
     await fireEvent.press(screen.getByRole("button", { name: "View history" }));
     await fireEvent.press(screen.getByRole("button", { name: /Previous path/ }));
@@ -202,10 +302,10 @@ describe("personal roadmap", () => {
   it("uses a fresh request after a profile change instead of replaying the previous path", async () => {
     jest.mocked(generateRoadmap).mockRejectedValue(new ApiError("network", "network"));
     const { screen, client, onChanged } = await setup(withAnswers);
-    await fireEvent.press(screen.getByRole("button", { name: "Prepare my training path" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Prepare practice suggestions" }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
     await screen.rerender(<QueryClientProvider client={client}><RoadmapContent roadmap={{ ...withAnswers, profileVersion: 2 }} onChanged={onChanged} /></QueryClientProvider>);
-    await fireEvent.press(screen.getByRole("button", { name: "Prepare my training path" }));
+    await fireEvent.press(screen.getByRole("button", { name: "Prepare practice suggestions" }));
     await waitFor(() => expect(generateRoadmap).toHaveBeenCalledTimes(2));
     expect(jest.mocked(generateRoadmap).mock.calls[0][1]).not.toBe(jest.mocked(generateRoadmap).mock.calls[1][1]);
   });
@@ -315,16 +415,22 @@ describe("personal roadmap", () => {
   it("uses the reference timeline without fabricating skill stages or completion percentages", async () => {
     const { screen } = await setup(withPath);
     expect(screen.getByRole("header", { name: "Your Plan" })).toBeTruthy();
-    expect(screen.getByText("Personalized roadmap for all disciplines.")).toBeTruthy();
+    expect(screen.getByText("Simple AI-guided self-coaching, built around you.")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Roadmap", selected: true })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Goals" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Certificates" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Batting training · Ready to practise", selected: true })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Bowling training · No drills available" })).toBeTruthy();
+    for (const title of ["Quick Setup", "Baseline Check", "AI Builds Your Plan", "Weekly Self-Coaching Loop", "Stage Progression"]) {
+      expect(screen.getByRole("button", { name: new RegExp(title) })).toBeTruthy();
+    }
     expect(screen.queryByText(/70%/)).toBeNull();
     expect(screen.queryByText("Balance drill")).toBeNull();
     expect(screen.queryByText("Improve batting consistency")).toBeNull();
-    await fireEvent.press(screen.getByRole("button", { name: "Certificate eligibility · Locked" }));
+    await fireEvent.press(screen.getByRole("button", { name: "5. Stage Progression" }));
+    expect(screen.getByText("Foundation")).toBeTruthy();
+    expect(screen.getByText("Consistency")).toBeTruthy();
+    expect(screen.getByText("Execution")).toBeTruthy();
+    expect(screen.getByText("Match Ready")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "View certificate eligibility" }));
     expect(screen.getByText("Locked · Not yet assessed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Download|Share certificate/ })).toBeNull();
   });
@@ -346,11 +452,12 @@ describe("personal roadmap", () => {
       }],
     };
     const { screen, client, onChanged } = await setup(data);
-    expect(screen.getByText("In progress · 50% of drills logged")).toBeTruthy();
+    await fireEvent.press(screen.getByRole("button", { name: "View Recommended Drills" }));
+    expect(screen.getByText("1 of 2 drills logged · 50%")).toBeTruthy();
     await screen.rerender(<QueryClientProvider client={client}><RoadmapContent roadmap={{
       ...data, practice: [...data.practice, { ...data.practice[0], id: "p2", drillId: "drill-2" }],
     }} onChanged={onChanged} /></QueryClientProvider>);
-    expect(screen.getByText(/Completed practice ·/)).toBeTruthy();
+    expect(screen.getByText("2 of 2 drills logged · 100%")).toBeTruthy();
     expect(screen.queryByText(/50%/)).toBeNull();
     await fireEvent.press(screen.getByRole("tab", { name: "Certificates" }));
     expect(screen.getByText("Locked · Not yet assessed")).toBeTruthy();
@@ -358,8 +465,8 @@ describe("personal roadmap", () => {
 
   it("opens the selected timeline discipline and returns to the compact overview", async () => {
     const { screen } = await setup(withPath);
-    await fireEvent.press(screen.getByRole("button", { name: "Bowling training · No drills available" }));
     await fireEvent.press(screen.getByRole("button", { name: "View Recommended Drills" }));
+    await fireEvent.press(screen.getByRole("tab", { name: "Bowling" }));
     expect(screen.getByRole("header", { name: "Your Drills" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Bowling", selected: true })).toBeTruthy();
     expect(screen.getByText("Improve bowling consistency")).toBeTruthy();

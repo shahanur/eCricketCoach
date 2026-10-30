@@ -16,7 +16,7 @@ describe("owner-scoped roadmap client", () => {
     await getRoadmap();
     expect(requestJson).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/player/roadmap", accessToken: "test-session", method: "GET" }));
     await generateRoadmap(3, "retry-key");
-    expect(requestJson).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/player/roadmap/generate", body: { version: 3, requestId: "retry-key" } }));
+    expect(requestJson).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/player/roadmap/provisional/generate", body: { version: 3, requestId: "retry-key" } }));
     const body = { requestId: "practice-key", revisionId: "r", drillId: "d", minutes: 10, reflection: "Timing" };
     await completeRoadmapDrill(body);
     expect(requestJson).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/api/player/roadmap/practice", body }));

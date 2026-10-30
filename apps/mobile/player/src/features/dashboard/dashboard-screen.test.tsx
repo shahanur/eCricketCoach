@@ -46,7 +46,7 @@ describe("reference player home", () => {
   it("includes the greeting, stage, focus and notification without quick actions", async () => {
     const screen = await render(content());
     expect(screen.getByText("Welcome back,\nAsha \uD83D\uDC4B")).toBeTruthy();
-    expect(screen.getByText("Keep practicing. You're on track\nto reach the next stage.")).toBeTruthy();
+    expect(screen.getByText("Build your game, one step at a time.")).toBeTruthy();
     expect(screen.getByText("Current Stage")).toBeTruthy();
     expect(screen.getByText("Developing Player")).toBeTruthy();
     expect(screen.getByRole("progressbar")).toHaveAccessibilityValue({ min: 0, max: 100, now: 72 });
@@ -74,6 +74,16 @@ describe("reference player home", () => {
       expect(router.navigate).toHaveBeenLastCalledWith(`/(app)/(tabs)/${route}`);
     }
     expect(router.navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it("routes completed profiles to the baseline explanation, never from a demo stage", async () => {
+    const screen = await render(content());
+    await fireEvent.press(screen.getByRole("button", { name: "About video baseline" }));
+    expect(router.navigate).toHaveBeenLastCalledWith("/(app)/(tabs)/analyze");
+    await screen.rerender(content({ profile: ready({ ...profile, goals: [] }) }));
+    await fireEvent.press(screen.getByRole("button", { name: "Complete player profile" }));
+    expect(router.navigate).toHaveBeenLastCalledWith("/(app)/(tabs)/profile");
+    expect(screen.queryByRole("button", { name: "About video baseline" })).toBeNull();
   });
 
   it("opens focus details without claiming a completed practice session", async () => {

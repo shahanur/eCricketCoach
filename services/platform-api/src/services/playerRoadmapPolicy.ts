@@ -1,6 +1,6 @@
 import { playerProfileOptions, PlayerProfileError } from './playerProfile.js';
 
-export const roadmapPolicyVersion = 'self-reported-evidence-v1';
+export const roadmapPolicyVersion = 'provisional-practice-v2';
 export const roadmapDisciplines = playerProfileOptions.disciplines;
 export type RoadmapDiscipline = typeof roadmapDisciplines[number];
 export type RoadmapAnswers = Record<RoadmapDiscipline, { focus: string; confidence: number }>;

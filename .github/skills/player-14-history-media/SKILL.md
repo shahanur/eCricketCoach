@@ -1,11 +1,13 @@
 ---
 name: player-14-history-media
-description: "Implement owner-scoped session/analysis history, playback, search, favorites, comments and deletion."
+description: "Implement owner-scoped player video history and review that preserves baseline and progress evidence provenance."
 disable-model-invocation: true
 ---
 Implement history and native media review.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), and [delivery guide](../../docs/features/individual-player/README.md). Prerequisite: 10 and persisted owner-scoped history contracts.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), and [delivery guide](../../../docs/features/individual-player/README.md). Prerequisite: 10 and persisted owner-scoped history contracts.
+
+Follow the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md). Preserve whether each item is self-reported practice, an incomplete analysis, or a completed verified video result; only the last may participate in a future baseline/comparison contract. Review history, comparison, and progress screens whenever evidence status or ownership rules change.
 
 - List/paginate previous sessions and analyses with meaningful supported search/filter/sort fields. Open session, delivery and analysis detail without fetching another player's records.
 - Reuse general owner-scoped video history where appropriate; do not assume club-only OpenAI reports or assessment history permit individual access.

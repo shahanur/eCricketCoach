@@ -1,11 +1,13 @@
 ---
 name: player-20-release-quality
-description: "Verify all individual-player plan promises and establish independent Android/iOS release pipelines."
+description: "Verify the complete player journey, verified video baseline and progress gates, and independent Android/iOS release pipelines."
 disable-model-invocation: true
 ---
 Validate and prepare independent releases of the individual-player app.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), and [delivery guide](../../docs/features/individual-player/README.md). Prerequisite: every feature enabled for the release has working, tested contracts. Do not mark missing modules complete.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), and [delivery guide](../../../docs/features/individual-player/README.md). Prerequisite: every feature enabled for the release has working, tested contracts. Do not mark missing modules complete.
+
+Use the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md) as the end-to-end release order: registration/individual plan/admin approval/login/dashboard -> profile -> completed verified owned-video baseline -> strengths/gaps -> personal roadmap/main focus/small goals -> self-practice -> later-video comparison -> goal and stage criteria -> eligible certificate -> updated roadmap. Baseline/comparison APIs and assessment rubrics are not implemented; keep these claims and dependent release checks blocked until real contracts and tests exist. Q&A-only paths remain provisional practice; preserve self-reported practice/history, and do not use mocks or a human-coach requirement to close gaps. Re-review release acceptance whenever baseline or progress evidence changes.
 
 - Build a traceable acceptance matrix covering every plan-image promise and each enabled functionality-reference addition. Confirm pending-approval, rejected, active, quota-exhausted, expired and cancelled-account behavior.
 - Run app type-check/lint, focused unit/component/integration suites and existing affected-service regressions. Add end-to-end coverage for registration -> checkout -> approval -> self profile -> practice -> upload/Drive -> real analysis -> progress/certificate.

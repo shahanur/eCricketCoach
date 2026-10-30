@@ -1,11 +1,13 @@
 ---
 name: player-12-biomechanics
-description: "Implement supported biomechanical video feedback, posture/balance scorecards and analysis-to-practice actions."
+description: "Implement supported player video strengths/gaps and baseline-to-progress comparison without inventing biometric scores."
 disable-model-invocation: true
 ---
 Implement biomechanical analysis results and kinematic scorecards.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), [delivery guide](../../docs/features/individual-player/README.md), and relevant [kinematics requirements](../../docs/kinematics-requirement.md). Prerequisite: 10 and verified analysis schemas.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), [delivery guide](../../../docs/features/individual-player/README.md), and relevant [kinematics requirements](../../../docs/kinematics-requirement.md). Prerequisite: 10 and verified analysis schemas.
+
+Use the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md). Derive strengths/gaps or later progress only from supported, completed, owner-scoped video results and approved, compatible discipline-specific criteria. Baseline comparison and rubrics are not implemented; do not infer them from Q&A, self-practice, or unapproved client formulas. Re-review this evidence gate whenever analysis metrics or progress views change.
 
 - Inspect actual supported engine outputs per discipline. Display batting/bowling/keeping/fielding analysis only where supported; explicitly gate missing engine capabilities rather than fabricate four-discipline video feedback.
 - Present summary, pose/phase/key-frame evidence, posture and balance metrics, units, technical observations, confidence/quality limitations and prioritized recommendations from versioned backend data.

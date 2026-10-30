@@ -36,20 +36,48 @@ contracts exist. Loading and failed dashboard requests are displayed explicitly.
 
 ## Development roadmap
 
-The Progress tab opens the personalized four-discipline roadmap using the shared
-platform API, not sample progress charts. Complete the baseline check-in, prepare
-an AI-guided path, view drill instructions, and record self-reported practice.
-Earlier paths and completion evidence remain saved when goals change or the
-player reassesses. Practice also links to this path.
+Follow the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey):
+registration and admin approval -> login -> profile -> verified video baseline ->
+personal roadmap and small goals -> recommended drills and self-practice ->
+progress video compared with baseline -> goal/stage criteria -> eligible
+certificate -> updated roadmap and next practice cycle.
 
-The Your Plan screen uses Roadmap, Goals and Certificates tabs with a green-accented
-vertical timeline. Select a discipline and tap View Recommended Drills to open
-its recommendations and practice forms; Back returns to the overview. Timeline
-progress measures logged practice only, not assessed skill. Goals contains the
-check-in and expandable history; Certificates explains the locked award state.
+Home guides incomplete profiles to disciplines, experience and goals, then to the
+video baseline explanation. Player video upload, analysis, comparison and assessed
+goal/stage/certificate decisions are not implemented yet. These steps are visibly
+gated, not replaced with sample results. Development sample stages never determine
+the next journey step.
+
+The Progress tab exposes the baseline gate and four-discipline **provisional
+practice** using the shared platform API. Complete a practice check-in, prepare
+AI practice suggestions, view drill instructions, and record self-reported practice.
+Q&A is not a video baseline and cannot create the personal roadmap.
+Earlier paths and completion evidence remain saved when goals change or the
+player refreshes suggestions. Practice also links to this journey.
+
+The reference-style Your Plan screen uses Roadmap, Goals and Certificates pills,
+blue/slate cards and blue controls, with a matching accessible light palette.
+Its compact numbered journey opens five separate views: Quick Setup, Baseline
+Check, AI Builds Your Plan, Weekly Self-Coaching Loop, and Stage Progression.
+Only the owned profile determines the highlighted next step; saved practice
+does not complete video/assessment steps. The two-week plan is an explicitly
+gated preview, not a fabricated schedule. The self-coaching loop illustrates
+Practice -> Record -> Review -> Adjust. Foundation, Consistency, Execution and
+Match Ready are a locked framework, not awarded stages.
+The baseline preview uses artwork cropped from the supplied roadmap reference,
+labelled as an example rather than a playable player analysis.
+
+View Recommended Drills opens existing provisional suggestions with discipline
+tabs and practice forms; the header arrow and Android Back return to the overview.
+Drill progress measures logged practice only, not assessed skill. Goals contains
+the check-in and expandable history; Certificates explains the locked award state.
 Instruction labels are bold and colour-coded, including a distinct Safety
 section. Draft check-ins and reflections stay intact while switching views.
-History shows five items at a time with Show more controls.
+History shows five items at a time with Show more controls. Existing self-report
+revisions remain readable as provisional practice; no data migration converts them
+to verified baselines. The app explicitly calls `/roadmap/provisional/generate`;
+the personal `/roadmap/generate` route rejects requests until verified baseline
+support is implemented.
 
 Stages remain unassessed and certificates unavailable until verified video and
 approved assessment criteria support them. The backend requires an active

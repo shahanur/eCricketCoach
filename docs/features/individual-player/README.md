@@ -2,11 +2,65 @@
 
 ## Purpose and architecture
 
-Create a separately maintained Android/iOS application in `apps/mobile/player` using **Expo + React Native + TypeScript**, sharing the existing backend microservices. These files are an implementation kit, not an implementation of the app.
+The separately maintained Android/iOS application in `apps/mobile/player` uses **Expo + React Native + TypeScript**, sharing the existing backend microservices. This guide defines the approved journey and distinguishes implemented features from gated delivery work.
 
 Expo is recommended for cross-platform native UI, TypeScript support, camera/media integrations, secure storage, and independent builds. Use development builds and supported native modules where required. Validate camera throughput, capture timing, video playback, and background transfers on real devices before committing to advanced capture features. Native modules may be needed; do not switch the whole app to a different framework without evidence and agreement.
 
 The existing Kotlin club/academy app lives in `apps/mobile/club/android`, separate from `apps/mobile/player`. Do not use the unrelated `mobile-app` directory as the new application root. The player app needs its own identifiers, configuration, navigation, dependencies, build/release pipeline, and assets. Backend reuse does not mean sharing privileged club UI or trusting role checks made only on the device.
+
+## Approved player journey
+
+The [supplied journey diagram](./mermaid-diagram.png) is the product flow. This
+section is the canonical interpretation for implementation, instructions and skills.
+
+1. **Register and activate:** new players sign up, select the Individual Player
+   plan and submit registration. System-admin approval precedes access; pending
+   applicants wait, then sign in after approval. Existing players sign in.
+   Production billing begins only after approval and verified purchase.
+2. **Complete the profile:** from Dashboard, choose disciplines, experience
+   preferences and goals, then save. Resume this step if any are missing.
+   Experience is self-reported, not an assessed stage. The legacy profile
+   `isComplete` field only checks disciplines; journey readiness additionally
+   requires an experience choice and at least one goal.
+3. **Establish a video baseline:** record/upload a cricket video, run owner-scoped
+   AI analysis and review supported strengths and areas to improve. Only a
+   successfully completed, quality-accepted, verified video analysis can become
+   baseline evidence; pending, failed, demo or self-reported data cannot.
+4. **Create the personal roadmap:** use that baseline to set a main focus and small
+   goals, then recommend drills across the player's disciplines. An existing
+   eligible roadmap resumes here rather than requiring another baseline.
+5. **Practise:** perform self-guided drills, log completion and reflection.
+   Logs record activity, not measured improvement or goal achievement.
+6. **Review progress:** when ready, submit a progress video linked to the owned
+   baseline. AI reanalysis compares compatible evidence and reports improvements
+   and remaining gaps. If not ready, continue practice.
+7. **Evaluate and adapt:** when server-approved goal criteria are met, mark the
+   goal achieved; otherwise adjust drills/goals. Advance stage only when its
+   versioned assessment criteria are met. Issue an eligible certificate
+   idempotently, update the roadmap, choose the next goal and repeat practice.
+
+**Approved implementation boundary:** a verified video baseline is required for
+the **personal roadmap**. Existing Q&A-generated revisions remain **provisional
+practice only**, including their saved history and completion evidence. They are
+not deleted or relabelled as verified video evidence. This is self-coaching;
+system-admin registration approval is not human-coach assessment approval.
+
+### Journey delivery status
+
+| Journey step | Implemented now | Still gated / missing |
+|---|---|---|
+| Registration, approval, login | Shared individual application, admin approval, player login and development entitlement | Applicant-scoped pending-status polling, production verified purchase/paid entitlement |
+| Profile and dashboard | Owned editable profile, disciplines/experience/goals, resume guidance before baseline | Assessed skill must not be inferred from preferences or demo stages |
+| Video baseline | Explicit unavailable state and server-side personal-roadmap gate | Owner-safe capture/upload, analysis job lifecycle, quality acceptance, media access and atomic five-video reservation/settlement |
+| Roadmap and practice | Four-discipline **provisional practice** AI recommendations, immutable revisions, check-ins, drill logs/history | Baseline-derived personal roadmap, structured main focus/small goals and goal evaluation |
+| Progress review | Explanation of the baseline/review loop | Owned baseline/review pairing, compatible AI comparisons, review readiness policy |
+| Goal, stage, certificate | Unassessed stage and locked awards, never advanced by drill counts | Versioned approved assessment rubrics, goal/stage evaluation and durable eligible awards |
+
+Unavailable steps are not implemented by borrowing club endpoints, accepting
+client verification flags or displaying successful mock output. The current
+`POST /api/player/roadmap/generate` explicitly rejects personal roadmap generation;
+`POST /api/player/roadmap/provisional/generate` is the opt-in self-report practice
+path. See [roadmap contracts](./roadmap.md) for precise DTOs and compatibility.
 
 ## Requirements and evidence
 
@@ -39,7 +93,7 @@ These are phased requirements, not claims that the current APIs or models implem
 
 ## Verified shared-service contract audit (2026-10-28)
 
-This is a source audit, not a claim that the individual-player app or its contracts are production-ready. Routes below are mounted by `services/platform-api/src/index.ts`. The later Player-03 outcome records the implemented development-only subscription contract; other proposed `/api/player/*` contracts remain unimplemented.
+This historical source audit is not a production-readiness claim. Routes below are mounted by `services/platform-api/src/index.ts`. Subsequent work implemented player access, profile, dashboard, development subscription and provisional practice contracts; the journey status above and [roadmap contract](./roadmap.md) supersede earlier blanket statements about missing player endpoints.
 
 ### Identity and approval trace
 
@@ -76,7 +130,7 @@ This is a source audit, not a claim that the individual-player app or its contra
 | Register, authenticate, checkout, pending approval, activate | Provider verification and active-user sessions exist; native Google unregistered users cannot continue in-app. Checkout is simulated, pending status is unavailable, activation is not durably linked to the provider subject, and no player app callback consumer exists. Blocked pending real billing and identity provisioning. |
 | One profile and dashboard | Owner-scoped self-profile read/update, idempotent initialization and single-profile uniqueness are implemented at `/api/player/profile`. Home composes self-profile, subscription and `/api/player/dashboard`. The dashboard returns explicit empty progress/focus, or labelled, owner-scoped development fixtures outside production; it is not a measured performance aggregate. Assessed progression, analysis history, awards and quota usage/reset remain unavailable. Self-reported roadmap practice is available separately. See the [app's dashboard and local seed guide](../../../apps/mobile/player/README.md#performance-dashboard-boundaries). |
 | Five AI uploads/month and analysis jobs | Upload/analysis primitives and CAPE job lifecycle exist, but no owner-safe general upload contract or unified allowance. Blocked on quota policy, atomic reservation, idempotency and refund/release semantics. |
-| Four-discipline roadmap, goals and reassessment | Owner-scoped Q&A, AI-guided paths, immutable revisions and reassessment are implemented at `/api/player/roadmap`. Stages remain unassessed pending verified video and approved rubrics. See [implemented roadmap contracts](./roadmap.md). |
+| Four-discipline roadmap, goals and reassessment | Owner-scoped Q&A, provisional practice suggestions, immutable revisions and refresh are implemented at `/api/player/roadmap`. The personal roadmap requires a verified video baseline; stages remain unassessed pending approved rubrics. See [implemented roadmap contracts](./roadmap.md). |
 | Solo drills and practice history | Roadmap drill snapshots and idempotent self-reported completions reuse public individual drills. Standalone practice sessions, full history paging and richer drill exploration remain separate module work. See [roadmap practice evidence](./roadmap.md). |
 | Biomechanics, scorecards, pitch maps, delivery tagging and calibration | Kinematics/CAPE primitives exist with partial supported metrics; not all are persisted, validated, owner-scoped, or supported across four disciplines. Gate unsupported outputs; pitch-map and delivery semantics/algorithms require evidence and approval. |
 | Drive connect, history, playback, favorites, comments and offline sync | User-scoped Drive primitives and capped video histories exist. Sync policy, full paging, favorites/comments, durable offline mutation semantics for a self profile, and signed short-lived media access are missing. |
@@ -117,7 +171,7 @@ No Prisma migration or server change is included in this audit. Before implement
 | Five-action window and settlement | Decision (2026-10-28): the five-use window follows subscription billing-period timestamps; failed/cancelled analyses release reservations and successful analyses consume one. A new reanalysis consumes another use; retries of the same request must not. Atomic reservation and settlement, idempotency conflicts, and crash recovery still need implementation/testing in the analysis module. | Analysis acceptance or usage UI; a development subscription alone does not enable these paths. |
 | Youth / guardian consent, privacy and retention | Reference requires private-by-default media; age bands, guardian authorization, sharing, retention, deletion, and regions are unspecified. | Production onboarding, capture, upload, analytics or sharing. |
 | Drive sync scope | Existing routes explicitly list/upload files, but no policy defines opt-in selection, automatic/background sync, conflict, deletion or original retention. | Any automatic or background sync. |
-| Individual report entitlement and progression | Existing OpenAI/CAPE/assessment reporting is club-oriented; no validated four-discipline roadmap, score/milestone threshold or self-report entitlement is established. | Enabling reports, recommendations, milestones or certificates for an individual. |
+| Individual report entitlement and progression | Provisional four-discipline practice recommendations are implemented behind active individual entitlement. Verified player video reporting, personal roadmap baseline, and goal/stage/certificate rubrics remain unavailable. | Enabling assessed roadmaps, reports, milestones or certificates for an individual. |
 | iOS/app identity and callback provisioning | Existing shared OAuth supports a fixed custom-scheme return target; there is no player app, iOS callback handler, bundle identifier, universal-link domain, or store configuration in this repository. | Native OAuth/store provisioning and release. |
 
 ### Player-03 outcome (2026-10-28)
@@ -160,50 +214,55 @@ Never invent an existing `/api/player/*` endpoint. Proposed contracts may use an
 2. The approved-player self profile is now durably tied to the existing individual tenant and its matching verified session email, without adding club-management permissions. Define secure pending/rejected approval status, resubmission, sign-in after activation, cancellation and entitlement-expiry behavior. Do not query admin approval listings from a pending player's app.
 3. Implement approved after-approval billing with the selected real provider; specify pending cancellation and rejection behavior. Development approval only grants the explicitly gated month described above, not a verified payment.
 4. Implement subscription-period quota accounting and the approved release/retry/reanalysis rules above. Finalize concurrent reservation, job recovery, Drive imports, and retention. The five-upload allowance is for AI analysis, not an arbitrary limit on local recordings or browsing.
-5. Define progression evidence, four-discipline roadmap generation, reassessment, certificate thresholds and any human review. Keep advanced metrics gated until validated.
+5. Implement the approved video-baseline-first, self-coaching journey. Define versioned goal/stage criteria, compatible baseline-to-progress comparisons and certificate eligibility; no mandatory human-coach approval. Keep advanced metrics gated until validated.
 6. Define youth age bands, guardian consent, privacy/retention, deletion, regional obligations and public-sharing defaults. Do not assume every aspiring youth player can consent alone.
 7. Define Drive sync direction, deletion/conflict behavior, opt-in and background support. Never silently upload all device media or delete originals.
 8. Define the minimum supported Android/iOS versions and approved bundle IDs, URL scheme, universal-link domain, store accounts, push and crash-reporting providers.
 
 Only pause the module that depends on an unresolved decision. Record the blocker explicitly; do not choose a security, billing or product rule silently.
 
-## Implementation order and module prompts
+## Implementation order and module skills
 
-Run prompts from the workspace chat using their `/player-...` names. Each prompt links the common instructions and this guide. Dependencies refer to working, tested contracts/modules, not merely to having run a prompt.
+Use the existing player skills below with the common instructions and this guide.
+Module numbers identify skills, not journey order: baseline analysis (08/10/12)
+must precede the personal roadmap (06). Dependencies refer to working, tested
+contracts, not merely to having invoked a skill. Provisional practice can remain
+available before baseline analysis without satisfying personal-roadmap prerequisites.
 
-| Phase | Prompt/module | Prerequisites |
+| Phase | Skill/module | Prerequisites |
 |---|---|---|
-| 0 | [00 Contract and gap audit](../../../.github/prompts/player-00-contract-audit.prompt.md) | None |
-| 1 | [01 App foundation](../../../.github/prompts/player-01-foundation.prompt.md) | 00 architecture/contract decisions |
-| 1 | [02 Authentication and registration](../../../.github/prompts/player-02-auth-registration.prompt.md) | 00, 01; secure pending/approval contract |
-| 1 | [03 Subscription and quota](../../../.github/prompts/player-03-subscription-quota.prompt.md) | 00, 01, 02; payment/product decisions |
-| 1 | [04 Self player profile](../../../.github/prompts/player-04-profile.prompt.md) | 01, 02; self-profile API |
-| 1 | [05 Performance dashboard](../../../.github/prompts/player-05-dashboard.prompt.md) | 03, 04; dashboard contract |
-| 2 | [06 Personalized roadmap](../../../.github/prompts/player-06-roadmap.prompt.md) | 04; roadmap and milestone contracts |
-| 2 | [07 Solo practice and drills](../../../.github/prompts/player-07-solo-practice.prompt.md) | 06; content/practice contracts |
-| 2 | [08 Capture and calibration](../../../.github/prompts/player-08-capture-calibration.prompt.md) | 01, 04; device feasibility and session contract |
-| 2 | [09 Deliveries and participant tagging](../../../.github/prompts/player-09-delivery-tagging.prompt.md) | 08; delivery metadata contract |
-| 2 | [10 Analysis uploads and jobs](../../../.github/prompts/player-10-analysis-upload.prompt.md) | 03, 04, 08; owner-safe jobs |
-| 2 | [11 Google Drive](../../../.github/prompts/player-11-google-drive.prompt.md) | 02, 10; mobile OAuth/sync policy |
-| 2 | [12 Biomechanics and scorecards](../../../.github/prompts/player-12-biomechanics.prompt.md) | 10; supported analysis schema |
-| 3 | [13 Pitch maps and delivery analytics](../../../.github/prompts/player-13-pitch-analytics.prompt.md) | 09, 10; validated metric/calibration outputs |
-| 2 | [14 History and media review](../../../.github/prompts/player-14-history-media.prompt.md) | 10; owner-scoped persisted history |
-| 2 | [15 Progression certificates](../../../.github/prompts/player-15-certificates.prompt.md) | 06, 07; milestone award contract |
-| 3 | [16 Sharing, export and links](../../../.github/prompts/player-16-sharing-links.prompt.md) | 12, 14; consent and share/export APIs |
-| 3 | [17 Notifications](../../../.github/prompts/player-17-notifications.prompt.md) | 02; player event/inbox/push APIs |
-| 2 | [18 Settings, privacy and biometrics](../../../.github/prompts/player-18-settings-privacy.prompt.md) | 02, 04; privacy/account APIs |
-| Cross-cutting | [19 Offline and synchronization](../../../.github/prompts/player-19-offline-sync.prompt.md) | 01, 02 and contracts for each synchronized module |
-| Release | [20 Verification and independent releases](../../../.github/prompts/player-20-release-quality.prompt.md) | All enabled modules; platform/store accounts |
+| 0 | [00 Contract and gap audit](../../../.github/skills/player-00-contract-audit/SKILL.md) | None |
+| 1 | [01 App foundation](../../../.github/skills/player-01-foundation/SKILL.md) | 00 architecture/contract decisions |
+| 1 | [02 Authentication and registration](../../../.github/skills/player-02-auth-registration/SKILL.md) | 00, 01; secure pending/approval contract |
+| 1 | [03 Subscription and quota](../../../.github/skills/player-03-subscription-quota/SKILL.md) | 00, 01, 02; payment/product decisions |
+| 1 | [04 Self player profile](../../../.github/skills/player-04-profile/SKILL.md) | 01, 02; self-profile API |
+| 1 | [05 Performance dashboard](../../../.github/skills/player-05-dashboard/SKILL.md) | 03, 04; trusted journey next step |
+| 2 | [06 Personalized roadmap](../../../.github/skills/player-06-roadmap/SKILL.md) | 04, 10, 12; verified baseline, strengths/gaps, roadmap/goal contracts |
+| 2 | [07 Solo practice and drills](../../../.github/skills/player-07-solo-practice/SKILL.md) | 06; content/practice contracts; provisional practice explicitly separate |
+| 2 | [08 Capture and calibration](../../../.github/skills/player-08-capture-calibration/SKILL.md) | 01, 04; device feasibility and session contract |
+| 2 | [09 Deliveries and participant tagging](../../../.github/skills/player-09-delivery-tagging/SKILL.md) | 08; delivery metadata contract |
+| 2 | [10 Analysis uploads and jobs](../../../.github/skills/player-10-analysis-upload/SKILL.md) | 03, 04, 08; owned baseline/review jobs, quota |
+| 2 | [11 Google Drive](../../../.github/skills/player-11-google-drive/SKILL.md) | 02, 10; mobile OAuth/sync policy |
+| 2 | [12 Biomechanics and scorecards](../../../.github/skills/player-12-biomechanics/SKILL.md) | 10; supported baseline/compatible review schema |
+| 3 | [13 Pitch maps and delivery analytics](../../../.github/skills/player-13-pitch-analytics/SKILL.md) | 09, 10; validated metric/calibration outputs |
+| 2 | [14 History and media review](../../../.github/skills/player-14-history-media/SKILL.md) | 10; owner-scoped baseline/review history |
+| 2 | [15 Progression certificates](../../../.github/skills/player-15-certificates/SKILL.md) | 06, 07, 10, 12, 14; verified comparisons, approved goal/stage criteria and award contract |
+| 3 | [16 Sharing, export and links](../../../.github/skills/player-16-sharing-links/SKILL.md) | 12, 14; consent and share/export APIs |
+| 3 | [17 Notifications](../../../.github/skills/player-17-notifications/SKILL.md) | 02; player event/inbox/push APIs |
+| 2 | [18 Settings, privacy and biometrics](../../../.github/skills/player-18-settings-privacy/SKILL.md) | 02, 04; privacy/account APIs |
+| Cross-cutting | [19 Offline and synchronization](../../../.github/skills/player-19-offline-sync/SKILL.md) | 01, 02 and contracts for each synchronized module |
+| Release | [20 Verification and independent releases](../../../.github/skills/player-20-release-quality/SKILL.md) | All enabled modules and full baseline/practice/review loop; platform/store accounts |
 
 Phase 1 establishes identity and paid/approved access. Phase 2 delivers the individual-plan core before optional advanced session analytics. Phase 3 adds reference-app features only where contracts are supported. Offline foundations and tests must be introduced with each dependent module, not deferred wholesale to the end.
 
 ## Player-06 evidence-gated roadmap (2026-10-29)
 
-The owner-scoped four-discipline roadmap APIs, Q&A, server-side AI recommendation
-workflow, revision history and idempotent self-practice evidence are implemented.
+The owner-scoped four-discipline provisional practice APIs, Q&A, server-side AI
+recommendation workflow, revision history and idempotent self-practice evidence
+are implemented. These are not the baseline-derived personal roadmap.
 See [roadmap contracts, approved rules and verification](./roadmap.md). The mobile
 Progress tab now uses these real contracts instead of the reference sample chart.
-Assessed stages and certificates remain blocked pending video verification and
+Personal roadmap generation, assessed stages and certificates remain blocked pending video verification and
 approved discipline rubrics. The local Docker API and its additive roadmap
 migration were deployed with user approval and verified on Android. Other
 environments still require the migration and updated API image.

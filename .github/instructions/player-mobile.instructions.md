@@ -12,6 +12,20 @@ applyTo: "apps/mobile/player/**"
 - Use the existing backend microservices through centralized, typed HTTP clients. Never import backend code, Prisma, Kotlin UI, or service credentials into the mobile bundle.
 - Follow [the player delivery guide](../../docs/features/individual-player/README.md) for scope, dependencies, product decisions, and backend gaps. Older native-Android implementation prompts target the club app, not this application.
 
+## Approved player journey and progress evidence
+
+Follow the [approved player journey](../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../docs/features/individual-player/roadmap.md) as the canonical sequence:
+
+1. Register for the individual plan, wait for system-admin approval, then sign in to the player dashboard.
+2. Complete the self profile with disciplines, experience, preferences, and goals.
+3. Establish a baseline only from a completed, verified, owner-scoped video analysis.
+4. Derive strengths and gaps from supported baseline results, then create the personal roadmap with a main focus and small goals.
+5. Self-practice and retain practice/history as self-reported evidence.
+6. Compare later completed, verified, owner-scoped video with a compatible baseline; assess progress against approved goal criteria, then stage criteria.
+7. Issue an eligible certificate only after the stage criteria are met, and update the roadmap.
+
+The verified-video baseline, baseline comparison, and assessment rubrics are not implemented. Keep dependent steps unavailable until their APIs, supported metrics, ownership checks, and discipline-specific criteria exist and are tested. Do not invent results, treat capture/upload as a completed baseline, or substitute a human coach. Existing Q&A-only paths may guide provisional practice, but are never a verified baseline or a personal assessed roadmap. Preserve self-reported practice and history without upgrading them into verified skill evidence.
+
 ## Implementation rules
 
 - Separate routes/screens, reusable UI, feature logic, API adapters/DTOs, and platform integrations. Keep business logic out of rendering components.
@@ -32,6 +46,7 @@ applyTo: "apps/mobile/player/**"
 - Request camera, microphone, media, notifications, and biometrics only when needed. Do not add contacts or location permissions based only on the reference app's manifest.
 - Respect platform limits on capture, uploads, background execution, and iOS suspension. Describe supported behavior; never promise uninterrupted background recording.
 - Do not fabricate speed/spin/swing, pitch maps, scores, recommendations, milestones, or medical conclusions. Require supported, versioned analysis outputs with units, provenance, confidence/quality, and unavailable states.
+- Recheck the approved journey whenever changing onboarding/dashboard sequencing, profile inputs, baseline capture or analysis, roadmap/progress comparisons, practice evidence, goal or stage criteria, or certificate eligibility. Keep API gaps explicit rather than presenting a provisional Q&A/practice path as assessed progress.
 - Protect youth users: gate unresolved age/guardian-consent, retention, privacy, and sharing requirements before production release; default media and progress to private.
 
 ## Production quality

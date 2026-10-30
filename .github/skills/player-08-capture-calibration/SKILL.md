@@ -1,11 +1,13 @@
 ---
 name: player-08-capture-calibration
-description: "Implement native video recording, capture setup, camera guidance and supported calibration."
+description: "Implement player video capture for a completed, owner-scoped baseline or progress comparison, plus camera guidance and supported calibration."
 disable-model-invocation: true
 ---
 Implement player video capture and calibration guidance.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), and [delivery guide](../../docs/features/individual-player/README.md). Prerequisites: 01, 04 and capture/session contract decisions.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), and [delivery guide](../../../docs/features/individual-player/README.md). Prerequisites: 01, 04 and capture/session contract decisions.
+
+Use the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey) and [roadmap contract](../../../docs/features/individual-player/roadmap.md). Capturing or uploading a clip alone is not a verified, completed baseline; the server must return a supported, completed result owned by the authenticated player. Baseline APIs and rubrics are not implemented, so gate baseline claims and re-review capture/result handoff whenever that contract changes.
 
 - Validate Expo-compatible camera/media/sensor modules on real Android and iOS devices, using development builds where needed. Agree supported capture resolution/frame rate/duration, device OS baseline and storage limits.
 - Support relevant tripod/bowler/machine/umpire-camera setups, camera-position guidance, visible stumps, portrait/orientation and steadiness checks. Adapt guidance by discipline rather than forcing pitch calibration on every fielding/keeping drill.

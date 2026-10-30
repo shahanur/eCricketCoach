@@ -57,4 +57,29 @@ describe("system appearance", () => {
       expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it.each(["light", "dark"] as const)("keeps %s roadmap surfaces and controls on the blue/slate palette", async mode => {
+    jest.spyOn(ReactNative, "useColorScheme").mockReturnValue(mode);
+    const hook = await renderHook(() => useAppTheme("plan"));
+    const colors = hook.result.current.colors;
+    const palette = colorSchemes[mode];
+    expect(colors.surface).toBe(palette.planSurface);
+    expect(colors.background).toBe(palette.planBackground);
+    expect(colors.accent).toBe(palette.planAccent);
+    expect(colors.accent).toBe(palette.accent);
+    expect(colors.background).toBe(palette.background);
+    expect(colors.surface).toBe(palette.surface);
+    expect(colors.border).toBe(palette.border);
+    const screen = await render(<PlayerCard tone="plan" title="Your plan"><AppButton tone="plan">View drills</AppButton></PlayerCard>);
+    expect(screen.getByRole("button", { name: "View drills" })).toHaveStyle({ backgroundColor: palette.planAccent });
+    expect(screen.getByText("View drills")).toHaveStyle({ color: palette.onPlanAccent });
+    for (const [foreground, background] of [
+      [colors.text, colors.surface], [colors.mutedText, colors.surface],
+      [colors.primary, colors.surface], [colors.onAccent, colors.accent],
+      [colors.purple, colors.surface], [colors.gold, colors.surface],
+    ]) {
+      expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+    }
+    expect((await renderHook(() => useAppTheme())).result.current.colors).toBe(palette);
+  });
 });

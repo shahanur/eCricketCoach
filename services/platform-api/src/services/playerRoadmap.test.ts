@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 
 import { playerProfileRouter } from '../routes/playerProfile.js';
 import { PlayerProfileError, updatePlayerProfile } from './playerProfile.js';
-import { completeRoadmapDrill, generatePlayerRoadmap, getPlayerRoadmap, saveRoadmapAnswers } from './playerRoadmap.js';
+import { completeRoadmapDrill, generateProvisionalPractice as generatePlayerRoadmap, generatePlayerRoadmap as generatePersonalRoadmap, getPlayerRoadmap, saveRoadmapAnswers } from './playerRoadmap.js';
 import { roadmapDisciplines, validateAnswers, validateRecommendations } from './playerRoadmapPolicy.js';
 import { GeminiVideoAnalysisService } from './geminiVideoAnalysisService.js';
 
@@ -72,7 +72,7 @@ test('all roadmap HTTP surfaces reject missing, expired and wrong-persona sessio
   assert.ok(address && typeof address !== 'string');
   const claims = { userId: 'u', tenantId: 't', role: 'PLAYER', email: 'player@example.test' };
   const secret = process.env.JWT_SECRET || 'dev_jwt_secret_change_in_production';
-  for (const [path, method] of [['', 'GET'], ['/answers', 'POST'], ['/generate', 'POST'], ['/practice', 'POST']]) {
+  for (const [path, method] of [['', 'GET'], ['/answers', 'POST'], ['/generate', 'POST'], ['/provisional/generate', 'POST'], ['/practice', 'POST']]) {
     const url: string = `http://127.0.0.1:${address.port}/api/player/roadmap${path}`;
     assert.equal((await fetch(url, { method })).status, 401);
     for (const [token, expected] of [
@@ -132,6 +132,11 @@ test('roadmaps persist private revisions and evidence without duplicate advancem
   const otherOwner = { ...owner, tenantId: `${tenantId}-other`, email: `other-${email}` };
   const initial = await getPlayerRoadmap(owner, client);
   assert.equal(initial.stage, 'UNASSESSED');
+  assert.equal(initial.planKind, 'PROVISIONAL_PRACTICE');
+  assert.equal(initial.journey.nextStep, 'COMPLETE_PROFILE');
+  assert.equal(initial.journey.videoBaseline, 'UNAVAILABLE');
+  await assert.rejects(generatePersonalRoadmap(owner, { version: 0, requestId: 'personal' }, client), code('ROADMAP_VIDEO_BASELINE_REQUIRED'));
+  await assert.rejects(generatePersonalRoadmap(owner, { version: 0, requestId: 'spoof', baseline: 'VERIFIED' }, client), code('INVALID_ROADMAP_INPUT'));
   assert.equal(initial.revisions.length, 0);
   assert.deepEqual(initial.answers, {});
   await assert.rejects(getPlayerRoadmap({ ...owner, email: 'other@example.test' }, client), code('INDIVIDUAL_PLAYER_REQUIRED'));
@@ -189,6 +194,9 @@ test('roadmaps persist private revisions and evidence without duplicate advancem
   roadmap = await getPlayerRoadmap(owner, client);
   assert.equal(roadmap.needsReassessment, true);
   assert.equal(roadmap.revisions.length, 2);
+  assert.equal(roadmap.journey.nextStep, 'VIDEO_BASELINE');
+  assert.equal(roadmap.journey.personalRoadmap, 'BLOCKED_PENDING_VERIFIED_VIDEO');
+  await assert.rejects(generatePersonalRoadmap(owner, { version: 2, requestId: 'after-practice' }, client), code('ROADMAP_VIDEO_BASELINE_REQUIRED'));
   await assert.rejects(generatePlayerRoadmap(owner, { version: 2, requestId: 'bad-ai' }, client, async () => ({ data: [], model: 'test', provider: 'OPENAI' })), code('INVALID_ROADMAP_AI'));
   assert.equal((await getPlayerRoadmap(owner, client)).generating, false);
   // Evidence changes during generation must not publish a stale path.

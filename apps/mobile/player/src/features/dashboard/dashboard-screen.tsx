@@ -84,6 +84,7 @@ export function DashboardContent({
   const [detail, setDetail] = useState<"notifications" | "focus" | null>(null);
   const [readNotification, setReadNotification] = useState<string | null>(null);
   const player = snapshot(profile)?.data;
+  const profileReady = !!player?.primaryDisciplines.length && player.experienceLevel !== "NOT_SET" && !!player.goals.length;
   const dashboard = snapshot(overview)?.data;
   const notification = dashboard?.notification;
   const unread = !!notification && readNotification !== notification;
@@ -123,11 +124,22 @@ export function DashboardContent({
         Welcome back,{player ? `\n${player.displayName.split(/\s+/)[0]} \uD83D\uDC4B` : ""}
       </Text>
       {profile.status === "loading" ? <Text style={[styles.body, { color: colors.mutedText }]}>Loading your profile...</Text> : null}
-      <Text style={[styles.body, { color: colors.text }]}>Keep practicing. You&apos;re on track{"\n"}to reach the next stage.</Text>
+      <Text style={[styles.body, { color: colors.text }]}>Build your game, one step at a time.</Text>
     </View>
     <SectionNotice section={profile} label="your player profile" onRetry={onRefreshProfile} />
     <SectionNotice section={overview} label="your dashboard" onRetry={onRefreshOverview} />
     <SectionNotice section={subscription} label="your plan" onRetry={onRefreshSubscription} />
+    {profile.status === "ready" ? <View style={[styles.stageCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={styles.stageDetails}>
+        <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>{profileReady ? "Next: your video baseline" : "First: your player profile"}</Text>
+        <Text style={[styles.body, { color: colors.mutedText }]}>{profileReady
+          ? "Your personal roadmap starts with verified video strengths and areas to improve. Video analysis is not available yet; provisional practice is still available."
+          : "Choose your disciplines, experience level and goals to begin your journey."}</Text>
+        <AppButton variant="secondary" onPress={() => router.navigate(profileReady ? "/(app)/(tabs)/analyze" : "/(app)/(tabs)/profile")}>
+          {profileReady ? "About video baseline" : "Complete player profile"}
+        </AppButton>
+      </View>
+    </View> : null}
     {dashboard?.source === "DEVELOPMENT_SEED" ? <Text
       style={[styles.demoLabel, { color: colors.mutedText }]}
     >Demo data · Sample stage and training focus</Text> : null}

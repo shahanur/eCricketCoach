@@ -1,11 +1,13 @@
 ---
 name: player-02-auth-registration
-description: "Implement individual-player social sign-in (Google, Microsoft, Apple), verified registration, pending approval and session lifecycle."
+description: "Implement individual-player registration, individual plan approval, social sign-in (Google, Microsoft, Apple), and the approved journey to dashboard."
 disable-model-invocation: true
 ---
 Implement player authentication and registration using the club/academy journey's existing backend semantics, not its organization-specific UI.
 
-Read [player instructions](../instructions/player-mobile.instructions.md), [API instructions](../instructions/player-api.instructions.md), [delivery guide](../../docs/features/individual-player/README.md), and [registration workflow](../../docs/auth-and-registration-workflow.md). Prerequisites: 00 and 01. Coordinate checkout with module 03.
+Read [player instructions](../../instructions/player-mobile.instructions.md), [API instructions](../../instructions/player-api.instructions.md), [delivery guide](../../../docs/features/individual-player/README.md), and [registration workflow](../../../docs/auth-and-registration-workflow.md). Prerequisites: 00 and 01. Coordinate checkout with module 03.
+
+Follow the [approved player journey](../../../docs/features/individual-player/README.md#approved-player-journey): individual-plan registration -> system-admin approval -> player login -> dashboard -> profile setup. Approval must not skip the profile or make a Q&A-only path appear to be a verified video baseline or assessed roadmap.
 
 ## Sign-in: social login with Google, Microsoft and Apple
 
